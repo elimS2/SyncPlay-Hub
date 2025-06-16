@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Play History</title>
+  <style>
+    body{font-family:Arial, sans-serif;background:#111;color:#eee;margin:20px;}
+    h1{margin-bottom:20px;}
+    table{width:100%;border-collapse:collapse;}
+    th,td{padding:6px 8px;border:1px solid #444;font-size:14px;}
+    th{background:#222;}
+    tr:nth-child(even){background:#1a1a1a;}
+    a{color:#61dafb;text-decoration:none;}
+  </style>
+</head>
+<body>
+  <h1>Play History</h1>
+  <p>
+    <a href="/">← Back to playlists</a>
+    {% if page > 1 %}
+      | <a href="/history?page={{ page - 1 }}">« Prev</a>
+    {% endif %}
+    {% if has_next %}
+      | <a href="/history?page={{ page + 1 }}">Next »</a>
+    {% endif %}
+  </p>
+  <table>
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Video ID</th>
+        <th>Title</th>
+        <th>Event</th>
+        <th>Timestamp</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for h in history %}
+        <tr>
+          <td>{{ loop.index }}</td>
+          <td><a href="https://youtu.be/{{ h['video_id'] }}" target="_blank">{{ h['video_id'] }}</a></td>
+          <td>{{ h['name'] or '-' }}</td>
+          <td>{{ h['event'] }}</td>
+          <td>{{ h['ts'] }}</td>
+        </tr>
+      {% else %}
+        <tr><td colspan="5">No history yet.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</body>
+</html> 

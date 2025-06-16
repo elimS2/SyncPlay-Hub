@@ -40,7 +40,9 @@ def _ensure_schema(conn: sqlite3.Connection):
             resolution TEXT,
             filetype TEXT,
             play_starts INTEGER DEFAULT 0,
-            play_finishes INTEGER DEFAULT 0
+            play_finishes INTEGER DEFAULT 0,
+            last_start_ts TEXT,
+            last_finish_ts TEXT
         );
 
         CREATE TABLE IF NOT EXISTS track_playlists (
@@ -50,6 +52,13 @@ def _ensure_schema(conn: sqlite3.Connection):
             FOREIGN KEY (track_id) REFERENCES tracks(id) ON DELETE CASCADE,
             FOREIGN KEY (playlist_id) REFERENCES playlists(id) ON DELETE CASCADE
         );
+
+        CREATE TABLE IF NOT EXISTS play_history (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            video_id TEXT NOT NULL,
+            event TEXT NOT NULL CHECK(event IN ('start','finish')),
+            ts TEXT DEFAULT (datetime('now'))
+        );
         """
     )
     conn.commit()
@@ -57,9 +66,13 @@ def _ensure_schema(conn: sqlite3.Connection):
     # ---- ensure new columns exist when upgrading older DB ----
     cur.execute("PRAGMA table_info(tracks)")
     cols = {row[1] for row in cur.fetchall()}
-    for col in ("play_starts", "play_finishes"):
+    for col in ("play_starts", "play_finishes", "last_start_ts", "last_finish_ts"):
         if col not in cols:
-            cur.execute(f"ALTER TABLE tracks ADD COLUMN {col} INTEGER DEFAULT 0")
+            cur.execute(f"ALTER TABLE tracks ADD COLUMN {col} TEXT")
+    conn.commit()
+
+    # ensure history table exists (for upgrades before)
+    cur.execute("CREATE TABLE IF NOT EXISTS play_history (id INTEGER PRIMARY KEY AUTOINCREMENT, video_id TEXT NOT NULL, event TEXT NOT NULL CHECK(event IN ('start','finish')), ts TEXT DEFAULT (datetime('now')))")
     conn.commit()
 
 
@@ -137,9 +150,39 @@ def increment_play(conn: sqlite3.Connection, video_id: str, *, started: bool = F
     set_parts = []
     if started:
         set_parts.append("play_starts = play_starts + 1")
+        set_parts.append("last_start_ts = datetime('now')")
     if finished:
         set_parts.append("play_finishes = play_finishes + 1")
+        set_parts.append("last_finish_ts = datetime('now')")
     if not set_parts:
         return
     cur.execute(f"UPDATE tracks SET {', '.join(set_parts)} WHERE video_id = ?", (video_id,))
-    conn.commit() 
+    conn.commit()
+
+    # log history
+    ev = "start" if started else ("finish" if finished else None)
+    if ev:
+        conn.execute("INSERT INTO play_history (video_id, event) VALUES (?, ?)", (video_id, ev))
+        conn.commit()
+
+
+def iter_history(conn: sqlite3.Connection, limit: int = 500):
+    for row in conn.execute("SELECT * FROM play_history ORDER BY id DESC LIMIT ?", (limit,)):
+        yield row
+
+
+# Pagination
+
+
+def get_history_page(conn: sqlite3.Connection, page: int = 1, per_page: int = 1000):
+    if page < 1:
+        page = 1
+    offset = (page - 1) * per_page
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT ph.*, t.name FROM play_history ph LEFT JOIN tracks t ON t.video_id = ph.video_id ORDER BY ph.id DESC LIMIT ? OFFSET ?",
+        (per_page + 1, offset),
+    )
+    rows = cur.fetchall()
+    has_next = len(rows) > per_page
+    return rows[:per_page], has_next 

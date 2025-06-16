@@ -15,10 +15,10 @@ from typing import List
 import socket
 import re
 
-from flask import Flask, jsonify, render_template, send_from_directory, url_for, abort
+from flask import Flask, jsonify, render_template, send_from_directory, url_for, abort, request
 
 import database as db
-from database import get_connection, iter_tracks_with_playlists, increment_play
+from database import get_connection, iter_tracks_with_playlists, increment_play, get_history_page
 
 # We'll reuse scan function from scan_to_db.py
 from scan_to_db import scan as scan_library
@@ -163,6 +163,18 @@ def tracks_page():
     tracks = list(iter_tracks_with_playlists(conn))
     conn.close()
     return render_template("tracks.html", tracks=tracks)
+
+
+# -------- History Page --------
+
+
+@app.route("/history")
+def history_page():
+    page = int(request.args.get("page", 1))
+    conn = get_connection()
+    rows, has_next = get_history_page(conn, page=page, per_page=1000)
+    conn.close()
+    return render_template("history.html", history=rows, page=page, has_next=has_next)
 
 
 # -------- Scan API --------
