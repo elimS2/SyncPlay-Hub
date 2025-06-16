@@ -1,6 +1,31 @@
 # YouTube Playlist Downloader
 
-A simple command-line utility powered by [`yt-dlp`](https://github.com/yt-dlp/yt-dlp) that can download every video (or just the audio) from a public or unlisted YouTube playlist. Files are saved with a sequential index so that most media players can play them in the original order or shuffle them easily.
+# SyncPlay-Hub
+
+> Local-first downloader & web-player for YouTube playlists
+
+---
+
+## Motivation
+
+YouTube's shuffle works poorly on large playlists—especially on smart-TV apps, where it often randomises only the first ~100 items and repeats them.  
+I wanted a way to:
+
+1. Download the **entire** playlist (audio-only or full video) to a local drive.  
+2. Keep the folder in sync when I add / remove songs on YouTube.  
+3. Play the library on any device in my LAN (TV, tablet, phone) with proper shuffle, next/prev, etc.
+
+That idea evolved into **SyncPlay-Hub**: a small Python toolset powered by `yt-dlp` + Flask.
+
+---
+
+## Features
+
+* Reliable playlist sync (detects additions/removals; preserves "unavailable" videos as archive).  
+* Fast / safe modes, live progress counter.  
+* Cookie support for age-restricted or region-blocked videos.  
+* Responsive web player with custom controls and adaptive dark/light theme.  
+* Keyboard shortcuts & TV-friendly UI (playlist hides in fullscreen).
 
 ---
 
