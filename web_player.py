@@ -16,13 +16,20 @@ import socket
 
 from flask import Flask, jsonify, render_template, send_from_directory, url_for, abort
 
+import database as db
+from database import get_connection, iter_tracks_with_playlists
+
 app = Flask(
     __name__,
     static_folder="static",
     template_folder="templates",
 )
 
-ROOT_DIR: Path  # will be set in main()
+# ROOT_DIR will point to the Playlists directory (BASE_DIR / "Playlists")
+ROOT_DIR: Path  # set in main()
+
+# Where the database file lives (BASE_DIR / "DB" / tracks.db)
+DB_FILE: Path  # set in main()
 
 
 def scan_tracks(scan_root: Path) -> List[dict]:
@@ -138,15 +145,36 @@ def playlist_page(playlist_path: str):
     return render_template("index.html", server_ip=_get_local_ip(), playlist_rel=playlist_path, playlist_name=_Path(playlist_path).name)
 
 
+# -------- DB Tracks Page --------
+
+
+@app.route("/tracks")
+def tracks_page():
+    conn = get_connection()
+    tracks = list(iter_tracks_with_playlists(conn))
+    conn.close()
+    return render_template("tracks.html", tracks=tracks)
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Local web player for downloaded tracks")
-    parser.add_argument("--root", default="downloads", help="Root folder with audio files")
+    parser.add_argument("--root", default="downloads", help="Base folder containing Playlists/ and DB/")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8000)
     args = parser.parse_args()
 
-    ROOT_DIR = Path(args.root).resolve()
-    if not ROOT_DIR.exists():
-        raise SystemExit(f"Root folder '{ROOT_DIR}' not found")
+    BASE_DIR = Path(args.root).resolve()
+    PLAYLISTS_DIR = BASE_DIR / "Playlists"
+    DB_DIR = BASE_DIR / "DB"
+
+    if not PLAYLISTS_DIR.exists():
+        raise SystemExit(f"Playlists folder '{PLAYLISTS_DIR}' not found (expected inside base dir)")
+    DB_DIR.mkdir(parents=True, exist_ok=True)
+
+    ROOT_DIR = PLAYLISTS_DIR
+    DB_FILE = DB_DIR / "tracks.db"
+
+    # configure database path
+    db.set_db_path(DB_FILE)
 
     app.run(host=args.host, port=args.port, debug=False) 
