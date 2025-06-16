@@ -36,6 +36,7 @@ function shuffle(array) {
 
   // ---- Google Cast Integration ----
   let castContext = null;
+  let pendingCastTrack=null;
 
   window.__onGCastApiAvailable = function(isAvailable){
       if(isAvailable){
@@ -44,14 +45,24 @@ function shuffle(array) {
               receiverApplicationId: chrome.cast.media.DEFAULT_MEDIA_RECEIVER_APP_ID,
               autoJoinPolicy: chrome.cast.AutoJoinPolicy.ORIGIN_SCOPED
           });
+          // ensure launcher visible
+          const castBtn = document.getElementById('castBtn');
+          if(castBtn) castBtn.style.display='inline-flex';
       }
   };
 
   function castLoad(track){
       if(!castContext) return;
       const session = castContext.getCurrentSession();
-      if(!session) return;
-      const absUrl = new URL(track.url, window.location.href).href;
+      if(!session){
+          pendingCastTrack=track;
+          return;
+      }
+      let absUrl = new URL(track.url, window.location.href).href;
+      // if hostname is localhost, replace with current local IP (taken from location)
+      if(absUrl.includes('localhost')){
+          absUrl = absUrl.replace('localhost', window.location.hostname);
+      }
       const ext = absUrl.split('.').pop().toLowerCase();
       const mimeMap = {mp4:'video/mp4', webm:'video/webm', mkv:'video/x-matroska', mov:'video/quicktime', mp3:'audio/mpeg', m4a:'audio/mp4', opus:'audio/ogg', flac:'audio/flac'};
       const mime = mimeMap[ext] || 'video/mp4';
@@ -60,6 +71,15 @@ function shuffle(array) {
       mediaInfo.metadata.title = track.name;
       const request = new chrome.cast.media.LoadRequest(mediaInfo);
       session.loadMedia(request).catch(console.error);
+  }
+
+  if(window.cast && castContext){
+      castContext.addEventListener(cast.framework.CastContextEventType.SESSION_STATE_CHANGED, (e)=>{
+          if((e.sessionState===cast.framework.SessionState.SESSION_STARTED || e.sessionState===cast.framework.SessionState.SESSION_RESUMED) && pendingCastTrack){
+              castLoad(pendingCastTrack);
+              pendingCastTrack=null;
+          }
+      });
   }
 
   function renderList() {
@@ -80,6 +100,13 @@ function shuffle(array) {
     const track=queue[currentIndex];
     media.src=track.url;
     if(autoplay){media.play();}else{media.load();}
+    if('mediaSession' in navigator){
+        navigator.mediaSession.metadata = new MediaMetadata({
+            title: track.name,
+            artist: '',
+            album: '',
+        });
+    }
     castLoad(track);
     renderList();
   }
@@ -224,4 +251,12 @@ function shuffle(array) {
   }
   document.addEventListener('fullscreenchange',updateFsVisibility);
   updateFsVisibility();
+
+  // ---- Media Session API ----
+  if ('mediaSession' in navigator) {
+      navigator.mediaSession.setActionHandler('previoustrack', () => prevBtn.click());
+      navigator.mediaSession.setActionHandler('nexttrack', () => nextBtn.click());
+      navigator.mediaSession.setActionHandler('play', () => media.play());
+      navigator.mediaSession.setActionHandler('pause', () => media.pause());
+  }
 })(); 

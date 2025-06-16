@@ -38,8 +38,16 @@
     .progress-bar{height:100%;width:0%;background:var(--progress-fill);border-radius:3px;}
     .time{color:var(--text);font-size:12px;margin-right:8px;white-space:nowrap;}
     .vol-slider{width:80px;margin-left:4px;filter:brightness(0.9);}
-    .cast-btn{width:36px;height:36px;display:inline-block;margin:0 6px;cursor:pointer;--disconnected-color:var(--text);--connected-color:var(--text);}
-    .cast-btn::part(icon){width:100%;height:100%;}
+    .cast-btn{
+        width:36px;height:36px;display:inline-flex;align-items:center;justify-content:center;
+        margin:0 6px;cursor:pointer;
+        --disconnected-color: var(--text);
+        --connected-color: var(--text);
+        color:var(--text);
+        transition:opacity .2s;
+    }
+    .cast-btn:hover{opacity:.75;}
+    .cast-btn::part(icon){width:100%;height:100%;fill:currentColor;}
     /* fullscreen adjustments */
     #videoWrapper:fullscreen video{width:100%;height:100%;object-fit:contain;}
     #videoWrapper:-webkit-full-screen video{width:100%;height:100%;object-fit:contain;}
