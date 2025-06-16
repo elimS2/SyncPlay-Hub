@@ -38,6 +38,8 @@
     .progress-bar{height:100%;width:0%;background:var(--progress-fill);border-radius:3px;}
     .time{color:var(--text);font-size:12px;margin-right:8px;white-space:nowrap;}
     .vol-slider{width:80px;margin-left:4px;filter:brightness(0.9);}
+    .cast-btn{width:36px;height:36px;display:inline-block;margin:0 6px;cursor:pointer;--disconnected-color:var(--text);--connected-color:var(--text);}
+    .cast-btn::part(icon){width:100%;height:100%;}
     /* fullscreen adjustments */
     #videoWrapper:fullscreen video{width:100%;height:100%;object-fit:contain;}
     #videoWrapper:-webkit-full-screen video{width:100%;height:100%;object-fit:contain;}
@@ -64,6 +66,7 @@
           <button id="cPrev" class="ctrl-btn">⏮</button>
           <button id="cPlay" class="ctrl-btn">▶️</button>
           <button id="cNext" class="ctrl-btn">⏭</button>
+          <google-cast-launcher id="castBtn" class="cast-btn" title="Play on TV"></google-cast-launcher>
           <button id="cMute" class="ctrl-btn">🔊</button>
           <input type="range" id="cVol" min="0" max="1" step="0.05" value="1" class="vol-slider" />
         </div>
@@ -76,5 +79,6 @@
   </div>
 
   <script src="/static/player.js"></script>
+  <script src="https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1"></script>
 </body>
 </html> 

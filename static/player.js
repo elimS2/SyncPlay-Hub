@@ -34,6 +34,34 @@ function shuffle(array) {
   let queue = [...tracks];
   let currentIndex = -1;
 
+  // ---- Google Cast Integration ----
+  let castContext = null;
+
+  window.__onGCastApiAvailable = function(isAvailable){
+      if(isAvailable){
+          castContext = cast.framework.CastContext.getInstance();
+          castContext.setOptions({
+              receiverApplicationId: chrome.cast.media.DEFAULT_MEDIA_RECEIVER_APP_ID,
+              autoJoinPolicy: chrome.cast.AutoJoinPolicy.ORIGIN_SCOPED
+          });
+      }
+  };
+
+  function castLoad(track){
+      if(!castContext) return;
+      const session = castContext.getCurrentSession();
+      if(!session) return;
+      const absUrl = new URL(track.url, window.location.href).href;
+      const ext = absUrl.split('.').pop().toLowerCase();
+      const mimeMap = {mp4:'video/mp4', webm:'video/webm', mkv:'video/x-matroska', mov:'video/quicktime', mp3:'audio/mpeg', m4a:'audio/mp4', opus:'audio/ogg', flac:'audio/flac'};
+      const mime = mimeMap[ext] || 'video/mp4';
+      const mediaInfo = new chrome.cast.media.MediaInfo(absUrl, mime);
+      mediaInfo.metadata = new chrome.cast.media.GenericMediaMetadata();
+      mediaInfo.metadata.title = track.name;
+      const request = new chrome.cast.media.LoadRequest(mediaInfo);
+      session.loadMedia(request).catch(console.error);
+  }
+
   function renderList() {
     listElem.innerHTML = '';
     queue.forEach((t, idx) => {
@@ -52,6 +80,7 @@ function shuffle(array) {
     const track=queue[currentIndex];
     media.src=track.url;
     if(autoplay){media.play();}else{media.load();}
+    castLoad(track);
     renderList();
   }
 
