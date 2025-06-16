@@ -18,7 +18,7 @@ from pathlib import Path
 from typing import Optional
 
 import database as db
-from database import get_connection, upsert_playlist, upsert_track, link_track_playlist
+from database import get_connection, upsert_playlist, upsert_track, link_track_playlist, update_playlist_stats
 
 MEDIA_EXTS = {".mp3", ".m4a", ".opus", ".webm", ".flac", ".mp4", ".mkv", ".mov"}
 VIDEO_ID_RE = re.compile(r"\[([A-Za-z0-9_-]{11})\]$")
@@ -68,8 +68,10 @@ def scan(playlists_dir: Path):
         has_media = any(p.suffix.lower() in MEDIA_EXTS for p in playlist_dir.rglob("*.*"))
         if not has_media:
             continue
-        playlist_id = upsert_playlist(conn, playlist_dir.name, str(playlist_dir.relative_to(playlists_dir)))
+        playlist_rel = str(playlist_dir.relative_to(playlists_dir))
+        playlist_id = upsert_playlist(conn, playlist_dir.name, playlist_rel)
 
+        count = 0
         for file in playlist_dir.rglob("*.*"):
             if file.suffix.lower() not in MEDIA_EXTS or not file.is_file():
                 continue
@@ -90,6 +92,10 @@ def scan(playlists_dir: Path):
                 filetype=file.suffix.lstrip(".").lower(),
             )
             link_track_playlist(conn, track_id, playlist_id)
+            count += 1
+
+        # update stats
+        update_playlist_stats(conn, playlist_id, count)
     conn.close()
 
 

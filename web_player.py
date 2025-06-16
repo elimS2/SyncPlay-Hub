@@ -20,6 +20,7 @@ from flask import Flask, jsonify, render_template, send_from_directory, url_for,
 
 import database as db
 from database import get_connection, iter_tracks_with_playlists, record_event, get_history_page
+from database import upsert_playlist
 
 # We'll reuse scan function from scan_to_db.py
 from scan_to_db import scan as scan_library
@@ -37,6 +38,10 @@ ROOT_DIR: Path  # set in main()
 DB_FILE: Path  # set in main()
 
 VIDEO_ID_RE = re.compile(r"\[([A-Za-z0-9_-]{11})\]$")
+
+# ---- constants ----
+
+MEDIA_EXTS = {".mp3", ".m4a", ".opus", ".webm", ".flac", ".mp4", ".mkv", ".mov"}
 
 
 def scan_tracks(scan_root: Path) -> List[dict]:
@@ -83,18 +88,39 @@ def _ensure_subdir(requested: Path) -> Path:
 
 def list_playlists(root: Path) -> List[dict]:
     """Return first-level sub-directories that contain at least one media file."""
+    # Fetch meta from DB once
+    meta = {}
+    try:
+        conn = get_connection()
+        for row in conn.execute("SELECT relpath, track_count, last_sync_ts, source_url FROM playlists"):
+            meta[row[0]] = {
+                "track_count": row[1],
+                "last_sync_ts": row[2],
+                "source_url": row[3],
+            }
+        conn.close()
+    except Exception:
+        pass
+
     playlists = []
     for d in sorted(root.iterdir()):
         if not d.is_dir():
             continue
         # does this dir contain at least one media file (recursively)?
-        has_media = any(p.suffix.lower() in {".mp3", ".m4a", ".opus", ".webm", ".flac", ".mp4", ".mkv", ".mov"}
-                       for p in d.rglob("*.*"))
+        has_media = any(p.suffix.lower() in MEDIA_EXTS for p in d.rglob("*.*"))
         if has_media:
+            rel = str(d.relative_to(root)).replace("\\", "/")
+            dbinfo = meta.get(rel)
+            count = dbinfo["track_count"] if dbinfo and dbinfo["track_count"] is not None else "?"
+            last_sync_str = dbinfo["last_sync_ts"][:16].replace("T", " ") if dbinfo and dbinfo["last_sync_ts"] else "-"
+            has_source = bool(dbinfo and dbinfo["source_url"])
             playlists.append({
                 "name": d.name,
-                "relpath": str(d.relative_to(root)).replace("\\", "/"),
-                "url": url_for("playlist_page", playlist_path=str(d.relative_to(root)).replace("\\", "/")),
+                "relpath": rel,
+                "url": url_for("playlist_page", playlist_path=rel),
+                "count": count,
+                "last_sync": last_sync_str,
+                "has_source": has_source,
             })
     return playlists
 
@@ -220,6 +246,16 @@ def api_add_playlist():
 
     folder_name = sanitize_filename(title, restricted=True)
     target_dir = ROOT_DIR / folder_name
+
+    # ensure playlist row has source_url set (might not exist yet)
+    try:
+        conn = get_connection()
+        relpath = str(folder_name)
+        upsert_playlist(conn, title, relpath, source_url=url)
+        conn.close()
+    except Exception:
+        pass
+
     if target_dir.exists():
         return jsonify({"status": "exists", "message": "playlist already downloaded"})
 
@@ -354,6 +390,78 @@ def stream_log(log_name: str):
             return
 
     return Response(generate(), mimetype="text/event-stream")
+
+
+# -------- Resync playlist API --------
+
+
+@app.route("/api/resync", methods=["POST"])
+def api_resync():
+    data = request.get_json(force=True, silent=True) or {}
+    relpath = (data.get("relpath") or "").strip()
+    if not relpath:
+        return jsonify({"status": "error", "message": "missing relpath"}), 400
+
+    conn = get_connection()
+    row = db.get_playlist_by_relpath(conn, relpath)
+    conn.close()
+    if not row:
+        return jsonify({"status": "error", "message": "playlist not found"}), 404
+    url = row["source_url"]
+    if not url:
+        return jsonify({"status": "error", "message": "source url not stored for playlist"}), 400
+
+    # Kick off same worker logic but using existing folder name
+    folder_name = relpath
+
+    def _worker():
+        import contextlib, datetime
+        LOGS_DIR_LOCAL = globals().get("LOGS_DIR", Path.cwd() / "Logs")
+        log_path = LOGS_DIR_LOCAL / "download_playlist.log"
+        with open(log_path, "a", encoding="utf-8", buffering=1) as lf, contextlib.redirect_stdout(lf), contextlib.redirect_stderr(lf):
+            print("="*60, flush=True)
+            print(f"[RESYNC] {datetime.datetime.now():%Y-%m-%d %H:%M:%S} | Playlist: {folder_name}", flush=True)
+            try:
+                _dl_playlist = __import__("download_playlist").download_playlist
+                _dl_playlist(url, ROOT_DIR, audio_only=False, sync=True, debug=False)
+                scan_library(ROOT_DIR)
+                print(f"[DONE] {datetime.datetime.now():%Y-%m-%d %H:%M:%S}", flush=True)
+            except Exception as e:
+                print(f"[ERROR] {datetime.datetime.now():%Y-%m-%d %H:%M:%S} {e}", flush=True)
+            finally:
+                print("="*60, flush=True)
+
+    import threading
+    threading.Thread(target=_worker, daemon=True).start()
+    return jsonify({"status": "started"})
+
+
+# -------- Link existing playlist to URL --------
+
+
+@app.route("/api/link_playlist", methods=["POST"])
+def api_link_playlist():
+    data = request.get_json(force=True, silent=True) or {}
+    relpath = (data.get("relpath") or "").strip()
+    url = (data.get("url") or "").strip()
+    if not relpath or not url:
+        return jsonify({"status": "error", "message": "missing relpath or url"}), 400
+
+    # quick playlist id validation
+    m = re.search(r"list=([A-Za-z0-9_-]+)", url)
+    if not m:
+        return jsonify({"status": "error", "message": "not a playlist url"}), 400
+
+    conn = get_connection()
+    row = db.get_playlist_by_relpath(conn, relpath)
+    if not row:
+        conn.close()
+        return jsonify({"status": "error", "message": "playlist not found"}), 404
+
+    conn.execute("UPDATE playlists SET source_url=? WHERE relpath=?", (url, relpath))
+    conn.commit()
+    conn.close()
+    return jsonify({"status": "ok"})
 
 
 if __name__ == "__main__":

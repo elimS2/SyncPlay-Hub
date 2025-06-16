@@ -26,7 +26,10 @@ def _ensure_schema(conn: sqlite3.Connection):
         CREATE TABLE IF NOT EXISTS playlists (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT NOT NULL,
-            relpath TEXT NOT NULL UNIQUE
+            relpath TEXT NOT NULL UNIQUE,
+            track_count INTEGER,
+            last_sync_ts TEXT,
+            source_url TEXT
         );
 
         CREATE TABLE IF NOT EXISTS tracks (
@@ -88,17 +91,41 @@ def _ensure_schema(conn: sqlite3.Connection):
         cur.execute("ALTER TABLE play_history ADD COLUMN position REAL")
     conn.commit()
 
+    cur.execute("PRAGMA table_info(playlists)")
+    cols = {row[1] for row in cur.fetchall()}
+    if "track_count" not in cols:
+        cur.execute("ALTER TABLE playlists ADD COLUMN track_count INTEGER")
+    if "last_sync_ts" not in cols:
+        cur.execute("ALTER TABLE playlists ADD COLUMN last_sync_ts TEXT")
+    if "source_url" not in cols:
+        cur.execute("ALTER TABLE playlists ADD COLUMN source_url TEXT")
+    conn.commit()
+
 
 # ---------- Convenience queries ----------
 
 
-def upsert_playlist(conn: sqlite3.Connection, name: str, relpath: str) -> int:
+def upsert_playlist(conn: sqlite3.Connection, name: str, relpath: str, *, track_count: int | None = None, last_sync_ts: str | None = None, source_url: str | None = None) -> int:
     cur = conn.cursor()
     cur.execute(
-        "INSERT INTO playlists (name, relpath) VALUES (?, ?) ON CONFLICT(relpath) DO UPDATE SET name=excluded.name RETURNING id",
-        (name, relpath),
+        """
+        INSERT INTO playlists (name, relpath, track_count, last_sync_ts, source_url)
+        VALUES (?, ?, ?, ?, ?)
+        ON CONFLICT(relpath) DO UPDATE SET
+            name=excluded.name,
+            track_count=COALESCE(excluded.track_count, playlists.track_count),
+            last_sync_ts=COALESCE(excluded.last_sync_ts, playlists.last_sync_ts),
+            source_url=COALESCE(excluded.source_url, playlists.source_url)
+        RETURNING id
+        """,
+        (name, relpath, track_count, last_sync_ts, source_url),
     )
     return cur.fetchone()[0]
+
+
+def update_playlist_stats(conn: sqlite3.Connection, playlist_id: int, track_count: int):
+    conn.execute("UPDATE playlists SET track_count=?, last_sync_ts=datetime('now') WHERE id=?", (track_count, playlist_id))
+    conn.commit()
 
 
 def upsert_track(
@@ -249,3 +276,10 @@ def get_history_page(conn: sqlite3.Connection, page: int = 1, per_page: int = 10
     rows = cur.fetchall()
     has_next = len(rows) > per_page
     return rows[:per_page], has_next 
+
+
+# ---------- Extra helpers ----------
+
+
+def get_playlist_by_relpath(conn: sqlite3.Connection, relpath: str):
+    return conn.execute("SELECT * FROM playlists WHERE relpath=?", (relpath,)).fetchone() 

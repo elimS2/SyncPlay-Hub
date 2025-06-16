@@ -26,7 +26,13 @@
   </div>
   <ul>
     {% for pl in playlists %}
-      <li><a href="{{ pl.url }}">{{ pl.name }}</a></li>
+      <li data-rel="{{ pl.relpath }}"><a href="{{ pl.url }}">{{ pl.name }}</a> <span style="font-size:14px;color:#888;">({{ pl.count }} tracks · synced {{ pl.last_sync }})</span>
+      {% if pl.has_source %}
+        <button class="resyncBtn" style="margin-left:6px;font-size:12px;">Resync</button>
+      {% else %}
+        <button class="linkBtn" style="margin-left:6px;font-size:12px;">Link</button>
+      {% endif %}
+      </li>
     {% else %}
       <li>No playlists found in the selected root folder.</li>
     {% endfor %}
@@ -95,6 +101,43 @@
             addBtn.disabled = false;
             addBtn.textContent = 'Add Playlist';
         }
+    });
+
+    // Resync buttons
+    document.querySelectorAll('.resyncBtn').forEach(btn=>{
+      btn.addEventListener('click', async (e)=>{
+        e.stopPropagation();
+        const li = btn.closest('li');
+        const rel = li?.dataset.rel;
+        if(!rel) return;
+        btn.disabled = true; btn.textContent='Sync…';
+        try{
+          const res = await fetch('/api/resync', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({relpath:rel})});
+          const data = await res.json();
+          if(data.status==='started'){
+            alert('Resync started in background');
+          }else{
+            alert('Error: '+(data.message||'unknown'));
+          }
+        }catch(err){alert(err);}finally{btn.disabled=false;btn.textContent='Resync';}
+      });
+    });
+
+    // Link buttons
+    document.querySelectorAll('.linkBtn').forEach(btn=>{
+      btn.addEventListener('click', async (e)=>{
+        e.stopPropagation();
+        const li = btn.closest('li');
+        const rel = li?.dataset.rel;
+        const url = prompt('Enter playlist URL:');
+        if(!rel || !url) return;
+        btn.disabled=true; btn.textContent='Link…';
+        try{
+          const res= await fetch('/api/link_playlist',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({relpath:rel,url})});
+          const data=await res.json();
+          if(data.status==='ok') location.reload(); else alert(data.message||'error');
+        }catch(err){alert(err);}finally{btn.disabled=false;btn.textContent='Link';}
+      });
     });
   </script>
 </body>
