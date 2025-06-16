@@ -15,6 +15,9 @@ function shuffle(array) {
   const listElem = document.getElementById('tracklist');
   const shuffleBtn = document.getElementById('shuffleBtn');
   const stopBtn = document.getElementById('stopBtn');
+  const nextBtn = document.getElementById('nextBtn');
+  const prevBtn = document.getElementById('prevBtn');
+  const playBtn = document.getElementById('playBtn');
 
   let tracks = await fetchTracks();
   let queue = [...tracks];
@@ -56,6 +59,26 @@ function shuffle(array) {
   stopBtn.onclick = () => {
     media.pause();
     media.currentTime = 0;
+  };
+
+  nextBtn.onclick = () => {
+    if (currentIndex + 1 < queue.length) {
+      playIndex(currentIndex + 1);
+    }
+  };
+
+  prevBtn.onclick = () => {
+    if (currentIndex - 1 >= 0) {
+      playIndex(currentIndex - 1);
+    }
+  };
+
+  playBtn.onclick = () => {
+    if (media.paused) {
+      media.play();
+    } else {
+      media.pause();
+    }
   };
 
   renderList();
