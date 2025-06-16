@@ -35,6 +35,22 @@ VIDEO_ID_RE = re.compile(r"\[([A-Za-z0-9_-]{11})\]")
 UNAVAILABLE_FILE = "unavailable_ids.txt"
 
 
+class _ProgLogger:
+    def __init__(self, total=None):
+        self.count = 0
+        self.total = total
+    def debug(self, msg):
+        if msg.startswith('[youtube') and 'Downloading webpage' in msg:
+            self.count += 1
+            if self.total:
+                print(f"\r  …parsed {self.count}/{self.total} entries", end='', flush=True)
+            else:
+                print(f"\r  …parsed {self.count} entries", end='', flush=True)
+    info = debug
+    warning = debug
+    error = debug
+
+
 def fetch_playlist_metadata(url: str) -> Tuple[str, Set[str]]:
     """Return (playlist_title, set_of_video_ids) without downloading files."""
     # Normalize URL: if it's a watch URL with &list=, convert to full playlist link
@@ -43,17 +59,39 @@ def fetch_playlist_metadata(url: str) -> Tuple[str, Set[str]]:
     if "list" in qs and (parsed.path.startswith("/watch") or parsed.path.startswith("/embed")):
         url = f"https://www.youtube.com/playlist?list={qs['list'][0]}"
 
+    # Quick first pass to estimate total items fast
+    quick_opts = {
+        "quiet": True,
+        "skip_download": True,
+        "extract_flat": "discard_in_playlist",
+        "playlist_items": "1-",
+        "ignoreerrors": True,
+    }
+    try:
+        with YoutubeDL(quick_opts) as ydl:
+            quick_info = ydl.extract_info(url, download=False)
+        total_est = len(quick_info.get("entries", []))
+    except Exception:
+        total_est = None
+
+    if total_est:
+        print(f"[Info] Playlist contains ~{total_est} items. Starting detailed scan…")
+    else:
+        print("[Info] Fetching playlist metadata (full scan)…")
+
     ydl_opts = {
         "quiet": True,
         "skip_download": True,
-        # Fetch full metadata to ensure all playlist items are counted
-        # Alternatively, `extract_flat": "discard_in_playlist"` keeps requests light but traverses all pages.
-        "extract_flat": "discard_in_playlist",
-        # Safeguard: do not impose default 100-item end limit
-        "playlistend": 0,  # 0 means no limit (yt-dlp convention)
+        # Reliable but slower: fetch full metadata of every item
+        "extract_flat": False,  # get full info per video
+        "playlist_items": "1-",  # all items
+        "ignoreerrors": True,
+        "logger": _ProgLogger(total_est),
     }
     with YoutubeDL(ydl_opts) as ydl:
         info = ydl.extract_info(url, download=False)
+    print()  # newline after last carriage-return
+    print(f"[Info] Playlist metadata loaded: {len(info.get('entries', []))} items detected")
 
     # Some YouTube responses may be wrapped; ensure we get playlist dict
     if "entries" not in info:
