@@ -105,39 +105,33 @@ If both flags are provided, `--cookies` has priority.
 
 ## Local web player
 
-The project ships with a tiny Flask application that lets you browse, shuffle and play your downloaded tracks directly in the browser.
+The repository ships with a lightweight **Flask** application that turns every folder with media files into a web-player accessible from any device in your LAN (TV, phone, tablet, laptop).
 
 ### Launch
 
 ```bash
-# Example: serve everything that was downloaded to D:\music\Youtube on port 8000
-python web_player.py --root "D:\music\Youtube" --host 0.0.0.0 --port 8000
+# Serve everything under D:\Media on port 8000, accessible on your local network
+python web_player.py --root "D:\Media" --host 0.0.0.0 --port 8000
 ```
 
-Then open `http://localhost:8000/` (or the corresponding host/port) in any modern browser.
+Open `http://<your_ip>:8000/` in a modern browser – the UI is responsive and works on both desktop and mobile.
 
-### Features
+### File discovery
 
-* Recursively scans the given root folder for audio files (.mp3/.m4a/.opus/.webm/.flac).
-* Displays them in a list; click to play any track.
-* "Shuffle & Play" button randomises the queue and starts playback.
-* Automatically advances to the next track when the current one ends.
-* All implemented client-side in `static/player.js`; feel free to extend UI/UX.
+* Recursively scans **audio _and_ video** formats: `mp3`, `m4a`, `opus`, `webm`, `flac`, `mp4`, `mkv`, `mov`.
+* Keeps the original folder structure so albums / live-shows remain grouped.
 
-### Controls & features
+### Player highlights
 
-* Custom control bar (Prev · Play/Pause · Next · Mute/Volume · Seekbar · Time · Fullscreen).
-* Keyboard shortcuts: `← / →` – previous / next, `Space` – play/pause.
-* Playlist sits to the right of the video (auto-hides when entering fullscreen).
-* Dark/light theme adapts to OS (`prefers-color-scheme`).
+| Area | Details |
+|------|---------|
+| **Queue logic** | Auto-shuffle on first load, manual Shuffle button, click-to-play, automatic next-track on end |
+| **Controls** | Prev · Play/Pause · Next · Mute/Volume · Seekbar · Timestamps · Fullscreen |
+| **Keyboard** | `← / →` previous / next, `Space` play/pause |
+| **Mouse / touch** | Click on video toggles play/pause; click on progress bar seeks |
+| **Playlist panel** | 600 px wide, custom scrollbar, hamburger button (`☰`) to hide/show; panel hides automatically in fullscreen |
+| **Casting** | Built-in Google Cast support – plays on Chromecast / Android TV; local IP is injected to avoid "localhost" issues |
+| **Media Session API** | Integrates with OS media keys and lock-screen controls |
+| **Theming** | Dark/Light via `prefers-color-scheme`; colours centralised in CSS variables |
 
-### Sync tips
-
-By default the downloader performs a **full metadata scan** of your playlist to ensure accurate deletion logic. This can take 1–2 min for very large lists, but the CLI shows a live counter:
-
-```
-[Info] Playlist contains ~206 items. Starting detailed scan…
-  …parsed 57/206 entries
-```
-
-If you prefer speed over safety, run with `--no-sync` and clean up manually later.
+All client logic lives in **`static/player.js`** – extend, re-skin or integrate with external APIs as you wish.
