@@ -13,7 +13,8 @@ I wanted a way to:
 
 1. Download the **entire** playlist (audio-only or full video) to a local drive.  
 2. Keep the folder in sync when I add / remove songs on YouTube.  
-3. Play the library on any device in my LAN (TV, tablet, phone) with proper shuffle, next/prev, etc.
+3. Avoid YouTube's *cover-only cascade* – on some devices if the playlist encounters a track that has no real video (just a static album cover), **all subsequent clips keep showing the cover** even when full videos are available.  
+4. Play the library on any device in my LAN (TV, tablet, phone) with proper shuffle, next/prev, etc.
 
 That idea evolved into **SyncPlay-Hub**: a small Python toolset powered by `yt-dlp` + Flask.
 
