@@ -15,6 +15,7 @@ function shuffle(array) {
   const media = document.getElementById('player');
   const listElem = document.getElementById('tracklist');
   const shuffleBtn = document.getElementById('shuffleBtn');
+  const smartShuffleBtn = document.getElementById('smartShuffleBtn');
   const stopBtn = document.getElementById('stopBtn');
   const nextBtn = document.getElementById('nextBtn');
   const prevBtn = document.getElementById('prevBtn');
@@ -35,7 +36,32 @@ function shuffle(array) {
 
   const playlistRel = typeof PLAYLIST_REL !== 'undefined' ? PLAYLIST_REL : '';
   let tracks = await fetchTracks(playlistRel);
-  let queue = [...tracks];
+
+  function smartShuffle(list){
+     const now = new Date();
+     const group1=[];const group2=[];const group3=[];const group4=[];const group5=[];const group6=[];
+
+     const getWeekOfYear=(d)=>{
+       const onejan=new Date(d.getFullYear(),0,1);
+       return Math.ceil((((d - onejan)/86400000)+onejan.getDay()+1)/7);
+     };
+
+     for(const t of list){
+        if(!t.last_play){group1.push(t);continue;}
+        const tsStr = t.last_play.replace(' ', 'T')+'Z';
+        const ts=new Date(tsStr);
+        if(ts.getFullYear()<now.getFullYear()){group2.push(t);continue;}
+        if(ts.getMonth()<now.getMonth()){group3.push(t);continue;}
+        if(getWeekOfYear(ts)<getWeekOfYear(now)){group4.push(t);continue;}
+        if(ts.getDate()<now.getDate()){group5.push(t);continue;}
+        group6.push(t);
+     }
+
+     const all=[group1,group2,group3,group4,group5,group6].flatMap(arr=>{shuffle(arr);return arr;});
+     return all;
+  }
+
+  let queue = smartShuffle([...tracks]);
   let currentIndex = -1;
 
   // ---- Google Cast Integration ----
@@ -155,6 +181,11 @@ function shuffle(array) {
     playIndex(0);
   };
 
+  smartShuffleBtn.onclick = ()=>{
+     queue = smartShuffle([...tracks]);
+     playIndex(0);
+  };
+
   stopBtn.onclick = () => {
     media.pause();
     media.currentTime = 0;
@@ -250,10 +281,9 @@ function shuffle(array) {
   // sync initial volume icon
   media.volume = 1;
 
-  // auto-shuffle and start playback on first load
+  // auto smart-shuffle and start playback on first load
   if (queue.length > 0) {
-      shuffle(queue);
-      playIndex(0); // starts playing first track of shuffled queue
+      playIndex(0);
   } else {
       renderList();
   }

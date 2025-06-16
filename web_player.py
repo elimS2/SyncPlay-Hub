@@ -58,6 +58,7 @@ def scan_tracks(scan_root: Path) -> List[dict]:
             "relpath": str(rel_to_root).replace("\\", "/"),
             "url": url_for("media", filename=str(rel_to_root).replace("\\", "/")),
             "video_id": vid,
+            "last_play": _get_last_play_ts(vid),
         })
     return files
 
@@ -210,6 +211,24 @@ def api_event():
     record_event(conn, video_id, ev)
     conn.close()
     return jsonify({"status": "ok"})
+
+
+# Retrieve last play timestamp helper
+
+def _get_last_play_ts(video_id: str):
+    if not video_id:
+        return None
+    conn = get_connection()
+    row = conn.execute("SELECT last_start_ts, last_finish_ts FROM tracks WHERE video_id=?", (video_id,)).fetchone()
+    conn.close()
+    if not row:
+        return None
+    ts1 = row["last_start_ts"]
+    ts2 = row["last_finish_ts"]
+    # return latest
+    if ts1 and ts2:
+        return ts1 if ts1 > ts2 else ts2
+    return ts1 or ts2
 
 
 if __name__ == "__main__":
