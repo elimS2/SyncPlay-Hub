@@ -186,8 +186,13 @@ def iter_tracks_with_playlists(conn: sqlite3.Connection) -> Iterator[sqlite3.Row
 
 
 def record_event(conn: sqlite3.Connection, video_id: str, event: str, position: Optional[float] = None):
-    """Record playback event and update counters."""
-    valid = {"start", "finish", "next", "prev", "like"}
+    """Record playback or library event and update counters/history.
+
+    Supported events:
+        - start, finish, next, prev, like  –  coming from the web player
+        - removed                         –  file deletion during library sync
+    """
+    valid = {"start", "finish", "next", "prev", "like", "removed"}
     if event not in valid:
         return
     cur = conn.cursor()
@@ -209,6 +214,9 @@ def record_event(conn: sqlite3.Connection, video_id: str, event: str, position: 
             # skip counting duplicate like
             return
         set_parts.append("play_likes = play_likes + 1")
+    elif event == "removed":
+        # no per-track counters, only history log
+        pass
     if set_parts:
         cur.execute(f"UPDATE tracks SET {', '.join(set_parts)} WHERE video_id = ?", (video_id,))
         conn.commit()

@@ -178,6 +178,14 @@ def cleanup_local_files(playlist_dir: pathlib.Path, current_ids: Set[str]) -> No
             try:
                 file.unlink()
                 print(f"[Removed] {file.name} (not in playlist)")
+                try:
+                    from database import get_connection, record_event  # local import to avoid heavy deps if DB absent
+                    conn = get_connection()
+                    record_event(conn, vid, "removed")
+                    conn.close()
+                except Exception as _exc:
+                    # ignore DB errors (e.g., no DB configured when running standalone CLI)
+                    pass
             except Exception as exc:
                 print(f"[Warning] Could not remove {file}: {exc}")
         else:
