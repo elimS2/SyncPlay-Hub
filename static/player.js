@@ -272,4 +272,7 @@ function shuffle(array) {
       navigator.mediaSession.setActionHandler('play', () => media.play());
       navigator.mediaSession.setActionHandler('pause', () => media.pause());
   }
+
+  // Клик по самому видео ↔️ пауза/воспроизведение
+  media.addEventListener('click', togglePlay);
 })(); 
