@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """Simple web player for downloaded YouTube playlist tracks.
 
-Запуск:
+Usage:
     python web_player.py --root downloads --host 0.0.0.0 --port 8000
 
-Открыть в браузере: http://localhost:8000/
+Open in browser: http://localhost:8000/
 """
 
 from __future__ import annotations
@@ -22,7 +22,7 @@ app = Flask(
     template_folder="templates",
 )
 
-ROOT_DIR: Path  # будет установлено в main()
+ROOT_DIR: Path  # will be set in main()
 
 
 def scan_tracks(root: Path) -> List[dict]:
@@ -53,14 +53,14 @@ def media(filename: str):
     return send_from_directory(ROOT_DIR, filename, as_attachment=False)
 
 
-# Helper to determine local LAN IP (для Chromecast)
+# Helper to determine local LAN IP (for Chromecast)
 
 
 def _get_local_ip() -> str:
-    """Возвращает IP адрес этой машины в локальной сети (best-effort)."""
+    """Return this machine's LAN IP address (best effort)."""
     try:
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        # Не важно, достижим ли адрес – важно выбрать интерфейс
+        # Whether the address is reachable is irrelevant; we just need to select the interface
         s.connect(("8.8.8.8", 80))
         ip = s.getsockname()[0]
     except Exception:
@@ -72,7 +72,7 @@ def _get_local_ip() -> str:
 
 @app.route("/")
 def index():
-    # Передаём IP в шаблон, чтобы JS мог подставить его вместо "localhost" для Chromecast
+    # Pass IP to template so JS can replace "localhost" for Chromecast streaming
     return render_template("index.html", server_ip=_get_local_ip())
 
 

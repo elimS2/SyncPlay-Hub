@@ -29,10 +29,10 @@
     #tracklist {
       list-style: none;
       padding: 0;
-      height: calc(100vh - 140px); /* почти вся высота экрана с учётом заголовка/кнопок */
+      height: calc(100vh - 140px); /* nearly full viewport height accounting for header/buttons */
       overflow-y: auto;
     }
-    /* стилизация скроллбара */
+    /* custom scrollbar styling */
     #tracklist::-webkit-scrollbar {
       width: 8px;
     }
@@ -79,7 +79,7 @@
     .side-list{list-style:none;padding:0;width:280px;max-height:70vh;overflow-y:auto;border-left:1px solid rgba(255,255,255,.1);}
   </style>
   <script>
-    // Локальный IP сервера для корректного Cast (заполняется Flask)
+    // Local server IP injected by Flask for proper Cast functionality
     const SERVER_IP = "{{ server_ip }}";
   </script>
 </head>
