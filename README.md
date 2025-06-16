@@ -76,3 +76,21 @@ Then open `http://localhost:8000/` (or the corresponding host/port) in any moder
 * "Shuffle & Play" button randomises the queue and starts playback.
 * Automatically advances to the next track when the current one ends.
 * All implemented client-side in `static/player.js`; feel free to extend UI/UX.
+
+### Controls & features
+
+* Custom control bar (Prev · Play/Pause · Next · Mute/Volume · Seekbar · Time · Fullscreen).
+* Keyboard shortcuts: `← / →` – previous / next, `Space` – play/pause.
+* Playlist sits to the right of the video (auto-hides when entering fullscreen).
+* Dark/light theme adapts to OS (`prefers-color-scheme`).
+
+### Sync tips
+
+By default the downloader performs a **full metadata scan** of your playlist to ensure accurate deletion logic. This can take 1–2 min for very large lists, but the CLI shows a live counter:
+
+```
+[Info] Playlist contains ~206 items. Starting detailed scan…
+  …parsed 57/206 entries
+```
+
+If you prefer speed over safety, run with `--no-sync` and clean up manually later.
