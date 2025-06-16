@@ -54,6 +54,10 @@
     .player-container{display:flex;gap:12px;}
     .side-list{list-style:none;padding:0;width:280px;max-height:70vh;overflow-y:auto;border-left:1px solid rgba(255,255,255,.1);}
   </style>
+  <script>
+    // Локальный IP сервера для корректного Cast (заполняется Flask)
+    const SERVER_IP = "{{ server_ip }}";
+  </script>
 </head>
 <body>
   <h1>Local Playlist Player</h1>

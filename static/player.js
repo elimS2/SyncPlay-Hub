@@ -39,6 +39,7 @@ function shuffle(array) {
   let pendingCastTrack=null;
 
   window.__onGCastApiAvailable = function(isAvailable){
+      console.log('Cast API callback, isAvailable=', isAvailable);
       if(isAvailable){
           castContext = cast.framework.CastContext.getInstance();
           castContext.setOptions({
@@ -47,7 +48,12 @@ function shuffle(array) {
           });
           // ensure launcher visible
           const castBtn = document.getElementById('castBtn');
-          if(castBtn) castBtn.style.display='inline-flex';
+          if(castBtn){
+              castBtn.style.display='inline-flex';
+              console.log('Cast button forced visible');
+          }else{
+              console.warn('Cast button element not found');
+          }
       }
   };
 
@@ -60,8 +66,12 @@ function shuffle(array) {
       }
       let absUrl = new URL(track.url, window.location.href).href;
       // if hostname is localhost, replace with current local IP (taken from location)
-      if(absUrl.includes('localhost')){
-          absUrl = absUrl.replace('localhost', window.location.hostname);
+      if (absUrl.includes('localhost')) {
+          if (typeof SERVER_IP !== 'undefined' && SERVER_IP) {
+              absUrl = absUrl.replace('localhost', SERVER_IP);
+          } else {
+              absUrl = absUrl.replace('localhost', window.location.hostname);
+          }
       }
       const ext = absUrl.split('.').pop().toLowerCase();
       const mimeMap = {mp4:'video/mp4', webm:'video/webm', mkv:'video/x-matroska', mov:'video/quicktime', mp3:'audio/mpeg', m4a:'audio/mp4', opus:'audio/ogg', flac:'audio/flac'};

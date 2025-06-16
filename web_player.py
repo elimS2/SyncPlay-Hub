@@ -12,6 +12,7 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 from typing import List
+import socket
 
 from flask import Flask, jsonify, render_template, send_from_directory, url_for
 
@@ -52,9 +53,27 @@ def media(filename: str):
     return send_from_directory(ROOT_DIR, filename, as_attachment=False)
 
 
+# Helper to determine local LAN IP (для Chromecast)
+
+
+def _get_local_ip() -> str:
+    """Возвращает IP адрес этой машины в локальной сети (best-effort)."""
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        # Не важно, достижим ли адрес – важно выбрать интерфейс
+        s.connect(("8.8.8.8", 80))
+        ip = s.getsockname()[0]
+    except Exception:
+        ip = "127.0.0.1"
+    finally:
+        s.close()
+    return ip
+
+
 @app.route("/")
 def index():
-    return render_template("index.html")
+    # Передаём IP в шаблон, чтобы JS мог подставить его вместо "localhost" для Chromecast
+    return render_template("index.html", server_ip=_get_local_ip())
 
 
 if __name__ == "__main__":
