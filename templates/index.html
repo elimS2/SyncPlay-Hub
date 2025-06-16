@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Local YouTube Playlist Player</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    #tracklist { list-style: none; padding: 0; max-height: 60vh; overflow-y: auto; }
+    #tracklist li { padding: 4px; cursor: pointer; }
+    #tracklist li.playing { background: #d0f0d0; }
+    button { margin-right: 10px; }
+  </style>
+</head>
+<body>
+  <h1>Local Playlist Player</h1>
+  <div>
+    <button id="shuffleBtn">Shuffle &amp; Play</button>
+    <button id="stopBtn">Stop</button>
+  </div>
+  <audio id="audio" controls style="width:100%; margin-top: 10px;"></audio>
+  <ul id="tracklist"></ul>
+
+  <script src="/static/player.js"></script>
+</body>
+</html> 
