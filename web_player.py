@@ -30,7 +30,7 @@ def scan_tracks(root: Path) -> List[dict]:
     for p in root.rglob("*.*"):
         if not p.is_file():
             continue
-        if p.suffix.lower() not in {".mp3", ".m4a", ".opus", ".webm", ".flac"}:
+        if p.suffix.lower() not in {".mp3", ".m4a", ".opus", ".webm", ".flac", ".mp4", ".mkv", ".mov"}:
             continue
         rel = p.relative_to(root)
         files.append({

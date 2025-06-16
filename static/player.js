@@ -11,7 +11,7 @@ function shuffle(array) {
 }
 
 (async () => {
-  const audio = document.getElementById('audio');
+  const media = document.getElementById('player');
   const listElem = document.getElementById('tracklist');
   const shuffleBtn = document.getElementById('shuffleBtn');
   const stopBtn = document.getElementById('stopBtn');
@@ -36,12 +36,12 @@ function shuffle(array) {
     if (idx < 0 || idx >= queue.length) return;
     currentIndex = idx;
     const track = queue[currentIndex];
-    audio.src = track.url;
-    audio.play();
+    media.src = track.url;
+    media.play();
     renderList();
   }
 
-  audio.addEventListener('ended', () => {
+  media.addEventListener('ended', () => {
     if (currentIndex + 1 < queue.length) {
       playIndex(currentIndex + 1);
     }
@@ -54,8 +54,8 @@ function shuffle(array) {
   };
 
   stopBtn.onclick = () => {
-    audio.pause();
-    audio.currentTime = 0;
+    media.pause();
+    media.currentTime = 0;
   };
 
   renderList();
