@@ -17,6 +17,8 @@ import sys
 import re
 import urllib.parse as _urlparse
 from typing import Dict, Any, Set, Tuple
+import os
+import textwrap
 
 try:
     from yt_dlp import YoutubeDL
@@ -51,7 +53,16 @@ class _ProgLogger:
     error = debug
 
 
-def fetch_playlist_metadata(url: str) -> Tuple[str, Set[str]]:
+def _validate_cookies_file(path: str) -> None:
+    if not os.path.isfile(path):
+        raise FileNotFoundError(f"Cookies file '{path}' not found")
+    with open(path, 'r', encoding='utf-8', errors='ignore') as fh:
+        content = fh.read(4096)
+    if '.youtube.com' not in content:
+        raise ValueError("Provided cookies file does not appear to contain YouTube cookies")
+
+
+def fetch_playlist_metadata(url: str, *, cookies_path: str | None = None, use_browser: bool = False, debug: bool = False) -> Tuple[str, Set[str]]:
     """Return (playlist_title, set_of_video_ids) without downloading files."""
     # Normalize URL: if it's a watch URL with &list=, convert to full playlist link
     parsed = _urlparse.urlparse(url)
@@ -60,12 +71,17 @@ def fetch_playlist_metadata(url: str) -> Tuple[str, Set[str]]:
         url = f"https://www.youtube.com/playlist?list={qs['list'][0]}"
 
     # Quick first pass to estimate total items fast
+    common_cookies = ({"cookiefile": cookies_path} if cookies_path else {})
+    if use_browser and not cookies_path:
+        common_cookies.setdefault("cookiesfrombrowser", ("chrome",))
+
     quick_opts = {
-        "quiet": True,
+        "quiet": not debug,
         "skip_download": True,
         "extract_flat": "discard_in_playlist",
         "playlist_items": "1-",
         "ignoreerrors": True,
+        **common_cookies,
     }
     try:
         with YoutubeDL(quick_opts) as ydl:
@@ -80,13 +96,14 @@ def fetch_playlist_metadata(url: str) -> Tuple[str, Set[str]]:
         print("[Info] Fetching playlist metadata (full scan)…")
 
     ydl_opts = {
-        "quiet": True,
+        "quiet": not debug,
         "skip_download": True,
         # Reliable but slower: fetch full metadata of every item
         "extract_flat": False,  # get full info per video
         "playlist_items": "1-",  # all items
         "ignoreerrors": True,
-        "logger": _ProgLogger(total_est),
+        "logger": _ProgLogger(total_est) if not debug else None,
+        **common_cookies,
     }
     with YoutubeDL(ydl_opts) as ydl:
         info = ydl.extract_info(url, download=False)
@@ -227,10 +244,26 @@ def _get_local_ids(playlist_dir: pathlib.Path) -> Set[str]:
 
 
 def download_playlist(playlist_url: str, output_dir: pathlib.Path, audio_only: bool = False, *, sync: bool = True,
-                     cookies_path: str | None = None, use_browser: bool = False) -> None:
+                     cookies_path: str | None = None, use_browser: bool = False, debug: bool = False) -> None:
     """Download the entire playlist and optionally sync (delete) removed tracks."""
+    # Cookies info
+    if cookies_path:
+        try:
+            _validate_cookies_file(cookies_path)
+            print(f"[Info] Using cookies file: {cookies_path}")
+        except Exception as exc:
+            print(f"[Error] Cookies validation failed: {exc}")
+            sys.exit(1)
+    elif use_browser:
+        print("[Info] Importing cookies from local browser profile…")
+
     # 1. Fetch metadata first to know current IDs and sanitized playlist title
-    playlist_title, current_ids = fetch_playlist_metadata(playlist_url)
+    playlist_title, current_ids = fetch_playlist_metadata(
+        playlist_url,
+        cookies_path=cookies_path,
+        use_browser=use_browser,
+        debug=debug,
+    )
     sanitized_title = sanitize_filename(playlist_title, restricted=True)
 
     playlist_dir = output_dir / sanitized_title
@@ -246,6 +279,8 @@ def download_playlist(playlist_url: str, output_dir: pathlib.Path, audio_only: b
 
     # 2. Download/update files
     ydl_opts = build_ydl_opts(output_dir, audio_only, cookies_path=cookies_path, use_browser=use_browser)
+    if debug:
+        ydl_opts["quiet"] = False
     with YoutubeDL(ydl_opts) as ydl:
         ydl.download([playlist_url])
 
@@ -265,6 +300,7 @@ if __name__ == "__main__":
     parser.add_argument("--no-sync", action="store_true", help="Do not delete local files that were removed from the playlist")
     parser.add_argument("--cookies", help="Path to YouTube cookies.txt export")
     parser.add_argument("--use-browser-cookies", action="store_true", help="Import cookies directly from installed browser (Chrome profile by default)")
+    parser.add_argument("--debug", action="store_true", help="Verbose yt-dlp output for troubleshooting")
     args = parser.parse_args()
 
     try:
@@ -275,6 +311,7 @@ if __name__ == "__main__":
             sync=not args.no_sync,
             cookies_path=args.cookies,
             use_browser=args.use_browser_cookies,
+            debug=args.debug,
         )
     except KeyboardInterrupt:
         print("\n[Aborted by user]")

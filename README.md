@@ -46,6 +46,7 @@ python download_playlist.py "https://www.youtube.com/playlist?list=PLxxxxxxxxxxx
 ### 3) Extra flags
 
 * `--no-sync` – keep local files even if they were removed from the playlist online (disables any deletion step).
+* `--debug` – show full yt-dlp output and internal progress (useful for troubleshooting cookies or network issues).
 
 ---
 
