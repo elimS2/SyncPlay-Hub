@@ -18,7 +18,7 @@ import re
 from flask import Flask, jsonify, render_template, send_from_directory, url_for, abort, request
 
 import database as db
-from database import get_connection, iter_tracks_with_playlists, increment_play, get_history_page
+from database import get_connection, iter_tracks_with_playlists, record_event, get_history_page
 
 # We'll reuse scan function from scan_to_db.py
 from scan_to_db import scan as scan_library
@@ -204,10 +204,10 @@ def api_event():
         data = getattr(__import__('flask'), 'request').get_json(force=True, silent=True) or {}
     video_id = data.get("video_id")
     ev = data.get("event")
-    if not video_id or ev not in {"start", "finish"}:
+    if not video_id or ev not in {"start", "finish", "next", "prev"}:
         return jsonify({"status": "error", "message": "bad payload"}), 400
     conn = get_connection()
-    increment_play(conn, video_id, started=(ev == "start"), finished=(ev == "finish"))
+    record_event(conn, video_id, ev)
     conn.close()
     return jsonify({"status": "ok"})
 

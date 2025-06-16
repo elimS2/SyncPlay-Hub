@@ -30,8 +30,10 @@
         <th>Type</th>
         <th>Starts</th>
         <th>Finishes</th>
+        <th>Nexts</th>
+        <th>Prevs</th>
         <th>Last Start</th>
-        <th>Last Finish</th>
+        <th>Finishes</th>
       </tr>
     </thead>
     <tbody>
@@ -48,11 +50,13 @@
           <td>{{ t['filetype'] }}</td>
           <td>{{ t['play_starts'] }}</td>
           <td>{{ t['play_finishes'] }}</td>
+          <td>{{ t['play_nexts'] }}</td>
+          <td>{{ t['play_prevs'] }}</td>
           <td>{{ t['last_start_ts'] or '-' }}</td>
           <td>{{ t['last_finish_ts'] or '-' }}</td>
         </tr>
       {% else %}
-        <tr><td colspan="13">Database is empty. Run <code>python scan_to_db.py</code> first.</td></tr>
+        <tr><td colspan="15">Database is empty. Run <code>python scan_to_db.py</code> first.</td></tr>
       {% endfor %}
     </tbody>
   </table>

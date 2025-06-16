@@ -41,6 +41,8 @@ def _ensure_schema(conn: sqlite3.Connection):
             filetype TEXT,
             play_starts INTEGER DEFAULT 0,
             play_finishes INTEGER DEFAULT 0,
+            play_nexts INTEGER DEFAULT 0,
+            play_prevs INTEGER DEFAULT 0,
             last_start_ts TEXT,
             last_finish_ts TEXT
         );
@@ -66,9 +68,12 @@ def _ensure_schema(conn: sqlite3.Connection):
     # ---- ensure new columns exist when upgrading older DB ----
     cur.execute("PRAGMA table_info(tracks)")
     cols = {row[1] for row in cur.fetchall()}
-    for col in ("play_starts", "play_finishes", "last_start_ts", "last_finish_ts"):
+    for col in ("play_starts", "play_finishes", "play_nexts", "play_prevs", "last_start_ts", "last_finish_ts"):
         if col not in cols:
-            cur.execute(f"ALTER TABLE tracks ADD COLUMN {col} TEXT")
+            if col.startswith('play_'):
+                cur.execute(f"ALTER TABLE tracks ADD COLUMN {col} INTEGER DEFAULT 0")
+            else:
+                cur.execute(f"ALTER TABLE tracks ADD COLUMN {col} TEXT")
     conn.commit()
 
     # ensure history table exists (for upgrades before)
@@ -145,25 +150,37 @@ def iter_tracks_with_playlists(conn: sqlite3.Connection) -> Iterator[sqlite3.Row
 # ---------- Play counts ----------
 
 
-def increment_play(conn: sqlite3.Connection, video_id: str, *, started: bool = False, finished: bool = False):
+def record_event(conn: sqlite3.Connection, video_id: str, event: str):
+    """Record playback event and update counters."""
+    valid = {"start", "finish", "next", "prev"}
+    if event not in valid:
+        return
     cur = conn.cursor()
     set_parts = []
-    if started:
+    if event == "start":
         set_parts.append("play_starts = play_starts + 1")
         set_parts.append("last_start_ts = datetime('now')")
-    if finished:
+    elif event == "finish":
         set_parts.append("play_finishes = play_finishes + 1")
         set_parts.append("last_finish_ts = datetime('now')")
-    if not set_parts:
-        return
-    cur.execute(f"UPDATE tracks SET {', '.join(set_parts)} WHERE video_id = ?", (video_id,))
-    conn.commit()
+    elif event == "next":
+        set_parts.append("play_nexts = play_nexts + 1")
+    elif event == "prev":
+        set_parts.append("play_prevs = play_prevs + 1")
+    if set_parts:
+        cur.execute(f"UPDATE tracks SET {', '.join(set_parts)} WHERE video_id = ?", (video_id,))
+        conn.commit()
 
     # log history
-    ev = "start" if started else ("finish" if finished else None)
-    if ev:
-        conn.execute("INSERT INTO play_history (video_id, event) VALUES (?, ?)", (video_id, ev))
-        conn.commit()
+    cur.execute("INSERT INTO play_history (video_id, event) VALUES (?, ?)", (video_id, event))
+    conn.commit()
+
+# For backward compatibility
+def increment_play(conn: sqlite3.Connection, video_id: str, *, started=False, finished=False):
+    if started:
+        record_event(conn, video_id, "start")
+    if finished:
+        record_event(conn, video_id, "finish")
 
 
 def iter_history(conn: sqlite3.Connection, limit: int = 500):

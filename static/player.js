@@ -158,12 +158,15 @@ function shuffle(array) {
 
   nextBtn.onclick = () => {
     if (currentIndex + 1 < queue.length) {
+      // send event for current track before switching
+      if(currentIndex>=0){ reportEvent(queue[currentIndex].video_id,'next'); }
       playIndex(currentIndex + 1);
     }
   };
 
   prevBtn.onclick = () => {
     if (currentIndex - 1 >= 0) {
+      if(currentIndex>=0){ reportEvent(queue[currentIndex].video_id,'prev'); }
       playIndex(currentIndex - 1);
     }
   };
