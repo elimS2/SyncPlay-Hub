@@ -11,12 +11,13 @@
     th{background:#222;}
     tr:nth-child(even){background:#1a1a1a;}
     a{color:#61dafb;text-decoration:none;}
+    .arrow{margin-left:4px;font-size:10px;}
   </style>
 </head>
 <body>
   <h1>Track Library</h1>
   <p><a href="/">← Back to playlists</a></p>
-  <table>
+  <table id="trackTable">
     <thead>
       <tr>
         <th>#</th>
@@ -60,5 +61,75 @@
       {% endfor %}
     </tbody>
   </table>
+
+  <script>
+    (function(){
+      const table = document.getElementById('trackTable');
+      if(!table) return;
+      const tbody = table.querySelector('tbody');
+
+      function parseValue(text){
+        const trimmed = text.trim();
+        // date
+        if(/^[0-9]{4}-[0-9]{2}-[0-9]{2}/.test(trimmed)){
+          return new Date(trimmed.replace(' ', 'T'));
+        }
+        // numeric
+        const num = parseFloat(trimmed.replace(/[^0-9.\-]/g,''));
+        if(!isNaN(num) && /[0-9]/.test(trimmed)) return num;
+        return trimmed.toLowerCase();
+      }
+
+      let currentIdx = 0;
+      let currentAsc = true;
+
+      function updateIndicators(){
+        table.querySelectorAll('thead th').forEach((h,i)=>{
+           const span=h.querySelector('.arrow'); if(span) span.remove();
+           if(i===currentIdx){
+              const arrow=document.createElement('span');
+              arrow.className='arrow';
+              arrow.textContent=currentAsc?'▲':'▼';
+              h.appendChild(arrow);
+           }
+        });
+      }
+
+      function sortBy(idx, asc){
+         const rows = Array.from(tbody.querySelectorAll('tr'));
+         rows.sort((a,b)=>{
+            let v1 = a.children[idx].innerText.trim();
+            let v2 = b.children[idx].innerText.trim();
+
+            const empty1 = (v1==='-'||v1==='');
+            const empty2 = (v2==='-'||v2==='');
+            if(empty1 && empty2) return 0;
+            if(empty1) return asc?1:-1; // empty always bottom on asc
+            if(empty2) return asc?-1:1;
+
+            v1 = parseValue(v1);
+            v2 = parseValue(v2);
+
+            if(v1>v2) return asc?1:-1;
+            if(v1<v2) return asc?-1:1;
+            return 0;
+         });
+         rows.forEach(r=>tbody.appendChild(r));
+         currentIdx=idx; currentAsc=asc;
+         updateIndicators();
+      }
+
+      table.querySelectorAll('thead th').forEach((th, idx)=>{
+        th.style.cursor='pointer'; th.title='Sort';
+        th.addEventListener('click',()=>{
+            const asc = (currentIdx===idx)? !currentAsc : true;
+            sortBy(idx, asc);
+        });
+      });
+
+      // default sort by first column ascending
+      sortBy(0, true);
+    })();
+  </script>
 </body>
 </html> 
