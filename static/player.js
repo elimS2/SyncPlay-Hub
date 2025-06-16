@@ -18,6 +18,10 @@ function shuffle(array) {
   const nextBtn = document.getElementById('nextBtn');
   const prevBtn = document.getElementById('prevBtn');
   const playBtn = document.getElementById('playBtn');
+  const fullBtn = document.getElementById('fullBtn');
+  const fsControls = document.getElementById('fsControls');
+  const fsPrevBtn = document.getElementById('fsPrevBtn');
+  const fsNextBtn = document.getElementById('fsNextBtn');
 
   let tracks = await fetchTracks();
   let queue = [...tracks];
@@ -81,5 +85,46 @@ function shuffle(array) {
     }
   };
 
+  fullBtn.onclick = () => {
+    if (!document.fullscreenElement) {
+      if (media.requestFullscreen) {
+        media.requestFullscreen();
+      } else if (media.webkitRequestFullscreen) {
+        media.webkitRequestFullscreen();
+      }
+    } else {
+      if (document.exitFullscreen) {
+        document.exitFullscreen();
+      } else if (document.webkitExitFullscreen) {
+        document.webkitExitFullscreen();
+      }
+    }
+  };
+
+  fsPrevBtn.onclick = () => prevBtn.click();
+  fsNextBtn.onclick = () => nextBtn.click();
+
+  function updateFsControls() {
+    const isFs = document.fullscreenElement && (document.fullscreenElement.id === 'player' || document.fullscreenElement.id === 'videoWrapper');
+    fsControls.style.display = isFs ? 'block' : 'none';
+  }
+  document.addEventListener('fullscreenchange', updateFsControls);
+
   renderList();
+
+  // Keyboard shortcuts: ← prev, → next, Space play/pause
+  document.addEventListener('keydown', (e) => {
+    switch (e.code) {
+      case 'ArrowRight':
+        nextBtn.click();
+        break;
+      case 'ArrowLeft':
+        prevBtn.click();
+        break;
+      case 'Space':
+        e.preventDefault();
+        playBtn.click();
+        break;
+    }
+  });
 })(); 

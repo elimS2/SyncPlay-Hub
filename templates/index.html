@@ -19,8 +19,15 @@
     <button id="nextBtn">Next ⏭</button>
     <button id="shuffleBtn">Shuffle</button>
     <button id="stopBtn">Stop</button>
+    <button id="fullBtn">Fullscreen ⛶</button>
   </div>
-  <video id="player" controls style="width:100%; max-height:60vh; margin-top: 10px;" playsinline></video>
+  <div id="videoWrapper" style="position:relative; margin-top:10px;">
+    <video id="player" controls style="width:100%; max-height:60vh;" playsinline></video>
+    <div id="fsControls" style="display:none;position:absolute;top:50%;left:0;width:100%;text-align:center;transform:translateY(-50%);pointer-events:none;">
+      <button id="fsPrevBtn" style="font-size:2rem;margin-right:2rem;pointer-events:auto;">⏮</button>
+      <button id="fsNextBtn" style="font-size:2rem;margin-left:2rem;pointer-events:auto;">⏭</button>
+    </div>
+  </div>
   <ul id="tracklist"></ul>
 
   <script src="/static/player.js"></script>
