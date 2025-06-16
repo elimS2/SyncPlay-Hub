@@ -14,7 +14,10 @@
   </style>
 </head>
 <body>
-  <h1>Available Playlists</h1>
+  <div style="display:flex;justify-content:space-between;align-items:center;">
+    <h1 style="margin:0;">Available Playlists</h1>
+    <button id="scanBtn" style="padding:6px 12px;font-size:14px;cursor:pointer;">Rescan Library</button>
+  </div>
   <ul>
     {% for pl in playlists %}
       <li><a href="{{ pl.url }}">{{ pl.name }}</a></li>
@@ -22,5 +25,28 @@
       <li>No playlists found in the selected root folder.</li>
     {% endfor %}
   </ul>
+
+  <script>
+    const btn = document.getElementById('scanBtn');
+    btn?.addEventListener('click', async () => {
+        btn.disabled = true;
+        btn.textContent = 'Scanning…';
+        try {
+            const res = await fetch('/api/scan', {method:'POST'});
+            const data = await res.json();
+            if(data.status==='ok'){
+                alert('Scan completed successfully');
+                location.reload();
+            }else{
+                alert('Scan error: '+ (data.message || 'unknown'));
+            }
+        }catch(err){
+            alert('Request failed: '+err);
+        }finally{
+            btn.disabled = false;
+            btn.textContent = 'Rescan Library';
+        }
+    });
+  </script>
 </body>
 </html> 

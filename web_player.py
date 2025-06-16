@@ -19,6 +19,9 @@ from flask import Flask, jsonify, render_template, send_from_directory, url_for,
 import database as db
 from database import get_connection, iter_tracks_with_playlists
 
+# We'll reuse scan function from scan_to_db.py
+from scan_to_db import scan as scan_library
+
 app = Flask(
     __name__,
     static_folder="static",
@@ -154,6 +157,19 @@ def tracks_page():
     tracks = list(iter_tracks_with_playlists(conn))
     conn.close()
     return render_template("tracks.html", tracks=tracks)
+
+
+# -------- Scan API --------
+
+
+@app.route("/api/scan", methods=["POST"])
+def api_scan():
+    """Scan Playlists directory and update database."""
+    try:
+        scan_library(ROOT_DIR)
+        return jsonify({"status": "ok"})
+    except Exception as exc:
+        return jsonify({"status": "error", "message": str(exc)}), 500
 
 
 if __name__ == "__main__":
