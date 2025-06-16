@@ -41,6 +41,8 @@
     /* fullscreen adjustments */
     #videoWrapper:fullscreen video{width:100%;height:100%;object-fit:contain;}
     #videoWrapper:-webkit-full-screen video{width:100%;height:100%;object-fit:contain;}
+    .player-container{display:flex;gap:12px;}
+    .side-list{list-style:none;padding:0;width:280px;max-height:70vh;overflow-y:auto;border-left:1px solid rgba(255,255,255,.1);}
   </style>
 </head>
 <body>
@@ -53,23 +55,25 @@
     <button id="stopBtn">Stop</button>
     <button id="fullBtn">Fullscreen ⛶</button>
   </div>
-  <div id="videoWrapper" style="position:relative; margin-top:10px;">
-    <video id="player" style="width:100%;" playsinline></video>
-    <!-- custom control bar -->
-    <div id="customControls" class="controls">
-      <div class="left-group">
-        <button id="cPrev" class="ctrl-btn">⏮</button>
-        <button id="cPlay" class="ctrl-btn">▶️</button>
-        <button id="cNext" class="ctrl-btn">⏭</button>
-        <button id="cMute" class="ctrl-btn">🔊</button>
-        <input type="range" id="cVol" min="0" max="1" step="0.05" value="1" class="vol-slider" />
+  <div id="playerContainer" class="player-container" style="margin-top:10px;">
+    <div id="videoWrapper" style="position:relative; flex:1 1 auto;">
+      <video id="player" style="width:100%;" playsinline></video>
+      <!-- custom control bar -->
+      <div id="customControls" class="controls">
+        <div class="left-group">
+          <button id="cPrev" class="ctrl-btn">⏮</button>
+          <button id="cPlay" class="ctrl-btn">▶️</button>
+          <button id="cNext" class="ctrl-btn">⏭</button>
+          <button id="cMute" class="ctrl-btn">🔊</button>
+          <input type="range" id="cVol" min="0" max="1" step="0.05" value="1" class="vol-slider" />
+        </div>
+        <div id="progressContainer" class="progress"><div id="progressBar" class="progress-bar"></div></div>
+        <span id="timeLabel" class="time">0:00 / 0:00</span>
+        <button id="cFull" class="ctrl-btn">⛶</button>
       </div>
-      <div id="progressContainer" class="progress"><div id="progressBar" class="progress-bar"></div></div>
-      <span id="timeLabel" class="time">0:00 / 0:00</span>
-      <button id="cFull" class="ctrl-btn">⛶</button>
     </div>
+    <ul id="tracklist" class="side-list"></ul>
   </div>
-  <ul id="tracklist"></ul>
 
   <script src="/static/player.js"></script>
 </body>

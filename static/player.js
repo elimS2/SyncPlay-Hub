@@ -185,4 +185,14 @@ function shuffle(array) {
         break;
     }
   });
+
+  function updateFsVisibility(){
+     if(document.fullscreenElement){
+        listElem.style.display='none';
+     }else{
+        listElem.style.display='';
+     }
+  }
+  document.addEventListener('fullscreenchange',updateFsVisibility);
+  updateFsVisibility();
 })(); 
