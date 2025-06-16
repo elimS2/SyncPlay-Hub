@@ -25,6 +25,8 @@ from database import upsert_playlist
 # We'll reuse scan function from scan_to_db.py
 from scan_to_db import scan as scan_library
 
+import log_utils  # noqa: F401 – applies timestamp+PID prefix to all print() calls
+
 app = Flask(
     __name__,
     static_folder="static",

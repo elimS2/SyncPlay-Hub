@@ -20,6 +20,7 @@ import urllib.parse as _urlparse
 from typing import Dict, Any, Set, Tuple
 import os
 import textwrap
+import log_utils  # noqa: F401 (patches builtins.print with timestamp+PID)
 
 try:
     from yt_dlp import YoutubeDL

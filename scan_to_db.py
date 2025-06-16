@@ -19,6 +19,7 @@ from typing import Optional
 
 import database as db
 from database import get_connection, upsert_playlist, upsert_track, link_track_playlist, update_playlist_stats
+import log_utils  # noqa: F401 – applies timestamp+PID prefix to all print() calls
 
 MEDIA_EXTS = {".mp3", ".m4a", ".opus", ".webm", ".flac", ".mp4", ".mkv", ".mov"}
 VIDEO_ID_RE = re.compile(r"\[([A-Za-z0-9_-]{11})\]$")
