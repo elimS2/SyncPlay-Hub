@@ -22,6 +22,7 @@ function shuffle(array) {
   const playBtn = document.getElementById('playBtn');
   const fullBtn = document.getElementById('fullBtn');
   const cLike = document.getElementById('cLike');
+  let likedCurrent = false;
   const wrapper = document.getElementById('videoWrapper');
   const cPrev = document.getElementById('cPrev');
   const cPlay = document.getElementById('cPlay');
@@ -152,7 +153,10 @@ function shuffle(array) {
     }
     castLoad(track);
     renderList();
-
+    // reset like state visual
+    likedCurrent=false;
+    cLike.classList.remove('like-active');
+    cLike.textContent='♡';
     // report play start once per track
     reportEvent(track.video_id, 'start');
   }
@@ -336,6 +340,9 @@ function shuffle(array) {
      if(currentIndex<0||currentIndex>=queue.length) return;
      const track=queue[currentIndex];
      reportEvent(track.video_id,'like', media.currentTime);
+     likedCurrent = true;
+     cLike.classList.add('like-active');
+     cLike.textContent='❤️';
   };
 
   async function reportEvent(videoId, event, position=null){

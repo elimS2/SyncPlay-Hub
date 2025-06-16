@@ -146,8 +146,9 @@ Starting from v0.2 the project includes a lightweight **SQLite** database automa
 
 * Track metadata (duration, size, bitrate, etc.)
 * Per-track counters: starts, finishes, *next* / *prev* skips
+* Per-track **likes** – counted via ❤️ button (only one like per track per 12 h)
 * Timestamps of the last start / finish event
-* Full play history (every start / finish / skip event)
+* Full play history (every start / finish / skip / like event with position)
 
 ### How it works
 

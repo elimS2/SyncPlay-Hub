@@ -176,6 +176,11 @@ def record_event(conn: sqlite3.Connection, video_id: str, event: str, position: 
     elif event == "prev":
         set_parts.append("play_prevs = play_prevs + 1")
     elif event == "like":
+        # check last like within 12h
+        like_recent = cur.execute("SELECT 1 FROM play_history WHERE video_id=? AND event='like' AND ts >= datetime('now','-12 hours') LIMIT 1", (video_id,)).fetchone()
+        if like_recent:
+            # skip counting duplicate like
+            return
         set_parts.append("play_likes = play_likes + 1")
     if set_parts:
         cur.execute(f"UPDATE tracks SET {', '.join(set_parts)} WHERE video_id = ?", (video_id,))
