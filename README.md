@@ -49,6 +49,27 @@ python download_playlist.py "https://www.youtube.com/playlist?list=PLxxxxxxxxxxx
 
 ---
 
+## Authentication / age-restricted videos
+
+Some playlist items may be gated by age, region or "sign-in to confirm". Pass your own YouTube cookies so yt-dlp can access them.
+
+### 1) Import cookies automatically (Chrome/Edge/Firefox)
+
+```bash
+python download_playlist.py <URL> --use-browser-cookies
+```
+
+### 2) Export cookies.txt manually and pass path
+
+```bash
+# export via browser extension, then:
+python download_playlist.py <URL> --cookies C:\path\youtube_cookies.txt
+```
+
+If both flags are provided, `--cookies` has priority.
+
+---
+
 ## Advanced notes
 
 * The naming template can be adjusted directly in `download_playlist.py` (variable `output_template`). Default structure: `<playlist>/Title [VIDEO_ID].ext`.

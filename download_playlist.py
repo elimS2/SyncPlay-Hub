@@ -173,7 +173,7 @@ def cleanup_local_files(playlist_dir: pathlib.Path, current_ids: Set[str]) -> No
             print(f"[Warning] Could not update {UNAVAILABLE_FILE}: {exc}")
 
 
-def build_ydl_opts(output_dir: pathlib.Path, audio_only: bool) -> Dict[str, Any]:
+def build_ydl_opts(output_dir: pathlib.Path, audio_only: bool, *, cookies_path: str | None = None, use_browser: bool = False) -> Dict[str, Any]:
     """Build yt-dlp options dict."""
     # File name template: <playlist>/Title [VIDEO_ID].ext
     output_template = str(output_dir / "%(playlist_title)s" / "%(title)s [%(id)s].%(ext)s")
@@ -200,6 +200,8 @@ def build_ydl_opts(output_dir: pathlib.Path, audio_only: bool) -> Dict[str, Any]
         "concurrent_fragments": 4,
         # Pretty progress output in the terminal
         "progress_hooks": [lambda d: print_progress(d)],
+        **({"cookiefile": cookies_path} if cookies_path else {}),
+        **({"cookiesfrombrowser": ("chrome",)} if use_browser and not cookies_path else {}),
     }
 
 
@@ -224,7 +226,8 @@ def _get_local_ids(playlist_dir: pathlib.Path) -> Set[str]:
     return ids
 
 
-def download_playlist(playlist_url: str, output_dir: pathlib.Path, audio_only: bool = False, *, sync: bool = True) -> None:
+def download_playlist(playlist_url: str, output_dir: pathlib.Path, audio_only: bool = False, *, sync: bool = True,
+                     cookies_path: str | None = None, use_browser: bool = False) -> None:
     """Download the entire playlist and optionally sync (delete) removed tracks."""
     # 1. Fetch metadata first to know current IDs and sanitized playlist title
     playlist_title, current_ids = fetch_playlist_metadata(playlist_url)
@@ -242,7 +245,7 @@ def download_playlist(playlist_url: str, output_dir: pathlib.Path, audio_only: b
     output_dir.mkdir(parents=True, exist_ok=True)
 
     # 2. Download/update files
-    ydl_opts = build_ydl_opts(output_dir, audio_only)
+    ydl_opts = build_ydl_opts(output_dir, audio_only, cookies_path=cookies_path, use_browser=use_browser)
     with YoutubeDL(ydl_opts) as ydl:
         ydl.download([playlist_url])
 
@@ -260,6 +263,8 @@ if __name__ == "__main__":
     parser.add_argument("--output", "-o", default="downloads", help="Folder to save files", dest="output")
     parser.add_argument("--audio-only", action="store_true", help="Download audio only (mp3)")
     parser.add_argument("--no-sync", action="store_true", help="Do not delete local files that were removed from the playlist")
+    parser.add_argument("--cookies", help="Path to YouTube cookies.txt export")
+    parser.add_argument("--use-browser-cookies", action="store_true", help="Import cookies directly from installed browser (Chrome profile by default)")
     args = parser.parse_args()
 
     try:
@@ -268,6 +273,8 @@ if __name__ == "__main__":
             pathlib.Path(args.output),
             args.audio_only,
             sync=not args.no_sync,
+            cookies_path=args.cookies,
+            use_browser=args.use_browser_cookies,
         )
     except KeyboardInterrupt:
         print("\n[Aborted by user]")
