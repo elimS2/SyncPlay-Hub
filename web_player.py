@@ -13,11 +13,12 @@ import argparse
 from pathlib import Path
 from typing import List
 import socket
+import re
 
 from flask import Flask, jsonify, render_template, send_from_directory, url_for, abort
 
 import database as db
-from database import get_connection, iter_tracks_with_playlists
+from database import get_connection, iter_tracks_with_playlists, increment_play
 
 # We'll reuse scan function from scan_to_db.py
 from scan_to_db import scan as scan_library
@@ -34,6 +35,8 @@ ROOT_DIR: Path  # set in main()
 # Where the database file lives (BASE_DIR / "DB" / tracks.db)
 DB_FILE: Path  # set in main()
 
+VIDEO_ID_RE = re.compile(r"\[([A-Za-z0-9_-]{11})\]$")
+
 
 def scan_tracks(scan_root: Path) -> List[dict]:
     """Return list of media files under scan_root (recursive).
@@ -48,10 +51,13 @@ def scan_tracks(scan_root: Path) -> List[dict]:
         if p.suffix.lower() not in {".mp3", ".m4a", ".opus", ".webm", ".flac", ".mp4", ".mkv", ".mov"}:
             continue
         rel_to_root = p.relative_to(ROOT_DIR)
+        m = VIDEO_ID_RE.search(p.stem)
+        vid = m.group(1) if m else ""
         files.append({
             "name": p.stem,
             "relpath": str(rel_to_root).replace("\\", "/"),
             "url": url_for("media", filename=str(rel_to_root).replace("\\", "/")),
+            "video_id": vid,
         })
     return files
 
@@ -170,6 +176,28 @@ def api_scan():
         return jsonify({"status": "ok"})
     except Exception as exc:
         return jsonify({"status": "error", "message": str(exc)}), 500
+
+
+# -------- Event API --------
+
+
+@app.route("/api/event", methods=["POST"])
+def api_event():
+    data = {}  # fallback
+    try:
+        data = app.request_json_cache if hasattr(app, 'request_json_cache') else None
+    except Exception:
+        pass
+    if not data:
+        data = getattr(__import__('flask'), 'request').get_json(force=True, silent=True) or {}
+    video_id = data.get("video_id")
+    ev = data.get("event")
+    if not video_id or ev not in {"start", "finish"}:
+        return jsonify({"status": "error", "message": "bad payload"}), 400
+    conn = get_connection()
+    increment_play(conn, video_id, started=(ev == "start"), finished=(ev == "finish"))
+    conn.close()
+    return jsonify({"status": "ok"})
 
 
 if __name__ == "__main__":

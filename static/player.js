@@ -125,6 +125,9 @@ function shuffle(array) {
     }
     castLoad(track);
     renderList();
+
+    // report play start once per track
+    reportEvent(track.video_id, 'start');
   }
 
   function playIndex(idx){
@@ -134,6 +137,11 @@ function shuffle(array) {
   media.addEventListener('ended', () => {
     if (currentIndex + 1 < queue.length) {
       playIndex(currentIndex + 1);
+    }
+    // report play finish for previous track
+    if(currentIndex >=0 && currentIndex < queue.length){
+        const track = queue[currentIndex];
+        reportEvent(track.video_id, 'finish');
     }
   });
 
@@ -285,4 +293,17 @@ function shuffle(array) {
       playlistPanel.classList.toggle('collapsed');
       toggleListBtn.textContent = playlistPanel.classList.contains('collapsed') ? '☰ Show playlist' : '☰ Hide playlist';
   };
+
+  async function reportEvent(videoId, event){
+     if(!videoId) return;
+     try{
+        await fetch('/api/event', {
+           method:'POST',
+           headers:{'Content-Type':'application/json'},
+           body: JSON.stringify({video_id: videoId, event})
+        });
+     }catch(err){
+        console.warn('event report failed', err);
+     }
+  }
 })(); 

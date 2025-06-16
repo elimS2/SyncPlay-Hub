@@ -28,6 +28,8 @@
         <th>Bitrate</th>
         <th>Resolution</th>
         <th>Type</th>
+        <th>Starts</th>
+        <th>Finishes</th>
       </tr>
     </thead>
     <tbody>
@@ -42,9 +44,11 @@
           <td>{% if t['bitrate'] %}{{ (t['bitrate']/1000)|int }} kbps{% else %}-{% endif %}</td>
           <td>{{ t['resolution'] or '-' }}</td>
           <td>{{ t['filetype'] }}</td>
+          <td>{{ t['play_starts'] }}</td>
+          <td>{{ t['play_finishes'] }}</td>
         </tr>
       {% else %}
-        <tr><td colspan="9">Database is empty. Run <code>python scan_to_db.py</code> first.</td></tr>
+        <tr><td colspan="11">Database is empty. Run <code>python scan_to_db.py</code> first.</td></tr>
       {% endfor %}
     </tbody>
   </table>

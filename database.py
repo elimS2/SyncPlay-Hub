@@ -38,7 +38,9 @@ def _ensure_schema(conn: sqlite3.Connection):
             size_bytes INTEGER,
             bitrate INTEGER,
             resolution TEXT,
-            filetype TEXT
+            filetype TEXT,
+            play_starts INTEGER DEFAULT 0,
+            play_finishes INTEGER DEFAULT 0
         );
 
         CREATE TABLE IF NOT EXISTS track_playlists (
@@ -50,6 +52,14 @@ def _ensure_schema(conn: sqlite3.Connection):
         );
         """
     )
+    conn.commit()
+
+    # ---- ensure new columns exist when upgrading older DB ----
+    cur.execute("PRAGMA table_info(tracks)")
+    cols = {row[1] for row in cur.fetchall()}
+    for col in ("play_starts", "play_finishes"):
+        if col not in cols:
+            cur.execute(f"ALTER TABLE tracks ADD COLUMN {col} INTEGER DEFAULT 0")
     conn.commit()
 
 
@@ -117,3 +127,19 @@ def iter_tracks_with_playlists(conn: sqlite3.Connection) -> Iterator[sqlite3.Row
         """
     ):
         yield row 
+
+
+# ---------- Play counts ----------
+
+
+def increment_play(conn: sqlite3.Connection, video_id: str, *, started: bool = False, finished: bool = False):
+    cur = conn.cursor()
+    set_parts = []
+    if started:
+        set_parts.append("play_starts = play_starts + 1")
+    if finished:
+        set_parts.append("play_finishes = play_finishes + 1")
+    if not set_parts:
+        return
+    cur.execute(f"UPDATE tracks SET {', '.join(set_parts)} WHERE video_id = ?", (video_id,))
+    conn.commit() 
