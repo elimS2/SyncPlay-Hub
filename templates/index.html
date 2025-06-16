@@ -89,10 +89,15 @@
   <script>
     // Local server IP injected by Flask for proper Cast functionality
     const SERVER_IP = "{{ server_ip }}";
+    // Relative path of playlist (sub-folder) – empty for root / all tracks
+    const PLAYLIST_REL = "{{ playlist_rel|default('') }}";
   </script>
 </head>
 <body>
-  <h1>Local Playlist Player</h1>
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+    <a href="/" style="color:#61dafb;text-decoration:none;font-size:16px;">← All Playlists</a>
+    <span style="font-size:16px;color:var(--text);">{{ playlist_name }}</span>
+  </div>
   <div id="controlBar" class="control-bar">
     <button id="prevBtn">⏮ Prev</button>
     <button id="playBtn">▶️ Play/Pause</button>

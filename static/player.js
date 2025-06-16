@@ -1,5 +1,6 @@
-async function fetchTracks() {
-  const res = await fetch('/api/tracks');
+async function fetchTracks(playlistPath = '') {
+  const endpoint = playlistPath ? `/api/tracks/${encodeURI(playlistPath)}` : '/api/tracks';
+  const res = await fetch(endpoint);
   return await res.json();
 }
 
@@ -32,7 +33,8 @@ function shuffle(array) {
   const toggleListBtn = document.getElementById('toggleListBtn');
   const playlistPanel = document.getElementById('playlistPanel');
 
-  let tracks = await fetchTracks();
+  const playlistRel = typeof PLAYLIST_REL !== 'undefined' ? PLAYLIST_REL : '';
+  let tracks = await fetchTracks(playlistRel);
   let queue = [...tracks];
   let currentIndex = -1;
 
