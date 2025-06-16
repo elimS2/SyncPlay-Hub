@@ -135,13 +135,17 @@ function shuffle(array) {
   }
 
   media.addEventListener('ended', () => {
+    // capture current track before any change
+    const finishedTrack = queue[currentIndex];
+
+    // report finish first
+    if (finishedTrack) {
+      reportEvent(finishedTrack.video_id, 'finish');
+    }
+
+    // then move to next track if available
     if (currentIndex + 1 < queue.length) {
       playIndex(currentIndex + 1);
-    }
-    // report play finish for previous track
-    if(currentIndex >=0 && currentIndex < queue.length){
-        const track = queue[currentIndex];
-        reportEvent(track.video_id, 'finish');
     }
   });
 
