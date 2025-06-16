@@ -4,11 +4,40 @@
   <meta charset="UTF-8" />
   <title>Local YouTube Playlist Player</title>
   <style>
-    body { font-family: Arial, sans-serif; margin: 20px; }
+    :root{
+      --bg: rgba(0,0,0,.7);
+      --text:#fff;
+      --progress-bg:#444;
+      --progress-fill:#fff;
+      --page-bg:#000;
+      --playing-bg:#333;
+      --playing-text:#fff;
+    }
+    @media (prefers-color-scheme: light){
+      :root{
+        --bg: rgba(255,255,255,.8);
+        --text:#000;
+        --progress-bg:#ccc;
+        --progress-fill:#000;
+        --page-bg:#fff;
+        --playing-bg:#e6e6e6;
+        --playing-text:#000;
+      }
+    }
+
+    body { font-family: Arial, sans-serif; margin: 20px; background:var(--page-bg); color:var(--text);}
     #tracklist { list-style: none; padding: 0; max-height: 60vh; overflow-y: auto; }
-    #tracklist li { padding: 4px; cursor: pointer; }
-    #tracklist li.playing { background: #d0f0d0; }
+    #tracklist li { padding: 4px; cursor: pointer; color:var(--text); }
+    #tracklist li:hover {background: rgba(128,128,128,.2);}
+    #tracklist li.playing { background: var(--playing-bg); color:var(--playing-text); font-weight:600; }
     button { margin-right: 10px; }
+    .controls{position:absolute;bottom:0;left:0;width:100%;display:flex;align-items:center;background:var(--bg);padding:6px 10px;box-sizing:border-box;}
+    .left-group{display:flex;align-items:center;}
+    .ctrl-btn{background:none;border:none;color:var(--text);font-size:20px;margin:0 6px;cursor:pointer;}
+    .progress{flex:1;height:6px;background:var(--progress-bg);margin:0 8px;border-radius:3px;cursor:pointer;}
+    .progress-bar{height:100%;width:0%;background:var(--progress-fill);border-radius:3px;}
+    .time{color:var(--text);font-size:12px;margin-right:8px;white-space:nowrap;}
+    .vol-slider{width:80px;margin-left:4px;filter:brightness(0.9);}
   </style>
 </head>
 <body>
@@ -22,10 +51,19 @@
     <button id="fullBtn">Fullscreen ⛶</button>
   </div>
   <div id="videoWrapper" style="position:relative; margin-top:10px;">
-    <video id="player" controls style="width:100%; max-height:60vh;" playsinline></video>
-    <div id="fsControls" style="display:none;position:absolute;top:50%;left:0;width:100%;text-align:center;transform:translateY(-50%);pointer-events:none;">
-      <button id="fsPrevBtn" style="font-size:2rem;margin-right:2rem;pointer-events:auto;">⏮</button>
-      <button id="fsNextBtn" style="font-size:2rem;margin-left:2rem;pointer-events:auto;">⏭</button>
+    <video id="player" style="width:100%; max-height:60vh;" playsinline></video>
+    <!-- custom control bar -->
+    <div id="customControls" class="controls">
+      <div class="left-group">
+        <button id="cPrev" class="ctrl-btn">⏮</button>
+        <button id="cPlay" class="ctrl-btn">▶️</button>
+        <button id="cNext" class="ctrl-btn">⏭</button>
+        <button id="cMute" class="ctrl-btn">🔊</button>
+        <input type="range" id="cVol" min="0" max="1" step="0.05" value="1" class="vol-slider" />
+      </div>
+      <div id="progressContainer" class="progress"><div id="progressBar" class="progress-bar"></div></div>
+      <span id="timeLabel" class="time">0:00 / 0:00</span>
+      <button id="cFull" class="ctrl-btn">⛶</button>
     </div>
   </div>
   <ul id="tracklist"></ul>

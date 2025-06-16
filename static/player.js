@@ -19,9 +19,16 @@ function shuffle(array) {
   const prevBtn = document.getElementById('prevBtn');
   const playBtn = document.getElementById('playBtn');
   const fullBtn = document.getElementById('fullBtn');
-  const fsControls = document.getElementById('fsControls');
-  const fsPrevBtn = document.getElementById('fsPrevBtn');
-  const fsNextBtn = document.getElementById('fsNextBtn');
+  const wrapper = document.getElementById('videoWrapper');
+  const cPrev = document.getElementById('cPrev');
+  const cPlay = document.getElementById('cPlay');
+  const cNext = document.getElementById('cNext');
+  const cFull = document.getElementById('cFull');
+  const progressContainer = document.getElementById('progressContainer');
+  const progressBar = document.getElementById('progressBar');
+  const timeLabel = document.getElementById('timeLabel');
+  const cMute = document.getElementById('cMute');
+  const cVol = document.getElementById('cVol');
 
   let tracks = await fetchTracks();
   let queue = [...tracks];
@@ -87,28 +94,70 @@ function shuffle(array) {
 
   fullBtn.onclick = () => {
     if (!document.fullscreenElement) {
-      if (media.requestFullscreen) {
-        media.requestFullscreen();
-      } else if (media.webkitRequestFullscreen) {
-        media.webkitRequestFullscreen();
-      }
+      wrapper.requestFullscreen?.() || wrapper.webkitRequestFullscreen?.();
     } else {
-      if (document.exitFullscreen) {
-        document.exitFullscreen();
-      } else if (document.webkitExitFullscreen) {
-        document.webkitExitFullscreen();
-      }
+      document.exitFullscreen?.() || document.webkitExitFullscreen?.();
     }
   };
 
-  fsPrevBtn.onclick = () => prevBtn.click();
-  fsNextBtn.onclick = () => nextBtn.click();
+  cPrev.onclick = () => prevBtn.click();
+  cNext.onclick = () => nextBtn.click();
 
-  function updateFsControls() {
-    const isFs = document.fullscreenElement && (document.fullscreenElement.id === 'player' || document.fullscreenElement.id === 'videoWrapper');
-    fsControls.style.display = isFs ? 'block' : 'none';
+  function togglePlay() {
+    if (media.paused) {
+      media.play();
+    } else {
+      media.pause();
+    }
   }
-  document.addEventListener('fullscreenchange', updateFsControls);
+  cPlay.onclick = togglePlay;
+
+  media.addEventListener('play', () => {
+    cPlay.textContent = '⏸';
+  });
+  media.addEventListener('pause', () => {
+    cPlay.textContent = '▶️';
+  });
+
+  function formatTime(s) {
+    if (!isFinite(s)) return '0:00';
+    const m = Math.floor(s / 60);
+    const sec = Math.floor(s % 60).toString().padStart(2, '0');
+    return `${m}:${sec}`;
+  }
+
+  media.addEventListener('timeupdate', () => {
+    const percent = (media.currentTime / media.duration) * 100;
+    progressBar.style.width = `${percent}%`;
+    timeLabel.textContent = `${formatTime(media.currentTime)} / ${formatTime(media.duration)}`;
+  });
+
+  progressContainer.onclick = (e) => {
+    const rect = progressContainer.getBoundingClientRect();
+    const pos = (e.clientX - rect.left) / rect.width;
+    media.currentTime = pos * media.duration;
+  };
+
+  cFull.onclick = () => {
+    if (!document.fullscreenElement) {
+      wrapper.requestFullscreen?.() || wrapper.webkitRequestFullscreen?.();
+    } else {
+      document.exitFullscreen?.() || document.webkitExitFullscreen?.();
+    }
+  };
+
+  // Volume logic
+  cMute.onclick = () => {
+    media.muted = !media.muted;
+    cMute.textContent = media.muted ? '🔈' : '🔊';
+  };
+  cVol.oninput = () => {
+    media.volume = parseFloat(cVol.value);
+    media.muted = media.volume === 0;
+    cMute.textContent = media.muted ? '🔈' : '🔊';
+  };
+  // sync initial volume icon
+  media.volume = 1;
 
   renderList();
 
