@@ -96,7 +96,9 @@ function shuffle(array) {
     listElem.innerHTML = '';
     queue.forEach((t, idx) => {
       const li = document.createElement('li');
-      li.textContent = t.name;
+      // Remove trailing [hash] part from display
+      const displayName = t.name.replace(/\s*\[.*?\]$/, '');
+      li.textContent = displayName;
       li.dataset.index = idx;
       if (idx === currentIndex) li.classList.add('playing');
       li.onclick = () => playIndex(idx);
