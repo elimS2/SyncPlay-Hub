@@ -254,6 +254,7 @@ def api_add_playlist():
         conn = get_connection()
         relpath = str(folder_name)
         upsert_playlist(conn, title, relpath, source_url=url)
+        conn.commit()
         conn.close()
     except Exception:
         pass
