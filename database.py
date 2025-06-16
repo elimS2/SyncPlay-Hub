@@ -43,6 +43,7 @@ def _ensure_schema(conn: sqlite3.Connection):
             play_finishes INTEGER DEFAULT 0,
             play_nexts INTEGER DEFAULT 0,
             play_prevs INTEGER DEFAULT 0,
+            play_likes INTEGER DEFAULT 0,
             last_start_ts TEXT,
             last_finish_ts TEXT
         );
@@ -58,8 +59,9 @@ def _ensure_schema(conn: sqlite3.Connection):
         CREATE TABLE IF NOT EXISTS play_history (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             video_id TEXT NOT NULL,
-            event TEXT NOT NULL CHECK(event IN ('start','finish')),
-            ts TEXT DEFAULT (datetime('now'))
+            event TEXT NOT NULL,
+            ts TEXT DEFAULT (datetime('now')),
+            position REAL
         );
         """
     )
@@ -68,7 +70,7 @@ def _ensure_schema(conn: sqlite3.Connection):
     # ---- ensure new columns exist when upgrading older DB ----
     cur.execute("PRAGMA table_info(tracks)")
     cols = {row[1] for row in cur.fetchall()}
-    for col in ("play_starts", "play_finishes", "play_nexts", "play_prevs", "last_start_ts", "last_finish_ts"):
+    for col in ("play_starts", "play_finishes", "play_nexts", "play_prevs", "play_likes", "last_start_ts", "last_finish_ts"):
         if col not in cols:
             if col.startswith('play_'):
                 cur.execute(f"ALTER TABLE tracks ADD COLUMN {col} INTEGER DEFAULT 0")
@@ -77,7 +79,13 @@ def _ensure_schema(conn: sqlite3.Connection):
     conn.commit()
 
     # ensure history table exists (for upgrades before)
-    cur.execute("CREATE TABLE IF NOT EXISTS play_history (id INTEGER PRIMARY KEY AUTOINCREMENT, video_id TEXT NOT NULL, event TEXT NOT NULL CHECK(event IN ('start','finish')), ts TEXT DEFAULT (datetime('now')))")
+    cur.execute("CREATE TABLE IF NOT EXISTS play_history (id INTEGER PRIMARY KEY AUTOINCREMENT, video_id TEXT NOT NULL, event TEXT NOT NULL, ts TEXT DEFAULT (datetime('now')), position REAL)")
+    conn.commit()
+
+    cur.execute("PRAGMA table_info(play_history)")
+    hcols = {row[1] for row in cur.fetchall()}
+    if 'position' not in hcols:
+        cur.execute("ALTER TABLE play_history ADD COLUMN position REAL")
     conn.commit()
 
 
@@ -150,9 +158,9 @@ def iter_tracks_with_playlists(conn: sqlite3.Connection) -> Iterator[sqlite3.Row
 # ---------- Play counts ----------
 
 
-def record_event(conn: sqlite3.Connection, video_id: str, event: str):
+def record_event(conn: sqlite3.Connection, video_id: str, event: str, position: Optional[float] = None):
     """Record playback event and update counters."""
-    valid = {"start", "finish", "next", "prev"}
+    valid = {"start", "finish", "next", "prev", "like"}
     if event not in valid:
         return
     cur = conn.cursor()
@@ -167,13 +175,46 @@ def record_event(conn: sqlite3.Connection, video_id: str, event: str):
         set_parts.append("play_nexts = play_nexts + 1")
     elif event == "prev":
         set_parts.append("play_prevs = play_prevs + 1")
+    elif event == "like":
+        set_parts.append("play_likes = play_likes + 1")
     if set_parts:
         cur.execute(f"UPDATE tracks SET {', '.join(set_parts)} WHERE video_id = ?", (video_id,))
         conn.commit()
 
     # log history
-    cur.execute("INSERT INTO play_history (video_id, event) VALUES (?, ?)", (video_id, event))
+    try:
+        cur.execute("INSERT INTO play_history (video_id, event, position) VALUES (?, ?, ?)", (video_id, event, position))
+        conn.commit()
+    except sqlite3.IntegrityError as e:
+        # Likely due to old CHECK constraint only allowing start/finish
+        if "CHECK" in str(e):
+            _migrate_history_table(conn)
+            cur.execute("INSERT INTO play_history (video_id, event, position) VALUES (?, ?, ?)", (video_id, event, position))
+            conn.commit()
+        else:
+            raise
+
+
+def _migrate_history_table(conn: sqlite3.Connection):
+    cur = conn.cursor()
+    cur.execute("PRAGMA legacy_alter_table=ON")
+    cur.execute("ALTER TABLE play_history RENAME TO play_history_old")
+    cur.executescript(
+        """
+        CREATE TABLE play_history (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            video_id TEXT NOT NULL,
+            event TEXT NOT NULL,
+            ts TEXT DEFAULT (datetime('now')),
+            position REAL
+        );
+        INSERT INTO play_history (video_id, event, ts, position)
+        SELECT video_id, event, ts, NULL FROM play_history_old;
+        DROP TABLE play_history_old;
+        """
+    )
     conn.commit()
+
 
 # For backward compatibility
 def increment_play(conn: sqlite3.Connection, video_id: str, *, started=False, finished=False):

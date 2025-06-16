@@ -32,6 +32,7 @@
         <th>Title</th>
         <th>Event</th>
         <th>Timestamp</th>
+        <th>Pos (s)</th>
       </tr>
     </thead>
     <tbody>
@@ -42,9 +43,10 @@
           <td>{{ h['name'] or '-' }}</td>
           <td>{{ h['event'] }}</td>
           <td>{{ h['ts'] }}</td>
+          <td>{% if h.get('position') is not none %}{{ '%.1f' % h.get('position') }}{% else %}-{% endif %}</td>
         </tr>
       {% else %}
-        <tr><td colspan="5">No history yet.</td></tr>
+        <tr><td colspan="6">No history yet.</td></tr>
       {% endfor %}
     </tbody>
   </table>

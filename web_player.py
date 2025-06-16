@@ -174,6 +174,7 @@ def history_page():
     page = int(request.args.get("page", 1))
     conn = get_connection()
     rows, has_next = get_history_page(conn, page=page, per_page=1000)
+    rows = [dict(r) for r in rows]
     conn.close()
     return render_template("history.html", history=rows, page=page, has_next=has_next)
 
@@ -205,10 +206,11 @@ def api_event():
         data = getattr(__import__('flask'), 'request').get_json(force=True, silent=True) or {}
     video_id = data.get("video_id")
     ev = data.get("event")
-    if not video_id or ev not in {"start", "finish", "next", "prev"}:
+    pos = data.get("position")
+    if not video_id or ev not in {"start", "finish", "next", "prev", "like"}:
         return jsonify({"status": "error", "message": "bad payload"}), 400
     conn = get_connection()
-    record_event(conn, video_id, ev)
+    record_event(conn, video_id, ev, position=pos)
     conn.close()
     return jsonify({"status": "ok"})
 

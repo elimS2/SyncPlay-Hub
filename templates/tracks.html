@@ -33,6 +33,7 @@
         <th>Finishes</th>
         <th>Nexts</th>
         <th>Prevs</th>
+        <th>Likes</th>
         <th>Last Start</th>
         <th>Finishes</th>
       </tr>
@@ -53,11 +54,12 @@
           <td>{{ t['play_finishes'] }}</td>
           <td>{{ t['play_nexts'] }}</td>
           <td>{{ t['play_prevs'] }}</td>
+          <td>{{ t['play_likes'] }}</td>
           <td>{{ t['last_start_ts'] or '-' }}</td>
           <td>{{ t['last_finish_ts'] or '-' }}</td>
         </tr>
       {% else %}
-        <tr><td colspan="15">Database is empty. Run <code>python scan_to_db.py</code> first.</td></tr>
+        <tr><td colspan="16">Database is empty. Run <code>python scan_to_db.py</code> first.</td></tr>
       {% endfor %}
     </tbody>
   </table>

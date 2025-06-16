@@ -21,6 +21,7 @@ function shuffle(array) {
   const prevBtn = document.getElementById('prevBtn');
   const playBtn = document.getElementById('playBtn');
   const fullBtn = document.getElementById('fullBtn');
+  const cLike = document.getElementById('cLike');
   const wrapper = document.getElementById('videoWrapper');
   const cPrev = document.getElementById('cPrev');
   const cPlay = document.getElementById('cPlay');
@@ -331,13 +332,19 @@ function shuffle(array) {
       toggleListBtn.textContent = playlistPanel.classList.contains('collapsed') ? '☰ Show playlist' : '☰ Hide playlist';
   };
 
-  async function reportEvent(videoId, event){
+  cLike.onclick = ()=>{
+     if(currentIndex<0||currentIndex>=queue.length) return;
+     const track=queue[currentIndex];
+     reportEvent(track.video_id,'like', media.currentTime);
+  };
+
+  async function reportEvent(videoId, event, position=null){
      if(!videoId) return;
      try{
         await fetch('/api/event', {
            method:'POST',
            headers:{'Content-Type':'application/json'},
-           body: JSON.stringify({video_id: videoId, event})
+           body: JSON.stringify({video_id: videoId, event, position})
         });
      }catch(err){
         console.warn('event report failed', err);
