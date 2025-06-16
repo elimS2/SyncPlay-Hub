@@ -73,6 +73,7 @@ def scan(playlists_dir: Path):
         playlist_id = upsert_playlist(conn, playlist_dir.name, playlist_rel)
 
         count = 0
+        processed_track_ids = set()
         for file in playlist_dir.rglob("*.*"):
             if file.suffix.lower() not in MEDIA_EXTS or not file.is_file():
                 continue
@@ -93,7 +94,20 @@ def scan(playlists_dir: Path):
                 filetype=file.suffix.lstrip(".").lower(),
             )
             link_track_playlist(conn, track_id, playlist_id)
+            processed_track_ids.add(track_id)
             count += 1
+
+        # Remove stale track→playlist links that no longer have a corresponding file
+        cur = conn.cursor()
+        cur.execute("SELECT track_id FROM track_playlists WHERE playlist_id=?", (playlist_id,))
+        existing_links = {row[0] for row in cur.fetchall()}
+        to_remove = existing_links - processed_track_ids
+        if to_remove:
+            cur.executemany(
+                "DELETE FROM track_playlists WHERE playlist_id=? AND track_id=?",
+                [(playlist_id, tid) for tid in to_remove],
+            )
+            conn.commit()
 
         # update stats
         update_playlist_stats(conn, playlist_id, count)

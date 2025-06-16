@@ -182,6 +182,22 @@ def cleanup_local_files(playlist_dir: pathlib.Path, current_ids: Set[str]) -> No
                     from database import get_connection, record_event  # local import to avoid heavy deps if DB absent
                     conn = get_connection()
                     record_event(conn, vid, "removed")
+                    # Unlink association with the current playlist (if present)
+                    try:
+                        # find playlist id by folder name (unique per library root)
+                        cur = conn.cursor()
+                        cur.execute("SELECT id FROM playlists WHERE name=?", (playlist_dir.name,))
+                        row = cur.fetchone()
+                        if row:
+                            pl_id = row[0]
+                            # remove mapping between this track and playlist
+                            cur.execute(
+                                "DELETE FROM track_playlists WHERE playlist_id=? AND track_id=(SELECT id FROM tracks WHERE video_id=?)",
+                                (pl_id, vid),
+                            )
+                            conn.commit()
+                    except Exception:
+                        pass  # ignore any SQL issues, continue
                     conn.close()
                 except Exception as _exc:
                     # ignore DB errors (e.g., no DB configured when running standalone CLI)
