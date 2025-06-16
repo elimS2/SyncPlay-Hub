@@ -229,10 +229,11 @@ function shuffle(array) {
   // sync initial volume icon
   media.volume = 1;
 
-  // auto-load first track
-  if(queue.length>0){
-      loadTrack(0,false);
-  }else{
+  // auto-shuffle and start playback on first load
+  if (queue.length > 0) {
+      shuffle(queue);
+      playIndex(0); // starts playing first track of shuffled queue
+  } else {
       renderList();
   }
 
