@@ -98,7 +98,7 @@ function shuffle(array) {
       const li = document.createElement('li');
       // Remove trailing [hash] part from display
       const displayName = t.name.replace(/\s*\[.*?\]$/, '');
-      li.textContent = displayName;
+      li.textContent = `${idx + 1}. ${displayName}`;
       li.dataset.index = idx;
       if (idx === currentIndex) li.classList.add('playing');
       li.onclick = () => playIndex(idx);
