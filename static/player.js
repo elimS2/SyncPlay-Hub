@@ -46,13 +46,17 @@ function shuffle(array) {
     });
   }
 
-  function playIndex(idx) {
-    if (idx < 0 || idx >= queue.length) return;
-    currentIndex = idx;
-    const track = queue[currentIndex];
-    media.src = track.url;
-    media.play();
+  function loadTrack(idx, autoplay=false){
+    if(idx<0 || idx>=queue.length) return;
+    currentIndex=idx;
+    const track=queue[currentIndex];
+    media.src=track.url;
+    if(autoplay){media.play();}else{media.load();}
     renderList();
+  }
+
+  function playIndex(idx){
+    loadTrack(idx,true);
   }
 
   media.addEventListener('ended', () => {
@@ -159,7 +163,12 @@ function shuffle(array) {
   // sync initial volume icon
   media.volume = 1;
 
-  renderList();
+  // auto-load first track
+  if(queue.length>0){
+      loadTrack(0,false);
+  }else{
+      renderList();
+  }
 
   // Keyboard shortcuts: ← prev, → next, Space play/pause
   document.addEventListener('keydown', (e) => {
