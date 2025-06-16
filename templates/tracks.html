@@ -21,6 +21,7 @@
       <tr>
         <th>#</th>
         <th>Title</th>
+        <th>Video ID</th>
         <th>Playlists</th>
         <th>Duration</th>
         <th>Size</th>
@@ -34,6 +35,7 @@
         <tr>
           <td>{{ loop.index }}</td>
           <td>{{ t['name'] }}</td>
+          <td><a href="https://youtu.be/{{ t['video_id'] }}" target="_blank">{{ t['video_id'] }}</a></td>
           <td>{{ t['playlists'] or '-' }}</td>
           <td>{% if t['duration'] %}{{ (t['duration'] // 60)|int }}:{{ ('%02d' % (t['duration'] % 60)) }}{% else %}-{% endif %}</td>
           <td>{{ '%.1f' % (t['size_bytes']/1048576) }} MB</td>
@@ -42,7 +44,7 @@
           <td>{{ t['filetype'] }}</td>
         </tr>
       {% else %}
-        <tr><td colspan="8">Database is empty. Run <code>python scan_to_db.py</code> first.</td></tr>
+        <tr><td colspan="9">Database is empty. Run <code>python scan_to_db.py</code> first.</td></tr>
       {% endfor %}
     </tbody>
   </table>
