@@ -26,7 +26,31 @@
     }
 
     body { font-family: Arial, sans-serif; margin: 20px; background:var(--page-bg); color:var(--text);}
-    #tracklist { list-style: none; padding: 0; max-height: 60vh; overflow-y: auto; }
+    #tracklist {
+      list-style: none;
+      padding: 0;
+      height: calc(100vh - 140px); /* почти вся высота экрана с учётом заголовка/кнопок */
+      overflow-y: auto;
+    }
+    /* стилизация скроллбара */
+    #tracklist::-webkit-scrollbar {
+      width: 8px;
+    }
+    #tracklist::-webkit-scrollbar-track {
+      background: var(--bg);
+    }
+    #tracklist::-webkit-scrollbar-thumb {
+      background: var(--progress-bg);
+      border-radius: 4px;
+    }
+    #tracklist:hover::-webkit-scrollbar-thumb {
+      background: var(--progress-fill);
+    }
+    /* Firefox */
+    #tracklist {
+      scrollbar-width: thin;
+      scrollbar-color: var(--progress-fill) var(--bg);
+    }
     #tracklist li { padding: 4px; cursor: pointer; color:var(--text); }
     #tracklist li:hover {background: rgba(128,128,128,.2);}
     #tracklist li.playing { background: var(--playing-bg); color:var(--playing-text); font-weight:600; }
