@@ -35,6 +35,9 @@ function shuffle(array) {
   const cVol = document.getElementById('cVol');
   const toggleListBtn = document.getElementById('toggleListBtn');
   const playlistPanel = document.getElementById('playlistPanel');
+  const controlBar = document.getElementById('controlBar');
+  const customControls = document.getElementById('customControls');
+  let fsTimer;
 
   const playlistRel = typeof PLAYLIST_REL !== 'undefined' ? PLAYLIST_REL : '';
   let tracks = await fetchTracks(playlistRel);
@@ -309,14 +312,34 @@ function shuffle(array) {
     }
   });
 
+  function showFsControls(){
+     if(!document.fullscreenElement) return;
+     customControls.classList.remove('hidden');
+     controlBar.classList.remove('hidden');
+     clearTimeout(fsTimer);
+     fsTimer = setTimeout(()=>{
+        if(document.fullscreenElement){
+           customControls.classList.add('hidden');
+           controlBar.classList.add('hidden');
+        }
+     },3000);
+  }
+
   function updateFsVisibility(){
      if(document.fullscreenElement){
         listElem.style.display='none';
+        showFsControls();
+        // mouse move to reveal controls
+        wrapper.addEventListener('mousemove', showFsControls);
      }else{
         listElem.style.display='';
+        customControls.classList.remove('hidden');
+        controlBar.classList.remove('hidden');
+        wrapper.removeEventListener('mousemove', showFsControls);
+        clearTimeout(fsTimer);
      }
   }
-  document.addEventListener('fullscreenchange',updateFsVisibility);
+  document.addEventListener('fullscreenchange', updateFsVisibility);
   updateFsVisibility();
 
   // ---- Media Session API ----

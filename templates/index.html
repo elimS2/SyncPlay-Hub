@@ -55,7 +55,9 @@
     #tracklist li:hover {background: rgba(128,128,128,.2);}
     #tracklist li.playing { background: var(--playing-bg); color:var(--playing-text); font-weight:600; }
     button { margin-right: 10px; }
-    .controls{position:absolute;bottom:0;left:0;width:100%;display:flex;align-items:center;background:var(--bg);padding:6px 10px;box-sizing:border-box;}
+    .controls{position:absolute;bottom:0;left:0;width:100%;display:flex;align-items:center;background:var(--bg);padding:6px 10px;box-sizing:border-box;transition:opacity .25s;}
+    .controls.hidden{opacity:0;pointer-events:none;}
+    #controlBar.hidden{display:none;}
     .left-group{display:flex;align-items:center;}
     .ctrl-btn{background:none;border:none;color:var(--text);font-size:20px;margin:0 6px;cursor:pointer;}
     .ctrl-btn.like-active{color:#ff5f5f;}
