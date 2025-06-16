@@ -135,3 +135,27 @@ Open `http://<your_ip>:8000/` in a modern browser – the UI is responsive and w
 | **Theming** | Dark/Light via `prefers-color-scheme`; colours centralised in CSS variables |
 
 All client logic lives in **`static/player.js`** – extend, re-skin or integrate with external APIs as you wish.
+
+---
+
+## Playback statistics & database
+
+Starting from v0.2 the project includes a lightweight **SQLite** database automatically created under a `DB/` sub-folder next to your `Playlists/` media directory. It stores:
+
+* Track metadata (duration, size, bitrate, etc.)
+* Per-track counters: starts, finishes, *next* / *prev* skips
+* Timestamps of the last start / finish event
+* Full play history (every start / finish / skip event)
+
+### How it works
+
+1. Run the library scan once: `python scan_to_db.py --root <base_dir>` where `<base_dir>` **must** contain two sub-folders:
+   * `Playlists/` – your media folders
+   * `DB/` – will be auto-created if missing and will hold `tracks.db`
+2. Start the web server: `python web_player.py --root <base_dir>`
+3. Open the browser UI – the header includes:
+   * **Rescan Library** – rescans folders and updates the database without CLI
+   * **Track Library** – paginated table with all tracks and counters
+   * **Play History** – paginated log (1000 rows/page) of all playback events (freshest first)
+
+> Stats are updated in real-time while you interact with the player: starting a track, skipping to next/previous, reaching the end of playback.
