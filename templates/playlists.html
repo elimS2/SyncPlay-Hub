@@ -7,10 +7,12 @@
   <style>
     body{font-family:Arial, sans-serif; background:#111; color:#eee; margin:20px;}
     h1{margin-bottom:20px;}
-    ul{list-style:none; padding:0;}
-    li{margin:8px 0;}
     a{color:#61dafb; text-decoration:none; font-size:20px;}
     a:hover{text-decoration:underline;}
+    table{width:100%;border-collapse:collapse;margin-top:15px;font-size:15px;}
+    th,td{padding:6px 4px;}
+    th{text-align:left;border-bottom:1px solid #444;}
+    tbody tr{border-bottom:1px solid #333;}
   </style>
 </head>
 <body>
@@ -24,19 +26,39 @@
       <button id="addPlBtn" style="padding:6px 12px;font-size:14px;cursor:pointer;">Add Playlist</button>
     </div>
   </div>
-  <ul>
-    {% for pl in playlists %}
-      <li data-rel="{{ pl.relpath }}"><a href="{{ pl.url }}">{{ pl.name }}</a> <span style="font-size:14px;color:#888;">({{ pl.count }} tracks · synced {{ pl.last_sync }})</span>
-      {% if pl.has_source %}
-        <button class="resyncBtn" style="margin-left:6px;font-size:12px;">Resync</button>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Playlist</th>
+        <th>Tracks</th>
+        <th>Plays</th>
+        <th>Likes</th>
+        <th>Last Sync</th>
+        <th>Action</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for pl in playlists %}
+        <tr data-rel="{{ pl.relpath }}">
+          <td><a href="{{ pl.url }}">{{ pl.name }}</a></td>
+          <td>{{ pl.count }}</td>
+          <td>{{ pl.plays }}</td>
+          <td>{{ pl.likes }}</td>
+          <td>{{ pl.last_sync }}</td>
+          <td>
+            {% if pl.has_source %}
+              <button class="resyncBtn" style="font-size:12px;">Resync</button>
+            {% else %}
+              <button class="linkBtn" style="font-size:12px;">Link</button>
+            {% endif %}
+          </td>
+        </tr>
       {% else %}
-        <button class="linkBtn" style="margin-left:6px;font-size:12px;">Link</button>
-      {% endif %}
-      </li>
-    {% else %}
-      <li>No playlists found in the selected root folder.</li>
-    {% endfor %}
-  </ul>
+        <tr><td colspan="6" style="text-align:center;color:#888;">No playlists found in the selected root folder.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
 
   <script>
     const btn = document.getElementById('scanBtn');
@@ -45,14 +67,7 @@
         btn.textContent = 'Scanning…';
         try {
             const res = await fetch('/api/scan', {method:'POST'});
-            const ct = res.headers.get('content-type')||'';
-            let data;
-            if(ct.includes('application/json')){
-                data = await res.json();
-            }else{
-                const txt = await res.text();
-                throw new Error(txt.slice(0,200));
-            }
+            const data = await res.json();
             if(data.status==='ok'){
                 alert('Scan completed successfully');
                 location.reload();
@@ -80,14 +95,7 @@
                 headers:{'Content-Type':'application/json'},
                 body:JSON.stringify({url})
             });
-            const ct = res.headers.get('content-type')||'';
-            let data;
-            if(ct.includes('application/json')){
-                data = await res.json();
-            }else{
-                const txt = await res.text();
-                throw new Error(txt.slice(0,200));
-            }
+            const data = await res.json();
             if(data.status==='started'){
                 alert('Playlist download started. It will appear once finished.');
             }else if(data.status==='exists'){
@@ -107,8 +115,8 @@
     document.querySelectorAll('.resyncBtn').forEach(btn=>{
       btn.addEventListener('click', async (e)=>{
         e.stopPropagation();
-        const li = btn.closest('li');
-        const rel = li?.dataset.rel;
+        const row = btn.closest('tr');
+        const rel = row?.dataset.rel;
         if(!rel) return;
         btn.disabled = true; btn.textContent='Sync…';
         try{
@@ -127,8 +135,8 @@
     document.querySelectorAll('.linkBtn').forEach(btn=>{
       btn.addEventListener('click', async (e)=>{
         e.stopPropagation();
-        const li = btn.closest('li');
-        const rel = li?.dataset.rel;
+        const row = btn.closest('tr');
+        const rel = row?.dataset.rel;
         const url = prompt('Enter playlist URL:');
         if(!rel || !url) return;
         btn.disabled=true; btn.textContent='Link…';

@@ -94,11 +94,22 @@ def list_playlists(root: Path) -> List[dict]:
     meta = {}
     try:
         conn = get_connection()
-        for row in conn.execute("SELECT relpath, track_count, last_sync_ts, source_url FROM playlists"):
-            meta[row[0]] = {
-                "track_count": row[1],
-                "last_sync_ts": row[2],
-                "source_url": row[3],
+        for row in conn.execute(
+            """
+            SELECT p.id, p.relpath, p.track_count, p.last_sync_ts, p.source_url,
+                   COALESCE(SUM(t.play_starts + t.play_nexts + t.play_prevs + t.play_finishes),0) AS play_total,
+                   COALESCE(SUM(t.play_likes),0) AS like_total
+            FROM playlists p
+            LEFT JOIN track_playlists tp ON tp.playlist_id = p.id
+            LEFT JOIN tracks t ON t.id = tp.track_id
+            GROUP BY p.id
+            """):
+            meta[row[1]] = {
+                "track_count": row[2],
+                "last_sync_ts": row[3],
+                "source_url": row[4],
+                "play_total": row[5],
+                "like_total": row[6],
             }
         conn.close()
     except Exception:
@@ -123,6 +134,8 @@ def list_playlists(root: Path) -> List[dict]:
                 "count": count,
                 "last_sync": last_sync_str,
                 "has_source": has_source,
+                "plays": dbinfo.get("play_total", 0) if dbinfo else 0,
+                "likes": dbinfo.get("like_total", 0) if dbinfo else 0,
             })
     return playlists
 

@@ -164,6 +164,19 @@ Starting from v0.2 the project includes a lightweight **SQLite** database automa
 
 > Stats are updated in real-time while you interact with the player: starting a track, skipping to next/previous, reaching the end of playback.
 
++### Database schema (v0.3)
++
++SQLite file: `tracks.db`
++
++| Table | Purpose | Key columns |
++|-------|---------|-------------|
++| `playlists` | One row per local playlist folder | `id` PK · `name` · `relpath` UNIQUE · `track_count` · `last_sync_ts` · `source_url` |
++| `tracks` | Unique entry for each YouTube video / audio file | `id` PK · `video_id` UNIQUE · `name` · `relpath` · `duration` · `size_bytes` · playback counters |
++| `track_playlists` | Many-to-many link between tracks and playlists | composite PK (`track_id`,`playlist_id`) |
++| `play_history` | Immutable log of all user events | `id` PK · `video_id` · `event` (`start`/`finish`/`next`/`prev`/`like`/`removed`) · `ts` · `position` |
++
++This design keeps track statistics even if a file is removed from every playlist: the file's row in `tracks` remains, only the linking rows in `track_playlists` are deleted. If the same YouTube video re-appears later, it will reuse the existing stats.
+
 ---
 
 ## Logs & monitoring
