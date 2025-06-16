@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import List
 import socket
 import re
+import datetime
 
 from flask import Flask, jsonify, render_template, send_from_directory, url_for, abort, request
 
@@ -192,6 +193,64 @@ def api_scan():
         return jsonify({"status": "error", "message": str(exc)}), 500
 
 
+# -------- Add Playlist API --------
+
+
+@app.route("/api/add_playlist", methods=["POST"])
+def api_add_playlist():
+    """Receive a YouTube playlist URL and start background download if not present."""
+    payload = request.get_json(force=True, silent=True) or {}
+    url = (payload.get("url") or "").strip()
+    if not url:
+        return jsonify({"status": "error", "message": "missing url"}), 400
+
+    # Extract playlist ID quickly to sanity-check the URL
+    m = re.search(r"list=([A-Za-z0-9_-]+)", url)
+    if not m:
+        return jsonify({"status": "error", "message": "not a playlist url"}), 400
+
+    # Import here to avoid heavy deps on start-up
+    from download_playlist import fetch_playlist_metadata, download_playlist as _dl_playlist
+    from yt_dlp.utils import sanitize_filename  # type: ignore
+    try:
+        # Fetch metadata (title needed to know target folder & for duplicate check)
+        title, _ids = fetch_playlist_metadata(url, debug=False)
+    except Exception as exc:
+        return jsonify({"status": "error", "message": f"metadata error: {exc}"}), 500
+
+    folder_name = sanitize_filename(title, restricted=True)
+    target_dir = ROOT_DIR / folder_name
+    if target_dir.exists():
+        return jsonify({"status": "exists", "message": "playlist already downloaded"})
+
+    # Background worker to download and rescan DB
+    def _worker():
+        import contextlib, datetime, sys
+        LOGS_DIR_LOCAL = globals().get("LOGS_DIR", Path.cwd() / "Logs")
+        log_path = LOGS_DIR_LOCAL / "download_playlist.log"
+        LOGS_DIR_LOCAL.mkdir(parents=True, exist_ok=True)
+        # Inform server console where log is being written
+        print(f"[AddPlaylist] Logging to {log_path}")
+        with open(log_path, "a", encoding="utf-8", buffering=1) as lf, \
+             contextlib.redirect_stdout(lf), contextlib.redirect_stderr(lf):
+            print("="*60, flush=True)
+            print(f"[START] {datetime.datetime.now():%Y-%m-%d %H:%M:%S} | Playlist: {title} | URL: {url}", flush=True)
+            try:
+                _dl_playlist(url, ROOT_DIR, audio_only=False, sync=True, debug=False)
+                # Update DB after download
+                scan_library(ROOT_DIR)
+                print(f"[DONE]  {datetime.datetime.now():%Y-%m-%d %H:%M:%S}  Successfully downloaded {title}", flush=True)
+            except Exception as e:
+                print(f"[ERROR] {datetime.datetime.now():%Y-%m-%d %H:%M:%S}  {e}", flush=True)
+            finally:
+                print("="*60, flush=True)
+
+    import threading
+
+    threading.Thread(target=_worker, daemon=True).start()
+    return jsonify({"status": "started"})
+
+
 # -------- Event API --------
 
 
@@ -233,6 +292,70 @@ def _get_last_play_ts(video_id: str):
     return ts1 or ts2
 
 
+# -------- Logs routes --------
+
+
+def _list_log_files() -> List[Path]:
+    """Return sorted list of *.log paths inside LOGS_DIR (newest first)."""
+    logs_dir = globals().get("LOGS_DIR")
+    if not logs_dir:
+        return []
+    return sorted(logs_dir.glob("*.log"), key=lambda p: p.stat().st_mtime, reverse=True)
+
+
+@app.route("/logs")
+def logs_page():
+    logs = [p.name for p in _list_log_files()]
+    return render_template("logs.html", logs=logs)
+
+
+@app.route("/log/<path:log_name>")
+def log_view_page(log_name: str):
+    # security: ensure no traversal
+    if "/" in log_name or ".." in log_name or not log_name.endswith(".log"):
+        abort(404)
+    logs_dir = globals().get("LOGS_DIR")
+    if not (logs_dir / log_name).exists():
+        abort(404)
+    return render_template("log_view.html", log_name=log_name)
+
+
+@app.route("/stream_log/<path:log_name>")
+def stream_log(log_name: str):
+    import time
+    from collections import deque
+    from flask import Response
+
+    # security checks
+    if "/" in log_name or ".." in log_name or not log_name.endswith(".log"):
+        abort(404)
+    logs_dir = globals().get("LOGS_DIR")
+    file_path = logs_dir / log_name
+    if not file_path.exists():
+        abort(404)
+
+    def generate():
+        # Send last 200 lines first
+        try:
+            with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
+                last_lines = deque(f, maxlen=200)
+                for line in last_lines:
+                    yield f"data: {line.rstrip()}\n\n"
+
+                # Follow file
+                f.seek(0, 2)  # move to end
+                while True:
+                    line = f.readline()
+                    if line:
+                        yield f"data: {line.rstrip()}\n\n"
+                    else:
+                        time.sleep(1)
+        except GeneratorExit:
+            return
+
+    return Response(generate(), mimetype="text/event-stream")
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Local web player for downloaded tracks")
     parser.add_argument("--root", default="downloads", help="Base folder containing Playlists/ and DB/")
@@ -248,8 +371,14 @@ if __name__ == "__main__":
         raise SystemExit(f"Playlists folder '{PLAYLISTS_DIR}' not found (expected inside base dir)")
     DB_DIR.mkdir(parents=True, exist_ok=True)
 
+    LOGS_DIR = BASE_DIR / "Logs"
+    LOGS_DIR.mkdir(parents=True, exist_ok=True)
+
     ROOT_DIR = PLAYLISTS_DIR
     DB_FILE = DB_DIR / "tracks.db"
+
+    # Expose LOGS_DIR globally so api_add_playlist can access
+    globals()["LOGS_DIR"] = LOGS_DIR
 
     # configure database path
     db.set_db_path(DB_FILE)

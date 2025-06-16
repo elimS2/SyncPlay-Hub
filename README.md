@@ -27,6 +27,7 @@ That idea evolved into **SyncPlay-Hub**: a small Python toolset powered by `yt-d
 * Cookie support for age-restricted or region-blocked videos.  
 * Responsive web player with custom controls and adaptive dark/light theme.  
 * Keyboard shortcuts & TV-friendly UI (playlist hides in fullscreen).
+* Add new playlists straight from the web UI – downloads start in the background and appear automatically when finished.
 
 ---
 
@@ -162,3 +163,12 @@ Starting from v0.2 the project includes a lightweight **SQLite** database automa
    * **Play History** – paginated log (1000 rows/page) of all playback events (freshest first)
 
 > Stats are updated in real-time while you interact with the player: starting a track, skipping to next/previous, reaching the end of playback.
+
+---
+
+## Logs & monitoring
+
+Each background download writes its full terminal output to `Logs/<Playlist>.log` next to your `Playlists/` and `DB/` folders.  
+From the homepage click **Logs** – you will see a list of all log files. Selecting any log opens a real-time view (similar to `tail -F`) streamed via Server-Sent Events; new lines appear instantly in your browser as the download progresses.
+
+This is useful to track long downloads or troubleshoot failures without having to open the server console.

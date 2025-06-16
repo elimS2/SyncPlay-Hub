@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+from __future__ import annotations
 """download_playlist.py
 Script for downloading an entire YouTube playlist.
 
@@ -217,6 +218,7 @@ def build_ydl_opts(output_dir: pathlib.Path, audio_only: bool, *, cookies_path: 
         "concurrent_fragments": 4,
         # Pretty progress output in the terminal
         "progress_hooks": [lambda d: print_progress(d)],
+        "noprogress": True,
         **({"cookiefile": cookies_path} if cookies_path else {}),
         **({"cookiesfrombrowser": ("chrome",)} if use_browser and not cookies_path else {}),
     }

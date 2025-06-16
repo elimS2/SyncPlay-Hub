@@ -1,0 +1,29 @@
+<!-- Logs list page -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Logs</title>
+  <style>
+    body{font-family:Arial, sans-serif; background:#111; color:#eee; margin:20px;}
+    h1{margin-bottom:20px;}
+    ul{list-style:none; padding:0;}
+    li{margin:6px 0;}
+    a{color:#61dafb; text-decoration:none; font-size:16px;}
+    a:hover{text-decoration:underline;}
+  </style>
+</head>
+<body>
+  <div style="display:flex;justify-content:space-between;align-items:center;">
+    <h1 style="margin:0;">Log Files</h1>
+    <a href="/" style="color:#61dafb;text-decoration:none;font-size:14px;">← Back to Playlists</a>
+  </div>
+  <ul>
+    {% for lg in logs %}
+      <li><a href="/log/{{ lg }}">{{ lg }}</a></li>
+    {% else %}
+      <li>No logs yet.</li>
+    {% endfor %}
+  </ul>
+</body>
+</html> 
