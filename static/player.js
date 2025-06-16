@@ -29,6 +29,8 @@ function shuffle(array) {
   const timeLabel = document.getElementById('timeLabel');
   const cMute = document.getElementById('cMute');
   const cVol = document.getElementById('cVol');
+  const toggleListBtn = document.getElementById('toggleListBtn');
+  const playlistPanel = document.getElementById('playlistPanel');
 
   let tracks = await fetchTracks();
   let queue = [...tracks];
@@ -275,4 +277,10 @@ function shuffle(array) {
 
   // Clicking on the video toggles play/pause
   media.addEventListener('click', togglePlay);
+
+  // Playlist collapse/expand
+  toggleListBtn.onclick = () => {
+      playlistPanel.classList.toggle('collapsed');
+      toggleListBtn.textContent = playlistPanel.classList.contains('collapsed') ? '☰ Show playlist' : '☰ Hide playlist';
+  };
 })(); 

@@ -76,7 +76,15 @@
     #videoWrapper:fullscreen video{width:100%;height:100%;object-fit:contain;}
     #videoWrapper:-webkit-full-screen video{width:100%;height:100%;object-fit:contain;}
     .player-container{display:flex;gap:12px;}
-    .side-list{list-style:none;padding:0;width:280px;max-height:70vh;overflow-y:auto;border-left:1px solid rgba(255,255,255,.1);}
+    /* Playlist panel wrapper */
+    .playlist-panel{display:flex;flex-direction:column;width:600px;max-height:70vh;transition:width .3s ease;border-left:1px solid rgba(255,255,255,.1);}
+    .playlist-panel.collapsed{width:0;border-left:none;overflow:hidden;}
+    .playlist-panel.collapsed .side-list{display:none;}
+    .side-list{list-style:none;margin:0;padding:0;flex:1 1 auto;overflow-y:auto;}
+    /* control bar layout */
+    .control-bar{display:flex;align-items:center;}
+    .toggle-btn-header{margin-left:auto;background:var(--bg);color:var(--text);border:none;padding:4px 8px;cursor:pointer;border-radius:4px;font-size:14px;}
+    .toggle-btn-header:hover{opacity:.8;}
   </style>
   <script>
     // Local server IP injected by Flask for proper Cast functionality
@@ -85,15 +93,16 @@
 </head>
 <body>
   <h1>Local Playlist Player</h1>
-  <div>
+  <div id="controlBar" class="control-bar">
     <button id="prevBtn">⏮ Prev</button>
     <button id="playBtn">▶️ Play/Pause</button>
     <button id="nextBtn">Next ⏭</button>
     <button id="shuffleBtn">Shuffle</button>
     <button id="stopBtn">Stop</button>
     <button id="fullBtn">Fullscreen ⛶</button>
+    <button id="toggleListBtn" class="toggle-btn-header">☰ Hide playlist</button>
   </div>
-  <div id="playerContainer" class="player-container" style="margin-top:10px;">
+  <div id="playerContainer" class="player-container" style="margin-top:10px; position:relative;">
     <div id="videoWrapper" style="position:relative; flex:1 1 auto;">
       <video id="player" style="width:100%;" playsinline></video>
       <!-- custom control bar -->
@@ -111,7 +120,9 @@
         <button id="cFull" class="ctrl-btn">⛶</button>
       </div>
     </div>
-    <ul id="tracklist" class="side-list"></ul>
+    <div id="playlistPanel" class="playlist-panel">
+      <ul id="tracklist" class="side-list"></ul>
+    </div>
   </div>
 
   <script src="/static/player.js"></script>
