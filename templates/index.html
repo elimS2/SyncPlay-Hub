@@ -97,6 +97,11 @@
   </script>
 </head>
 <body>
+  <div id="shareOverlay" style="display:none;position:fixed;top:20px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.8);color:#fff;padding:10px 14px;border-radius:6px;font-size:14px;z-index:9999;">
+    Stream URL: <a id="shareLink" href="#" target="_blank" style="color:#61dafb;word-break:break-all;"></a>
+    <button id="copyLinkBtn" style="margin-left:8px;">Copy</button>
+    <button id="closeShare" style="margin-left:4px;">✕</button>
+  </div>
   <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
     <a href="/" style="color:#61dafb;text-decoration:none;font-size:16px;">← All Playlists</a>
     <span style="font-size:16px;color:var(--text);">{{ playlist_name }}</span>
@@ -108,6 +113,7 @@
     <button id="shuffleBtn">Shuffle</button>
     <button id="smartShuffleBtn">Smart Shuffle</button>
     <button id="stopBtn">Stop</button>
+    <button id="streamBtn">Start Stream 📡</button>
     <button id="fullBtn">Fullscreen ⛶</button>
     <button id="toggleListBtn" class="toggle-btn-header">☰ Hide playlist</button>
   </div>

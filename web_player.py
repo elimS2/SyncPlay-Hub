@@ -15,8 +15,13 @@ from typing import List
 import socket
 import re
 import datetime
+import threading
+import uuid
+import queue
+import time
+import json
 
-from flask import Flask, jsonify, render_template, send_from_directory, url_for, abort, request
+from flask import Flask, jsonify, render_template, send_from_directory, url_for, abort, request, Response
 
 import database as db
 from database import get_connection, iter_tracks_with_playlists, record_event, get_history_page
@@ -44,6 +49,128 @@ VIDEO_ID_RE = re.compile(r"\[([A-Za-z0-9_-]{11})\]$")
 # ---- constants ----
 
 MEDIA_EXTS = {".mp3", ".m4a", ".opus", ".webm", ".flac", ".mp4", ".mkv", ".mov"}
+
+# ---- Live Streams ----
+
+# In-memory store: {stream_id: {"state":{...}, "clients":set(), "title":str, "created":ts}}
+STREAMS: dict[str, dict] = {}
+_streams_lock = threading.Lock()
+
+
+def _prune_streams():
+    """Remove streams with no clients for >30 min."""
+    now = time.time()
+    with _streams_lock:
+        stale = [sid for sid, s in STREAMS.items() if not s["clients"] and now - s["created"] > 1800]
+        for sid in stale:
+            STREAMS.pop(sid, None)
+
+
+# API: list active streams
+
+
+@app.route("/api/streams")
+def api_streams():
+    _prune_streams()
+    with _streams_lock:
+        items = [
+            {
+                "id": sid,
+                "title": s.get("title", "Stream"),
+                "listeners": len(s["clients"]),
+            }
+            for sid, s in STREAMS.items()
+        ]
+    return jsonify(items)
+
+
+@app.route("/api/create_stream", methods=["POST"])
+def api_create_stream():
+    data = request.get_json(force=True, silent=True) or {}
+    title = data.get("title") or "Untitled Stream"
+    stream_id = uuid.uuid4().hex[:8]
+    with _streams_lock:
+        STREAMS[stream_id] = {
+            "state": {
+                "queue": data.get("queue", []),
+                "idx": data.get("idx", 0),
+                "position": data.get("position", 0),
+                "paused": True,
+            },
+            "clients": set(),
+            "title": title,
+            "created": time.time(),
+        }
+    return jsonify({"id": stream_id, "url": url_for("stream_page", stream_id=stream_id, _external=True)})
+
+
+@app.route("/api/stream_event/<stream_id>", methods=["POST"])
+def api_stream_event(stream_id: str):
+    evt = request.get_json(force=True, silent=True) or {}
+    with _streams_lock:
+        s = STREAMS.get(stream_id)
+        if not s:
+            return jsonify({"status": "error", "message": "stream not found"}), 404
+        # update state
+        action = evt.get("action")
+        if action in {"play", "pause", "seek", "next", "prev"}:
+            # generic update of known fields
+            for key in ("idx", "position", "paused"):
+                if key in evt:
+                    s["state"][key] = evt[key]
+            s["state"]["last_action"] = action
+        # fan-out to clients
+        for q in list(s["clients"]):
+            try:
+                q.put(evt, timeout=0.1)
+            except Exception:
+                pass
+    return jsonify({"status": "ok"})
+
+
+@app.route("/api/stream_feed/<stream_id>")
+def api_stream_feed(stream_id: str):
+    with _streams_lock:
+        s = STREAMS.get(stream_id)
+        if not s:
+            abort(404)
+        q: queue.Queue = queue.Queue()
+        s["clients"].add(q)
+
+    def gen():
+        try:
+            # send initial state
+            init_payload = json.dumps({"init": s['state']})
+            yield f"data: {init_payload}\n\n"
+            while True:
+                msg = q.get()
+                yield f"data: {json.dumps(msg)}\n\n"
+        except GeneratorExit:
+            pass
+        finally:
+            with _streams_lock:
+                st = STREAMS.get(stream_id)
+                if st:
+                    st["clients"].discard(q)
+
+    return Response(gen(), mimetype="text/event-stream")
+
+
+# Stream pages
+
+
+@app.route("/streams")
+def streams_page():
+    return render_template("streams.html")
+
+
+@app.route("/stream/<stream_id>")
+def stream_page(stream_id: str):
+    with _streams_lock:
+        s = STREAMS.get(stream_id)
+        if not s:
+            abort(404)
+    return render_template("stream_view.html", stream_id=stream_id, stream_title=s.get("title", "Stream"), server_ip=_get_local_ip())
 
 
 def scan_tracks(scan_root: Path) -> List[dict]:

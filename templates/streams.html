@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Live Streams</title>
+<style>
+ body{font-family:Arial, sans-serif;background:#111;color:#eee;margin:20px;}
+ h1{margin-bottom:20px;}
+ table{width:100%;border-collapse:collapse;margin-top:10px;}
+ th,td{padding:6px 8px;border:1px solid #444;}
+ th{background:#222;text-align:left;}
+ a{color:#61dafb;text-decoration:none;}
+</style>
+</head>
+<body>
+ <h1>Live Streams</h1>
+ <p><a href="/">← Back to playlists</a></p>
+ <table id="streamTable">
+  <thead><tr><th>Title</th><th>ID</th><th>Listeners</th><th>Link</th></tr></thead>
+  <tbody></tbody>
+ </table>
+ <script>
+ async function load(){
+   const res=await fetch('/api/streams');
+   const list=await res.json();
+   const tbody=document.querySelector('#streamTable tbody');
+   tbody.innerHTML='';
+   if(list.length===0){
+     const tr=document.createElement('tr');tr.innerHTML='<td colspan="4" style="text-align:center;color:#888;">No active streams</td>';tbody.appendChild(tr);return;
+   }
+   for(const s of list){
+     const tr=document.createElement('tr');
+     tr.innerHTML=`<td>${s.title}</td><td>${s.id}</td><td>${s.listeners}</td><td><a href="/stream/${s.id}" target="_blank">Open</a></td>`;
+     tbody.appendChild(tr);
+   }
+ }
+ load();
+ setInterval(load,5000);
+ </script>
+</body>
+</html> 

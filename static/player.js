@@ -38,6 +38,8 @@ function shuffle(array) {
   const controlBar = document.getElementById('controlBar');
   const customControls = document.getElementById('customControls');
   let fsTimer;
+  const streamBtn = document.getElementById('streamBtn');
+  let streamIdLeader = null;
 
   const playlistRel = typeof PLAYLIST_REL !== 'undefined' ? PLAYLIST_REL : '';
   let tracks = await fetchTracks(playlistRel);
@@ -162,6 +164,7 @@ function shuffle(array) {
     cLike.textContent='♡';
     // report play start once per track
     reportEvent(track.video_id, 'start');
+    sendStreamEvent({action:'seek', idx: currentIndex, paused: media.paused, position: media.currentTime});
   }
 
   function playIndex(idx){
@@ -204,6 +207,7 @@ function shuffle(array) {
       // send event for current track before switching
       if(currentIndex>=0){ reportEvent(queue[currentIndex].video_id,'next'); }
       playIndex(currentIndex + 1);
+      sendStreamEvent({action:'next', idx: currentIndex, paused: media.paused, position:0});
     }
   };
 
@@ -211,14 +215,17 @@ function shuffle(array) {
     if (currentIndex - 1 >= 0) {
       if(currentIndex>=0){ reportEvent(queue[currentIndex].video_id,'prev'); }
       playIndex(currentIndex - 1);
+      sendStreamEvent({action:'prev', idx: currentIndex, paused: media.paused, position: media.currentTime});
     }
   };
 
   playBtn.onclick = () => {
     if (media.paused) {
       media.play();
+      sendStreamEvent({action:'play', position: media.currentTime, paused:false});
     } else {
       media.pause();
+      sendStreamEvent({action:'pause', position: media.currentTime, paused:true});
     }
   };
 
@@ -266,6 +273,7 @@ function shuffle(array) {
     const rect = progressContainer.getBoundingClientRect();
     const pos = (e.clientX - rect.left) / rect.width;
     media.currentTime = pos * media.duration;
+    sendStreamEvent({action:'seek', idx: currentIndex, paused: media.paused, position: media.currentTime});
   };
 
   cFull.onclick = () => {
@@ -380,4 +388,49 @@ function shuffle(array) {
         console.warn('event report failed', err);
      }
   }
+
+  async function sendStreamEvent(payload){
+     if(!streamIdLeader) return;
+     try{
+        await fetch(`/api/stream_event/${streamIdLeader}`, {
+          method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)
+        });
+     }catch(err){console.warn('stream_event failed', err);}
+  }
+
+  streamBtn.onclick = async ()=>{
+     if(streamIdLeader){
+        alert('Stream already running. Share this URL:\n'+window.location.origin+'/stream/'+streamIdLeader);
+        return;
+     }
+     const title = prompt('Stream title:', document.title);
+     if(title===null) return;
+     try{
+        const body = {
+           title,
+           queue,
+           idx: currentIndex,
+           paused: media.paused,
+           position: media.currentTime
+        };
+        const res = await fetch('/api/create_stream', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)});
+        const data = await res.json();
+        streamIdLeader = data.id;
+        streamBtn.textContent = 'Streaming…';
+        streamBtn.disabled = true;
+        if(!media.paused){
+           sendStreamEvent({action:'play', position: media.currentTime, paused:false});
+        }
+        const overlay=document.getElementById('shareOverlay');
+        const linkEl=document.getElementById('shareLink');
+        linkEl.href=data.url;linkEl.textContent=data.url;
+        overlay.style.display='block';
+        const copyBtn=document.getElementById('copyLinkBtn');
+        copyBtn.onclick=()=> {
+           if(!media.paused){ sendStreamEvent({action:'play'});} // notify listeners to start
+           navigator.clipboard.writeText(data.url).catch(()=>{});
+        };
+        document.getElementById('closeShare').onclick=()=> overlay.style.display='none';
+     }catch(err){alert('Stream creation failed: '+err);}  
+  };
 })(); 
