@@ -29,6 +29,8 @@ That idea evolved into **SyncPlay-Hub**: a small Python toolset powered by `yt-d
 * Keyboard shortcuts & TV-friendly UI (playlist hides in fullscreen).
 * Add new playlists straight from the web UI – downloads start in the background and appear automatically when finished.
 * "Forgotten" metric on the homepage – highlights tracks that were never played or haven't been heard in the last 30 days, helping you rediscover neglected songs.
+* Spreadsheet-style homepage: sortable columns (Tracks, Plays, Likes, Forgotten, Last Sync) with one-click **Resync** and **Link** actions.
+* One-click **Rescan Library** to update metadata without touching the CLI.
 
 ---
 
@@ -186,3 +188,26 @@ Each background download writes its full terminal output to `Logs/<Playlist>.log
 From the homepage click **Logs** – you will see a list of all log files. Selecting any log opens a real-time view (similar to `tail -F`) streamed via Server-Sent Events; new lines appear instantly in your browser as the download progresses.
 
 This is useful to track long downloads or troubleshoot failures without having to open the server console.
+
+### Homepage at a glance
+
+The first page you open shows an overview table of every playlist in your collection:
+
+| Column | What it tells you | Why it matters |
+|--------|------------------|----------------|
+| **Playlist** | Folder name (clickable) | Jump straight to the track-view |
+| **Tracks** | File count after the last sync | Quick size estimate |
+| **Plays** | Total starts / skips / finishes | Popularity indicator |
+| **Likes** | ❤️ counts from all tracks | Favourite density |
+| **Forgotten** | Tracks never played or silent for ≥30 days | Perfect queue for rediscovery |
+| **Last Sync** | Timestamp of the last successful download | See if you're up-to-date |
+
+Every header is **click-to-sort** – two clicks switch between ascending / descending, so you can instantly surface the most popular playlists, or those with the most neglected tracks.
+
+Action buttons:
+
+* **Resync** – re-download a linked playlist in background and refresh the DB.
+* **Link** – attach an existing folder to a YouTube playlist URL (enables future Resync).
+* **Rescan Library** (top-bar) – walk the filesystem & refresh stats without touching downloads.
+
+Additions and resyncs run fully in background; progress logs stream in real-time under the **Logs** section.
