@@ -40,6 +40,7 @@ function shuffle(array) {
   let fsTimer;
   const streamBtn = document.getElementById('streamBtn');
   let streamIdLeader = null;
+  let tickTimer=null;
 
   const playlistRel = typeof PLAYLIST_REL !== 'undefined' ? PLAYLIST_REL : '';
   let tracks = await fetchTracks(playlistRel);
@@ -223,6 +224,7 @@ function shuffle(array) {
     if (media.paused) {
       media.play();
       sendStreamEvent({action:'play', position: media.currentTime, paused:false});
+      startTick();
     } else {
       media.pause();
       sendStreamEvent({action:'pause', position: media.currentTime, paused:true});
@@ -398,6 +400,15 @@ function shuffle(array) {
      }catch(err){console.warn('stream_event failed', err);}
   }
 
+  function startTick(){
+     if(tickTimer||!streamIdLeader) return;
+     tickTimer = setInterval(()=>{
+        if(!streamIdLeader) return;
+        sendStreamEvent({action:'tick', idx: currentIndex, position: media.currentTime, paused: media.paused});
+     },1500);
+  }
+  function stopTick(){ if(tickTimer){clearInterval(tickTimer);tickTimer=null;} }
+
   streamBtn.onclick = async ()=>{
      if(streamIdLeader){
         alert('Stream already running. Share this URL:\n'+window.location.origin+'/stream/'+streamIdLeader);
@@ -420,6 +431,7 @@ function shuffle(array) {
         streamBtn.disabled = true;
         if(!media.paused){
            sendStreamEvent({action:'play', position: media.currentTime, paused:false});
+           startTick();
         }
         const overlay=document.getElementById('shareOverlay');
         const linkEl=document.getElementById('shareLink');
@@ -433,4 +445,7 @@ function shuffle(array) {
         document.getElementById('closeShare').onclick=()=> overlay.style.display='none';
      }catch(err){alert('Stream creation failed: '+err);}  
   };
+
+  // stop tick when window unload
+  window.addEventListener('beforeunload',()=> stopTick());
 })(); 

@@ -36,6 +36,26 @@ evtSource.onmessage=e=>{
      loadCurrent(true);
   }else if(act==='prev'){
      if('idx' in data){ idx=data.idx;} else {idx=Math.max(0,idx-1);} loadCurrent(true);
+  }else if(act==='tick'){
+     if('idx' in data && data.idx!==idx){ idx=data.idx; loadCurrent(false); }
+     if(typeof data.position==='number'){
+        const delta=data.position - video.currentTime;
+        if(Math.abs(delta)>0.3){
+           // large drift -> hard seek
+           video.currentTime = data.position;
+           video.playbackRate = 1;
+        }else{
+           // small drift -> gently nudge using playbackRate
+           const maxRateShift = 0.05; // ±5 % inaudible
+           if(Math.abs(delta) < 0.02){
+              video.playbackRate = 1; // in sync
+           }else{
+              const factor = Math.max(-maxRateShift, Math.min(maxRateShift, delta * 0.5));
+              video.playbackRate = 1 + factor;
+           }
+        }
+     }
+     if('paused' in data){ paused=data.paused; if(!paused) maybePlay(); else video.pause(); }
   }
 };
 
