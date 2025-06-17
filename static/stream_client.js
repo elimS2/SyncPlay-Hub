@@ -9,7 +9,7 @@ const overlay=document.getElementById('startOverlay');
 
 evtSource.onmessage=e=>{
   const data=JSON.parse(e.data);
-  console.log('SSE', data);
+  // debug log disabled
   if(data.init&&!firstInitHandled){
      const st=data.init;
      queue=st.queue;
@@ -75,6 +75,6 @@ if(overlay){
 }
 
 function maybePlay(){
-   console.log('maybePlay paused',paused,'enabled',enabled);
+   // debug
    if(!paused&&enabled){ video.muted=false; video.play().then(()=>console.log('play started')).catch(err=>console.warn(err)); }
 } 
