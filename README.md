@@ -28,6 +28,7 @@ That idea evolved into **SyncPlay-Hub**: a small Python toolset powered by `yt-d
 * Responsive web player with custom controls and adaptive dark/light theme.  
 * Keyboard shortcuts & TV-friendly UI (playlist hides in fullscreen).
 * Add new playlists straight from the web UI – downloads start in the background and appear automatically when finished.
+* "Forgotten" metric on the homepage – highlights tracks that were never played or haven't been heard in the last 30 days, helping you rediscover neglected songs.
 
 ---
 

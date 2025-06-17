@@ -35,6 +35,7 @@
         <th>Tracks</th>
         <th>Plays</th>
         <th>Likes</th>
+        <th>Forgotten</th>
         <th>Last Sync</th>
         <th>Action</th>
       </tr>
@@ -46,6 +47,7 @@
           <td>{{ pl.count }}</td>
           <td>{{ pl.plays }}</td>
           <td>{{ pl.likes }}</td>
+          <td>{{ pl.forgotten }}</td>
           <td>{{ pl.last_sync }}</td>
           <td>
             {% if pl.has_source %}
@@ -195,8 +197,8 @@
       }
 
       table.querySelectorAll('thead th').forEach((th,idx)=>{
-        // skip Action column (last one)
-        if(idx===5){th.style.cursor='default'; return;}
+        // skip Action column (last one, index 6)
+        if(idx===6){th.style.cursor='default'; return;}
         th.addEventListener('click',()=>{
           const asc=(currentIdx===idx)?!currentAsc:true;
           sortBy(idx, asc);

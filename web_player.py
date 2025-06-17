@@ -98,7 +98,9 @@ def list_playlists(root: Path) -> List[dict]:
             """
             SELECT p.id, p.relpath, p.track_count, p.last_sync_ts, p.source_url,
                    COALESCE(SUM(t.play_starts + t.play_nexts + t.play_prevs + t.play_finishes),0) AS play_total,
-                   COALESCE(SUM(t.play_likes),0) AS like_total
+                   COALESCE(SUM(t.play_likes),0) AS like_total,
+                   COALESCE(SUM(CASE WHEN (t.last_start_ts IS NULL AND t.last_finish_ts IS NULL) OR 
+                                         COALESCE(t.last_finish_ts, t.last_start_ts) < datetime('now','-30 days') THEN 1 ELSE 0 END),0) AS forgotten_total
             FROM playlists p
             LEFT JOIN track_playlists tp ON tp.playlist_id = p.id
             LEFT JOIN tracks t ON t.id = tp.track_id
@@ -110,6 +112,7 @@ def list_playlists(root: Path) -> List[dict]:
                 "source_url": row[4],
                 "play_total": row[5],
                 "like_total": row[6],
+                "forgotten_total": row[7],
             }
         conn.close()
     except Exception:
@@ -136,6 +139,7 @@ def list_playlists(root: Path) -> List[dict]:
                 "has_source": has_source,
                 "plays": dbinfo.get("play_total", 0) if dbinfo else 0,
                 "likes": dbinfo.get("like_total", 0) if dbinfo else 0,
+                "forgotten": dbinfo.get("forgotten_total", 0) if dbinfo else 0,
             })
     return playlists
 
