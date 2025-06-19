@@ -22,6 +22,10 @@
     .file-name{color:#61dafb; text-decoration:none; font-size:16px;}
     .file-name:hover{text-decoration:underline;}
     
+    /* Static link styling */
+    .static-link{color:#888; text-decoration:none; font-size:12px;}
+    .static-link:hover{color:#61dafb; text-decoration:underline;}
+    
     /* Main log highlighting */
     .main-log{background:#1a3a5c !important; border-left:4px solid #61dafb;}
     .main-log .file-name{color:#fff; font-weight:bold;}
@@ -63,6 +67,9 @@
               {% if log.is_main %}
                 <span class="main-log-badge">(Main Server Log)</span>
               {% endif %}
+              <div style="margin-top:4px;">
+                <a href="/static_log/{{ log.name }}" class="static-link" target="_blank">Open Static File</a>
+              </div>
             </td>
             <td class="file-date" data-timestamp="{{ log.modified_timestamp }}">{{ log.modified_date }}</td>
             <td class="file-size" data-size="{{ log.size_bytes }}">{{ log.size_human }}</td>

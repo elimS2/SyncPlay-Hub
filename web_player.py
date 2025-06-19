@@ -699,6 +699,27 @@ def stream_log(log_name: str):
     return Response(generate(), mimetype="text/event-stream")
 
 
+@app.route("/static_log/<path:log_name>")
+def static_log(log_name: str):
+    """Serve log file as plain text for browser viewing"""
+    # security checks
+    if "/" in log_name or ".." in log_name or not log_name.endswith(".log"):
+        abort(404)
+    logs_dir = globals().get("LOGS_DIR")
+    file_path = logs_dir / log_name
+    if not file_path.exists():
+        abort(404)
+    
+    try:
+        with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
+            content = f.read()
+        
+        from flask import Response
+        return Response(content, mimetype="text/plain; charset=utf-8")
+    except Exception:
+        abort(500)
+
+
 # -------- Resync playlist API --------
 
 
