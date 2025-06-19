@@ -31,6 +31,7 @@
       <button id="scanBtn" style="padding:6px 12px;font-size:14px;cursor:pointer;">Rescan Library</button>
       <button id="addPlBtn" style="padding:6px 12px;font-size:14px;cursor:pointer;">Add Playlist</button>
       <button id="restartBtn" style="padding:6px 12px;font-size:14px;cursor:pointer;background:#d32f2f;color:#fff;border:1px solid #b71c1c;">🔄 Restart Server</button>
+      <button id="stopBtn" style="padding:6px 12px;font-size:14px;cursor:pointer;background:#f44336;color:#fff;border:1px solid #d32f2f;">🛑 Stop Server</button>
     </div>
   </div>
 
@@ -134,13 +135,31 @@
             // No alerts, just wait and reload
             setTimeout(() => {
                 location.reload();
-            }, 3000);
+            }, 4000);
         }catch(err){
             // Server likely restarting, try to reload
             setTimeout(() => {
                 location.reload();
-            }, 3000);
+            }, 4000);
         }
+    });
+
+    /* ---- Stop Server ---- */
+    const stopBtn = document.getElementById('stopBtn');
+    stopBtn?.addEventListener('click', async () => {
+        if(!confirm('Are you sure you want to stop the server? You will need to restart it manually.')) return;
+        stopBtn.disabled = true;
+        stopBtn.textContent = '⏳ Stopping...';
+        try{
+            await fetch('/api/stop', {
+                method:'POST',
+                headers:{'Content-Type':'application/json'}
+            });
+        }catch(err){
+            // Server likely stopped, this is expected
+        }
+        // Show message that server is stopped
+        document.body.innerHTML = '<div style="text-align:center;margin-top:100px;font-family:Arial;color:#fff;background:#111;height:100vh;display:flex;flex-direction:column;justify-content:center;"><h1>🛑 Server Stopped</h1><p>The server has been stopped successfully.<br>Check your console window - you can restart it using the same command.</p></div>';
     });
 
     // Resync buttons

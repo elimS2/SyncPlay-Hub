@@ -644,17 +644,18 @@ def api_restart():
         restart_cmd = [sys.executable] + sys.argv
         
         try:
-            # Start new process
+            # Start new process in same console window (no CREATE_NEW_CONSOLE)
             if os.name == 'nt':  # Windows
-                subprocess.Popen(restart_cmd, creationflags=subprocess.CREATE_NEW_CONSOLE)
+                # Use subprocess without creating new console window
+                subprocess.Popen(restart_cmd, creationflags=0)
             else:  # Unix/Linux/Mac
                 subprocess.Popen(restart_cmd)
             
             print(f"✅ New server process started, terminating current PID {current_pid}")
             
-            # Terminate current process
-            time.sleep(1)  # Give new process time to start
-            os._exit(0)  # Force exit without cleanup
+            # Give new process time to start before terminating
+            time.sleep(1.5)
+            os._exit(0)  # Force exit current process
             
         except Exception as e:
             print(f"❌ Error during restart: {e}")
@@ -663,6 +664,36 @@ def api_restart():
     threading.Thread(target=restart_server, daemon=True).start()
     
     return jsonify({"status": "ok", "message": "Server restarting..."})
+
+
+@app.route("/api/stop", methods=["POST"])
+def api_stop():
+    """Stop Flask server gracefully."""
+    
+    def stop_server():
+        # Give a moment for the response to be sent
+        import time
+        time.sleep(0.5)
+        
+        # Log current PID before stopping
+        current_pid = os.getpid()
+        print(f"🛑 Stopping server PID {current_pid} at {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        print("✅ Server stopped gracefully")
+        print("💡 You can restart the server by running the same command again")
+        
+        # Graceful shutdown using Flask's built-in mechanism
+        func = request.environ.get('werkzeug.server.shutdown')
+        if func is None:
+            # Fallback for different WSGI servers
+            import signal
+            os.kill(os.getpid(), signal.SIGTERM)
+        else:
+            func()
+    
+    # Start stop in a separate thread
+    threading.Thread(target=stop_server, daemon=True).start()
+    
+    return jsonify({"status": "ok", "message": "Server stopping..."})
 
 
 if __name__ == "__main__":
