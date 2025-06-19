@@ -165,7 +165,7 @@
         return t.toLowerCase();
       }
 
-      let currentIdx=0; let currentAsc=true;
+      let currentIdx=4; let currentAsc=false; // Default to "Forgotten" column (index 4), descending
 
       function updateIndicators(){
         table.querySelectorAll('thead th').forEach((h,i)=>{
@@ -205,7 +205,8 @@
         });
       });
 
-      sortBy(0,true);
+      // Initial sort by "Forgotten" column (index 4), descending
+      sortBy(4, false);
     })();
   </script>
 </body>

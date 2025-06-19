@@ -268,6 +268,10 @@ def list_playlists(root: Path) -> List[dict]:
                 "likes": dbinfo.get("like_total", 0) if dbinfo else 0,
                 "forgotten": dbinfo.get("forgotten_total", 0) if dbinfo else 0,
             })
+    
+    # Sort by forgotten count (descending) by default
+    playlists.sort(key=lambda x: x["forgotten"], reverse=True)
+    
     return playlists
 
 
