@@ -220,3 +220,188 @@ Action buttons:
 * **Rescan Library** (top-bar) – walk the filesystem & refresh stats without touching downloads.
 
 Additions and resyncs run fully in background; progress logs stream in real-time under the **Logs** section.
+
+---
+
+## Server Management
+
+### Server Control Features
+
+The web interface includes built-in server management tools accessible from the main page:
+
+* **🔄 Restart Server** – Restarts the Flask server process in the same console window
+* **🛑 Stop Server** – Gracefully shuts down the server without closing the console
+* **Server Info Display** – Shows current PID, start time, and uptime
+
+These controls are useful for:
+- Applying configuration changes without manual console access
+- Managing the server remotely from any device on your network
+- Troubleshooting without interrupting the console session
+
+### Centralized Logging
+
+All server activity is logged to a unified log file system:
+
+- **Main log**: `Logs/SyncPlay-Hub.log` – Contains all server events, HTTP requests, and system messages
+- **Download logs**: `Logs/<Playlist>.log` – Individual logs for each playlist download/sync operation
+- **Real-time streaming**: View logs live in your browser with automatic updates
+- **Clean formatting**: ANSI color codes are stripped from file logs while preserved in console output
+- **Log rotation**: Automatic rotation at 10MB with 5 backup files to prevent disk space issues
+
+### Log Management Interface
+
+The **Logs** page provides a comprehensive view of all log files:
+
+| Column | Description |
+|--------|-------------|
+| **File Name** | Log file name (clickable to view) |
+| **Last Modified** | When the log was last updated |
+| **Size** | Human-readable file size (B, KB, MB, GB) |
+
+Features:
+- **Sortable columns** – Click headers to sort by name, date, or size
+- **Default sorting** – Newest files appear first automatically  
+- **Main log highlighting** – `SyncPlay-Hub.log` is visually distinguished
+- **Real-time viewing** – Click any log file for live streaming view
+
+---
+
+## API Endpoints
+
+The web player exposes several API endpoints for programmatic control:
+
+### Playlist Management
+- `GET /api/playlists` – List all playlists with metadata
+- `POST /api/add_playlist` – Add new playlist from YouTube URL
+- `POST /api/resync` – Resync existing playlist with YouTube
+- `POST /api/link_playlist` – Link local folder to YouTube URL
+
+### Track & Playback
+- `GET /api/tracks/<path>` – Get tracks for specific playlist
+- `POST /api/event` – Record playback events (start, finish, skip, like)
+- `POST /api/scan` – Trigger library rescan
+
+### Server Control
+- `POST /api/restart` – Restart server process
+- `POST /api/stop` – Stop server gracefully
+
+### Live Streaming
+- `GET /api/streams` – List active streaming sessions
+- `POST /api/create_stream` – Create new streaming session
+- `POST /api/stream_event/<id>` – Send events to streaming session
+- `GET /api/stream_feed/<id>` – Server-sent events feed for streaming
+
+---
+
+## File Structure
+
+```
+project-root/
+├── web_player.py           # Main Flask application
+├── download_playlist.py    # YouTube playlist downloader
+├── scan_to_db.py          # Library scanner for database
+├── database.py            # SQLite database operations
+├── log_utils.py           # Logging utilities
+├── restart_server.py      # Server restart helper
+├── requirements.txt       # Python dependencies
+├── README.md             # This file
+├── .cursorrules          # Cursor IDE rules
+├── CURSOR_RULES.md       # Development guidelines
+├── static/               # Web assets
+│   ├── player.js         # Main player JavaScript
+│   └── stream_client.js  # Streaming client code
+└── templates/            # HTML templates
+    ├── index.html        # Main player interface
+    ├── playlists.html    # Playlist overview
+    ├── tracks.html       # Track library
+    ├── history.html      # Play history
+    ├── logs.html         # Log file browser
+    ├── log_view.html     # Individual log viewer
+    ├── streams.html      # Streaming sessions
+    └── stream_view.html  # Stream player
+```
+
+### Data Directory Structure
+
+When you run the application, it expects this structure in your `--root` directory:
+
+```
+media-root/
+├── Playlists/            # Your downloaded media files
+│   ├── Playlist1/        # Individual playlist folders
+│   │   ├── Song1 [ID].mp3
+│   │   └── Song2 [ID].mp4
+│   └── Playlist2/
+│       └── Video [ID].webm
+├── DB/                   # Database files (auto-created)
+│   └── tracks.db         # SQLite database
+└── Logs/                 # Log files (auto-created)
+    ├── SyncPlay-Hub.log  # Main server log
+    └── Playlist1.log     # Download logs per playlist
+```
+
+---
+
+## Troubleshooting
+
+### Common Issues
+
+**Server won't start on specified port**
+- Check if another application is using the port: `netstat -an | findstr :8000`
+- Try a different port: `python web_player.py --port 8001`
+
+**Can't access from other devices**
+- Ensure you're using `--host 0.0.0.0` (not `127.0.0.1`)
+- Check firewall settings on the host machine
+- Verify devices are on the same network
+
+**Downloads fail with "Sign in to confirm your age"**
+- Export YouTube cookies and use `--cookies` flag
+- Or use `--use-browser-cookies` for automatic cookie import
+
+**Media files not appearing in player**
+- Run library rescan: click "Rescan Library" in web interface
+- Or manually: `python scan_to_db.py --root <your-root-directory>`
+- Check file extensions are supported (see File discovery section)
+
+**Database corruption or migration issues**
+- Backup your `DB/tracks.db` file
+- Delete the database file to recreate it
+- Run `python scan_to_db.py --root <root>` to rebuild
+
+### Debug Mode
+
+For detailed troubleshooting information:
+
+```bash
+# Enable debug output for downloads
+python download_playlist.py <URL> --debug
+
+# Check server logs in real-time
+# Open http://localhost:8000/logs and click on SyncPlay-Hub.log
+```
+
+### Performance Tips
+
+- **Large libraries**: The initial scan may take time. Subsequent scans only process changed files.
+- **Network streaming**: Use wired connection for the server when possible for better streaming performance.
+- **Storage**: Consider SSD storage for better seek performance with large video files.
+
+---
+
+## Contributing
+
+This project follows strict development guidelines:
+
+1. **All code must be in English** – variables, functions, comments, strings, commit messages
+2. **Use consistent formatting** – Follow existing code style
+3. **Test changes** – Verify both download and web player functionality
+4. **Update documentation** – Keep README.md current with new features
+
+See `CURSOR_RULES.md` and `.cursorrules` for complete development guidelines.
+
+---
+
+## License
+
+This project is provided as-is for personal use. Please respect YouTube's Terms of Service and only download content you have the right to access.
