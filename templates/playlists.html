@@ -18,13 +18,19 @@
 </head>
 <body>
   <div style="display:flex;justify-content:space-between;align-items:center;">
-    <h1 style="margin:0;">Available Playlists</h1>
+    <div>
+      <h1 style="margin:0;">Available Playlists</h1>
+      <div style="font-size:12px;color:#888;margin-top:4px;">
+        Server PID: {{ server_info.pid }} | Started: {{ server_info.start_time }} | Uptime: {{ server_info.uptime }}
+      </div>
+    </div>
     <div style="display:flex;gap:8px;">
       <a href="/tracks" style="padding:6px 12px;font-size:14px;background:#222;border:1px solid #444;color:#61dafb;text-decoration:none;display:inline-block;border-radius:4px;">Track Library</a>
       <a href="/history" style="padding:6px 12px;font-size:14px;background:#222;border:1px solid #444;color:#61dafb;text-decoration:none;display:inline-block;border-radius:4px;">Play History</a>
       <a href="/logs" style="padding:6px 12px;font-size:14px;background:#222;border:1px solid #444;color:#61dafb;text-decoration:none;display:inline-block;border-radius:4px;">Logs</a>
       <button id="scanBtn" style="padding:6px 12px;font-size:14px;cursor:pointer;">Rescan Library</button>
       <button id="addPlBtn" style="padding:6px 12px;font-size:14px;cursor:pointer;">Add Playlist</button>
+      <button id="restartBtn" style="padding:6px 12px;font-size:14px;cursor:pointer;background:#d32f2f;color:#fff;border:1px solid #b71c1c;">🔄 Restart Server</button>
     </div>
   </div>
 
@@ -111,6 +117,29 @@
         }finally{
             addBtn.disabled = false;
             addBtn.textContent = 'Add Playlist';
+        }
+    });
+
+    /* ---- Restart Server ---- */
+    const restartBtn = document.getElementById('restartBtn');
+    restartBtn?.addEventListener('click', async () => {
+        if(!confirm('Are you sure you want to restart the server? This may interrupt current operations.')) return;
+        restartBtn.disabled = true;
+        restartBtn.textContent = '⏳ Restarting...';
+        try{
+            await fetch('/api/restart', {
+                method:'POST',
+                headers:{'Content-Type':'application/json'}
+            });
+            // No alerts, just wait and reload
+            setTimeout(() => {
+                location.reload();
+            }, 3000);
+        }catch(err){
+            // Server likely restarting, try to reload
+            setTimeout(() => {
+                location.reload();
+            }, 3000);
         }
     });
 

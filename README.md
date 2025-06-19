@@ -4,6 +4,15 @@
 
 > Local-first downloader & web-player for YouTube playlists
 
+## ⚠️ Development Rules
+
+**IMPORTANT**: This project follows strict language conventions:
+
+- **ALL CODE** must be written in **English only**
+- This includes: variables, functions, comments, strings, commit messages, error messages
+- Communication with developers can be in any language, but code remains English
+- See `.cursorrules` and `CURSOR_RULES.md` for complete details
+
 ---
 
 ## Motivation

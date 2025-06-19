@@ -20,6 +20,7 @@ import uuid
 import queue
 import time
 import json
+import os
 
 from flask import Flask, jsonify, render_template, send_from_directory, url_for, abort, request, Response
 
@@ -43,6 +44,10 @@ ROOT_DIR: Path  # set in main()
 
 # Where the database file lives (BASE_DIR / "DB" / tracks.db)
 DB_FILE: Path  # set in main()
+
+# Server start time and PID for restart verification
+SERVER_START_TIME = datetime.datetime.now()
+SERVER_PID = os.getpid()
 
 VIDEO_ID_RE = re.compile(r"\[([A-Za-z0-9_-]{11})\]$")
 
@@ -320,7 +325,12 @@ def _get_local_ip() -> str:
 def playlists_page():
     """Homepage – list all playlists (sub-folders)."""
     playlists = list_playlists(ROOT_DIR)
-    return render_template("playlists.html", playlists=playlists, server_ip=_get_local_ip())
+    server_info = {
+        "pid": SERVER_PID,
+        "start_time": SERVER_START_TIME.strftime("%Y-%m-%d %H:%M:%S"),
+        "uptime": str(datetime.datetime.now() - SERVER_START_TIME).split('.')[0]  # Remove microseconds
+    }
+    return render_template("playlists.html", playlists=playlists, server_ip=_get_local_ip(), server_info=server_info)
 
 
 @app.route("/playlist/<path:playlist_path>")
@@ -615,6 +625,46 @@ def api_link_playlist():
     return jsonify({"status": "ok"})
 
 
+@app.route("/api/restart", methods=["POST"])
+def api_restart():
+    """Restart Flask server using self-restart mechanism."""
+    import subprocess
+    import sys
+    
+    def restart_server():
+        # Give a moment for the response to be sent
+        import time
+        time.sleep(0.5)
+        
+        # Log current PID before restart
+        current_pid = os.getpid()
+        print(f"🔄 Initiating restart of server PID {current_pid} at {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        
+        # Build restart command with same arguments
+        restart_cmd = [sys.executable] + sys.argv
+        
+        try:
+            # Start new process
+            if os.name == 'nt':  # Windows
+                subprocess.Popen(restart_cmd, creationflags=subprocess.CREATE_NEW_CONSOLE)
+            else:  # Unix/Linux/Mac
+                subprocess.Popen(restart_cmd)
+            
+            print(f"✅ New server process started, terminating current PID {current_pid}")
+            
+            # Terminate current process
+            time.sleep(1)  # Give new process time to start
+            os._exit(0)  # Force exit without cleanup
+            
+        except Exception as e:
+            print(f"❌ Error during restart: {e}")
+    
+    # Start restart in a separate thread
+    threading.Thread(target=restart_server, daemon=True).start()
+    
+    return jsonify({"status": "ok", "message": "Server restarting..."})
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Local web player for downloaded tracks")
     parser.add_argument("--root", default="downloads", help="Base folder containing Playlists/ and DB/")
@@ -642,4 +692,5 @@ if __name__ == "__main__":
     # configure database path
     db.set_db_path(DB_FILE)
 
+    print(f"🚀 Starting server PID {SERVER_PID} at {SERVER_START_TIME.strftime('%Y-%m-%d %H:%M:%S')}")
     app.run(host=args.host, port=args.port, debug=False) 

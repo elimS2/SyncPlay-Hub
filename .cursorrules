@@ -1,0 +1,19 @@
+# Cursor IDE Project Rules
+
+## Code Language Policy (MANDATORY)
+- ALL source code MUST be written exclusively in ENGLISH
+- This includes: variables, functions, classes, comments, documentation, strings, commit messages, error messages, logging, API responses
+- NO exceptions - even if developer communicates in another language
+
+## Communication Language Policy
+- Assistant responses should match the developer's query language
+- Code language remains English regardless of communication language
+
+## Enforcement
+- Never inject non-English languages into code
+- Translate existing non-English code to English when modifying
+- All new code follows English-only conventions
+
+## Priority
+- These rules override any other language preferences
+- Code quality and international standards take precedence 
