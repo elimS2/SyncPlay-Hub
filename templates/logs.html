@@ -75,7 +75,7 @@
   {% endif %}
 
   <script>
-    let currentSort = { column: 1, ascending: false }; // Default: sort by date, newest first
+    let currentSort = { column: -1, ascending: true }; // No initial sort set
     
     function sortTable(columnIndex) {
       const table = document.getElementById('logsTable');
@@ -83,12 +83,14 @@
       const rows = Array.from(tbody.rows);
       const headers = table.querySelectorAll('th');
       
-      // Toggle sort direction if same column, otherwise start with desc
+      // Toggle sort direction if same column, otherwise start with desc for date/size, asc for name
       if (currentSort.column === columnIndex) {
         currentSort.ascending = !currentSort.ascending;
       } else {
         currentSort.column = columnIndex;
-        currentSort.ascending = false; // Start with descending (newest/largest first)
+        // For date and size, start with descending (newest/largest first)
+        // For name, start with ascending (A-Z)
+        currentSort.ascending = columnIndex === 0; // true for name, false for date/size
       }
       
       // Clear all header sort indicators
@@ -127,9 +129,9 @@
       rows.forEach(row => tbody.appendChild(row));
     }
     
-    // Initial sort by date (newest first)
+    // Initial sort by date (newest first) - this will set ascending=false for date column
     document.addEventListener('DOMContentLoaded', function() {
-      sortTable(1); // Sort by date column
+      sortTable(1); // Sort by date column, will start with descending (newest first)
     });
   </script>
 </body>

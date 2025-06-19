@@ -34,6 +34,8 @@ from scan_to_db import scan as scan_library
 import log_utils  # noqa: F401 – applies timestamp+PID prefix to all print() calls
 import logging
 from logging.handlers import RotatingFileHandler
+import sys
+import io
 
 app = Flask(
     __name__,
@@ -54,6 +56,35 @@ SERVER_PID = os.getpid()
 # Global logging
 unified_logger = None
 
+class AnsiCleaningStream:
+    """Stream wrapper that removes ANSI codes before writing to file"""
+    
+    def __init__(self, original_stream, file_handler):
+        self.original_stream = original_stream
+        self.file_handler = file_handler
+        
+    def write(self, text):
+        # Write original (with colors) to console
+        self.original_stream.write(text)
+        
+        # Don't write to file here - let the DualStreamHandler handle it
+        # This prevents double logging
+        
+        return len(text)
+    
+    def flush(self):
+        self.original_stream.flush()
+        
+    def _remove_ansi_codes(self, text):
+        """Remove ANSI escape codes from text"""
+        import re
+        ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
+        return ansi_escape.sub('', text)
+    
+    def __getattr__(self, name):
+        # Delegate other attributes to original stream
+        return getattr(self.original_stream, name)
+
 class DualStreamHandler(logging.Handler):
     """Custom handler that writes to both console and file simultaneously"""
     
@@ -63,17 +94,53 @@ class DualStreamHandler(logging.Handler):
         
     def emit(self, record):
         try:
-            # Format message with timestamp and PID
-            formatted_msg = self.format(record)
+            # Get original message and clean it
+            original_msg = record.getMessage()
+            clean_msg = self._remove_ansi_codes(original_msg)
             
-            # Write to console (with log_utils timestamp formatting)
-            print(formatted_msg, flush=True)
+            # Remove Flask's timestamp from HTTP logs for cleaner output
+            clean_msg = self._remove_flask_timestamp(clean_msg)
             
-            # Write to file via the file handler
-            self.file_handler.emit(record)
+            # For console: use cleaned message (log_utils will add timestamp+PID)
+            print(clean_msg, flush=True)
+            
+            # Create a copy of the record with cleaned message for file handler
+            file_record = logging.LogRecord(
+                record.name, record.levelno, record.pathname, record.lineno,
+                clean_msg, (), record.exc_info, record.funcName, record.stack_info
+            )
+            file_record.created = record.created
+            file_record.msecs = record.msecs
+            file_record.relativeCreated = record.relativeCreated
+            file_record.thread = record.thread
+            file_record.threadName = record.threadName
+            file_record.processName = record.processName
+            file_record.process = record.process
+            
+            # Write to file (file_handler will add its own timestamp+PID formatting)
+            self.file_handler.emit(file_record)
             
         except Exception:
             self.handleError(record)
+    
+    def _remove_flask_timestamp(self, message):
+        """Remove Flask's built-in timestamp from HTTP log messages"""
+        if ' - - [' in message and '] "' in message:
+            # Extract just the IP and request part, skip the timestamp
+            parts = message.split(' - - [', 1)
+            if len(parts) == 2:
+                ip_part = parts[0]
+                rest_parts = parts[1].split('] ', 1)
+                if len(rest_parts) == 2:
+                    request_part = rest_parts[1]
+                    return f"{ip_part} - - {request_part}"
+        return message
+    
+    def _remove_ansi_codes(self, text):
+        """Remove ANSI escape codes from text"""
+        import re
+        ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
+        return ansi_escape.sub('', text)
 
 def log_message(message):
     """Log function that writes simultaneously to both console and file"""
@@ -826,8 +893,26 @@ if __name__ == "__main__":
     werkzeug_logger.addHandler(dual_handler)
     werkzeug_logger.propagate = False
     
+    # Also configure the root Flask logger
+    flask_logger = logging.getLogger('flask')
+    flask_logger.handlers.clear()
+    flask_logger.addHandler(dual_handler)
+    flask_logger.propagate = False
+    
+    # Configure the main app logger
+    app.logger.handlers.clear()
+    app.logger.addHandler(dual_handler)
+    app.logger.propagate = False
+    
+    # Intercept stdout/stderr to catch any direct prints from Flask
+    original_stdout = sys.stdout
+    original_stderr = sys.stderr
+    sys.stdout = AnsiCleaningStream(original_stdout, file_handler)
+    sys.stderr = AnsiCleaningStream(original_stderr, file_handler)
+    
     # Make unified logger available globally
     globals()['unified_logger'] = unified_logger
     
+
     log_message(f"Starting server PID {SERVER_PID} at {SERVER_START_TIME.strftime('%Y-%m-%d %H:%M:%S')}")
     app.run(host=args.host, port=args.port, debug=False) 
