@@ -548,8 +548,41 @@ def _list_log_files() -> List[Path]:
 
 @app.route("/logs")
 def logs_page():
-    logs = [p.name for p in _list_log_files()]
-    return render_template("logs.html", logs=logs)
+    log_files = _list_log_files()
+    logs_info = []
+    
+    for log_path in log_files:
+        try:
+            stat = log_path.stat()
+            logs_info.append({
+                'name': log_path.name,
+                'size_bytes': stat.st_size,
+                'size_human': _format_file_size(stat.st_size),
+                'modified_timestamp': stat.st_mtime,
+                'modified_date': datetime.datetime.fromtimestamp(stat.st_mtime).strftime('%Y-%m-%d %H:%M:%S'),
+                'is_main': log_path.name == "SyncPlay-Hub.log"
+            })
+        except OSError:
+            # Skip files that can't be accessed
+            continue
+    
+    return render_template("logs.html", logs=logs_info)
+
+def _format_file_size(size_bytes):
+    """Format file size in human readable format"""
+    if size_bytes == 0:
+        return "0 B"
+    
+    size_names = ["B", "KB", "MB", "GB"]
+    i = 0
+    while size_bytes >= 1024 and i < len(size_names) - 1:
+        size_bytes /= 1024.0
+        i += 1
+    
+    if i == 0:
+        return f"{int(size_bytes)} {size_names[i]}"
+    else:
+        return f"{size_bytes:.1f} {size_names[i]}"
 
 
 @app.route("/log/<path:log_name>")

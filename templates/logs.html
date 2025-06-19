@@ -3,34 +3,134 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Logs</title>
+  <title>Log Files</title>
   <style>
     body{font-family:Arial, sans-serif; background:#111; color:#eee; margin:20px;}
     h1{margin-bottom:20px;}
-    ul{list-style:none; padding:0;}
-    li{margin:6px 0;}
-    a{color:#61dafb; text-decoration:none; font-size:16px;}
-    a:hover{text-decoration:underline;}
-    .main-log{background:#1a3a5c; padding:8px 12px; border-radius:6px; border-left:4px solid #61dafb;}
-    .main-log a{color:#fff; font-weight:bold;}
-    .main-log::before{content:"📊 "; font-size:14px;}
+    
+    /* Table styles */
+    table{width:100%; border-collapse:collapse; margin-top:20px;}
+    th, td{padding:8px 12px; text-align:left; border-bottom:1px solid #333;}
+    th{background:#222; color:#61dafb; cursor:pointer; user-select:none; position:relative;}
+    th:hover{background:#2a2a2a;}
+    th.sorted-asc::after{content:" ▲"; color:#61dafb; font-size:12px;}
+    th.sorted-desc::after{content:" ▼"; color:#61dafb; font-size:12px;}
+    
+    tr:hover{background:#1a1a1a;}
+    
+    /* File name styling */
+    .file-name{color:#61dafb; text-decoration:none; font-size:16px;}
+    .file-name:hover{text-decoration:underline;}
+    
+    /* Main log highlighting */
+    .main-log{background:#1a3a5c !important; border-left:4px solid #61dafb;}
+    .main-log .file-name{color:#fff; font-weight:bold;}
+    .main-log-badge{color:#888; font-size:12px; margin-left:8px;}
+    
+    /* Size and date styling */
+    .file-size{color:#aaa; font-family:monospace;}
+    .file-date{color:#aaa; font-family:monospace;}
+    
+    /* Header styling */
+    .header{display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;}
+    .back-link{color:#61dafb; text-decoration:none; font-size:14px;}
+    .back-link:hover{text-decoration:underline;}
+    
+    /* Empty state */
+    .empty-state{text-align:center; color:#888; padding:40px; font-style:italic;}
   </style>
 </head>
 <body>
-  <div style="display:flex;justify-content:space-between;align-items:center;">
+  <div class="header">
     <h1 style="margin:0;">Log Files</h1>
-    <a href="/" style="color:#61dafb;text-decoration:none;font-size:14px;">← Back to Playlists</a>
+    <a href="/" class="back-link">← Back to Playlists</a>
   </div>
-  <ul>
-    {% for lg in logs %}
-      {% if lg == "SyncPlay-Hub.log" %}
-        <li class="main-log"><a href="/log/{{ lg }}">{{ lg }}</a> <span style="color:#888; font-size:12px;">(Main Server Log)</span></li>
-      {% else %}
-        <li><a href="/log/{{ lg }}">{{ lg }}</a></li>
-      {% endif %}
-    {% else %}
-      <li>No logs yet.</li>
-    {% endfor %}
-  </ul>
+  
+  {% if logs %}
+    <table id="logsTable">
+      <thead>
+        <tr>
+          <th onclick="sortTable(0)" data-sort="name">File Name</th>
+          <th onclick="sortTable(1)" data-sort="date">Last Modified</th>
+          <th onclick="sortTable(2)" data-sort="size">Size</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for log in logs %}
+          <tr class="{% if log.is_main %}main-log{% endif %}">
+            <td>
+              <a href="/log/{{ log.name }}" class="file-name">{{ log.name }}</a>
+              {% if log.is_main %}
+                <span class="main-log-badge">(Main Server Log)</span>
+              {% endif %}
+            </td>
+            <td class="file-date" data-timestamp="{{ log.modified_timestamp }}">{{ log.modified_date }}</td>
+            <td class="file-size" data-size="{{ log.size_bytes }}">{{ log.size_human }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <div class="empty-state">No log files found.</div>
+  {% endif %}
+
+  <script>
+    let currentSort = { column: 1, ascending: false }; // Default: sort by date, newest first
+    
+    function sortTable(columnIndex) {
+      const table = document.getElementById('logsTable');
+      const tbody = table.tBodies[0];
+      const rows = Array.from(tbody.rows);
+      const headers = table.querySelectorAll('th');
+      
+      // Toggle sort direction if same column, otherwise start with desc
+      if (currentSort.column === columnIndex) {
+        currentSort.ascending = !currentSort.ascending;
+      } else {
+        currentSort.column = columnIndex;
+        currentSort.ascending = false; // Start with descending (newest/largest first)
+      }
+      
+      // Clear all header sort indicators
+      headers.forEach(h => {
+        h.classList.remove('sorted-asc', 'sorted-desc');
+      });
+      
+      // Add sort indicator to current header
+      headers[columnIndex].classList.add(currentSort.ascending ? 'sorted-asc' : 'sorted-desc');
+      
+      // Sort rows
+      rows.sort((a, b) => {
+        let aVal, bVal;
+        
+        switch (columnIndex) {
+          case 0: // File name
+            aVal = a.cells[0].textContent.trim().toLowerCase();
+            bVal = b.cells[0].textContent.trim().toLowerCase();
+            break;
+          case 1: // Date
+            aVal = parseFloat(a.cells[1].dataset.timestamp);
+            bVal = parseFloat(b.cells[1].dataset.timestamp);
+            break;
+          case 2: // Size
+            aVal = parseInt(a.cells[2].dataset.size);
+            bVal = parseInt(b.cells[2].dataset.size);
+            break;
+        }
+        
+        if (aVal < bVal) return currentSort.ascending ? -1 : 1;
+        if (aVal > bVal) return currentSort.ascending ? 1 : -1;
+        return 0;
+      });
+      
+      // Re-append sorted rows
+      rows.forEach(row => tbody.appendChild(row));
+    }
+    
+    // Initial sort by date (newest first)
+    document.addEventListener('DOMContentLoaded', function() {
+      sortTable(1); // Sort by date column
+    });
+  </script>
 </body>
 </html> 
