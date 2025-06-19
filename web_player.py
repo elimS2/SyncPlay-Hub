@@ -32,6 +32,8 @@ from database import upsert_playlist
 from scan_to_db import scan as scan_library
 
 import log_utils  # noqa: F401 – applies timestamp+PID prefix to all print() calls
+import logging
+from logging.handlers import RotatingFileHandler
 
 app = Flask(
     __name__,
@@ -48,6 +50,38 @@ DB_FILE: Path  # set in main()
 # Server start time and PID for restart verification
 SERVER_START_TIME = datetime.datetime.now()
 SERVER_PID = os.getpid()
+
+# Global logging
+unified_logger = None
+
+class DualStreamHandler(logging.Handler):
+    """Custom handler that writes to both console and file simultaneously"""
+    
+    def __init__(self, file_handler):
+        super().__init__()
+        self.file_handler = file_handler
+        
+    def emit(self, record):
+        try:
+            # Format message with timestamp and PID
+            formatted_msg = self.format(record)
+            
+            # Write to console (with log_utils timestamp formatting)
+            print(formatted_msg, flush=True)
+            
+            # Write to file via the file handler
+            self.file_handler.emit(record)
+            
+        except Exception:
+            self.handleError(record)
+
+def log_message(message):
+    """Log function that writes simultaneously to both console and file"""
+    if unified_logger:
+        unified_logger.info(message)
+    else:
+        # Fallback if logger not initialized
+        print(message, flush=True)
 
 VIDEO_ID_RE = re.compile(r"\[([A-Za-z0-9_-]{11})\]$")
 
@@ -493,11 +527,23 @@ def _get_last_play_ts(video_id: str):
 
 
 def _list_log_files() -> List[Path]:
-    """Return sorted list of *.log paths inside LOGS_DIR (newest first)."""
+    """Return sorted list of *.log paths inside LOGS_DIR (main log first, then newest first)."""
     logs_dir = globals().get("LOGS_DIR")
     if not logs_dir:
         return []
-    return sorted(logs_dir.glob("*.log"), key=lambda p: p.stat().st_mtime, reverse=True)
+    
+    all_logs = list(logs_dir.glob("*.log"))
+    main_log = logs_dir / "SyncPlay-Hub.log"
+    
+    # Separate main log from others
+    main_logs = [log for log in all_logs if log.name == "SyncPlay-Hub.log"]
+    other_logs = [log for log in all_logs if log.name != "SyncPlay-Hub.log"]
+    
+    # Sort others by modification time (newest first)
+    other_logs_sorted = sorted(other_logs, key=lambda p: p.stat().st_mtime, reverse=True)
+    
+    # Return main log first, then others
+    return main_logs + other_logs_sorted
 
 
 @app.route("/logs")
@@ -638,7 +684,7 @@ def api_restart():
         
         # Log current PID before restart
         current_pid = os.getpid()
-        print(f"🔄 Initiating restart of server PID {current_pid} at {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        log_message(f"Initiating restart of server PID {current_pid} at {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         
         # Build restart command with same arguments
         restart_cmd = [sys.executable] + sys.argv
@@ -651,14 +697,14 @@ def api_restart():
             else:  # Unix/Linux/Mac
                 subprocess.Popen(restart_cmd)
             
-            print(f"✅ New server process started, terminating current PID {current_pid}")
+            log_message(f"New server process started, terminating current PID {current_pid}")
             
             # Give new process time to start before terminating
             time.sleep(1.5)
             os._exit(0)  # Force exit current process
             
         except Exception as e:
-            print(f"❌ Error during restart: {e}")
+            log_message(f"Error during restart: {e}")
     
     # Start restart in a separate thread
     threading.Thread(target=restart_server, daemon=True).start()
@@ -677,9 +723,9 @@ def api_stop():
         
         # Log current PID before stopping
         current_pid = os.getpid()
-        print(f"🛑 Stopping server PID {current_pid} at {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-        print("✅ Server stopped gracefully")
-        print("💡 You can restart the server by running the same command again")
+        log_message(f"Stopping server PID {current_pid} at {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        log_message("Server stopped gracefully")
+        log_message("You can restart the server by running the same command again")
         
         # Graceful shutdown using Flask's built-in mechanism
         func = request.environ.get('werkzeug.server.shutdown')
@@ -697,6 +743,7 @@ def api_stop():
 
 
 if __name__ == "__main__":
+    
     parser = argparse.ArgumentParser(description="Local web player for downloaded tracks")
     parser.add_argument("--root", default="downloads", help="Base folder containing Playlists/ and DB/")
     parser.add_argument("--host", default="127.0.0.1")
@@ -723,5 +770,31 @@ if __name__ == "__main__":
     # configure database path
     db.set_db_path(DB_FILE)
 
-    print(f"🚀 Starting server PID {SERVER_PID} at {SERVER_START_TIME.strftime('%Y-%m-%d %H:%M:%S')}")
+    # Setup unified logging system
+    main_log_file = LOGS_DIR / "SyncPlay-Hub.log"
+    
+    # Create file handler
+    file_handler = RotatingFileHandler(main_log_file, maxBytes=10*1024*1024, backupCount=5, encoding='utf-8')
+    file_handler.setFormatter(logging.Formatter('%(asctime)s [PID %(process)d] %(message)s', '%Y-%m-%d %H:%M:%S'))
+    
+    # Create our unified logger with dual stream handler
+    unified_logger = logging.getLogger('syncplay_unified')
+    unified_logger.setLevel(logging.INFO)
+    unified_logger.propagate = False
+    
+    # Add dual stream handler that writes to both console and file
+    dual_handler = DualStreamHandler(file_handler)
+    dual_handler.setFormatter(logging.Formatter('%(message)s'))  # Simple format since timestamp is added by log_utils
+    unified_logger.addHandler(dual_handler)
+    
+    # Configure Flask's werkzeug logger to use our unified system
+    werkzeug_logger = logging.getLogger('werkzeug')
+    werkzeug_logger.handlers.clear()  # Remove default handlers
+    werkzeug_logger.addHandler(dual_handler)
+    werkzeug_logger.propagate = False
+    
+    # Make unified logger available globally
+    globals()['unified_logger'] = unified_logger
+    
+    log_message(f"Starting server PID {SERVER_PID} at {SERVER_START_TIME.strftime('%Y-%m-%d %H:%M:%S')}")
     app.run(host=args.host, port=args.port, debug=False) 
