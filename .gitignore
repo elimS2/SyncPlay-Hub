@@ -1,3 +1,13 @@
 # Python bytecode
 __pycache__/
 *.py[cod] 
+
+# Data files (should be in user data directory, not project directory)
+tracks.db
+*.db
+downloads/
+Logs/
+
+# Temporary files
+check_db.py
+test_*.py 

@@ -4,6 +4,25 @@
 
 > Local-first downloader & web-player for YouTube playlists
 
+## 🏗️ Project Structure
+
+**CRITICAL: Code and Data Separation**
+
+This project uses a **strict separation** between code and user data:
+
+- **📁 Code Directory**: `<PROJECT_ROOT>\`
+  - Contains: `app.py`, `controllers/`, `services/`, `utils/`, `templates/`, `static/`
+  - This is where you edit code, run git commands, etc.
+
+- **📁 User Data Directory**: `<DATA_ROOT>\`
+  - Contains: database `DB\tracks.db`, logs `Logs\`, playlists `Playlists\`
+  - Server runs with: `python app.py --root "<DATA_ROOT>"`
+
+**⚠️ Important for Development:**
+- When testing database: check `<DATA_ROOT>\DB\tracks.db`, NOT local `tracks.db`
+- Server logs write to `<DATA_ROOT>\Logs\`
+- Media files are in `<DATA_ROOT>\Playlists\`
+
 ## ⚠️ Development Rules
 
 **IMPORTANT**: This project follows strict language conventions:
@@ -72,7 +91,7 @@ python download_playlist.py "https://www.youtube.com/playlist?list=PLxxxxxxxxxxx
 ```
 * All tracks will be saved inside a sub-folder named after the playlist, e.g., `MyMusic/Chill Beats/My Song [dQw4w9WgXcQ].mp3`.
 * Re-running the same command will **skip** files that are already present (check `downloaded.txt`).
-* Files that you have removed from the playlist on YouTube are also deleted locally on the next run (unless you pass `--no-sync`).
+* Files that you have removed from the playlist on YouTube are moved to a `Trash/` folder locally on the next run (unless you pass `--no-sync`). The trash preserves the original playlist folder structure.
 
 ### 2) Download full videos (best quality)
 ```bash
@@ -80,11 +99,11 @@ python download_playlist.py "https://www.youtube.com/playlist?list=PLxxxxxxxxxxx
        --output MyVideos
 ```
 * The script grabs the best available video + audio stream and stores it as `Title [VIDEO_ID].mp4` under `MyVideos/<Playlist Title>/` (container decided by `yt-dlp`).
-* Local files whose IDs are no longer in the playlist are removed automatically. If the video is unavailable online, the file is kept and its ID is stored in `unavailable_ids.txt`. Should the video ever become public again, the file will be treated normally on the next run (i.e., deleted if still absent from the playlist). Use `--no-sync` to skip any deletion.
+* Local files whose IDs are no longer in the playlist are moved to trash automatically. If the video is unavailable online, the file is kept and its ID is stored in `unavailable_ids.txt`. Should the video ever become public again, the file will be treated normally on the next run (i.e., moved to trash if still absent from the playlist). Use `--no-sync` to skip any file management.
 
 ### 3) Extra flags
 
-* `--no-sync` – keep local files even if they were removed from the playlist online (disables any deletion step).
+* `--no-sync` – keep local files even if they were removed from the playlist online (disables any file management).
 * `--debug` – show full yt-dlp output and internal progress (useful for troubleshooting cookies or network issues).
 
 ---
@@ -333,6 +352,11 @@ media-root/
 │   │   └── Song2 [ID].mp4
 │   └── Playlist2/
 │       └── Video [ID].webm
+├── Trash/                # Removed files (auto-created)
+│   ├── Playlist1/        # Maintains original playlist structure
+│   │   └── Removed Song [ID].mp3
+│   └── Playlist2/
+│       └── Removed Video [ID].webm
 ├── DB/                   # Database files (auto-created)
 │   └── tracks.db         # SQLite database
 └── Logs/                 # Log files (auto-created)

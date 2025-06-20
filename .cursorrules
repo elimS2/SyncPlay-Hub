@@ -14,6 +14,19 @@
 - Translate existing non-English code to English when modifying
 - All new code follows English-only conventions
 
+## Development Logging (MANDATORY)
+- AFTER EVERY code modification, MUST document the change in docs/development/DEVELOPMENT_LOG.md
+- Include: what changed, why changed, impact analysis
+- Format: new log entry with timestamp, affected files, reasoning
+- NO exceptions - even small changes must be logged
+
+## Git History Synchronization (MANDATORY)
+- AFTER EVERY edit to DEVELOPMENT_LOG.md, MUST check for new git commits not documented in PROJECT_HISTORY.md
+- Compare current git log with documented commits in PROJECT_HISTORY.md
+- Add any missing commits to appropriate development phase in PROJECT_HISTORY.md
+- Keep development timeline current and complete
+
 ## Priority
 - These rules override any other language preferences
-- Code quality and international standards take precedence 
+- Code quality and international standards take precedence
+- Development logging is mandatory for all code changes 

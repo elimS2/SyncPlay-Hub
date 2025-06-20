@@ -20,6 +20,8 @@ import urllib.parse as _urlparse
 from typing import Dict, Any, Set, Tuple
 import os
 import textwrap
+import shutil
+import datetime
 import log_utils  # noqa: F401 (patches builtins.print with timestamp+PID)
 
 try:
@@ -293,8 +295,50 @@ def _video_is_available(video_id: str) -> bool:
         return False
 
 
-def cleanup_local_files(playlist_dir: pathlib.Path, current_ids: Set[str]) -> None:
-    """Remove local files whose video ID is no longer present in the playlist,
+def move_to_trash(file_path: pathlib.Path, root_dir: pathlib.Path) -> bool:
+    """Move file to trash directory preserving playlist structure.
+    
+    Args:
+        file_path: Full path to file to be moved
+        root_dir: Root directory containing Playlists folder
+        
+    Returns:
+        True if successfully moved, False otherwise
+    """
+    try:
+        # Create trash directory structure
+        trash_dir = root_dir / "Trash"
+        trash_dir.mkdir(exist_ok=True)
+        
+        # Get playlist name from file path (parent directory)
+        playlist_name = file_path.parent.name
+        playlist_trash_dir = trash_dir / playlist_name
+        playlist_trash_dir.mkdir(exist_ok=True)
+        
+        # Generate unique filename with timestamp if file already exists in trash
+        target_file = playlist_trash_dir / file_path.name
+        if target_file.exists():
+            # Add timestamp to avoid conflicts
+            timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+            name_parts = file_path.name.rsplit('.', 1)
+            if len(name_parts) == 2:
+                new_name = f"{name_parts[0]}_{timestamp}.{name_parts[1]}"
+            else:
+                new_name = f"{file_path.name}_{timestamp}"
+            target_file = playlist_trash_dir / new_name
+        
+        # Move file to trash
+        shutil.move(str(file_path), str(target_file))
+        print(f"[Moved to Trash] {file_path.name} → Trash/{playlist_name}/")
+        return True
+        
+    except Exception as exc:
+        print(f"[Warning] Could not move {file_path.name} to trash: {exc}")
+        return False
+
+
+def cleanup_local_files(playlist_dir: pathlib.Path, current_ids: Set[str], root_dir: pathlib.Path = None) -> None:
+    """Move local files to trash whose video ID is no longer present in the playlist,
     unless the video itself is no longer available on YouTube (archived)."""
     if not playlist_dir.exists():
         return
@@ -333,8 +377,16 @@ def cleanup_local_files(playlist_dir: pathlib.Path, current_ids: Set[str]) -> No
         # Check availability
         if _video_is_available(vid):
             try:
-                file.unlink()
-                print(f"[Removed] {file.name} (not in playlist)")
+                # Try to move to trash first, fall back to deletion if trash fails
+                moved_to_trash = False
+                if root_dir:
+                    moved_to_trash = move_to_trash(file, root_dir)
+                
+                if not moved_to_trash:
+                    # Fallback to deletion if trash move failed
+                    file.unlink()
+                    print(f"[Removed] {file.name} (not in playlist)")
+                
                 try:
                     from database import get_connection, record_event  # local import to avoid heavy deps if DB absent
                     conn = get_connection()
@@ -360,7 +412,7 @@ def cleanup_local_files(playlist_dir: pathlib.Path, current_ids: Set[str]) -> No
                     # ignore DB errors (e.g., no DB configured when running standalone CLI)
                     pass
             except Exception as exc:
-                print(f"[Warning] Could not remove {file}: {exc}")
+                print(f"[Warning] Could not process {file}: {exc}")
         else:
             print(f"[Archive] Keeping {file.name} (video unavailable online)")
             remembered_unavailable.add(vid)
@@ -463,7 +515,7 @@ def download_playlist(playlist_url: str, output_dir: pathlib.Path, audio_only: b
 
     playlist_dir = output_dir / sanitized_title
     if sync:
-        cleanup_local_files(playlist_dir, current_ids)
+        cleanup_local_files(playlist_dir, current_ids, output_dir)
 
     # Show counts before downloading new content
     local_before = _get_local_ids(playlist_dir)
