@@ -14,6 +14,9 @@
     th{text-align:left;border-bottom:1px solid #444;cursor:pointer;}
     tbody tr{border-bottom:1px solid #333;}
     .arrow{margin-left:4px;font-size:10px;}
+    .download-task{margin:8px 0;padding:8px;background:#222;border-radius:4px;}
+    .download-task.download{border-left:4px solid #4caf50;}
+    .download-task.resync{border-left:4px solid #ff9800;}
   </style>
 </head>
 <body>
@@ -34,6 +37,34 @@
       <button id="stopBtn" style="padding:6px 12px;font-size:14px;cursor:pointer;background:#f44336;color:#fff;border:1px solid #d32f2f;">🛑 Stop Server</button>
     </div>
   </div>
+
+  <!-- Active Downloads Section -->
+  {% if active_downloads %}
+  <div style="margin:20px 0;padding:15px;background:#1a1a1a;border:1px solid #333;border-radius:6px;">
+    <h3 style="margin:0 0 10px 0;color:#61dafb;font-size:16px;">🔄 Active Downloads ({{ active_downloads|length }})</h3>
+    {% for task_id, task in active_downloads.items() %}
+    <div class="download-task {{ task.type }}">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <div>
+          <strong style="color:#fff;">{{ task.title }}</strong>
+          <span style="color:#888;font-size:12px;margin-left:8px;">
+            [{{ task.type|title }}] - {{ task.status|title }}
+          </span>
+        </div>
+        <div style="color:#aaa;font-size:12px;">
+          Runtime: {{ task.runtime }}
+        </div>
+      </div>
+             <div style="font-size:11px;color:#666;margin-top:4px;word-break:break-all;">
+         Task ID: {{ task_id }} | Thread ID: {{ task.thread_id }} | PID: {{ task.process_id }} | URL: {{ task.url }}
+       </div>
+    </div>
+    {% endfor %}
+    <div style="margin-top:8px;font-size:11px;color:#888;">
+      💡 This page auto-refreshes every 10 seconds to show current status
+    </div>
+  </div>
+  {% endif %}
 
   <table id="playlistTable">
     <thead>
@@ -256,6 +287,13 @@
       // Initial sort by "Forgotten" column (index 4), descending
       sortBy(4, false);
     })();
+
+    // Auto-refresh page every 10 seconds if there are active downloads
+    {% if active_downloads %}
+    setInterval(() => {
+      location.reload();
+    }, 10000); // 10 seconds
+    {% endif %}
   </script>
 </body>
 </html> 

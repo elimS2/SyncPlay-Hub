@@ -40,19 +40,85 @@ UNAVAILABLE_FILE = "unavailable_ids.txt"
 
 
 class _ProgLogger:
-    def __init__(self, total=None):
+    def __init__(self, total=None, progress_callback=None):
         self.count = 0
         self.total = total
+        self.last_video_id = None
+        self.progress_callback = progress_callback
+        import time
+        self.start_time = time.time()
+    
     def debug(self, msg):
+        self._process_message(msg)
+    
+    def info(self, msg):
+        self._process_message(msg)
+    
+    def warning(self, msg):
+        self._process_message(msg)
+        
+    def error(self, msg):
+        self._process_message(msg)
+    
+    def _process_message(self, msg):
+        import time
+        
+        # Track video parsing progress
         if msg.startswith('[youtube') and 'Downloading webpage' in msg:
             self.count += 1
+            elapsed = int(time.time() - self.start_time)
             if self.total:
-                print(f"\r  …parsed {self.count}/{self.total} entries", end='', flush=True)
+                percentage = (self.count / self.total) * 100
+                avg_time = elapsed / self.count if self.count > 0 else 0
+                eta = int((self.total - self.count) * avg_time) if avg_time > 0 else 0
+                progress_msg = f"  …parsed {self.count}/{self.total} entries ({percentage:.1f}%, {elapsed}s elapsed, ETA: {eta}s)"
+                print(f"\r{progress_msg}", end='', flush=True)
+                # Send progress to callback
+                if self.progress_callback:
+                    try:
+                        self.progress_callback(f"[Progress] {progress_msg.strip()}")
+                    except Exception:
+                        pass
             else:
-                print(f"\r  …parsed {self.count} entries", end='', flush=True)
-    info = debug
-    warning = debug
-    error = debug
+                progress_msg = f"  …parsed {self.count} entries ({elapsed}s elapsed)"
+                print(f"\r{progress_msg}", end='', flush=True)
+                # Send progress to callback
+                if self.progress_callback:
+                    try:
+                        self.progress_callback(f"[Progress] {progress_msg.strip()}")
+                    except Exception:
+                        pass
+                
+        # Show video IDs being processed (every 10th video to avoid spam)
+        elif '[youtube]' in msg and ': Downloading webpage' in msg and self.count % 10 == 0:
+            # Extract video ID from message like "[youtube] dQw4w9WgXcQ: Downloading webpage"
+            import re
+            video_id_match = re.search(r'\[youtube\] ([A-Za-z0-9_-]{11}):', msg)
+            if video_id_match:
+                video_id = video_id_match.group(1)
+                video_msg = f"  Processing video ID: {video_id} (#{self.count})"
+                print(f"\n{video_msg}")
+                # Send to callback
+                if self.progress_callback:
+                    try:
+                        self.progress_callback(f"[Progress] {video_msg}")
+                    except Exception:
+                        pass
+                
+        # Show errors and warnings
+        elif 'ERROR:' in msg or 'WARNING:' in msg:
+            error_msg = f"  {msg.strip()}"
+            print(f"\n{error_msg}")
+            # Send to callback
+            if self.progress_callback:
+                try:
+                    self.progress_callback(f"[Progress] {error_msg}")
+                except Exception:
+                    pass
+            
+        # Show unavailable videos
+        elif 'Video unavailable' in msg or 'Private video' in msg or 'Deleted video' in msg:
+            print(f"\n  {msg.strip()}")
 
 
 def _validate_cookies_file(path: str) -> None:
@@ -64,8 +130,18 @@ def _validate_cookies_file(path: str) -> None:
         raise ValueError("Provided cookies file does not appear to contain YouTube cookies")
 
 
-def fetch_playlist_metadata(url: str, *, cookies_path: str | None = None, use_browser: bool = False, debug: bool = False) -> Tuple[str, Set[str]]:
+def fetch_playlist_metadata(url: str, *, cookies_path: str | None = None, use_browser: bool = False, debug: bool = False, progress_callback=None) -> Tuple[str, Set[str]]:
     """Return (playlist_title, set_of_video_ids) without downloading files."""
+    
+    # Helper function to log both to console and callback
+    def log_progress(msg):
+        print(msg)
+        if progress_callback:
+            try:
+                progress_callback(msg)
+            except Exception:
+                pass  # Don't let callback errors break the download
+    
     # Normalize URL: if it's a watch URL with &list=, convert to full playlist link
     parsed = _urlparse.urlparse(url)
     qs = _urlparse.parse_qs(parsed.query)
@@ -73,6 +149,7 @@ def fetch_playlist_metadata(url: str, *, cookies_path: str | None = None, use_br
         url = f"https://www.youtube.com/playlist?list={qs['list'][0]}"
 
     # Quick first pass to estimate total items fast
+    log_progress("[Info] Performing quick playlist scan to estimate size...")
     common_cookies = ({"cookiefile": cookies_path} if cookies_path else {})
     if use_browser and not cookies_path:
         common_cookies.setdefault("cookiesfrombrowser", ("chrome",))
@@ -86,31 +163,43 @@ def fetch_playlist_metadata(url: str, *, cookies_path: str | None = None, use_br
         **common_cookies,
     }
     try:
+        import time
+        start_time = time.time()
         with YoutubeDL(quick_opts) as ydl:
             quick_info = ydl.extract_info(url, download=False)
         total_est = len(quick_info.get("entries", []))
-    except Exception:
+        elapsed = time.time() - start_time
+        log_progress(f"[Info] Quick scan completed in {elapsed:.1f}s - found ~{total_est} items")
+    except Exception as e:
+        log_progress(f"[Warning] Quick scan failed: {e}")
         total_est = None
 
     if total_est:
-        print(f"[Info] Playlist contains ~{total_est} items. Starting detailed scan…")
+        log_progress(f"[Info] Starting detailed metadata scan for {total_est} items...")
+        log_progress("[Info] This may take several minutes for large playlists due to YouTube API rate limits")
     else:
-        print("[Info] Fetching playlist metadata (full scan)…")
+        log_progress("[Info] Starting detailed metadata scan (unknown size)...")
 
+    # Always use logger to show progress, even in non-debug mode
     ydl_opts = {
-        "quiet": not debug,
+        "quiet": True,  # Always quiet to avoid spam, but use our custom logger
         "skip_download": True,
         # Reliable but slower: fetch full metadata of every item
         "extract_flat": False,  # get full info per video
         "playlist_items": "1-",  # all items
         "ignoreerrors": True,
-        "logger": _ProgLogger(total_est) if not debug else None,
+        "logger": _ProgLogger(total_est, progress_callback),  # Pass callback to logger
         **common_cookies,
     }
+    
+    import time
+    detailed_start = time.time()
     with YoutubeDL(ydl_opts) as ydl:
         info = ydl.extract_info(url, download=False)
+    detailed_elapsed = time.time() - detailed_start
     print()  # newline after last carriage-return
-    print(f"[Info] Playlist metadata loaded: {len(info.get('entries', []))} items detected")
+    log_progress(f"[Info] Detailed scan completed in {detailed_elapsed:.1f}s")
+    log_progress(f"[Info] Playlist metadata loaded: {len(info.get('entries', []))} items detected")
 
     # Some YouTube responses may be wrapped; ensure we get playlist dict
     if "entries" not in info:
@@ -271,8 +360,18 @@ def _get_local_ids(playlist_dir: pathlib.Path) -> Set[str]:
 
 
 def download_playlist(playlist_url: str, output_dir: pathlib.Path, audio_only: bool = False, *, sync: bool = True,
-                     cookies_path: str | None = None, use_browser: bool = False, debug: bool = False) -> None:
+                     cookies_path: str | None = None, use_browser: bool = False, debug: bool = False, progress_callback=None) -> None:
     """Download the entire playlist and optionally sync (delete) removed tracks."""
+    
+    # Helper function to log both to console and callback
+    def log_progress(msg):
+        print(msg)
+        if progress_callback:
+            try:
+                progress_callback(msg)
+            except Exception:
+                pass  # Don't let callback errors break the download
+    
     # Cookies info
     if cookies_path:
         try:
@@ -290,6 +389,7 @@ def download_playlist(playlist_url: str, output_dir: pathlib.Path, audio_only: b
         cookies_path=cookies_path,
         use_browser=use_browser,
         debug=debug,
+        progress_callback=progress_callback,
     )
     sanitized_title = sanitize_filename(playlist_title, restricted=True)
 
@@ -299,7 +399,7 @@ def download_playlist(playlist_url: str, output_dir: pathlib.Path, audio_only: b
 
     # Show counts before downloading new content
     local_before = _get_local_ids(playlist_dir)
-    print(f"[Info] Playlist items online: {len(current_ids)} | Local before download: {len(local_before)}")
+    log_progress(f"[Info] Playlist items online: {len(current_ids)} | Local before download: {len(local_before)}")
 
     # Ensure base output_dir exists (yt-dlp will create subfolders itself)
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -314,7 +414,7 @@ def download_playlist(playlist_url: str, output_dir: pathlib.Path, audio_only: b
     # Summary after download
     local_after = _get_local_ids(playlist_dir)
     added = len(local_after) - len(local_before)
-    print(
+    log_progress(
         f"[Summary] Playlist items online: {len(current_ids)} | Local files after sync & download: {len(local_after)} (added {added})"
     )
 

@@ -53,6 +53,10 @@ DB_FILE: Path  # set in main()
 SERVER_START_TIME = datetime.datetime.now()
 SERVER_PID = os.getpid()
 
+# Global dictionary to track active download processes
+ACTIVE_DOWNLOADS = {}  # {task_id: {title, url, start_time, type, status}}
+_downloads_lock = threading.Lock()
+
 # Global logging
 unified_logger = None
 
@@ -149,6 +153,48 @@ def log_message(message):
     else:
         # Fallback if logger not initialized
         print(message, flush=True)
+
+
+def add_active_download(task_id: str, title: str, url: str, download_type: str = "download"):
+    """Register a new active download task"""
+    import threading
+    with _downloads_lock:
+        ACTIVE_DOWNLOADS[task_id] = {
+            "title": title,
+            "url": url,
+            "start_time": datetime.datetime.now(),
+            "type": download_type,  # "download" or "resync"
+            "status": "starting",
+            "thread_id": threading.get_ident(),  # Thread ID
+            "process_id": os.getpid()  # Process ID (same as server)
+        }
+
+
+def update_download_status(task_id: str, status: str):
+    """Update the status of an active download"""
+    with _downloads_lock:
+        if task_id in ACTIVE_DOWNLOADS:
+            ACTIVE_DOWNLOADS[task_id]["status"] = status
+
+
+def remove_active_download(task_id: str):
+    """Remove a completed download task"""
+    with _downloads_lock:
+        ACTIVE_DOWNLOADS.pop(task_id, None)
+
+
+def get_active_downloads():
+    """Get copy of current active downloads"""
+    with _downloads_lock:
+        # Create a copy with calculated runtime
+        active = {}
+        for task_id, info in ACTIVE_DOWNLOADS.items():
+            runtime = datetime.datetime.now() - info["start_time"]
+            active[task_id] = {
+                **info,
+                "runtime": str(runtime).split('.')[0]  # Remove microseconds
+            }
+        return active
 
 VIDEO_ID_RE = re.compile(r"\[([A-Za-z0-9_-]{11})\]$")
 
@@ -397,6 +443,12 @@ def api_playlists():
     return jsonify(list_playlists(ROOT_DIR))
 
 
+@app.route("/api/active_downloads")
+def api_active_downloads():
+    """Get current active downloads status"""
+    return jsonify(get_active_downloads())
+
+
 @app.route("/media/<path:filename>")
 def media(filename: str):
     return send_from_directory(ROOT_DIR, filename, as_attachment=False)
@@ -431,7 +483,9 @@ def playlists_page():
         "start_time": SERVER_START_TIME.strftime("%Y-%m-%d %H:%M:%S"),
         "uptime": str(datetime.datetime.now() - SERVER_START_TIME).split('.')[0]  # Remove microseconds
     }
-    return render_template("playlists.html", playlists=playlists, server_ip=_get_local_ip(), server_info=server_info)
+    active_downloads = get_active_downloads()
+    return render_template("playlists.html", playlists=playlists, server_ip=_get_local_ip(), 
+                          server_info=server_info, active_downloads=active_downloads)
 
 
 @app.route("/playlist/<path:playlist_path>")
@@ -496,52 +550,131 @@ def api_add_playlist():
     if not m:
         return jsonify({"status": "error", "message": "not a playlist url"}), 400
 
+    # Log immediate start of playlist processing
+    log_message(f"[AddPlaylist] Received request for URL: {url}")
+    
     # Import here to avoid heavy deps on start-up
     from download_playlist import fetch_playlist_metadata, download_playlist as _dl_playlist
     from yt_dlp.utils import sanitize_filename  # type: ignore
-    try:
-        # Fetch metadata (title needed to know target folder & for duplicate check)
-        title, _ids = fetch_playlist_metadata(url, debug=False)
-    except Exception as exc:
-        return jsonify({"status": "error", "message": f"metadata error: {exc}"}), 500
-
-    folder_name = sanitize_filename(title, restricted=True)
-    target_dir = ROOT_DIR / folder_name
-
-    # ensure playlist row has source_url set (might not exist yet)
-    try:
-        conn = get_connection()
-        relpath = str(folder_name)
-        upsert_playlist(conn, title, relpath, source_url=url)
-        conn.commit()
-        conn.close()
-    except Exception:
-        pass
-
-    if target_dir.exists():
-        return jsonify({"status": "exists", "message": "playlist already downloaded"})
 
     # Background worker to download and rescan DB
     def _worker():
         import contextlib, datetime, sys
+        import uuid
+        
+        # Generate unique task ID
+        task_id = uuid.uuid4().hex[:8]
+        
+        try:
+            # Register initial task with placeholder title
+            add_active_download(task_id, "Fetching metadata...", url, "download")
+            
+            # Fetch metadata first (this was moved from main thread)
+            log_message(f"[AddPlaylist] Fetching playlist metadata... | Task ID: {task_id}")
+            
+            # Create callback for metadata fetching progress
+            def metadata_progress_callback(msg):
+                if any(keyword in msg for keyword in ["[Info]", "[Warning]", "[Progress]"]):
+                    log_message(f"[AddPlaylist] {msg}")
+            
+            title, _ids = fetch_playlist_metadata(url, debug=False, progress_callback=metadata_progress_callback)
+            log_message(f"[AddPlaylist] Metadata fetched successfully: {title} | Task ID: {task_id}")
+            
+            folder_name = sanitize_filename(title, restricted=True)
+            target_dir = ROOT_DIR / folder_name
+            
+            # Check if already exists
+            if target_dir.exists():
+                log_message(f"[AddPlaylist] Playlist already exists: {title} | Task ID: {task_id}")
+                remove_active_download(task_id)
+                return
+            
+            # Update task with real title
+            with _downloads_lock:
+                if task_id in ACTIVE_DOWNLOADS:
+                    ACTIVE_DOWNLOADS[task_id]["title"] = title
+                    ACTIVE_DOWNLOADS[task_id]["status"] = "preparing"
+            
+            # ensure playlist row has source_url set
+            try:
+                from database import get_connection  # local import
+                from database import upsert_playlist  # local import
+                conn = get_connection()
+                relpath = str(folder_name)
+                upsert_playlist(conn, title, relpath, source_url=url)
+                conn.commit()
+                conn.close()
+            except Exception:
+                pass
+            
+        except Exception as exc:
+            log_message(f"[AddPlaylist] Metadata error: {exc} | Task ID: {task_id}")
+            update_download_status(task_id, "error")
+            import time
+            time.sleep(5)  # Keep error visible for 5 seconds
+            remove_active_download(task_id)
+            return
+        
         LOGS_DIR_LOCAL = globals().get("LOGS_DIR", Path.cwd() / "Logs")
         log_path = LOGS_DIR_LOCAL / "download_playlist.log"
         LOGS_DIR_LOCAL.mkdir(parents=True, exist_ok=True)
-        # Inform server console where log is being written
-        print(f"[AddPlaylist] Logging to {log_path}")
-        with open(log_path, "a", encoding="utf-8", buffering=1) as lf, \
-             contextlib.redirect_stdout(lf), contextlib.redirect_stderr(lf):
-            print("="*60, flush=True)
-            print(f"[START] {datetime.datetime.now():%Y-%m-%d %H:%M:%S} | Playlist: {title} | URL: {url}", flush=True)
-            try:
-                _dl_playlist(url, ROOT_DIR, audio_only=False, sync=True, debug=False)
-                # Update DB after download
-                scan_library(ROOT_DIR)
-                print(f"[DONE]  {datetime.datetime.now():%Y-%m-%d %H:%M:%S}  Successfully downloaded {title}", flush=True)
-            except Exception as e:
-                print(f"[ERROR] {datetime.datetime.now():%Y-%m-%d %H:%M:%S}  {e}", flush=True)
-            finally:
-                print("="*60, flush=True)
+        
+        # Log start to both main server log and download log
+        start_msg = f"[AddPlaylist] Starting download: {title} | URL: {url} | Task ID: {task_id} | Logging to {log_path}"
+        log_message(start_msg)  # Main server log
+        
+        with open(log_path, "a", encoding="utf-8", buffering=1) as lf:
+            # Custom print function that writes to both file and main log
+            def dual_print(msg, flush=True):
+                # Write to download log file
+                print(msg, file=lf, flush=flush)
+                # Also log important messages to main server log
+                if any(keyword in msg for keyword in ["[START]", "[DONE]", "[ERROR]", "[Info] Playlist contains", "[Info] Detailed scan completed"]):
+                    log_message(f"[AddPlaylist] {msg}")
+            
+            # Redirect stdout/stderr to file only, but keep dual logging for important messages
+            with contextlib.redirect_stdout(lf), contextlib.redirect_stderr(lf):
+                dual_print("="*60)
+                dual_print(f"[START] {datetime.datetime.now():%Y-%m-%d %H:%M:%S} | Playlist: {title} | URL: {url}")
+                try:
+                    # Update status to downloading
+                    update_download_status(task_id, "downloading")
+                    
+                    # Create callback to send progress to main log
+                    def progress_callback(msg):
+                        # Log important progress messages to main server log
+                        if any(keyword in msg for keyword in ["[Info]", "[Warning]", "[Summary]", "[Progress]"]):
+                            log_message(f"[AddPlaylist] {msg}")
+                        # Update status based on progress
+                        if "Starting detailed metadata scan" in msg:
+                            update_download_status(task_id, "scanning metadata")
+                        elif "Detailed scan completed" in msg:
+                            update_download_status(task_id, "downloading files")
+                    
+                    _dl_playlist(url, ROOT_DIR, audio_only=False, sync=True, debug=False, progress_callback=progress_callback)
+                    
+                    # Update status to finalizing
+                    update_download_status(task_id, "updating database")
+                    
+                    # Update DB after download
+                    from database import scan_library  # local import
+                    scan_library(ROOT_DIR)
+                    success_msg = f"[DONE]  {datetime.datetime.now():%Y-%m-%d %H:%M:%S}  Successfully downloaded {title}"
+                    dual_print(success_msg)
+                    
+                    # Mark as completed
+                    update_download_status(task_id, "completed")
+                    
+                except Exception as e:
+                    error_msg = f"[ERROR] {datetime.datetime.now():%Y-%m-%d %H:%M:%S}  {e}"
+                    dual_print(error_msg)
+                    update_download_status(task_id, "error")
+                finally:
+                    dual_print("="*60)
+                    # Remove from active downloads after a short delay
+                    import time
+                    time.sleep(5)  # Keep visible for 5 seconds after completion
+                    remove_active_download(task_id)
 
     import threading
 
@@ -744,20 +877,72 @@ def api_resync():
 
     def _worker():
         import contextlib, datetime
+        import uuid
+        
+        # Generate unique task ID
+        task_id = uuid.uuid4().hex[:8]
+        
+        # Register this resync task
+        add_active_download(task_id, folder_name, url, "resync")
+        
         LOGS_DIR_LOCAL = globals().get("LOGS_DIR", Path.cwd() / "Logs")
         log_path = LOGS_DIR_LOCAL / "download_playlist.log"
-        with open(log_path, "a", encoding="utf-8", buffering=1) as lf, contextlib.redirect_stdout(lf), contextlib.redirect_stderr(lf):
-            print("="*60, flush=True)
-            print(f"[RESYNC] {datetime.datetime.now():%Y-%m-%d %H:%M:%S} | Playlist: {folder_name}", flush=True)
-            try:
-                _dl_playlist = __import__("download_playlist").download_playlist
-                _dl_playlist(url, ROOT_DIR, audio_only=False, sync=True, debug=False)
-                scan_library(ROOT_DIR)
-                print(f"[DONE] {datetime.datetime.now():%Y-%m-%d %H:%M:%S}", flush=True)
-            except Exception as e:
-                print(f"[ERROR] {datetime.datetime.now():%Y-%m-%d %H:%M:%S} {e}", flush=True)
-            finally:
-                print("="*60, flush=True)
+        
+        # Log start to both main server log and download log
+        start_msg = f"[Resync] Starting resync: {folder_name} | URL: {url} | Task ID: {task_id} | Logging to {log_path}"
+        log_message(start_msg)  # Main server log
+        
+        with open(log_path, "a", encoding="utf-8", buffering=1) as lf:
+            # Custom print function that writes to both file and main log
+            def dual_print(msg, flush=True):
+                # Write to download log file
+                print(msg, file=lf, flush=flush)
+                # Also log important messages to main server log
+                if any(keyword in msg for keyword in ["[RESYNC]", "[DONE]", "[ERROR]", "[Info] Playlist contains", "[Info] Detailed scan completed"]):
+                    log_message(f"[Resync] {msg}")
+            
+            # Redirect stdout/stderr to file only, but keep dual logging for important messages
+            with contextlib.redirect_stdout(lf), contextlib.redirect_stderr(lf):
+                dual_print("="*60)
+                dual_print(f"[RESYNC] {datetime.datetime.now():%Y-%m-%d %H:%M:%S} | Playlist: {folder_name}")
+                try:
+                    # Update status to resyncing
+                    update_download_status(task_id, "resyncing")
+                    
+                    # Create callback to send progress to main log
+                    def progress_callback(msg):
+                        # Log important progress messages to main server log
+                        if any(keyword in msg for keyword in ["[Info]", "[Warning]", "[Summary]", "[Progress]"]):
+                            log_message(f"[Resync] {msg}")
+                        # Update status based on progress
+                        if "Starting detailed metadata scan" in msg:
+                            update_download_status(task_id, "scanning metadata")
+                        elif "Detailed scan completed" in msg:
+                            update_download_status(task_id, "downloading files")
+                    
+                    _dl_playlist = __import__("download_playlist").download_playlist
+                    _dl_playlist(url, ROOT_DIR, audio_only=False, sync=True, debug=False, progress_callback=progress_callback)
+                    
+                    # Update status to finalizing
+                    update_download_status(task_id, "updating database")
+                    
+                    scan_library(ROOT_DIR)
+                    success_msg = f"[DONE] {datetime.datetime.now():%Y-%m-%d %H:%M:%S}"
+                    dual_print(success_msg)
+                    
+                    # Mark as completed
+                    update_download_status(task_id, "completed")
+                    
+                except Exception as e:
+                    error_msg = f"[ERROR] {datetime.datetime.now():%Y-%m-%d %H:%M:%S} {e}"
+                    dual_print(error_msg)
+                    update_download_status(task_id, "error")
+                finally:
+                    dual_print("="*60)
+                    # Remove from active downloads after a short delay
+                    import time
+                    time.sleep(5)  # Keep visible for 5 seconds after completion
+                    remove_active_download(task_id)
 
     import threading
     threading.Thread(target=_worker, daemon=True).start()
