@@ -576,6 +576,11 @@ def api_add_playlist():
             def metadata_progress_callback(msg):
                 if any(keyword in msg for keyword in ["[Info]", "[Warning]", "[Progress]"]):
                     log_message(f"[AddPlaylist] {msg}")
+                # Update status for specific progress messages
+                if "Quick scan in progress" in msg:
+                    update_download_status(task_id, "initial scan")
+                elif "Quick scan completed" in msg:
+                    update_download_status(task_id, "scan complete")
             
             title, _ids = fetch_playlist_metadata(url, debug=False, progress_callback=metadata_progress_callback)
             log_message(f"[AddPlaylist] Metadata fetched successfully: {title} | Task ID: {task_id}")

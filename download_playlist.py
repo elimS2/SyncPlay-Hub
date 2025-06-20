@@ -150,12 +150,14 @@ def fetch_playlist_metadata(url: str, *, cookies_path: str | None = None, use_br
 
     # Quick first pass to estimate total items fast
     log_progress("[Info] Performing quick playlist scan to estimate size...")
+    log_progress("[Info] This initial scan may take several minutes for very large playlists...")
+    log_progress("[Info] Note: YouTube doesn't provide progress data for this phase, so updates will be periodic")
     common_cookies = ({"cookiefile": cookies_path} if cookies_path else {})
     if use_browser and not cookies_path:
         common_cookies.setdefault("cookiesfrombrowser", ("chrome",))
 
     quick_opts = {
-        "quiet": not debug,
+        "quiet": True,  # Always quiet for quick scan, we'll use our logger
         "skip_download": True,
         "extract_flat": "discard_in_playlist",
         "playlist_items": "1-",
@@ -165,6 +167,68 @@ def fetch_playlist_metadata(url: str, *, cookies_path: str | None = None, use_br
     try:
         import time
         start_time = time.time()
+        
+        # Add progress tracking for quick scan
+        class QuickScanLogger:
+            def __init__(self, callback):
+                self.callback = callback
+                self.last_log_time = time.time()
+                self.items_found = 0
+                
+            def debug(self, msg): self._process_message(msg)
+            def info(self, msg): self._process_message(msg)
+            def warning(self, msg): self._process_message(msg)
+            def error(self, msg): self._process_message(msg)
+            
+            def _process_message(self, msg):
+                current_time = time.time()
+                
+                # Try to extract real progress information from yt-dlp messages
+                if "playlist" in msg.lower() and ("downloading" in msg.lower() or "extracting" in msg.lower()):
+                    if self.callback:
+                        try:
+                            elapsed = int(current_time - start_time)
+                            self.callback(f"[Info] Quick scan: {msg.strip()} ({elapsed}s elapsed)")
+                        except Exception:
+                            pass
+                    self.last_log_time = current_time
+                
+                # Look for item count indicators
+                elif "entries" in msg.lower() or "items" in msg.lower():
+                    if self.callback:
+                        try:
+                            elapsed = int(current_time - start_time)
+                            self.callback(f"[Info] Quick scan: {msg.strip()} ({elapsed}s elapsed)")
+                        except Exception:
+                            pass
+                    self.last_log_time = current_time
+                
+                # Fallback: periodic updates without real data
+                elif current_time - self.last_log_time >= 30:
+                    elapsed = int(current_time - start_time)
+                    if self.callback:
+                        try:
+                            self.callback(f"[Info] Quick scan in progress... ({elapsed}s elapsed, still working)")
+                        except Exception:
+                            pass
+                    self.last_log_time = current_time
+        
+        # Add progress hook to try to catch more detailed progress
+        def quick_progress_hook(d):
+            if progress_callback and d.get('status'):
+                try:
+                    elapsed = int(time.time() - start_time)
+                    status = d.get('status', 'unknown')
+                    if 'total_bytes' in d or 'total_bytes_estimate' in d:
+                        progress_callback(f"[Info] Quick scan progress: {status} ({elapsed}s elapsed)")
+                    elif status in ['downloading', 'finished']:
+                        progress_callback(f"[Info] Quick scan: {status} playlist metadata ({elapsed}s elapsed)")
+                except Exception:
+                    pass
+        
+        quick_opts["logger"] = QuickScanLogger(progress_callback)
+        quick_opts["progress_hooks"] = [quick_progress_hook]
+        
         with YoutubeDL(quick_opts) as ydl:
             quick_info = ydl.extract_info(url, download=False)
         total_est = len(quick_info.get("entries", []))
@@ -177,6 +241,10 @@ def fetch_playlist_metadata(url: str, *, cookies_path: str | None = None, use_br
     if total_est:
         log_progress(f"[Info] Starting detailed metadata scan for {total_est} items...")
         log_progress("[Info] This may take several minutes for large playlists due to YouTube API rate limits")
+        # Estimate time based on typical rate (2-3 items per second)
+        estimated_minutes = (total_est * 2.5) / 60  # Conservative estimate
+        if estimated_minutes > 1:
+            log_progress(f"[Info] Estimated completion time: ~{estimated_minutes:.0f} minutes")
     else:
         log_progress("[Info] Starting detailed metadata scan (unknown size)...")
 
