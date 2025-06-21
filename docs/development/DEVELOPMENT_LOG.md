@@ -391,6 +391,301 @@ project-root/
 
 *End of Log Entry #010*
 
+### Log Entry #011 - 2025-01-21 17:30
+**Change:** YouTube Integration - Added "Open on YouTube" Button to Player
+
+#### Files Modified
+- `templates/index.html` - Added YouTube button (📺) to player controls
+- `static/player.js` - Implemented YouTube button functionality
+- `README.md` - Updated player features documentation
+
+#### Reason for Change
+**User-requested feature** - Enhance player functionality by providing direct access to YouTube source:
+
+1. **Quick access** - Users can easily view original video/comments/description on YouTube
+2. **Cross-platform continuity** - Switch between local and YouTube playback seamlessly  
+3. **Enhanced user experience** - No need to manually search for tracks on YouTube
+4. **Social features** - Access YouTube comments, likes, and sharing features
+
+#### Implementation Details
+
+**1. HTML Template (`templates/index.html`):**
+- Added YouTube button between Like and Cast buttons in control bar
+- Used 📺 emoji icon for clear visual identification
+- Added hover effect for better UX (`ctrl-btn:hover{opacity:0.7;}`)
+
+**2. JavaScript Functionality (`static/player.js`):**
+- Added `cYoutube` button element reference
+- Implemented click handler that:
+  - Checks if current track exists and has valid index
+  - Extracts `video_id` from current track
+  - Constructs YouTube URL: `https://www.youtube.com/watch?v=${video_id}`
+  - Opens URL in new tab using `window.open(url, '_blank')`
+  - Includes error handling for missing video_id
+
+**3. User Interface Integration:**
+- Button positioned logically in control flow: Prev → Play → Next → Like → **YouTube** → Cast → Volume
+- Consistent styling with other control buttons
+- Tooltip shows "Open on YouTube" on hover
+- Only active when a track is currently loaded
+
+#### Code Implementation
+
+**Button HTML:**
+```html
+<button id="cYoutube" class="ctrl-btn" title="Open on YouTube">📺</button>
+```
+
+**JavaScript Handler:**
+```javascript
+cYoutube.onclick = ()=>{
+   if(currentIndex<0||currentIndex>=queue.length) return;
+   const track=queue[currentIndex];
+   if(track.video_id){
+      const youtubeUrl = `https://www.youtube.com/watch?v=${track.video_id}`;
+      window.open(youtubeUrl, '_blank');
+   }else{
+      console.warn('No video_id found for current track');
+   }
+};
+```
+
+#### User Experience Benefits
+
+1. **One-click access** - Instant access to YouTube source without manual searching
+2. **Context preservation** - Opens in new tab, doesn't interrupt local playback
+3. **Cross-reference capability** - Compare local vs YouTube quality/version
+4. **Social interaction** - Access YouTube comments, descriptions, related videos
+5. **Playlist management** - Easy way to manage source playlists on YouTube
+
+#### Technical Considerations
+
+**Video ID Extraction:**
+- Uses existing `track.video_id` field from database
+- Video IDs are 11-character YouTube identifiers (e.g., "dQw4w9WgXcQ")
+- Extracted from filename patterns like `[VIDEO_ID]` during download
+
+**Browser Compatibility:**
+- `window.open()` with `_blank` works in all modern browsers
+- Popup blockers may require user interaction (click event satisfies this)
+- Graceful degradation with console warning if video_id missing
+
+**Security:**
+- Direct YouTube URLs are safe (no user input injection)
+- New tab opening prevents navigation away from player
+- No sensitive data exposed in URL construction
+
+#### Verification Steps
+
+- [x] Button added to player control bar
+- [x] JavaScript handler implemented with error checking
+- [x] Hover effects and styling applied
+- [x] README.md updated with new feature
+- [x] No breaking changes to existing functionality
+- [x] Consistent with existing UI patterns
+
+#### Future Enhancements (Optional)
+
+- **Timestamp sync** - Open YouTube at current playback position
+- **Playlist context** - Open YouTube playlist instead of individual video
+- **Download integration** - Quick re-download button for quality upgrades
+- **Metadata comparison** - Show differences between local and YouTube versions
+
+---
+
+*End of Log Entry #011*
+
+### Log Entry #012 - 2025-01-21 17:45
+**Change:** YouTube Button Icon Improvement - Replaced TV Emoji with Proper YouTube SVG Icon
+
+#### Files Modified
+- `templates/index.html` - Replaced 📺 emoji with YouTube SVG icon and added YouTube-specific styling
+- `README.md` - Updated documentation to remove emoji reference
+
+#### Reason for Change
+**User feedback** - The TV emoji (📺) was not intuitive for YouTube functionality:
+
+1. **Poor user experience** - TV icon doesn't clearly indicate YouTube connection
+2. **Brand recognition** - Users expect recognizable YouTube branding
+3. **Professional appearance** - SVG icons look more polished than emojis
+4. **Accessibility** - Proper icons are better for screen readers and UI consistency
+
+#### Implementation Details
+
+**Before:**
+```html
+<button id="cYoutube" class="ctrl-btn" title="Open on YouTube">📺</button>
+```
+
+**After:**
+```html
+<button id="cYoutube" class="ctrl-btn" title="Open on YouTube">
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+    <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
+  </svg>
+</button>
+```
+
+**YouTube Brand Colors Added:**
+```css
+#cYoutube{color:#ff0000;} /* YouTube red color */
+#cYoutube:hover{color:#cc0000;opacity:1;} /* Darker red on hover */
+```
+
+#### Visual Improvements
+
+**1. Authentic YouTube Icon:**
+- Official YouTube play button shape (rounded rectangle with triangle)
+- Recognizable silhouette that users associate with YouTube
+- Proper aspect ratio and proportions
+
+**2. Brand-Accurate Colors:**
+- **Default:** `#ff0000` (YouTube official red)
+- **Hover:** `#cc0000` (darker red for interaction feedback)
+- Overrides general button hover opacity for consistent branding
+
+**3. Technical Implementation:**
+- **SVG format** - Scalable and crisp at any size
+- **20x20 pixel size** - Matches other control buttons
+- **currentColor fill** - Respects color scheme but overridden by specific YouTube styling
+- **Inline SVG** - No external dependencies, loads instantly
+
+#### User Experience Benefits
+
+1. **Instant recognition** - Users immediately understand this opens YouTube
+2. **Professional appearance** - Consistent with modern web applications
+3. **Brand familiarity** - Leverages YouTube's strong brand recognition
+4. **Accessibility** - Screen readers can better interpret the button purpose
+5. **Visual hierarchy** - Red color draws appropriate attention without being distracting
+
+#### Technical Considerations
+
+**SVG Advantages:**
+- **Scalable** - Looks crisp on high-DPI displays
+- **Lightweight** - Minimal file size impact
+- **Customizable** - Easy to modify colors and size
+- **Browser support** - Excellent support across all modern browsers
+
+**Color Scheme Integration:**
+- Maintains YouTube branding regardless of dark/light theme
+- Red color provides sufficient contrast in both themes
+- Hover effect provides clear interaction feedback
+
+#### Verification Steps
+
+- [x] SVG icon displays correctly in browser
+- [x] YouTube red color applied properly
+- [x] Hover effect works (darker red)
+- [x] Icon size matches other control buttons
+- [x] Tooltip still shows "Open on YouTube"
+- [x] Functionality unchanged (still opens YouTube in new tab)
+- [x] README.md updated to remove emoji reference
+
+#### Future Considerations
+
+- **Theme integration** - Could add light/dark theme variations if needed
+- **Animation** - Could add subtle hover animations for enhanced UX
+- **Icon variants** - Could provide different YouTube icon styles (outline vs filled)
+
+---
+
+*End of Log Entry #012*
+
+### Log Entry #013 - 2025-01-21 18:00
+**Change:** Navigation Links Correction - Fixed Inconsistent "Back to" Links Across Templates
+
+#### Files Modified
+- `templates/backups.html` - Fixed `/playlists` → `/` and changed text to "Back to Home"
+- `templates/tracks.html` - Standardized text: "Back to playlists" → "Back to Home"
+- `templates/streams.html` - Standardized text: "Back to playlists" → "Back to Home"
+- `templates/history.html` - Standardized text: "Back to playlists" → "Back to Home"
+- `templates/logs.html` - Standardized text: "Back to Playlists" → "Back to Home"
+
+#### Issue Identified
+**User reported** - Backup page had incorrect navigation link:
+
+**Primary Issue:**
+- `templates/backups.html` had `href="/playlists"` which is incorrect (should be `/`)
+- The `/playlists` route doesn't exist in the application
+
+**Secondary Issue:**
+- Inconsistent naming across templates: "playlists", "Playlists", vs "Home"
+- Mixed capitalization and terminology
+
+#### Root Cause Analysis
+
+**Incorrect Link Target:**
+- Backup page linked to `/playlists` but main page is actually `/`
+- This would cause 404 error when users clicked "Back to Playlists"
+
+**Inconsistent Terminology:**
+- Some templates called it "playlists" (lowercase)
+- Others called it "Playlists" (capitalized)
+- No standardized naming convention
+
+#### Solution Implemented
+
+**1. Fixed Incorrect Link:**
+```html
+<!-- Before -->
+<a href="/playlists">← Back to Playlists</a>
+
+<!-- After -->
+<a href="/">← Back to Home</a>
+```
+
+**2. Standardized All Navigation Text:**
+- **Consistent target:** All "Back to" links now point to `/` (home page)
+- **Consistent naming:** All links now say "← Back to Home"
+- **Consistent capitalization:** "Home" (proper noun capitalization)
+
+#### Files Changed Details
+
+| File | Before | After |
+|------|--------|-------|
+| `backups.html` | `href="/playlists"` → "Back to Playlists" | `href="/"` → "Back to Home" |
+| `tracks.html` | `href="/"` → "Back to playlists" | `href="/"` → "Back to Home" |
+| `streams.html` | `href="/"` → "Back to playlists" | `href="/"` → "Back to Home" |
+| `history.html` | `href="/"` → "Back to playlists" | `href="/"` → "Back to Home" |
+| `logs.html` | `href="/"` → "Back to Playlists" | `href="/"` → "Back to Home" |
+
+#### User Experience Improvements
+
+1. **Fixed broken navigation** - Backup page now correctly returns to home
+2. **Consistent terminology** - All pages use same "Back to Home" text
+3. **Clear hierarchy** - "Home" better describes the main dashboard page
+4. **Professional appearance** - Consistent capitalization and naming
+
+#### Technical Verification
+
+**Navigation Flow Tested:**
+- ✅ `/backups` → "Back to Home" → `/` (fixed from broken `/playlists`)
+- ✅ `/tracks` → "Back to Home" → `/` (working, text standardized)
+- ✅ `/streams` → "Back to Home" → `/` (working, text standardized)
+- ✅ `/history` → "Back to Home" → `/` (working, text standardized)
+- ✅ `/logs` → "Back to Home" → `/` (working, text standardized)
+- ✅ `/log/<name>` → "Back to Logs" → `/logs` (unchanged, correct)
+
+#### Why "Home" vs "Playlists"
+
+**Chose "Home" because:**
+- Main page (`/`) serves as application dashboard/landing page
+- Contains multiple sections: playlists overview, actions, navigation
+- "Home" is more generic and future-proof if page content expands
+- Consistent with common web application conventions
+
+#### Prevention Measures
+
+**For Future Development:**
+- Establish naming conventions for navigation elements
+- Test all navigation links during template changes
+- Use consistent terminology across all templates
+- Document navigation hierarchy in development guidelines
+
+---
+
+*End of Log Entry #013*
+
 ### Log Entry #003 - 2025-01-21 15:15
 **Change:** Created PROJECT_HISTORY.md for enhanced AI context
 

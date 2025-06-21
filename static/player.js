@@ -22,6 +22,7 @@ function shuffle(array) {
   const playBtn = document.getElementById('playBtn');
   const fullBtn = document.getElementById('fullBtn');
   const cLike = document.getElementById('cLike');
+  const cYoutube = document.getElementById('cYoutube');
   let likedCurrent = false;
   const wrapper = document.getElementById('videoWrapper');
   const cPrev = document.getElementById('cPrev');
@@ -376,6 +377,17 @@ function shuffle(array) {
      likedCurrent = true;
      cLike.classList.add('like-active');
      cLike.textContent='❤️';
+  };
+
+  cYoutube.onclick = ()=>{
+     if(currentIndex<0||currentIndex>=queue.length) return;
+     const track=queue[currentIndex];
+     if(track.video_id){
+        const youtubeUrl = `https://www.youtube.com/watch?v=${track.video_id}`;
+        window.open(youtubeUrl, '_blank');
+     }else{
+        console.warn('No video_id found for current track');
+     }
   };
 
   async function reportEvent(videoId, event, position=null){
