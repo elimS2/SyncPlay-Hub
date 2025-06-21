@@ -148,6 +148,13 @@ This file provides structured information about the project's evolution, key arc
 - **Solution:** Standardized all templates to use "← Back to Home" with correct `/` route
 - **Files:** `templates/backups.html`, `templates/tracks.html`, `templates/streams.html`, `templates/history.html`, `templates/logs.html`
 
+### **Issue #5: Pause/Play Events Implementation**
+- **Date:** 2025-01-21
+- **Commit:** `6c31926` Implement pause and play events tracking
+- **Problem:** Missing pause/resume events in play history with position tracking
+- **Solution:** Extended event logging to include 'play' and 'pause' events with exact position data
+- **Files:** `static/player.js`, `controllers/api_controller.py`, `database.py`, `templates/history.html`, `README.md`
+
 ---
 
 ## 📊 **Current Status (2025-01-21)**

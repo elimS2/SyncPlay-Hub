@@ -163,6 +163,7 @@ Open `http://<your_ip>:8000/` in a modern browser – the UI is responsive and w
 | **Smart Shuffle** | New algorithm prioritises never-played tracks, then oldest (year→month→week→day) – accessible via button and used by default |
 | **Controls** | Prev · Play/Pause · Next · Like · YouTube · Mute/Volume · Seekbar · Timestamps · Fullscreen |
 | **YouTube Integration** | Click YouTube button to open current track on YouTube in new tab |
+| **Unified Icons** | All control buttons use consistent SVG Material Design icons with perfect alignment and 32x32px sizing |
 | **Keyboard** | `← / →` previous / next, `Space` play/pause |
 | **Mouse / touch** | Click on video toggles play/pause; click on progress bar seeks |
 | **Playlist panel** | 600 px wide, custom scrollbar, hamburger button (`☰`) to hide/show; panel hides automatically in fullscreen |
