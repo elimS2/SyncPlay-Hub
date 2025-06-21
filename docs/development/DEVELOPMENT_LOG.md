@@ -1481,3 +1481,179 @@ Database backup failed: Database not found at D:\music\Youtube\Playlists\DB\trac
 - ✅ Functional buttons in right upper corner  
 - ✅ Smaller title size
 - ✅ Preserved all existing functionality
+
+### Log Entry #19 - 2025-01-21 16:55 UTC  
+### Fixed File Browser JavaScript Error
+
+#### Problem Identified:
+- User reported "Error: Unexpected token '<'. *" on file browser page
+- Error indicates JavaScript trying to parse HTML as JSON
+- Likely caused by server returning HTML error page instead of JSON response
+
+#### Changes Made:
+1. **Enhanced Error Handling in File Browser**
+   - Added comprehensive logging to JavaScript console
+   - Added content-type checking before JSON parsing
+   - Enhanced error messages with debugging information
+   - Better user feedback when API calls fail
+
+2. **Diagnostic Improvements**
+   - Console logging for all API requests
+   - Response status and header checking  
+   - Detailed error messages for troubleshooting
+   - Content-type validation before JSON parsing
+
+#### Files Modified:
+- `templates/files.html` - Enhanced JavaScript error handling
+
+#### Root Cause Analysis:
+- Server not running when user tested the feature
+- Without proper error handling, fetch() attempts to parse HTML error page as JSON
+- Results in "Unexpected token '<'" error from JSON.parse()
+
+#### Solution:
+- Enhanced JavaScript to detect non-JSON responses
+- Added proper content-type checking
+- Improved error messages to guide users to check server status
+- Console logging for easier debugging
+
+#### Impact:
+- ✅ Better error handling and user feedback
+- ✅ Easier debugging of API issues  
+- ✅ Clearer indication when server is not running
+- ✅ More robust file browser functionality
+
+### Log Entry #003 - 2025-01-21 15:30
+**Issue:** File Browser JavaScript Error - "Server returned text/html; charset=utf-8 instead of JSON"
+
+#### Problem Description
+User reported JavaScript error when trying to use the file browser feature:
+```
+Error: Server returned text/html; charset=utf-8 instead of JSON. Check server logs.
+Check browser console for details
+```
+
+**Initial diagnosis:** Server not running
+**Actual issue:** URL routing problem with trailing slash
+
+#### Analysis
+
+**Root Cause Analysis:**
+1. **API Endpoint Structure:**
+   ```python
+   @api_bp.route("/browse", defaults={"subpath": ""})
+   @api_bp.route("/browse/<path:subpath>")
+   def api_browse(subpath: str):
+   ```
+   - Works: `/api/browse` (returns JSON)
+   - Works: `/api/browse/Playlists` (returns JSON)
+   - **Fails:** `/api/browse/` (404 Not Found - returns HTML error page)
+
+2. **JavaScript URL Construction:**
+   ```javascript
+   // Original problematic code:
+   const url = `/api/browse/${path}`;
+   // When path = "", this becomes "/api/browse/" (with trailing slash)
+   ```
+
+3. **Flask Routing Behavior:**
+   - `/api/browse` matches the first route (defaults)
+   - `/api/browse/something` matches the second route
+   - `/api/browse/` doesn't match either route → 404 HTML error page
+
+#### Solutions Attempted
+
+**Solution 1: Change to Query Parameter** ❌
+```javascript
+const url = path ? `/api/browse?path=${encodeURIComponent(path)}` : '/api/browse';
+```
+**Problem:** API endpoint expects path parameters, not query parameters
+
+**Solution 2: Fix URL Construction** ✅
+```javascript
+const url = path ? `/api/browse/${encodeURIComponent(path)}` : '/api/browse';
+```
+**Result:** Correctly avoids trailing slash for empty path
+
+#### Files Modified
+- `templates/files.html` - Fixed JavaScript URL construction logic
+
+#### Specific Changes
+
+**Before:**
+```javascript
+const url = `/api/browse/${path}`;
+// Problems:
+// - Empty path: "/api/browse/" (404 error)
+// - Path "folder": "/api/browse/folder" (works)
+```
+
+**After:**
+```javascript
+const url = path ? `/api/browse/${encodeURIComponent(path)}` : '/api/browse';
+// Fixed:
+// - Empty path: "/api/browse" (works)
+// - Path "folder": "/api/browse/folder" (works)
+// - Added encodeURIComponent for special characters
+```
+
+#### Testing Results
+
+**API Endpoint Tests:**
+```bash
+# ✅ Root directory
+curl http://localhost:8000/api/browse -v
+# Status: 200 OK, Content-Type: application/json
+
+# ✅ Subdirectory
+curl http://localhost:8000/api/browse/Playlists -v  
+# Status: 200 OK, Content-Type: application/json
+
+# ❌ With trailing slash (original problem)
+curl http://localhost:8000/api/browse/ -v
+# Status: 404 Not Found, Content-Type: text/html
+```
+
+**Web Interface Tests:**
+- [x] File browser loads correctly
+- [x] Root directory shows files and folders
+- [x] Navigation to subdirectories works
+- [x] Breadcrumb navigation works
+- [x] No JavaScript errors in console
+
+#### Why This Solution is Correct
+
+1. **Matches API Contract:** Uses path parameters as expected by Flask route
+2. **Handles Edge Cases:** Properly constructs URL for both empty and non-empty paths
+3. **Security:** Added `encodeURIComponent` for special characters in paths
+4. **Minimal Change:** Single line fix, no API changes needed
+5. **Standards Compliant:** Follows REST API URL patterns
+
+#### Impact Analysis
+- **Functionality:** File browser now works correctly for all directory levels
+- **Performance:** No performance impact
+- **Compatibility:** No breaking changes to API or other components
+- **Security:** Improved with proper URL encoding
+- **User Experience:** Eliminates confusing error messages
+
+#### Verification Steps
+- [x] API endpoints return JSON for valid paths
+- [x] API endpoints return 404 for invalid paths (expected behavior)
+- [x] JavaScript constructs correct URLs for all scenarios
+- [x] File browser navigates correctly between directories
+- [x] Error handling provides clear messages
+- [x] No regression in existing functionality
+
+#### Lessons Learned
+1. **Flask Routing:** Be careful with trailing slashes in route definitions
+2. **URL Construction:** Always test edge cases (empty paths, special characters)
+3. **Error Debugging:** Check actual HTTP responses when "expecting JSON"
+4. **API Testing:** Use curl to verify endpoints independently of frontend
+
+#### Related Files
+- `controllers/api_controller.py` - API endpoint implementation (no changes needed)
+- `templates/files.html` - JavaScript URL construction (fixed)
+
+---
+
+*End of Log Entry #003*

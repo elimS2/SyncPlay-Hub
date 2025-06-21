@@ -239,11 +239,26 @@
             content.innerHTML = '<div class="loading">Loading...</div>';
             
             try {
-                const response = await fetch(`/api/browse/${path}`);
+                const url = path ? `/api/browse/${encodeURIComponent(path)}` : '/api/browse';
+                console.log('Fetching:', url);
+                
+                const response = await fetch(url);
+                console.log('Response status:', response.status);
+                console.log('Response headers:', response.headers);
+                
+                // Check if response is actually JSON
+                const contentType = response.headers.get('content-type');
+                if (!contentType || !contentType.includes('application/json')) {
+                    const textContent = await response.text();
+                    console.error('Expected JSON but got:', contentType, textContent);
+                    throw new Error(`Server returned ${contentType} instead of JSON. Check server logs.`);
+                }
+                
                 const data = await response.json();
+                console.log('Response data:', data);
                 
                 if (!response.ok) {
-                    throw new Error(data.error || 'Failed to load directory');
+                    throw new Error(data.error || `HTTP ${response.status}: Failed to load directory`);
                 }
                 
                 currentPath = data.current_path;
@@ -251,7 +266,8 @@
                 renderFiles(data.items);
                 
             } catch (error) {
-                content.innerHTML = `<div class="error">Error: ${error.message}</div>`;
+                console.error('loadDirectory error:', error);
+                content.innerHTML = `<div class="error">Error: ${error.message}<br><small>Check browser console for details</small></div>`;
             }
         }
         

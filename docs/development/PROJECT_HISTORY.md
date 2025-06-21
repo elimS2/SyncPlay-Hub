@@ -305,4 +305,8 @@ User Request → Flask Route (app.py) → Controller (controllers/) → Service 
 
 ---
 
+### **Recent Commits Added:**
+- **`70da47e`** - Add file browser feature and redesign homepage UI (2025-01-21)
+- **Bug Fix #8** - Fixed file browser URL routing issue with trailing slash (2025-01-21)
+
 *This file is maintained to provide AI assistants with comprehensive project context.* 
