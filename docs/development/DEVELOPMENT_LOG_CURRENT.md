@@ -1381,9 +1381,104 @@ This implementation transforms the basic history page into a powerful event anal
 
 ---
 
+### Log Entry #034 - 2025-06-21 20:48 UTC
+
+**Enhancement**: 🔄 Smart Toggle All Button - Bidirectional Filter Control
+
+**Changes Made:**
+
+1. **Enhanced Filter Toggle Logic** (`templates/history.html`)
+   - **Renamed button** from "Clear All Filters" to "Toggle All" for better UX clarity
+   - **Implemented smart bidirectional behavior** based on current checkbox state
+   - **Added state detection** counting checked vs total checkboxes
+   - **Conditional text clearing** - only clears text filters when checking all boxes
+
+**Technical Implementation:**
+
+**Smart Toggle Logic:**
+```javascript
+function clearAllFilters() {
+  const checkboxes = document.querySelectorAll('.event-type-checkbox input[type="checkbox"]');
+  const checkedCount = Array.from(checkboxes).filter(cb => cb.checked).length;
+  const totalCount = checkboxes.length;
+  
+  // If all are checked, uncheck all. Otherwise, check all
+  const shouldCheck = checkedCount < totalCount;
+  
+  checkboxes.forEach(cb => {
+    cb.checked = shouldCheck;
+  });
+  
+  // Clear text filters only when checking all
+  if (shouldCheck) {
+    document.getElementById('filter-track').value = '';
+    document.getElementById('filter-video-id').value = '';
+  }
+}
+```
+
+**Behavior Logic:**
+
+3. **State-Based Decision Making**
+   - **All checkboxes checked** → Unchecks all (shows 0 events)
+   - **Some/none checked** → Checks all + clears text filters (shows all events)
+   - **Text filter preservation** → When unchecking all, text filters remain intact
+
+**User Experience Improvements:**
+
+- ✅ **Bidirectional Control**: Single button toggles between "show all" and "hide all"
+- ✅ **Predictable Behavior**: Always moves to extreme states (all on/all off)
+- ✅ **Smart Text Handling**: Clears text only when expanding view, preserves when collapsing
+- ✅ **Intuitive Naming**: "Toggle All" clearly indicates bidirectional functionality
+- ✅ **Efficient Workflow**: One-click access to both extreme filter states
+
+**Use Cases:**
+
+1. **Quick Hide All Events**:
+   - Current state: All 10 event types checked
+   - Click "Toggle All" → All unchecked → 0 events shown
+   - Useful for starting fresh filter selection
+
+2. **Quick Show All Events**:
+   - Current state: 3 of 10 event types checked
+   - Click "Toggle All" → All checked + text cleared → All events shown
+   - Useful for resetting complex filters
+
+3. **Partial State Resolution**:
+   - Current state: Mixed selection (5 of 10 checked)
+   - Click "Toggle All" → All checked (resolves to "show all")
+   - Consistent behavior regardless of partial states
+
+**Benefits:**
+- **Enhanced UX**: Single button handles both common use cases
+- **Reduced Cognitive Load**: No need to manually check/uncheck multiple boxes
+- **Faster Filtering**: Quick access to extreme states enables rapid filter exploration
+- **Consistent Interface**: Predictable behavior builds user confidence
+- **Space Efficient**: One button replaces potential separate "Select All"/"Clear All" buttons
+
+**Workflow Examples:**
+
+1. **Analysis Workflow**:
+   - Start with all events → Click "Toggle All" → Hide all
+   - Manually select 2-3 event types for focused analysis
+   - Click "Toggle All" → Show all events again for comparison
+
+2. **Search Workflow**:
+   - All events visible → Type track name → Too many results
+   - Click "Toggle All" → Hide all → Select specific event types
+   - Refined results with both text and type filtering
+
+This enhancement transforms the basic "clear filters" functionality into an intelligent toggle system, providing users with efficient control over event visibility and supporting both exploratory and focused analysis workflows.
+
+---
+
+*End of Log Entry #034*
+
+---
+
 ## Ready for Next Entry
 
-**Next Entry Number:** #034  
+**Next Entry Number:** #035  
 **Guidelines:** Follow established format with git timestamps and commit hashes  
 **Archive Status:** Monitor file size; archive when reaching 10-15 entries
 

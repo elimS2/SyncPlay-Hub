@@ -38,11 +38,15 @@
 
 ## Git History Synchronization (MANDATORY - NO EXCEPTIONS)
 - **IMMEDIATELY AFTER EVERY edit to DEVELOPMENT_LOG.md, MUST run `git log -1 --oneline`**
-- **MANDATORY WORKFLOW: Edit DEVELOPMENT_LOG.md → IMMEDIATELY check git → Update PROJECT_HISTORY.md if needed**
-- Compare current git log with documented commits in PROJECT_HISTORY.md
-- Add any missing commits to appropriate development phase in PROJECT_HISTORY.md
-- Keep development timeline current and complete
-- **FAILURE TO CHECK GIT AFTER DEVELOPMENT_LOG.md EDIT IS A CRITICAL RULE VIOLATION**
+- **MANDATORY WORKFLOW: Edit DEVELOPMENT_LOG.md → IMMEDIATELY check git → Update ALL git log files**
+- **CRITICAL: Check git commit count with `git rev-list --count HEAD`**
+- **MUST synchronize ALL THREE git log files:**
+  - docs/development/PROJECT_HISTORY.md
+  - docs/development/COMPLETE_COMMIT_REFERENCE.md
+  - docs/development/COMPLETE_COMMIT_REFERENCE_FULL.md
+- **If git count > docs count: ADD missing commits to ALL files**
+- **Update total commit counts in ALL files to match git**
+- **FAILURE TO SYNC ALL GIT LOG FILES IS A CRITICAL RULE VIOLATION**
 
 ## Priority
 - These rules override any other language preferences

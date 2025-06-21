@@ -304,6 +304,84 @@ grep -i "[commit_hash]" docs/development/PROJECT_HISTORY.md
 - **docs:** → Documentation (add to documentation phase)
 - **refactor:** → Code refactoring (add to refactoring phase)
 
+### **📊 Git Commit Logs Synchronization (MANDATORY)**
+
+#### **CRITICAL: Multiple Git Log Files Must Stay Synchronized**
+
+**AFTER EVERY DEVELOPMENT_LOG.md edit, you MUST check and update ALL git log files:**
+
+#### **Step 1: Count Total Commits in Git**
+```bash
+# Get exact commit count from git
+git rev-list --count HEAD
+```
+
+#### **Step 2: Compare with Documentation Files**
+Check commit counts in these files:
+- `docs/development/COMPLETE_COMMIT_REFERENCE.md` (line ~4: "Total: XX commits")
+- `docs/development/COMPLETE_COMMIT_REFERENCE_FULL.md` (last line: "Total: XX commits")
+- `docs/development/PROJECT_HISTORY.md` (statistics section)
+
+#### **Step 3: Find Missing Commits**
+If git count > documentation count:
+1. **Run:** `git log --oneline -5` to see recent commits
+2. **Check each file** for missing commit hashes
+3. **Add missing commits** to all relevant files
+
+#### **Files to Update When Adding Commits:**
+
+**COMPLETE_COMMIT_REFERENCE.md:**
+```markdown
+**#XXX** `hash123` YYYY-MM-DD HH:MM:SS - **CATEGORY:** feat: commit message
+```
+
+**COMPLETE_COMMIT_REFERENCE_FULL.md:**
+```markdown
+**#XXX** `hash123` YYYY-MM-DD HH:MM:SS +0300
+feat: commit message: [Detailed description of changes and impact]
+```
+
+**PROJECT_HISTORY.md:**
+```markdown
+**Commit #XXX:** `hash123` - **Feature Name**
+- **Development Log:** Entry #YYY - Brief description
+- **Impact:** What this commit achieved
+- **Files:** List of modified files
+```
+
+#### **Update Total Counts:**
+- Change "Total: 77 commits" → "Total: 78 commits" in ALL files
+- Update any statistics sections with new counts
+- Verify all files show same total count
+
+#### **🚨 MANDATORY VERIFICATION CHECKLIST:**
+After EVERY DEVELOPMENT_LOG.md edit:
+- [ ] **Check:** `git rev-list --count HEAD` 
+- [ ] **Compare:** Count in COMPLETE_COMMIT_REFERENCE.md
+- [ ] **Compare:** Count in COMPLETE_COMMIT_REFERENCE_FULL.md  
+- [ ] **Compare:** Count in PROJECT_HISTORY.md
+- [ ] **If different:** Add missing commits to ALL files
+- [ ] **Verify:** All files show same total count
+- [ ] **Link:** New commits to appropriate Development Log entries
+
+#### **Example Workflow:**
+```bash
+# 1. Check git
+git rev-list --count HEAD
+# Output: 79
+
+# 2. Check docs (if they show 78, we're missing 1 commit)
+grep "Total:" docs/development/COMPLETE_COMMIT_REFERENCE.md
+# Output: "Total: 78 commits"
+
+# 3. Find missing commit
+git log --oneline -1
+# Output: "abc1234 feat: implement new feature"
+
+# 4. Add abc1234 to all three files as commit #79
+# 5. Update all "Total: 78" to "Total: 79"
+```
+
 ### **Error Prevention**
 
 #### **Common Mistakes to Avoid:**
@@ -311,12 +389,16 @@ grep -i "[commit_hash]" docs/development/PROJECT_HISTORY.md
 - ❌ Committing with undocumented commits in history
 - ❌ Forgetting to update total commit count
 - ❌ Not classifying commits into appropriate phases
+- ❌ **Updating only one git log file instead of all three**
+- ❌ **Forgetting to check git commit count before documenting**
 
 #### **Quality Checks:**
 - ✅ Latest commit in PROJECT_HISTORY.md matches `git log -1`
 - ✅ Total commit count matches `git rev-list --count HEAD`
 - ✅ All recent commits have appropriate phase classification
 - ✅ Commit messages match documented descriptions
+- ✅ **ALL THREE git log files show same total commit count**
+- ✅ **All missing commits added to all relevant files**
 
 ---
 

@@ -262,7 +262,7 @@
         <input type="text" id="filter-video-id" placeholder="Search by video ID...">
       </div>
       
-      <button class="clear-filters" onclick="clearAllFilters()">Clear All Filters</button>
+              <button class="clear-filters" onclick="clearAllFilters()">Toggle All</button>
     </div>
   </div>
   
@@ -512,16 +512,24 @@
       });
     }
     
-    // Clear all filters
+    // Toggle all filters - smart behavior
     function clearAllFilters() {
-      // Check all event type checkboxes
-      document.querySelectorAll('.event-type-checkbox input[type="checkbox"]').forEach(cb => {
-        cb.checked = true;
+      const checkboxes = document.querySelectorAll('.event-type-checkbox input[type="checkbox"]');
+      const checkedCount = Array.from(checkboxes).filter(cb => cb.checked).length;
+      const totalCount = checkboxes.length;
+      
+      // If all are checked, uncheck all. Otherwise, check all
+      const shouldCheck = checkedCount < totalCount;
+      
+      checkboxes.forEach(cb => {
+        cb.checked = shouldCheck;
       });
       
-      // Clear text filters
-      document.getElementById('filter-track').value = '';
-      document.getElementById('filter-video-id').value = '';
+      // Clear text filters only when checking all
+      if (shouldCheck) {
+        document.getElementById('filter-track').value = '';
+        document.getElementById('filter-video-id').value = '';
+      }
       
       // Apply filters
       filterEvents();

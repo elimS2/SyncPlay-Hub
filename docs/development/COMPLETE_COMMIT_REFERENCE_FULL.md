@@ -241,6 +241,9 @@ feat: Enhance volume event logging with detailed tracking and context: Extended 
 **#077** `cd3b838` 2025-06-21 21:58:32 +0300  
 feat: Implement comprehensive seek event logging with detailed tracking: Extended play_history table with seek tracking fields, implemented seek/scrub event logging with direction detection and distance calculation, added keyboard seek controls (Shift+Arrow, Up/Down Arrow), enhanced history page with visual seek representation and color coding, and provided complete position change analytics with source identification (progress_bar/keyboard).
 
+**#078** `fcca074` 2025-06-21 22:39:49 +0300  
+feat: Implement playlist addition event logging and migration: Added comprehensive playlist addition tracking with retroactive migration of existing associations, implemented file creation date accuracy for historical events, created specialized migration scripts with progress tracking and error handling, and enhanced history page display for playlist events with visual indicators and source identification.
+
 ---
 
 ## Key Development Log Mappings (Based on Content Analysis)
@@ -281,8 +284,10 @@ feat: Implement comprehensive seek event logging with detailed tracking: Extende
 - **Entry #027** (Persistent Volume Settings) → **Commit #075** - feat: Add persistent volume settings with database integration
 - **Entry #028** (Enhanced Volume Logging) → **Commit #076** - feat: Enhance volume event logging with detailed tracking and context
 - **Entry #029** (Seek Event Logging) → **Commit #077** - feat: Implement comprehensive seek event logging with detailed tracking
+- **Entry #030-#032** (Playlist Addition Logging & Migration) → **Commit #078** - feat: Implement playlist addition event logging and migration
+- **Entry #033** (Advanced Event Filtering & Sorting) → **Pending commit** - Complete history page redesign with filtering system
 
 ---
 
-*Created: 2025-06-16 | Total: 77 commits | Period: 2025-06-16 to 2025-06-21*  
+*Created: 2025-06-16 | Total: 78 commits | Period: 2025-06-16 to 2025-06-21*  
 *Version: FULL ORIGINAL TITLES - Maximum Accuracy* 
