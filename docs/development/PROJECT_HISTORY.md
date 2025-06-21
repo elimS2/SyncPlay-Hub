@@ -191,6 +191,40 @@ This file provides structured information about the project's evolution, key arc
   - Responsive design with dark/light theme support
 - **Files:** `controllers/api_controller.py`, `app.py`, `templates/files.html`, `templates/playlists.html`
 
+### **Feature #8: Mobile Remote Control System**
+- **Date:** 2025-06-21
+- **Commit:** `6e97eb1` - feat: Implement complete mobile remote control system with QR access
+- **Feature:** Full mobile remote control with QR code access and gesture support
+- **Components:**
+  - New route: `/remote` for mobile interface
+  - QR code generation for instant mobile access
+  - Real-time synchronization between devices
+  - Android gesture controls (swipe volume)
+  - Command queue system for reliable control
+- **Files:** `templates/remote.html`, `controllers/api_controller.py`, `static/player.js`
+
+### **Feature #9: Persistent Volume Settings**
+- **Date:** 2025-06-21
+- **Commit:** `69728d7` - feat: Add persistent volume settings with database integration
+- **Feature:** Automatic volume save/restore across sessions
+- **Components:**
+  - New table: `user_settings` for persistent preferences
+  - API endpoints: `/api/volume/get`, `/api/volume/set`
+  - Auto-load saved volume on page startup
+  - Debounced auto-save with 500ms delay
+- **Files:** `database.py`, `controllers/api_controller.py`, `static/player.js`
+
+### **Feature #10: Enhanced Volume Event Logging**
+- **Date:** 2025-06-21
+- **Commit:** `df6b9b1` - feat: Enhance volume event logging with detailed tracking and context
+- **Feature:** Complete volume change tracking with source identification
+- **Components:**
+  - Extended `play_history` table with volume fields
+  - Source tracking (web, remote, gesture)
+  - Visual history display with transitions
+  - Threshold filtering (≥1% changes)
+- **Files:** `database.py`, `controllers/api_controller.py`, `templates/history.html`
+
 ---
 
 ## 📊 **Current Status (2025-06-21)**
@@ -306,7 +340,11 @@ User Request → Flask Route (app.py) → Controller (controllers/) → Service 
 ---
 
 ### **Recent Commits Added:**
+- **`df6b9b1`** - feat: Enhance volume event logging with detailed tracking and context (2025-06-21)
+- **`69728d7`** - feat: Add persistent volume settings with database integration (2025-06-21)
+- **`6e97eb1`** - feat: Implement complete mobile remote control system with QR access (2025-06-21)
 - **`0ac4b7e`** - Add favicon support and improve Google Cast button functionality (2025-06-21)
+- **`410ca00`** - Enhance development documentation: Updated CURSOR_RULES.md to include mandatory (2025-06-21)
 - **`d103aa6`** - Fix JavaScript error handling in file browser (2025-06-21 04:22:33)
 - **`70da47e`** - Add file browser feature and redesign homepage UI (2025-06-21 04:08:58)
 - **Documentation Update** - Corrected all development log timestamps to match actual git commits (2025-06-21)

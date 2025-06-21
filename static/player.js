@@ -408,12 +408,68 @@ function shuffle(array) {
     timeLabel.textContent = `${formatTime(media.currentTime)} / ${formatTime(media.duration)}`;
   });
 
+  // Track seek events
+  let lastSeekPosition = null;
+  let seekStartPosition = null;
+  
+  // Progress bar click handling with seek tracking
   progressContainer.onclick = (e) => {
     const rect = progressContainer.getBoundingClientRect();
     const pos = (e.clientX - rect.left) / rect.width;
+    
+    // Store seek start position
+    seekStartPosition = media.currentTime;
+    
+    // Perform seek
     media.currentTime = pos * media.duration;
+    
+    // Send stream event
     sendStreamEvent({action:'seek', idx: currentIndex, paused: media.paused, position: media.currentTime});
+    
+    // Record seek event will happen in 'seeked' event listener
   };
+  
+  // Listen for seek completion to record event
+  media.addEventListener('seeked', () => {
+    if (seekStartPosition !== null && currentIndex >= 0 && currentIndex < queue.length) {
+      const track = queue[currentIndex];
+      const seekTo = media.currentTime;
+      
+      // Only record meaningful seeks (> 1 second difference)
+      if (Math.abs(seekTo - seekStartPosition) >= 1.0) {
+        recordSeekEvent(track.video_id, seekStartPosition, seekTo, 'progress_bar');
+      }
+      
+      seekStartPosition = null; // Reset
+    }
+  });
+  
+  // Function to record seek events
+  async function recordSeekEvent(video_id, seek_from, seek_to, source) {
+    try {
+      const payload = {
+        video_id: video_id,
+        seek_from: seek_from,
+        seek_to: seek_to,
+        source: source
+      };
+      
+      const response = await fetch('/api/seek', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        const direction = data.direction;
+        const distance = Math.round(data.distance);
+        console.log(`⏩ Seek ${direction}: ${Math.round(seek_from)}s → ${Math.round(seek_to)}s (${distance}s) via ${source}`);
+      }
+    } catch (error) {
+      console.warn('⚠️ Failed to record seek event:', error);
+    }
+  }
 
   cFull.onclick = () => {
     if (!document.fullscreenElement) {
@@ -518,14 +574,34 @@ function shuffle(array) {
       renderList();
   }
 
-  // Keyboard shortcuts: ← prev, → next, Space play/pause
+  // Keyboard shortcuts: ← prev, → next, Space play/pause, Arrow Up/Down for seek
   document.addEventListener('keydown', (e) => {
     switch (e.code) {
       case 'ArrowRight':
-        nextBtn.click();
+        if (e.shiftKey) {
+          // Shift + Right = Seek forward 10 seconds
+          e.preventDefault();
+          performKeyboardSeek(10);
+        } else {
+          nextBtn.click();
+        }
         break;
       case 'ArrowLeft':
-        prevBtn.click();
+        if (e.shiftKey) {
+          // Shift + Left = Seek backward 10 seconds
+          e.preventDefault();
+          performKeyboardSeek(-10);
+        } else {
+          prevBtn.click();
+        }
+        break;
+      case 'ArrowUp':
+        e.preventDefault();
+        performKeyboardSeek(30); // Seek forward 30 seconds
+        break;
+      case 'ArrowDown':
+        e.preventDefault();
+        performKeyboardSeek(-30); // Seek backward 30 seconds
         break;
       case 'Space':
         e.preventDefault();
@@ -533,6 +609,20 @@ function shuffle(array) {
         break;
     }
   });
+  
+  // Function to perform keyboard seek
+  function performKeyboardSeek(offsetSeconds) {
+    if (currentIndex < 0 || currentIndex >= queue.length || !media.duration) return;
+    
+    const seekFrom = media.currentTime;
+    const seekTo = Math.max(0, Math.min(media.duration, seekFrom + offsetSeconds));
+    
+    if (Math.abs(seekTo - seekFrom) >= 1.0) {
+      media.currentTime = seekTo;
+      const track = queue[currentIndex];
+      recordSeekEvent(track.video_id, seekFrom, seekTo, 'keyboard');
+    }
+  }
 
   function showFsControls(){
      if(!document.fullscreenElement) return;

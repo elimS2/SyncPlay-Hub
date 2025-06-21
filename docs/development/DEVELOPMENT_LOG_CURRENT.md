@@ -804,9 +804,128 @@ This implementation provides enterprise-level volume event tracking with complet
 
 ---
 
+### Log Entry #029 - 2025-06-21 18:56 UTC
+
+**Feature**: ⏩ Seek Event Logging - Complete Position Change Tracking
+
+**Changes Made:**
+
+1. **Database Schema Enhancement** (`database.py`)
+   - **Extended `play_history` table** with seek-specific columns:
+     - `seek_from REAL` - Previous playback position in seconds
+     - `seek_to REAL` - New playback position in seconds
+   - **Added new event type** `seek` to valid events list
+   - **Created specialized function** `record_seek_event()` for easy seek event logging
+   - **Added automatic migration** for existing databases to include new seek columns
+
+2. **API Endpoint for Seek Events** (`controllers/api_controller.py`)
+   - **New endpoint** `/api/seek` (POST) for recording seek/scrub events
+   - **Smart filtering** - only records seeks with ≥1 second difference to avoid noise
+   - **Direction detection** - automatically determines forward/backward direction
+   - **Distance calculation** - computes seek distance for analytics
+   - **Comprehensive logging** with context: `forward seek: 45.1s → 78.2s (33.1s) on track_id (source: keyboard)`
+
+3. **JavaScript Seek Tracking** (`static/player.js`)
+   - **Progress bar click tracking** - records seek events when clicking progress bar
+   - **Keyboard seek controls** with multiple methods:
+     - `Shift + Left/Right Arrow` - Seek ±10 seconds
+     - `Up Arrow` - Seek forward +30 seconds  
+     - `Down Arrow` - Seek backward -30 seconds
+   - **Automatic seek detection** via `seeked` event listener
+   - **Source identification** - tracks whether seek came from progress_bar or keyboard
+   - **Smart debouncing** - avoids duplicate events for single user action
+
+4. **History Page Enhancement** (`templates/history.html`)
+   - **New "Seek Change" column** with visual seek representation
+   - **Direction indicators**:
+     - `⏩ 45s → 78s (+33s)` for forward seeks (green)
+     - `⏪ 78s → 45s (-33s)` for backward seeks (orange)
+   - **Visual highlighting** - cyan background for seek events
+   - **Source display** - shows origin: progress_bar, keyboard, remote
+   - **Updated event legend** with seek event documentation
+
+**Technical Implementation Details:**
+
+**Database Schema:**
+```sql
+ALTER TABLE play_history ADD COLUMN seek_from REAL;
+ALTER TABLE play_history ADD COLUMN seek_to REAL;
+```
+
+**Seek Event Recording:**
+```python
+def record_seek_event(conn, video_id, seek_from, seek_to, additional_data=None):
+    record_event(conn, video_id, 'seek', 
+                position=seek_to, seek_from=seek_from, 
+                seek_to=seek_to, additional_data=additional_data)
+```
+
+**JavaScript Seek Detection:**
+```javascript
+media.addEventListener('seeked', () => {
+  if (seekStartPosition !== null && Math.abs(seekTo - seekStartPosition) >= 1.0) {
+    recordSeekEvent(track.video_id, seekStartPosition, seekTo, 'progress_bar');
+  }
+});
+```
+
+**Keyboard Seek Controls:**
+- **Shift + →**: +10 seconds
+- **Shift + ←**: -10 seconds  
+- **↑**: +30 seconds
+- **↓**: -30 seconds
+
+**Example Seek Events in History:**
+- **Progress Bar Seek**: `⏩ 45s → 78s (+33s)` from `progress_bar` source
+- **Keyboard Forward**: `⏩ 120s → 150s (+30s)` from `keyboard` source
+- **Keyboard Backward**: `⏪ 200s → 170s (-30s)` from `keyboard` source
+
+**User Experience Improvements:**
+
+- ✅ **Complete Seek Traceability**: Every meaningful position change recorded
+- ✅ **Multiple Input Methods**: Progress bar clicks and keyboard shortcuts
+- ✅ **Smart Filtering**: Only significant seeks (≥1s) recorded to reduce noise
+- ✅ **Visual Clarity**: Direction arrows and color coding in history
+- ✅ **Source Tracking**: Know whether seek came from mouse or keyboard
+- ✅ **Performance Optimized**: Debounced recording to avoid API spam
+
+**Benefits:**
+- **User Behavior Analysis**: Understand how users navigate through tracks
+- **Content Insights**: See which parts of tracks users skip or replay
+- **Interface Optimization**: Data-driven improvements to seek controls
+- **Debugging Capability**: Track position changes across different interfaces
+- **Engagement Metrics**: Measure user interaction patterns with content
+
+**API Response Example:**
+```json
+{
+  "status": "ok",
+  "seek_from": 45.2,
+  "seek_to": 78.1,
+  "direction": "forward",
+  "distance": 32.9,
+  "source": "keyboard"
+}
+```
+
+**Workflow Example:**
+1. User plays track and clicks progress bar at 2:30 mark (from 1:15 position)
+2. Event recorded: `video_id: "abc123", seek_from: 75.0, seek_to: 150.0, source: "progress_bar"`
+3. History shows: `⏩ 75s → 150s (+75s)` with cyan highlight
+4. Later, user presses Up arrow to skip 30s forward
+5. Recorded as: `seek_from: 150.0, seek_to: 180.0, source: "keyboard"`
+
+This implementation provides comprehensive seek event tracking enabling detailed analysis of user navigation behavior and content engagement patterns.
+
+---
+
+*End of Log Entry #029*
+
+---
+
 ## Ready for Next Entry
 
-**Next Entry Number:** #029  
+**Next Entry Number:** #030  
 **Guidelines:** Follow established format with git timestamps and commit hashes  
 **Archive Status:** Monitor file size; archive when reaching 10-15 entries
 

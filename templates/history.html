@@ -21,6 +21,7 @@
     .event-prev{color:#9c27b0;} /* Purple for prev */
     .event-like{color:#e91e63;} /* Pink for like */
     .event-volume_change{color:#ffeb3b;font-weight:bold;} /* Yellow for volume changes */
+    .event-seek{color:#00bcd4;font-weight:bold;} /* Cyan for seek events */
     .event-removed{color:#f44336;} /* Red for removed */
     .event-backup_created{color:#607d8b;} /* Gray for backup */
     
@@ -29,9 +30,18 @@
     .volume-change{background:#333;border-radius:3px;padding:2px 4px;}
     .volume-source{color:#999;font-style:italic;font-size:11px;}
     
+    .seek-info{font-family:monospace;color:#00bcd4;font-size:12px;}
+    .seek-change{background:#1a3a3a;border-radius:3px;padding:2px 4px;}
+    .seek-forward{color:#4caf50;} /* Green for forward seeks */
+    .seek-backward{color:#ff9800;} /* Orange for backward seeks */
+    
     /* Special highlighting for volume changes */
     tr.volume-event{background:#1a1a0a !important;}
     tr.volume-event:nth-child(even){background:#2a2a1a !important;}
+    
+    /* Special highlighting for seek events */
+    tr.seek-event{background:#0a1a1a !important;}
+    tr.seek-event:nth-child(even){background:#1a2a2a !important;}
   </style>
 </head>
 <body>
@@ -55,12 +65,13 @@
         <th>Timestamp</th>
         <th>Position</th>
         <th>Volume Change</th>
+        <th>Seek Change</th>
         <th>Source</th>
       </tr>
     </thead>
     <tbody>
       {% for h in history %}
-        <tr{% if h['event'] == 'volume_change' %} class="volume-event"{% endif %}>
+        <tr{% if h['event'] == 'volume_change' %} class="volume-event"{% elif h['event'] == 'seek' %} class="seek-event"{% endif %}>
           <td>{{ loop.index }}</td>
           <td>
             {% if h['video_id'] == 'system' %}
@@ -90,6 +101,20 @@
               -
             {% endif %}
           </td>
+          <td class="seek-info">
+            {% if h['event'] == 'seek' and h.get('seek_from') is not none and h.get('seek_to') is not none %}
+              <span class="seek-change">
+                {% set seek_diff = h['seek_to'] - h['seek_from'] %}
+                {% if seek_diff > 0 %}
+                  <span class="seek-forward">⏩ {{ '%d' % h['seek_from'] }}s → {{ '%d' % h['seek_to'] }}s (+{{ '%d' % seek_diff }}s)</span>
+                {% else %}
+                  <span class="seek-backward">⏪ {{ '%d' % h['seek_from'] }}s → {{ '%d' % h['seek_to'] }}s ({{ '%d' % seek_diff }}s)</span>
+                {% endif %}
+              </span>
+            {% else %}
+              -
+            {% endif %}
+          </td>
           <td class="volume-source">
             {% if h.get('additional_data') %}
               {{ h['additional_data'] }}
@@ -99,7 +124,7 @@
           </td>
         </tr>
       {% else %}
-        <tr><td colspan="8">No history yet.</td></tr>
+        <tr><td colspan="9">No history yet.</td></tr>
       {% endfor %}
     </tbody>
   </table>
@@ -115,9 +140,11 @@
       <div><span class="event-prev">🟣 prev</span> - Manual skip to previous track</div>
       <div><span class="event-like">🩷 like</span> - Track marked as favorite</div>
       <div><span class="event-volume_change">🟡 volume_change</span> - Volume level adjusted</div>
+      <div><span class="event-seek">🔵 seek</span> - Position changed (seek/scrub)</div>
     </div>
     <div style="margin-top:10px;font-size:12px;color:#aaa;">
-      <strong>Volume Sources:</strong> web (main player), remote (mobile control), gesture (swipe control)
+      <strong>Volume Sources:</strong> web (main player), remote (mobile control), gesture (swipe control)<br>
+      <strong>Seek Sources:</strong> progress_bar (click), keyboard (Shift+arrows, Up/Down), remote (future)
     </div>
   </div>
 </body>

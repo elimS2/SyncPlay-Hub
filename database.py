@@ -67,6 +67,8 @@ def _ensure_schema(conn: sqlite3.Connection):
             position REAL,
             volume_from REAL,
             volume_to REAL,
+            seek_from REAL,
+            seek_to REAL,
             additional_data TEXT
         );
 
@@ -103,6 +105,10 @@ def _ensure_schema(conn: sqlite3.Connection):
         cur.execute("ALTER TABLE play_history ADD COLUMN volume_from REAL")
     if 'volume_to' not in hcols:
         cur.execute("ALTER TABLE play_history ADD COLUMN volume_to REAL")
+    if 'seek_from' not in hcols:
+        cur.execute("ALTER TABLE play_history ADD COLUMN seek_from REAL")
+    if 'seek_to' not in hcols:
+        cur.execute("ALTER TABLE play_history ADD COLUMN seek_to REAL")
     if 'additional_data' not in hcols:
         cur.execute("ALTER TABLE play_history ADD COLUMN additional_data TEXT")
     conn.commit()
@@ -202,16 +208,18 @@ def iter_tracks_with_playlists(conn: sqlite3.Connection) -> Iterator[sqlite3.Row
 
 
 def record_event(conn: sqlite3.Connection, video_id: str, event: str, position: Optional[float] = None, 
-                 volume_from: Optional[float] = None, volume_to: Optional[float] = None, additional_data: Optional[str] = None):
+                 volume_from: Optional[float] = None, volume_to: Optional[float] = None, 
+                 seek_from: Optional[float] = None, seek_to: Optional[float] = None, additional_data: Optional[str] = None):
     """Record playback or library event and update counters/history.
 
     Supported events:
         - start, finish, next, prev, like, play, pause  –  coming from the web player
-        - volume_change                                 –  volume change events  
+        - volume_change                                 –  volume change events
+        - seek                                          –  seek/scrub events (position changes)
         - removed                                       –  file deletion during library sync
         - backup_created                                –  database backup creation
     """
-    valid = {"start", "finish", "next", "prev", "like", "play", "pause", "volume_change", "removed", "backup_created"}
+    valid = {"start", "finish", "next", "prev", "like", "play", "pause", "volume_change", "seek", "removed", "backup_created"}
     if event not in valid:
         return
     cur = conn.cursor()
@@ -246,8 +254,8 @@ def record_event(conn: sqlite3.Connection, video_id: str, event: str, position: 
     # log history
     try:
         cur.execute(
-            "INSERT INTO play_history (video_id, event, position, volume_from, volume_to, additional_data) VALUES (?, ?, ?, ?, ?, ?)", 
-            (video_id, event, position, volume_from, volume_to, additional_data)
+            "INSERT INTO play_history (video_id, event, position, volume_from, volume_to, seek_from, seek_to, additional_data) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", 
+            (video_id, event, position, volume_from, volume_to, seek_from, seek_to, additional_data)
         )
         conn.commit()
     except sqlite3.IntegrityError as e:
@@ -255,8 +263,8 @@ def record_event(conn: sqlite3.Connection, video_id: str, event: str, position: 
         if "CHECK" in str(e):
             _migrate_history_table(conn)
             cur.execute(
-                "INSERT INTO play_history (video_id, event, position, volume_from, volume_to, additional_data) VALUES (?, ?, ?, ?, ?, ?)", 
-                (video_id, event, position, volume_from, volume_to, additional_data)
+                "INSERT INTO play_history (video_id, event, position, volume_from, volume_to, seek_from, seek_to, additional_data) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", 
+                (video_id, event, position, volume_from, volume_to, seek_from, seek_to, additional_data)
             )
             conn.commit()
         else:
@@ -277,10 +285,12 @@ def _migrate_history_table(conn: sqlite3.Connection):
             position REAL,
             volume_from REAL,
             volume_to REAL,
+            seek_from REAL,
+            seek_to REAL,
             additional_data TEXT
         );
-        INSERT INTO play_history (video_id, event, ts, position, volume_from, volume_to, additional_data)
-        SELECT video_id, event, ts, position, NULL, NULL, NULL FROM play_history_old;
+        INSERT INTO play_history (video_id, event, ts, position, volume_from, volume_to, seek_from, seek_to, additional_data)
+        SELECT video_id, event, ts, position, NULL, NULL, NULL, NULL, NULL FROM play_history_old;
         DROP TABLE play_history_old;
         """
     )
@@ -569,5 +579,27 @@ def record_volume_change(conn: sqlite3.Connection, video_id: str, volume_from: f
         position=position,
         volume_from=volume_from,
         volume_to=volume_to,
+        additional_data=additional_data
+    )
+
+
+def record_seek_event(conn: sqlite3.Connection, video_id: str, seek_from: float, seek_to: float, 
+                     additional_data: Optional[str] = None):
+    """Record seek/scrub event with detailed information.
+    
+    Args:
+        conn: Database connection
+        video_id: ID of the track being played
+        seek_from: Previous playback position in seconds
+        seek_to: New playback position in seconds
+        additional_data: Additional information (e.g., 'progress_bar', 'remote', 'keyboard')
+    """
+    record_event(
+        conn, 
+        video_id, 
+        'seek', 
+        position=seek_to,  # Store final position in main position field
+        seek_from=seek_from,
+        seek_to=seek_to,
         additional_data=additional_data
     ) 
