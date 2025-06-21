@@ -71,7 +71,7 @@ User-facing documentation (future expansion):
 ## 🔄 Quick Navigation
 
 ### Current Development Status
-- [Latest Development Log Entry](development/DEVELOPMENT_LOG.md#log-entry-001---2025-01-21) - Template error fix
+- [Latest Development Log Entry](development/DEVELOPMENT_LOG_CURRENT.md#log-entry-024---2025-06-21-1407-utc) - MCP Time Server integration
 - [Refactoring Progress](development/REFACTORING_CHECKLIST.md#прогресс) - 100% complete
 - [System Verification](development/DEEP_VERIFICATION_PLAN.md#итоговый-результат-глубокой-проверки) - All components verified
 

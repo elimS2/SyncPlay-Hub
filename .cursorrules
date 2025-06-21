@@ -2,10 +2,12 @@
 
 ## 🚨 CRITICAL WORKFLOW REMINDER 🚨
 **EVERY TIME YOU EDIT DEVELOPMENT_LOG.md:**
-1. IMMEDIATELY run: `git log -1 --oneline`
-2. Check if commit exists in PROJECT_HISTORY.md
-3. If missing, add to PROJECT_HISTORY.md
-4. NO EXCEPTIONS - THIS IS MANDATORY
+1. **FIRST: Verify current time using `mcp_time-server_get_current_time_utc_tool`**
+2. **Use accurate UTC timestamp in log entry header**
+3. IMMEDIATELY run: `git log -1 --oneline`
+4. Check if commit exists in PROJECT_HISTORY.md
+5. If missing, add to PROJECT_HISTORY.md
+6. NO EXCEPTIONS - THIS IS MANDATORY
 
 ## Code Language Policy (MANDATORY)
 - ALL source code MUST be written exclusively in ENGLISH
@@ -26,6 +28,13 @@
 - Include: what changed, why changed, impact analysis
 - Format: new log entry with timestamp, affected files, reasoning
 - NO exceptions - even small changes must be logged
+
+## Time Verification (MANDATORY)
+- **BEFORE EVERY DEVELOPMENT_LOG.md entry, MUST verify current time using MCP Time Server**
+- **ALWAYS use `mcp_time-server_get_current_time_utc_tool` for accurate UTC timestamp**
+- **NEVER use placeholder dates or estimated times** 
+- **Required format: ### Log Entry #XXX - 2025-06-21 14:01 UTC**
+- **NO exceptions - timestamp accuracy is critical for development traceability**
 
 ## Git History Synchronization (MANDATORY - NO EXCEPTIONS)
 - **IMMEDIATELY AFTER EVERY edit to DEVELOPMENT_LOG.md, MUST run `git log -1 --oneline`**

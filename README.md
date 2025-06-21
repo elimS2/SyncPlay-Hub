@@ -422,11 +422,24 @@ project-root/
 ├── docs/                 # Documentation
 │   ├── README.md         # Documentation index
 │   ├── development/      # Development documentation
-│   │   ├── DEVELOPMENT_LOG.md    # Issue tracking & fixes
-│   │   ├── PROJECT_HISTORY.md    # Git history & AI context
-│   │   ├── CURSOR_RULES.md       # Development guidelines
-│   │   ├── REFACTORING_CHECKLIST.md # Code comparison
-│   │   └── DEEP_VERIFICATION_PLAN.md # Testing methodology
+│   │   ├── DEVELOPMENT_LOG_CURRENT.md   # Current development log
+│   │   ├── DEVELOPMENT_LOG_INDEX.md     # Log navigation index
+│   │   ├── DEVELOPMENT_LOG_001.md       # Archive: entries #001-#010
+│   │   ├── DEVELOPMENT_LOG_002.md       # Archive: entries #011-#019
+│   │   ├── PROJECT_HISTORY.md           # Git history & AI context
+│   │   ├── CURSOR_RULES.md              # Development guidelines
+│   │   ├── REFACTORING_CHECKLIST.md     # Code comparison
+│   │   ├── DEEP_VERIFICATION_PLAN.md    # Testing methodology
+│   │   └── backups/                     # Development backups
+│   │       ├── README.md                # Backup documentation
+│   │       ├── timestamp_correction/    # Pre-timestamp fix backups
+│   │       │   ├── DEVELOPMENT_LOG_001_BACKUP_BEFORE_TIMESTAMP_FIX.md
+│   │       │   ├── DEVELOPMENT_LOG_002_BACKUP_BEFORE_TIMESTAMP_FIX.md
+│   │       │   ├── DEVELOPMENT_LOG_CURRENT_BACKUP_BEFORE_TIMESTAMP_FIX.md
+│   │       │   └── DEVELOPMENT_LOG_INDEX_BACKUP_BEFORE_TIMESTAMP_FIX.md
+│   │       └── development_logs/        # Complete log backups
+│   │           ├── DEVELOPMENT_LOG_BACKUP_20250121.md
+│   │           └── DEVELOPMENT_LOG_ORIGINAL.md
 │   └── user/             # User documentation (future)
 ├── legacy/               # Legacy code archive
 │   ├── README.md         # Legacy files documentation

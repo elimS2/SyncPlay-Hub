@@ -142,7 +142,7 @@ new_code_example()
 
 ### **Example Log Entry**
 ```markdown
-### Log Entry #002 - 2025-01-21 14:30
+### Log Entry #002 - 2025-06-21 14:30
 **Change:** Fix playlist URL generation in list_playlists function
 
 #### Files Modified
@@ -252,7 +252,7 @@ git log -1 --pretty=format:"%h %s"
 # ADD TO PROJECT_HISTORY.md:
 ```
 ```markdown
-### **Phase 5: Bug Fixes & Improvements (2025-01-21)**
+### **Phase 5: Bug Fixes & Improvements (2025-06-21)**
 - `abc1234` - **Template error fix** - Resolve active_downloads.items() issue
 ```
 
@@ -272,7 +272,7 @@ git log -1 --pretty=format:"%h %s"
 ### **Phase 2: Download System Enhancement (2025-06-16)**
 ### **Phase 3: Advanced Features (2025-06-17 to 2025-06-19)**
 ### **Phase 4: Recent Enhancements (2025-06-20)**
-### **Phase 5: Current Development (2025-01-21)** ← Add new phases!
+### **Phase 5: Current Development (2025-06-21)** ← Add new phases!
 ```
 
 #### **Phase Classification Guidelines:**
