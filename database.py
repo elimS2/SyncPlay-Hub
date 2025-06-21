@@ -66,6 +66,13 @@ def _ensure_schema(conn: sqlite3.Connection):
             ts TEXT DEFAULT (datetime('now')),
             position REAL
         );
+
+        CREATE TABLE IF NOT EXISTS user_settings (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            setting_key TEXT NOT NULL UNIQUE,
+            setting_value TEXT NOT NULL,
+            updated_at TEXT DEFAULT (datetime('now'))
+        );
         """
     )
     conn.commit()
@@ -446,4 +453,78 @@ def _format_file_size(size_bytes: int) -> str:
     elif size_bytes < 1024 * 1024 * 1024:
         return f"{size_bytes / (1024 * 1024):.1f} MB"
     else:
-        return f"{size_bytes / (1024 * 1024 * 1024):.1f} GB" 
+        return f"{size_bytes / (1024 * 1024 * 1024):.1f} GB"
+
+
+# ---------- User Settings Functions ----------
+
+
+def get_user_setting(conn: sqlite3.Connection, setting_key: str, default_value: str = None):
+    """Get user setting value by key.
+    
+    Args:
+        conn: Database connection
+        setting_key: Setting key to retrieve
+        default_value: Default value if setting doesn't exist
+        
+    Returns:
+        Setting value as string or default_value if not found
+    """
+    cur = conn.cursor()
+    result = cur.execute(
+        "SELECT setting_value FROM user_settings WHERE setting_key = ?",
+        (setting_key,)
+    ).fetchone()
+    
+    if result:
+        return result[0]
+    return default_value
+
+
+def set_user_setting(conn: sqlite3.Connection, setting_key: str, setting_value: str):
+    """Set or update user setting.
+    
+    Args:
+        conn: Database connection
+        setting_key: Setting key to store
+        setting_value: Setting value to store
+    """
+    cur = conn.cursor()
+    cur.execute(
+        """
+        INSERT INTO user_settings (setting_key, setting_value, updated_at)
+        VALUES (?, ?, datetime('now'))
+        ON CONFLICT(setting_key) DO UPDATE SET
+            setting_value = excluded.setting_value,
+            updated_at = datetime('now')
+        """,
+        (setting_key, setting_value)
+    )
+    conn.commit()
+
+
+def get_user_volume(conn: sqlite3.Connection) -> float:
+    """Get saved user volume (0.0 to 1.0).
+    
+    Returns:
+        Volume level as float, defaults to 1.0 if not set
+    """
+    volume_str = get_user_setting(conn, 'volume', '1.0')
+    try:
+        volume = float(volume_str)
+        # Clamp between 0.0 and 1.0
+        return max(0.0, min(1.0, volume))
+    except (ValueError, TypeError):
+        return 1.0
+
+
+def set_user_volume(conn: sqlite3.Connection, volume: float):
+    """Save user volume setting.
+    
+    Args:
+        conn: Database connection
+        volume: Volume level (0.0 to 1.0)
+    """
+    # Clamp between 0.0 and 1.0
+    volume = max(0.0, min(1.0, float(volume)))
+    set_user_setting(conn, 'volume', str(volume)) 

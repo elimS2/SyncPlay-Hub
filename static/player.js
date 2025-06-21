@@ -432,6 +432,7 @@ function shuffle(array) {
     media.volume = parseFloat(cVol.value);
     media.muted = media.volume === 0;
     updateMuteIcon();
+    saveVolumeToDatabase(media.volume);
   };
   
   function updateMuteIcon() {
@@ -441,9 +442,52 @@ function shuffle(array) {
       cMute.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z"/></svg>';
     }
   }
-  // sync initial volume icon
-  media.volume = 1;
-  updateMuteIcon();
+  
+  // Save volume to database with debouncing
+  let volumeSaveTimeout = null;
+  async function saveVolumeToDatabase(volume) {
+    clearTimeout(volumeSaveTimeout);
+    volumeSaveTimeout = setTimeout(async () => {
+      try {
+        await fetch('/api/volume/set', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ volume: volume })
+        });
+        console.log(`💾 Volume saved: ${Math.round(volume * 100)}%`);
+      } catch (error) {
+        console.warn('⚠️ Failed to save volume:', error);
+      }
+    }, 500); // Debounce by 500ms to avoid excessive API calls
+  }
+
+  // Load saved volume on page load
+  async function loadSavedVolume() {
+    try {
+      const response = await fetch('/api/volume/get');
+      const data = await response.json();
+      
+      if (data.volume !== undefined) {
+        media.volume = data.volume;
+        cVol.value = data.volume;
+        console.log(`🔊 Loaded saved volume: ${data.volume_percent}%`);
+      } else {
+        // Default volume if no saved setting
+        media.volume = 1.0;
+        cVol.value = 1.0;
+        console.log('🔊 Using default volume: 100%');
+      }
+    } catch (error) {
+      console.warn('⚠️ Failed to load saved volume, using default:', error);
+      media.volume = 1.0;
+      cVol.value = 1.0;
+    }
+    
+    updateMuteIcon();
+  }
+  
+  // Load saved volume immediately
+  loadSavedVolume();
 
   // auto smart-shuffle and start playback on first load
   if (queue.length > 0) {
@@ -701,6 +745,7 @@ function shuffle(array) {
             media.volume = command.volume;
             cVol.value = command.volume;
             updateMuteIcon();
+            // Note: Volume is already saved by the remote API endpoint
           }
           break;
           

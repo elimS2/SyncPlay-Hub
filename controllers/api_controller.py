@@ -703,13 +703,21 @@ def api_remote_volume():
     # Clamp volume between 0 and 1
     volume = max(0.0, min(1.0, float(volume)))
     
+    # Save volume to database
+    try:
+        conn = get_connection()
+        db.set_user_volume(conn, volume)
+        conn.close()
+    except Exception as e:
+        log_message(f"[Remote] Warning: Could not save volume to database: {e}")
+    
     COMMAND_QUEUE.append({
         'type': 'volume',
         'volume': volume,
         'timestamp': __import__('time').time()
     })
     
-    log_message(f"[Remote] Volume command queued: {int(volume * 100)}%")
+    log_message(f"[Remote] Volume command queued and saved: {int(volume * 100)}%")
     return jsonify({"status": "ok", "command": "queued"})
 
 @api_bp.route("/remote/like", methods=["POST"])
@@ -825,4 +833,45 @@ def api_remote_load_playlist():
             
     except Exception as e:
         log_message(f"[Remote] Error loading playlist: {e}")
-        return jsonify({"status": "error", "message": str(e)}), 500 
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+# ==============================
+# VOLUME SETTINGS API ENDPOINTS  
+# ==============================
+
+@api_bp.route("/volume/get")
+def api_get_volume():
+    """Get saved user volume setting."""
+    try:
+        conn = get_connection()
+        volume = db.get_user_volume(conn)
+        conn.close()
+        
+        log_message(f"[Volume] Retrieved saved volume: {int(volume * 100)}%")
+        return jsonify({"volume": volume, "volume_percent": int(volume * 100)})
+        
+    except Exception as e:
+        log_message(f"[Volume] Error retrieving volume: {e}")
+        return jsonify({"error": str(e), "volume": 1.0, "volume_percent": 100}), 500
+
+@api_bp.route("/volume/set", methods=["POST"])
+def api_set_volume():
+    """Save user volume setting."""
+    try:
+        data = request.get_json() or {}
+        volume = data.get('volume', 1.0)
+        
+        # Validate and clamp volume
+        volume = max(0.0, min(1.0, float(volume)))
+        
+        # Save to database
+        conn = get_connection()
+        db.set_user_volume(conn, volume)
+        conn.close()
+        
+        log_message(f"[Volume] Volume saved: {int(volume * 100)}%")
+        return jsonify({"status": "ok", "volume": volume, "volume_percent": int(volume * 100)})
+        
+    except Exception as e:
+        log_message(f"[Volume] Error saving volume: {e}")
+        return jsonify({"status": "error", "error": str(e)}), 500 

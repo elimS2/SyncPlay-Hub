@@ -596,9 +596,110 @@ This implementation provides a complete mobile remote control solution for the S
 
 ---
 
+### Log Entry #027 - 2025-06-21 18:24 UTC
+
+**Feature**: 🔊 Persistent Volume Settings - Automatic Save & Load from Database
+
+**Changes Made:**
+
+1. **Database Schema Enhancement** (`database.py`)
+   - Added new table `user_settings` with columns: `id`, `setting_key`, `setting_value`, `updated_at`
+   - Added helper functions: `get_user_setting()`, `set_user_setting()`
+   - Added specialized volume functions: `get_user_volume()`, `set_user_volume()`
+   - Volume settings support 0.0-1.0 range with automatic validation and clamping
+
+2. **API Endpoints** (`controllers/api_controller.py`)
+   - **GET** `/api/volume/get` - Retrieve saved user volume setting
+   - **POST** `/api/volume/set` - Save user volume setting to database
+   - Enhanced existing `/api/remote/volume` endpoint to also save volume to database
+   - All endpoints include proper error handling and logging
+
+3. **JavaScript Auto-Save/Load** (`static/player.js`)
+   - **Auto-Load**: `loadSavedVolume()` function loads saved volume on page startup
+   - **Auto-Save**: `saveVolumeToDatabase()` function saves volume changes with 500ms debouncing
+   - Enhanced volume slider `oninput` handler to trigger automatic saving
+   - Console logging for volume operations: `🔊 Loaded saved volume: 85%` and `💾 Volume saved: 85%`
+
+**Technical Implementation:**
+
+**Database Design:**
+```sql
+CREATE TABLE user_settings (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    setting_key TEXT NOT NULL UNIQUE,
+    setting_value TEXT NOT NULL,
+    updated_at TEXT DEFAULT (datetime('now'))
+);
+```
+
+**Auto-Load on Page Startup:**
+```javascript
+async function loadSavedVolume() {
+  const response = await fetch('/api/volume/get');
+  const data = await response.json();
+  if (data.volume !== undefined) {
+    media.volume = data.volume;
+    cVol.value = data.volume;
+    console.log(`🔊 Loaded saved volume: ${data.volume_percent}%`);
+  }
+}
+```
+
+**Debounced Auto-Save on Changes:**
+```javascript
+async function saveVolumeToDatabase(volume) {
+  clearTimeout(volumeSaveTimeout);
+  volumeSaveTimeout = setTimeout(async () => {
+    await fetch('/api/volume/set', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ volume: volume })
+    });
+  }, 500); // Debounce by 500ms
+}
+```
+
+**User Experience Features:**
+
+- ✅ **Instant Persistence**: Volume changes automatically save to database
+- ✅ **Fast Loading**: Saved volume restored immediately on page load
+- ✅ **Debounced Saves**: 500ms debouncing prevents excessive database writes during slider dragging
+- ✅ **Cross-Device Sync**: Volume settings persist across browser sessions and devices
+- ✅ **Remote Control Integration**: Mobile remote volume changes also saved to database
+- ✅ **Graceful Fallback**: Defaults to 100% volume if database read fails
+- ✅ **Console Feedback**: Clear logging for debugging volume operations
+
+**Benefits:**
+- **Improved UX**: Users no longer need to readjust volume every time they open the player
+- **Consistent Experience**: Volume preference maintained across sessions
+- **Professional Behavior**: Matches modern media player expectations
+- **Future-Extensible**: Database structure supports additional user settings (theme, playback speed, etc.)
+
+**Workflow:**
+1. User opens player → Saved volume automatically loaded from database
+2. User adjusts volume slider → Change automatically saved after 500ms delay
+3. User closes/reopens player → Volume restored to last saved setting
+4. Mobile remote volume changes → Also saved to database for consistency
+
+**Example Console Output:**
+```
+🔊 Loaded saved volume: 75%
+💾 Volume saved: 80%
+💾 Volume saved: 85%
+[Volume] Volume saved: 85%
+```
+
+This implementation provides seamless volume persistence without requiring any user action, creating a more professional and user-friendly experience that remembers user preferences automatically.
+
+---
+
+*End of Log Entry #027*
+
+---
+
 ## Ready for Next Entry
 
-**Next Entry Number:** #027  
+**Next Entry Number:** #028  
 **Guidelines:** Follow established format with git timestamps and commit hashes  
 **Archive Status:** Monitor file size; archive when reaching 10-15 entries
 
