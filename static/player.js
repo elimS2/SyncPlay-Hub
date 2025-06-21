@@ -74,52 +74,176 @@ function shuffle(array) {
   let currentIndex = -1;
 
   // ---- Google Cast Integration ----
+  console.log('🔄 CAST DEBUG: Starting Google Cast integration setup...');
+  
   let castContext = null;
   let pendingCastTrack=null;
 
-  window.__onGCastApiAvailable = function(isAvailable){
-      console.log('Cast API callback, isAvailable=', isAvailable);
-      if(isAvailable){
-          castContext = cast.framework.CastContext.getInstance();
-          castContext.setOptions({
-              receiverApplicationId: chrome.cast.media.DEFAULT_MEDIA_RECEIVER_APP_ID,
-              autoJoinPolicy: chrome.cast.AutoJoinPolicy.ORIGIN_SCOPED
-          });
-          // ensure launcher visible
-          const castBtn = document.getElementById('castBtn');
-          if(castBtn){
-              castBtn.style.display='inline-flex';
-              console.log('Cast button forced visible');
-          }else{
-              console.warn('Cast button element not found');
+  // Step 1: Check if Cast button element exists in DOM
+  console.log('🔍 CAST DEBUG: Step 1 - Looking for Cast button element...');
+  const castBtn = document.getElementById('castBtn');
+  if(castBtn){
+      console.log('✅ CAST DEBUG: Cast button element found!', castBtn);
+      castBtn.style.display='inline-flex';
+      console.log('✅ CAST DEBUG: Cast button made visible with display: inline-flex');
+      
+      // Add click handler for cast button
+      castBtn.onclick = () => {
+          console.log('🔘 CAST DEBUG: Cast button clicked!');
+          if(!castContext) {
+              console.warn('❌ CAST DEBUG: Cast context not available when button clicked');
+              return;
           }
+          
+          console.log('🔄 CAST DEBUG: Checking current cast session...');
+          const currentSession = castContext.getCurrentSession();
+          if(currentSession) {
+              console.log('🛑 CAST DEBUG: Active session found, ending it...');
+              currentSession.endSession(false);
+              console.log('✅ CAST DEBUG: Cast session ended');
+          } else {
+              console.log('🚀 CAST DEBUG: No active session, requesting new session...');
+              castContext.requestSession().then(() => {
+                  console.log('✅ CAST DEBUG: Cast session started successfully!');
+                  // Load current track if available
+                  if(currentIndex >= 0 && currentIndex < queue.length) {
+                      console.log('🎵 CAST DEBUG: Loading current track to cast device...');
+                      castLoad(queue[currentIndex]);
+                  } else {
+                      console.log('ℹ️ CAST DEBUG: No current track to load');
+                  }
+              }).catch(err => {
+                  console.warn('❌ CAST DEBUG: Cast session failed:', err);
+              });
+          }
+      };
+      console.log('✅ CAST DEBUG: Click handler attached to Cast button');
+  }else{
+      console.error('❌ CAST DEBUG: Cast button element NOT FOUND in DOM!');
+      console.log('🔍 CAST DEBUG: Available button elements:', 
+          Array.from(document.querySelectorAll('button')).map(btn => btn.id || btn.className));
+  }
+
+  // Step 2: Set up Cast API callback
+  console.log('🔄 CAST DEBUG: Step 2 - Setting up Cast API availability callback...');
+  window.__onGCastApiAvailable = function(isAvailable){
+      console.log('📡 CAST DEBUG: Cast API callback triggered, isAvailable=', isAvailable);
+      
+      if(isAvailable){
+          console.log('✅ CAST DEBUG: Cast API is available, initializing...');
+          try {
+              console.log('🔄 CAST DEBUG: Getting Cast context instance...');
+              castContext = cast.framework.CastContext.getInstance();
+              console.log('✅ CAST DEBUG: Cast context obtained:', castContext);
+              
+              console.log('🔄 CAST DEBUG: Setting Cast context options...');
+              castContext.setOptions({
+                  receiverApplicationId: chrome.cast.media.DEFAULT_MEDIA_RECEIVER_APP_ID,
+                  autoJoinPolicy: chrome.cast.AutoJoinPolicy.ORIGIN_SCOPED
+              });
+              console.log('✅ CAST DEBUG: Cast context options set successfully');
+              
+              // Double-check button visibility after API load
+              const castBtn = document.getElementById('castBtn');
+              if(castBtn){
+                  castBtn.style.display='inline-flex';
+                  castBtn.style.visibility='visible';
+                  console.log('✅ CAST DEBUG: Cast button double-checked and made visible after API load');
+                  console.log('🎯 CAST DEBUG: Cast button final styles:', {
+                      display: castBtn.style.display,
+                      visibility: castBtn.style.visibility,
+                      offsetWidth: castBtn.offsetWidth,
+                      offsetHeight: castBtn.offsetHeight
+                  });
+              }else{
+                  console.error('❌ CAST DEBUG: Cast button element NOT FOUND after API load!');
+              }
+              
+              // Set up session state change listener
+              console.log('🔄 CAST DEBUG: Setting up session state change listener...');
+              castContext.addEventListener(cast.framework.CastContextEventType.SESSION_STATE_CHANGED, (e) => {
+                  console.log('🔄 CAST DEBUG: Session state changed:', e.sessionState);
+                  if((e.sessionState === cast.framework.SessionState.SESSION_STARTED || 
+                      e.sessionState === cast.framework.SessionState.SESSION_RESUMED) && pendingCastTrack){
+                      console.log('🎵 CAST DEBUG: Loading pending track after session start...');
+                      castLoad(pendingCastTrack);
+                      pendingCastTrack = null;
+                  }
+              });
+              console.log('✅ CAST DEBUG: Session state change listener attached');
+              
+              console.log('🎉 CAST DEBUG: Google Cast integration fully initialized!');
+              
+          } catch (error) {
+              console.error('❌ CAST DEBUG: Error initializing Cast API:', error);
+              console.error('❌ CAST DEBUG: Error stack:', error.stack);
+          }
+      } else {
+          console.warn('❌ CAST DEBUG: Cast API is NOT available');
+          console.log('ℹ️ CAST DEBUG: Possible reasons: no Cast devices, API blocked, network issues');
       }
   };
+  
+  console.log('✅ CAST DEBUG: Cast API callback function set up successfully');
 
   function castLoad(track){
-      if(!castContext) return;
+      console.log('🎵 CAST DEBUG: castLoad() called for track:', track.name);
+      
+      if(!castContext) {
+          console.warn('❌ CAST DEBUG: No cast context available for loading track');
+          return;
+      }
+      
+      console.log('🔄 CAST DEBUG: Getting current cast session...');
       const session = castContext.getCurrentSession();
       if(!session){
+          console.log('📝 CAST DEBUG: No active session, saving track as pending');
           pendingCastTrack=track;
           return;
       }
+      
+      console.log('✅ CAST DEBUG: Active cast session found, preparing media...');
       let absUrl = new URL(track.url, window.location.href).href;
+      console.log('🔗 CAST DEBUG: Original URL:', track.url);
+      console.log('🔗 CAST DEBUG: Absolute URL:', absUrl);
+      
       // if hostname is localhost, replace with current local IP (taken from location)
       if (absUrl.includes('localhost')) {
+          console.log('🔄 CAST DEBUG: Localhost detected, replacing with server IP...');
           if (typeof SERVER_IP !== 'undefined' && SERVER_IP) {
               absUrl = absUrl.replace('localhost', SERVER_IP);
+              console.log('✅ CAST DEBUG: Replaced with SERVER_IP:', SERVER_IP);
           } else {
               absUrl = absUrl.replace('localhost', window.location.hostname);
+              console.log('✅ CAST DEBUG: Replaced with hostname:', window.location.hostname);
           }
+          console.log('🔗 CAST DEBUG: Final URL for casting:', absUrl);
       }
+      
       const ext = absUrl.split('.').pop().toLowerCase();
       const mimeMap = {mp4:'video/mp4', webm:'video/webm', mkv:'video/x-matroska', mov:'video/quicktime', mp3:'audio/mpeg', m4a:'audio/mp4', opus:'audio/ogg', flac:'audio/flac'};
       const mime = mimeMap[ext] || 'video/mp4';
+      console.log('🎬 CAST DEBUG: File extension:', ext, 'MIME type:', mime);
+      
+      console.log('🔄 CAST DEBUG: Creating media info object...');
       const mediaInfo = new chrome.cast.media.MediaInfo(absUrl, mime);
       mediaInfo.metadata = new chrome.cast.media.GenericMediaMetadata();
       mediaInfo.metadata.title = track.name;
+      console.log('📝 CAST DEBUG: Media info created:', {
+          contentId: mediaInfo.contentId,
+          contentType: mediaInfo.contentType,
+          title: mediaInfo.metadata.title
+      });
+      
+      console.log('🚀 CAST DEBUG: Sending load request to cast device...');
       const request = new chrome.cast.media.LoadRequest(mediaInfo);
-      session.loadMedia(request).catch(console.error);
+      session.loadMedia(request)
+          .then(() => {
+              console.log('✅ CAST DEBUG: Media loaded successfully on cast device!');
+          })
+          .catch(error => {
+              console.error('❌ CAST DEBUG: Failed to load media on cast device:', error);
+          });
   }
 
   if(window.cast && castContext){

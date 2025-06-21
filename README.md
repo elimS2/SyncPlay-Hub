@@ -167,7 +167,7 @@ Open `http://<your_ip>:8000/` in a modern browser – the UI is responsive and w
 | **Keyboard** | `← / →` previous / next, `Space` play/pause |
 | **Mouse / touch** | Click on video toggles play/pause; click on progress bar seeks |
 | **Playlist panel** | 600 px wide, custom scrollbar, hamburger button (`☰`) to hide/show; panel hides automatically in fullscreen |
-| **Casting** | Built-in Google Cast support – plays on Chromecast / Android TV; local IP is injected to avoid "localhost" issues |
+| **Casting** | Built-in Google Cast support – plays on Chromecast / Android TV; access via `localhost` for browser, media URLs automatically use LAN IP for device compatibility; **MP4 format recommended** |
 | **Media Session API** | Integrates with OS media keys and lock-screen controls |
 | **Theming** | Dark/Light via `prefers-color-scheme`; colours centralised in CSS variables |
 
@@ -504,6 +504,12 @@ media-root/
 - Ensure you're using `--host 0.0.0.0` (not `127.0.0.1`)
 - Check firewall settings on the host machine
 - Verify devices are on the same network
+
+**Chromecast/Google Cast not working**
+- **Access player via localhost:** Use `http://localhost:8000` instead of IP address for Cast API to work
+- **Cast button not visible:** Refresh page with Ctrl+Shift+R, check browser console for errors
+- **Black screen on TV:** Usually indicates .webm format compatibility issue - MP4 files work reliably
+- **Can't connect to Cast device:** Ensure computer and Chromecast are on same WiFi network
 
 **Downloads fail with "Sign in to confirm your age"**
 - Export YouTube cookies and use `--cookies` flag

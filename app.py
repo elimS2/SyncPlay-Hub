@@ -93,6 +93,11 @@ def backups_page():
     """Database Backups Page."""
     return render_template("backups.html")
 
+@app.route("/favicon.ico")
+def favicon():
+    """Serve favicon."""
+    return send_from_directory(os.path.join(app.root_path, 'static'), 'favicon.ico', mimetype='image/vnd.microsoft.icon')
+
 @app.route("/media/<path:filename>")
 def media(filename: str):
     """Serve media files."""
