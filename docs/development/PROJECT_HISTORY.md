@@ -306,6 +306,7 @@ User Request → Flask Route (app.py) → Controller (controllers/) → Service 
 ---
 
 ### **Recent Commits Added:**
+- **`0ac4b7e`** - Add favicon support and improve Google Cast button functionality (2025-06-21)
 - **`d103aa6`** - Fix JavaScript error handling in file browser (2025-06-21 04:22:33)
 - **`70da47e`** - Add file browser feature and redesign homepage UI (2025-06-21 04:08:58)
 - **Documentation Update** - Corrected all development log timestamps to match actual git commits (2025-06-21)

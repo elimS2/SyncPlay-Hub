@@ -362,6 +362,105 @@
       color: var(--text-muted);
     }
 
+    /* Modal Styles */
+    .modal {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.8);
+      z-index: 1000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .modal-content {
+      background: var(--bg-secondary);
+      border-radius: 12px;
+      max-width: 500px;
+      width: 90%;
+      max-height: 90vh;
+      overflow-y: auto;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+      border: 1px solid var(--border);
+    }
+
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 20px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .modal-header h3 {
+      margin: 0;
+      color: var(--accent);
+      font-size: 20px;
+    }
+
+    .modal-close {
+      background: none;
+      border: none;
+      font-size: 24px;
+      color: var(--text-muted);
+      cursor: pointer;
+      padding: 5px;
+      border-radius: 4px;
+      transition: all 0.2s ease;
+    }
+
+    .modal-close:hover {
+      background: var(--bg-hover);
+      color: var(--text-primary);
+    }
+
+    .modal-body {
+      padding: 20px;
+    }
+
+    .qr-container {
+      text-align: center;
+    }
+
+    #qrcode {
+      margin: 0 auto 20px auto;
+      padding: 20px;
+      background: white;
+      border-radius: 8px;
+      display: inline-block;
+    }
+
+    .qr-info p {
+      margin: 10px 0;
+      color: var(--text-secondary);
+    }
+
+    .url-box {
+      display: flex;
+      gap: 10px;
+      margin-top: 15px;
+      align-items: center;
+    }
+
+    .url-box input {
+      flex: 1;
+      padding: 10px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      font-family: monospace;
+      font-size: 12px;
+    }
+
+    .url-box input:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+
     /* Mobile Responsive */
     @media (max-width: 768px) {
       .sidebar {
@@ -458,6 +557,12 @@
               Backups
             </a>
           </li>
+          <li class="nav-item">
+            <a href="/remote" class="nav-link">
+              <span class="nav-icon">📱</span>
+              Remote Control
+            </a>
+          </li>
         </ul>
       </nav>
     </div>
@@ -471,6 +576,7 @@
           <button id="addPlBtn" class="btn btn-primary">➕ Add Playlist</button>
           <button id="scanBtn" class="btn btn-primary">🔄 Rescan</button>
           <button id="backupBtn" class="btn btn-success">💾 Backup</button>
+          <button id="qrBtn" class="btn btn-primary">📱 QR Remote</button>
           <button id="restartBtn" class="btn btn-warning">🔄 Restart</button>
           <button id="stopBtn" class="btn btn-error">🛑 Stop</button>
         </div>
@@ -546,6 +652,29 @@
             {% endfor %}
           </tbody>
         </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- QR Code Modal -->
+  <div id="qrModal" class="modal" style="display: none;">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>📱 Mobile Remote Control</h3>
+        <button class="modal-close" onclick="closeQRModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="qr-container">
+          <div id="qrcode"></div>
+          <div class="qr-info">
+            <p><strong>Scan QR code with your phone</strong></p>
+            <p>Or open manually:</p>
+            <div class="url-box">
+              <input type="text" id="remoteUrl" readonly onclick="this.select()">
+              <button onclick="copyRemoteUrl()" class="btn btn-primary">📋 Copy</button>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -788,6 +917,78 @@
             location.reload();
         }, 10000);
     }
+
+    // QR Code functionality
+    const qrBtn = document.getElementById('qrBtn');
+    qrBtn?.addEventListener('click', showQRModal);
+
+    function showQRModal() {
+        const modal = document.getElementById('qrModal');
+        const remoteUrl = `${window.location.protocol}//${window.location.host}/remote`;
+        
+        // Update URL in input field
+        document.getElementById('remoteUrl').value = remoteUrl;
+        
+        // Generate QR code
+        const qrContainer = document.getElementById('qrcode');
+        qrContainer.innerHTML = ''; // Clear previous QR code
+        
+        // Generate QR code using a simple library-free approach
+        generateQRCode(qrContainer, remoteUrl);
+        
+        // Show modal
+        modal.style.display = 'flex';
+    }
+
+    function closeQRModal() {
+        document.getElementById('qrModal').style.display = 'none';
+    }
+
+    function copyRemoteUrl() {
+        const input = document.getElementById('remoteUrl');
+        input.select();
+        navigator.clipboard.writeText(input.value).then(() => {
+            const btn = event.target;
+            const originalText = btn.textContent;
+            btn.textContent = '✅ Copied!';
+            setTimeout(() => {
+                btn.textContent = originalText;
+            }, 2000);
+        }).catch(() => {
+            alert('Failed to copy URL. Please copy manually.');
+        });
+    }
+
+    // Simple QR code generator using QR Server API
+    function generateQRCode(container, text) {
+        const size = 200;
+        const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&data=${encodeURIComponent(text)}`;
+        
+        const img = document.createElement('img');
+        img.src = qrUrl;
+        img.alt = 'QR Code for Remote Control';
+        img.style.width = size + 'px';
+        img.style.height = size + 'px';
+        img.style.border = 'none';
+        
+        // Fallback if image fails to load
+        img.onerror = function() {
+            container.innerHTML = `
+                <div style="width: ${size}px; height: ${size}px; background: #f0f0f0; display: flex; align-items: center; justify-content: center; border-radius: 8px; color: #666; text-align: center; font-size: 14px;">
+                    QR Code<br>unavailable<br><small>Use URL below</small>
+                </div>
+            `;
+        };
+        
+        container.appendChild(img);
+    }
+
+    // Close modal when clicking outside
+    document.getElementById('qrModal')?.addEventListener('click', function(e) {
+        if (e.target === this) {
+            closeQRModal();
+        }
+    });
   </script>
 </body>
 </html> 

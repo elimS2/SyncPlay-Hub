@@ -244,6 +244,11 @@ def files_page():
     """File browser page."""
     return render_template("files.html")
 
+@app.route("/remote")
+def remote_page():
+    """Mobile remote control page."""
+    return render_template("remote.html", server_ip=_get_local_ip())
+
 # Register API blueprint
 app.register_blueprint(api_bp)
 

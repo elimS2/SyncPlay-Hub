@@ -448,6 +448,8 @@ function shuffle(array) {
   // auto smart-shuffle and start playback on first load
   if (queue.length > 0) {
       playIndex(0);
+      // Force sync after initial load
+      setTimeout(syncRemoteState, 500);
   } else {
       renderList();
   }
@@ -606,4 +608,168 @@ function shuffle(array) {
 
   // stop tick when window unload
   window.addEventListener('beforeunload',()=> stopTick());
+
+  // ==============================
+  // REMOTE CONTROL SYNCHRONIZATION
+  // ==============================
+  
+  // Sync player state with remote control API
+  async function syncRemoteState() {
+    try {
+      const currentTrack = currentIndex >= 0 && currentIndex < queue.length ? queue[currentIndex] : null;
+      const playerState = {
+        current_track: currentTrack,
+        playing: !media.paused && currentTrack !== null,
+        volume: media.volume,
+        progress: media.currentTime || 0,
+        playlist: queue,
+        current_index: currentIndex,
+        last_update: Date.now() / 1000
+      };
+      
+      console.log('🎮 Syncing remote state:', {
+        track: currentTrack?.name || 'No track',
+        playing: playerState.playing,
+        progress: Math.floor(playerState.progress),
+        index: currentIndex
+      });
+      
+      // Update the global PLAYER_STATE via internal API call
+      const response = await fetch('/api/remote/sync_internal', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(playerState)
+      });
+      
+      if (!response.ok) {
+        console.warn('Remote sync failed with status:', response.status);
+      }
+    } catch(err) {
+      console.warn('Remote sync failed:', err);
+    }
+  }
+  
+  // Listen for remote control commands
+  async function pollRemoteCommands() {
+    try {
+      const response = await fetch('/api/remote/commands');
+      if (response.ok) {
+        const commands = await response.json();
+        for (const command of commands) {
+          await executeRemoteCommand(command);
+        }
+      }
+    } catch(err) {
+      console.warn('Remote polling failed:', err);
+    }
+  }
+  
+  // Execute remote control commands
+  async function executeRemoteCommand(command) {
+    console.log('🎮 [Remote] Executing command:', command.type);
+    
+    try {
+      switch(command.type) {
+        case 'play':
+          console.log('🎮 [Remote] Toggle play/pause');
+          if (media.paused) {
+            await media.play();
+          } else {
+            media.pause();
+          }
+          break;
+          
+        case 'next':
+          console.log('🎮 [Remote] Next track');
+          nextBtn.click();
+          break;
+          
+        case 'prev':
+          console.log('🎮 [Remote] Previous track');
+          prevBtn.click();
+          break;
+          
+        case 'stop':
+          console.log('🎮 [Remote] Stop playback');
+          media.pause();
+          media.currentTime = 0;
+          break;
+          
+        case 'volume':
+          if (command.volume !== undefined) {
+            console.log('🎮 [Remote] Set volume:', Math.round(command.volume * 100) + '%');
+            media.volume = command.volume;
+            cVol.value = command.volume;
+            updateMuteIcon();
+          }
+          break;
+          
+        case 'shuffle':
+          console.log('🎮 [Remote] Shuffle playlist');
+          shuffleBtn.click();
+          break;
+          
+        case 'like':
+          console.log('🎮 [Remote] Like track');
+          cLike.click();
+          break;
+          
+        case 'youtube':
+          console.log('🎮 [Remote] Open YouTube');
+          cYoutube.click();
+          break;
+          
+        case 'fullscreen':
+          console.log('🎮 [Remote] Toggle fullscreen');
+          cFull.click();
+          break;
+          
+        default:
+          console.warn('🎮 [Remote] Unknown command:', command.type);
+      }
+      
+      // Sync state after command execution
+      setTimeout(syncRemoteState, 200);
+    } catch (error) {
+      console.error('🎮 [Remote] Error executing command:', error);
+    }
+  }
+  
+  // Enhanced event listeners for remote sync
+  media.addEventListener('play', syncRemoteState);
+  media.addEventListener('pause', syncRemoteState);
+  media.addEventListener('loadeddata', syncRemoteState);
+  media.addEventListener('timeupdate', () => {
+    // Sync every 2 seconds during playback
+    if (!media.paused && Math.floor(media.currentTime) % 2 === 0) {
+      syncRemoteState();
+    }
+  });
+  
+  // Override existing functions to include remote sync
+  const originalPlayIndex = playIndex;
+  window.playIndex = function(idx) {
+    originalPlayIndex.call(this, idx);
+    setTimeout(syncRemoteState, 200);
+  };
+  
+  const originalTogglePlay = togglePlay;
+  window.togglePlay = function() {
+    originalTogglePlay.call(this);
+    setTimeout(syncRemoteState, 200);
+  };
+  
+  // Initial state sync after everything is loaded
+  setTimeout(() => {
+    if (currentIndex >= 0) {
+      syncRemoteState();
+    }
+    // Start periodic sync every 3 seconds
+    setInterval(syncRemoteState, 3000);
+  }, 1000);
+  
+  // Periodic remote command polling (every 1 second)
+  setInterval(pollRemoteCommands, 1000);
+  
+  console.log('🎮 Remote control synchronization initialized');
 })(); 
