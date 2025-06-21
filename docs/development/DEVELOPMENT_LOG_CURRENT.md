@@ -1227,9 +1227,163 @@ This migration resolves the temporal accuracy issue, providing users with a trut
 
 ---
 
+### Log Entry #033 - 2025-06-21 20:36 UTC
+
+**Feature**: 🔍 Advanced Event Filtering & Sorting - Complete History Page Redesign
+
+**Changes Made:**
+
+1. **Complete History Page Redesign** (`templates/history.html`)
+   - **Renamed page** from "Play History" to "📊 Events" 
+   - **Added comprehensive filtering system** with checkboxes for all event types
+   - **Implemented text search fields** for track name and video ID filtering
+   - **Added real-time filtering** without page reloads using JavaScript
+   - **Created results counter** showing "X of Y events" with dynamic updates
+   - **Enhanced visual design** with professional color coding and icons
+
+2. **Event Type Filtering** (`templates/history.html`)
+   - **Individual checkboxes** for each event type: start, finish, play, pause, next, prev, like, volume_change, seek, playlist_added
+   - **Visual indicators** with color-coded event types and corresponding icons
+   - **Smart checkbox styling** with hover effects and checked state highlighting
+   - **Proper label association** using `for` attributes enabling click-on-text functionality
+   - **"Clear All Filters" button** for quick reset to show all events
+
+3. **Advanced Sorting System** (`templates/history.html`)
+   - **Timestamp sorting** with visual indicators (↑ ↓ ↕️)
+   - **Click-to-sort** functionality on column headers
+   - **Bidirectional sorting** (ascending/descending) with state persistence
+   - **Sort state indicators** showing current sort direction
+   - **Row number updates** after sorting to maintain proper sequence
+
+4. **Enhanced Visual Design** (`templates/history.html`)
+   - **Color-coded event types**: Green (start/play), Blue (finish), Orange (pause), Purple (next/prev), Pink (like), Yellow (volume), Cyan (seek), Light Green (playlist)
+   - **Special row highlighting** for different event types with subtle background colors
+   - **Professional event legend** with comprehensive documentation of all event types
+   - **Responsive layout** with flexible filter controls and proper mobile support
+   - **Visual feedback** for filtering actions and state changes
+
+5. **Backend Route Updates** (`app.py`)
+   - **Added `/events` route** for new page name while maintaining `/history` for backward compatibility
+   - **Dual routing support** ensuring existing bookmarks continue working
+   - **Consistent navigation** between old and new route names
+
+6. **Navigation Updates** (`templates/playlists.html`)
+   - **Updated sidebar navigation** to show "📊 Events" instead of "Play History"
+   - **Maintained functionality** while improving user experience with better naming
+
+**Technical Implementation Details:**
+
+**Real-Time Filtering JavaScript:**
+```javascript
+function filterEvents() {
+  const selectedTypes = new Set();
+  checkboxes.forEach(cb => {
+    if (cb.checked) selectedTypes.add(cb.id.replace('filter-', ''));
+  });
+  
+  rows.forEach(row => {
+    const typeMatch = selectedTypes.has(row.dataset.eventType);
+    const trackMatch = !trackFilter || trackName.includes(trackFilter);
+    const videoIdMatch = !videoIdFilter || videoId.includes(videoIdFilter);
+    
+    if (typeMatch && trackMatch && videoIdMatch) {
+      row.classList.remove('hidden-row');
+      visibleCount++;
+    } else {
+      row.classList.add('hidden-row');
+    }
+  });
+}
+```
+
+**Responsive Filter Layout:**
+```css
+.event-types {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: flex-start;
+}
+
+.event-type-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #333;
+  padding: 8px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+```
+
+**UI/UX Problem Resolution:**
+
+7. **Fixed Checkbox Label Interaction Issues**
+   - **Problem:** Labels were invisible due to CSS width constraints (110px fixed width with padding causing text overflow)
+   - **Root Cause:** `width: 110px` + `padding: 8px 12px` + `gap: 8px` + checkbox ~20px = only 58px for text, insufficient for "Previous"
+   - **Solution:** Removed all width constraints (`width`, `min-width`, `max-width`) allowing natural auto-sizing
+   - **Result:** All labels now visible and properly sized to content
+
+8. **Enhanced Click Interaction**
+   - **Problem:** Clicking on text didn't toggle checkboxes
+   - **Solution:** Added proper `for` attributes linking labels to inputs
+   - **Benefit:** Standard HTML behavior - clicking anywhere on label toggles checkbox
+   - **User Experience:** Intuitive interaction matching modern web standards
+
+9. **Responsive Design Improvements**
+   - **Removed fixed input widths** (`min-width: 200px`) for better mobile compatibility
+   - **Left-aligned filter controls** instead of center alignment for professional appearance
+   - **Flexible layout** that adapts to different screen sizes and content lengths
+
+**User Experience Improvements:**
+
+- ✅ **Intuitive Filtering**: Click any event type to show/hide those events instantly
+- ✅ **Text Search**: Find specific tracks or video IDs with real-time search
+- ✅ **Visual Feedback**: Color-coded events with professional styling
+- ✅ **Results Counter**: Always know how many events match current filters
+- ✅ **Easy Reset**: "Clear All Filters" button for quick reset
+- ✅ **Responsive Design**: Works perfectly on desktop, tablet, and mobile
+- ✅ **Professional Appearance**: Clean, modern interface with consistent styling
+- ✅ **Accessible Interaction**: Click on text or checkbox - both work seamlessly
+
+**Event Types Supported:**
+- 🟢 **start** - Track begins playing from beginning
+- 🟢 **play** - Resume playback after pause  
+- 🟠 **pause** - Playback paused by user
+- 🔵 **finish** - Track completed successfully
+- 🟣 **next/prev** - Manual track navigation
+- 🩷 **like** - Track marked as favorite
+- 🟡 **volume_change** - Volume level adjusted (with source tracking)
+- 🔵 **seek** - Position changed (seek/scrub with direction indicators)
+- 🟢 **playlist_added** - Track added/discovered in playlist
+
+**Benefits:**
+- **Enhanced Analytics**: Easy filtering and analysis of user behavior patterns
+- **Improved Navigation**: Quick access to specific types of events
+- **Better User Experience**: Professional, responsive interface with intuitive controls
+- **Comprehensive History**: Complete event tracking with rich context and visual indicators
+- **Future-Extensible**: Framework supports additional event types and filters
+
+**Workflow Example:**
+1. User opens Events page showing all 2000+ events
+2. Unchecks "volume_change" and "seek" to focus on playback events
+3. Types "song name" in track filter to find specific track events
+4. Clicks timestamp column to sort chronologically
+5. Results show filtered events with "156 of 2000+ events" counter
+6. Clicks "Clear All Filters" to reset and see everything again
+
+This implementation transforms the basic history page into a powerful event analysis tool, enabling users to easily explore their listening patterns and track interactions with professional filtering and sorting capabilities.
+
+---
+
+*End of Log Entry #033*
+
+---
+
 ## Ready for Next Entry
 
-**Next Entry Number:** #033  
+**Next Entry Number:** #034  
 **Guidelines:** Follow established format with git timestamps and commit hashes  
 **Archive Status:** Monitor file size; archive when reaching 10-15 entries
 

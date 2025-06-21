@@ -269,7 +269,11 @@ This file provides structured information about the project's evolution, key arc
 - **Development Log:** Entry #029 - Position change tracking implementation
 - **Impact:** Complete seek/scrub analytics with keyboard controls
 - **Files:** `database.py`, `controllers/api_controller.py`, `static/player.js`, `templates/history.html`
-- **Files:** `database.py`, `controllers/api_controller.py`, `static/player.js`
+
+**Commit #078:** `fcca074` - **Implement playlist addition event logging and migration**
+- **Development Log:** Entry #030-#032 - Playlist addition tracking with retroactive migration
+- **Impact:** Complete playlist addition history with file creation date accuracy
+- **Files:** `database.py`, `migrate_playlist_events.py`, `migrate_playlist_events_with_dates.py`
 
 ### **Feature #10: Enhanced Volume Event Logging**
 - **Date:** 2025-06-21

@@ -78,8 +78,9 @@ def tracks_page():
     return render_template("tracks.html", tracks=tracks)
 
 @app.route("/history")
-def history_page():
-    """History Page."""
+@app.route("/events")
+def events_page():
+    """Events Page (formerly History Page)."""
     from flask import request
     page = int(request.args.get("page", 1))
     conn = get_connection()
