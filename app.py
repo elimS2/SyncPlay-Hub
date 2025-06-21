@@ -223,17 +223,21 @@ def static_log(log_name: str):
 
 @app.route("/streams")
 def streams_page():
-    """Streams page."""
-    streams = get_streams()
-    return render_template("streams.html", streams=streams)
+    """Streams Page."""
+    return render_template("streams.html", streams=get_streams())
 
 @app.route("/stream/<stream_id>")
 def stream_page(stream_id: str):
-    """Stream view page."""
+    """Stream view."""
     stream = get_stream(stream_id)
     if not stream:
         abort(404)
-    return render_template("stream_view.html", stream_id=stream_id, stream_title=stream.get("title", "Stream"), server_ip=_get_local_ip())
+    return render_template("stream_view.html", stream=stream, stream_id=stream_id)
+
+@app.route("/files")
+def files_page():
+    """File browser page."""
+    return render_template("files.html")
 
 # Register API blueprint
 app.register_blueprint(api_bp)

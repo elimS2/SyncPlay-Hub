@@ -50,6 +50,24 @@ This file provides structured information about the project's evolution, key arc
 - `ec7726b` - **Database backup system** - Complete backup functionality with web interface
 - `82d09a5` - **Legacy code organization** - Move obsolete files to legacy directory with documentation
 
+### **Enhancement #6: SVG Icons for Player Controls**
+- **Date:** 2025-01-21
+- **Commit:** `e6fd09e` Update README.md to include unified SVG icons for player controls
+- **Enhancement:** All control buttons now utilize consistent SVG Material Design icons
+- **Impact:** Enhanced visual alignment and user experience
+- **Files:** `README.md`, player interface documentation
+
+### **Feature #7: File Browser and Homepage UI Redesign** 
+- **Date:** 2025-01-21
+- **Status:** In Development
+- **Feature:** Added comprehensive file browser functionality with modern UI
+- **Components:**
+  - New API endpoints: `/api/browse`, `/api/download_file`
+  - New route: `/files` with secure directory browsing
+  - Homepage UI reorganization with separated button groups
+  - Responsive design with dark/light theme support
+- **Files:** `controllers/api_controller.py`, `app.py`, `templates/files.html`, `templates/playlists.html`
+
 ---
 
 ## 🏗️ **Major Architectural Phases**
@@ -154,6 +172,24 @@ This file provides structured information about the project's evolution, key arc
 - **Problem:** Missing pause/resume events in play history with position tracking
 - **Solution:** Extended event logging to include 'play' and 'pause' events with exact position data
 - **Files:** `static/player.js`, `controllers/api_controller.py`, `database.py`, `templates/history.html`, `README.md`
+
+### **Enhancement #6: SVG Icons for Player Controls**
+- **Date:** 2025-01-21
+- **Commit:** `e6fd09e` Update README.md to include unified SVG icons for player controls
+- **Enhancement:** All control buttons now utilize consistent SVG Material Design icons
+- **Impact:** Enhanced visual alignment and user experience
+- **Files:** `README.md`, player interface documentation
+
+### **Feature #7: File Browser and Homepage UI Redesign** 
+- **Date:** 2025-01-21
+- **Status:** In Development
+- **Feature:** Added comprehensive file browser functionality with modern UI
+- **Components:**
+  - New API endpoints: `/api/browse`, `/api/download_file`
+  - New route: `/files` with secure directory browsing
+  - Homepage UI reorganization with separated button groups
+  - Responsive design with dark/light theme support
+- **Files:** `controllers/api_controller.py`, `app.py`, `templates/files.html`, `templates/playlists.html`
 
 ---
 

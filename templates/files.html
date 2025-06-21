@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>File Browser - Local YouTube Player</title>
+    <style>
+        :root {
+            --bg: rgba(0,0,0,.7);
+            --text: #fff;
+            --accent: #61dafb;
+            --border: #444;
+            --hover: rgba(255,255,255,.1);
+            --page-bg: #000;
+            --card-bg: rgba(255,255,255,.05);
+        }
+        
+        @media (prefers-color-scheme: light) {
+            :root {
+                --bg: rgba(255,255,255,.8);
+                --text: #000;
+                --accent: #0066cc;
+                --border: #ccc;
+                --hover: rgba(0,0,0,.1);
+                --page-bg: #fff;
+                --card-bg: rgba(0,0,0,.05);
+            }
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: var(--page-bg);
+            color: var(--text);
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .header h1 {
+            margin: 0;
+            font-size: 24px;
+            color: var(--accent);
+        }
+
+        .nav-links a {
+            color: var(--accent);
+            text-decoration: none;
+            margin-left: 15px;
+            font-size: 14px;
+        }
+
+        .nav-links a:hover {
+            text-decoration: underline;
+        }
+
+        .breadcrumb {
+            display: flex;
+            align-items: center;
+            margin-bottom: 15px;
+            padding: 10px 15px;
+            background: var(--card-bg);
+            border-radius: 8px;
+            font-size: 14px;
+        }
+
+        .breadcrumb-item {
+            cursor: pointer;
+            color: var(--accent);
+            text-decoration: none;
+        }
+
+        .breadcrumb-item:hover {
+            text-decoration: underline;
+        }
+
+        .breadcrumb-separator {
+            margin: 0 8px;
+            color: var(--text);
+            opacity: 0.6;
+        }
+
+        .file-list {
+            background: var(--card-bg);
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            overflow: hidden;
+        }
+
+        .file-header {
+            display: grid;
+            grid-template-columns: 1fr 100px 150px 80px;
+            gap: 15px;
+            padding: 12px 20px;
+            background: var(--bg);
+            font-weight: 600;
+            font-size: 13px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .file-item {
+            display: grid;
+            grid-template-columns: 1fr 100px 150px 80px;
+            gap: 15px;
+            padding: 15px 20px;
+            border-bottom: 1px solid var(--border);
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .file-item:hover {
+            background: var(--hover);
+        }
+
+        .file-item:last-child {
+            border-bottom: none;
+        }
+
+        .file-name {
+            display: flex;
+            align-items: center;
+            font-weight: 500;
+        }
+
+        .file-icon {
+            margin-right: 10px;
+            font-size: 16px;
+            width: 20px;
+            text-align: center;
+        }
+
+        .folder-icon { color: #ffc107; }
+        .media-icon { color: #28a745; }
+        .file-icon-default { color: var(--text); opacity: 0.7; }
+
+        .file-size, .file-date {
+            font-size: 13px;
+            color: var(--text);
+            opacity: 0.8;
+        }
+
+        .file-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .action-btn {
+            padding: 4px 8px;
+            background: none;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            color: var(--text);
+            cursor: pointer;
+            font-size: 12px;
+            opacity: 0.8;
+            transition: all 0.2s ease;
+        }
+
+        .action-btn:hover {
+            opacity: 1;
+            background: var(--hover);
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: var(--text);
+            opacity: 0.7;
+        }
+
+        .error {
+            text-align: center;
+            padding: 40px;
+            color: #dc3545;
+            background: rgba(220, 53, 69, 0.1);
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+
+        .empty {
+            text-align: center;
+            padding: 40px;
+            color: var(--text);
+            opacity: 0.7;
+        }
+
+        @media (max-width: 768px) {
+            .file-header, .file-item {
+                grid-template-columns: 1fr 60px;
+                gap: 10px;
+            }
+            
+            .file-size, .file-date {
+                display: none;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>📁 File Browser</h1>
+        <div class="nav-links">
+            <a href="/">← Home</a>
+            <a href="/tracks">Tracks</a>
+            <a href="/logs">Logs</a>
+        </div>
+    </div>
+
+    <div class="breadcrumb" id="breadcrumb">
+        <span class="breadcrumb-item" data-path="">🏠 Root</span>
+    </div>
+
+    <div class="file-list">
+        <div class="file-header">
+            <div>Name</div>
+            <div>Type</div>
+            <div>Modified</div>
+            <div>Size</div>
+        </div>
+        <div id="fileContent">
+            <div class="loading">Loading...</div>
+        </div>
+    </div>
+
+    <script>
+        let currentPath = '';
+        
+        async function loadDirectory(path = '') {
+            const content = document.getElementById('fileContent');
+            content.innerHTML = '<div class="loading">Loading...</div>';
+            
+            try {
+                const response = await fetch(`/api/browse/${path}`);
+                const data = await response.json();
+                
+                if (!response.ok) {
+                    throw new Error(data.error || 'Failed to load directory');
+                }
+                
+                currentPath = data.current_path;
+                updateBreadcrumb(data.current_path, data.can_go_up, data.parent_path);
+                renderFiles(data.items);
+                
+            } catch (error) {
+                content.innerHTML = `<div class="error">Error: ${error.message}</div>`;
+            }
+        }
+        
+        function updateBreadcrumb(path, canGoUp, parentPath) {
+            const breadcrumb = document.getElementById('breadcrumb');
+            breadcrumb.innerHTML = '';
+            
+            // Root link
+            const rootLink = document.createElement('span');
+            rootLink.className = 'breadcrumb-item';
+            rootLink.textContent = '🏠 Root';
+            rootLink.dataset.path = '';
+            rootLink.onclick = () => loadDirectory('');
+            breadcrumb.appendChild(rootLink);
+            
+            if (path) {
+                const parts = path.split('/');
+                let currentPathPart = '';
+                
+                parts.forEach((part, index) => {
+                    if (part) {
+                        const separator = document.createElement('span');
+                        separator.className = 'breadcrumb-separator';
+                        separator.textContent = '/';
+                        breadcrumb.appendChild(separator);
+                        
+                        currentPathPart += (index > 0 ? '/' : '') + part;
+                        
+                        const link = document.createElement('span');
+                        link.className = 'breadcrumb-item';
+                        link.textContent = part;
+                        link.dataset.path = currentPathPart;
+                        link.onclick = () => loadDirectory(currentPathPart);
+                        breadcrumb.appendChild(link);
+                    }
+                });
+            }
+        }
+        
+        function renderFiles(items) {
+            const content = document.getElementById('fileContent');
+            
+            if (items.length === 0) {
+                content.innerHTML = '<div class="empty">This directory is empty</div>';
+                return;
+            }
+            
+            content.innerHTML = items.map(item => {
+                const icon = getFileIcon(item);
+                const date = item.modified ? new Date(item.modified * 1000).toLocaleDateString() : '';
+                const size = item.is_dir ? '-' : (item.size_human || '');
+                const type = item.is_dir ? 'Folder' : (item.is_media ? 'Media' : 'File');
+                
+                return `
+                    <div class="file-item" onclick="handleItemClick('${item.path}', ${item.is_dir})">
+                        <div class="file-name">
+                            <span class="file-icon ${icon.class}">${icon.symbol}</span>
+                            ${item.name}
+                        </div>
+                        <div class="file-size">${type}</div>
+                        <div class="file-date">${date}</div>
+                        <div class="file-actions">
+                            ${!item.is_dir ? `<button class="action-btn" onclick="event.stopPropagation(); downloadFile('${item.path}')">↓</button>` : ''}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+        
+        function getFileIcon(item) {
+            if (item.is_dir) {
+                return { symbol: '📁', class: 'folder-icon' };
+            }
+            
+            if (item.is_media) {
+                return { symbol: '🎵', class: 'media-icon' };
+            }
+            
+            const ext = item.name.split('.').pop().toLowerCase();
+            switch (ext) {
+                case 'txt': case 'md': case 'log':
+                    return { symbol: '📄', class: 'file-icon-default' };
+                case 'db':
+                    return { symbol: '🗃️', class: 'file-icon-default' };
+                case 'zip': case 'rar': case '7z':
+                    return { symbol: '📦', class: 'file-icon-default' };
+                default:
+                    return { symbol: '📄', class: 'file-icon-default' };
+            }
+        }
+        
+        function handleItemClick(path, isDir) {
+            if (isDir) {
+                loadDirectory(path);
+            } else {
+                // For files, show preview or download
+                if (confirm(`Download ${path.split('/').pop()}?`)) {
+                    downloadFile(path);
+                }
+            }
+        }
+        
+        function downloadFile(path) {
+            const link = document.createElement('a');
+            link.href = `/api/download_file/${path}`;
+            link.download = path.split('/').pop();
+            link.click();
+        }
+        
+        // Load initial directory
+        loadDirectory();
+    </script>
+</body>
+</html> 

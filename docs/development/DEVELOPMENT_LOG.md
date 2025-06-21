@@ -1399,3 +1399,85 @@ Database backup failed: Database not found at D:\music\Youtube\Playlists\DB\trac
 ---
 
 *End of Log Entry #16* 
+
+### Log Entry #17 - 2025-01-21 16:30 UTC
+### Added File Browser and Improved Homepage UI
+
+#### Changes Made:
+1. **Added File Browser Feature**
+   - Created new API endpoint `/api/browse` for directory browsing
+   - Added `/api/download_file` endpoint for file downloads
+   - Implemented security checks to prevent path traversal
+   - Created new route `/files` in main app
+   - Built modern HTML template `templates/files.html` with:
+     - Responsive grid layout
+     - File type icons and detection
+     - Breadcrumb navigation
+     - Download functionality
+     - Dark/light theme support
+
+2. **Complete Homepage UI/UX Redesign**
+   - Reorganized `templates/playlists.html` with modern design
+   - **Separated Navigation and Functional buttons** into logical groups:
+     - **📍 Navigation**: Track Library, Play History, Browse Files, Logs, Backups
+     - **🎶 Playlist Management**: Add Playlist, Rescan Library  
+     - **⚙️ System**: Backup Database, Restart Server, Stop Server
+   - Improved visual hierarchy with CSS custom properties
+   - Added responsive design for mobile devices
+   - Enhanced button styling with hover effects and icons
+   - Improved active downloads section layout
+   - Better error handling with emoji icons
+
+#### Files Modified:
+- `controllers/api_controller.py` - Added file browser endpoints
+- `app.py` - Added /files route
+- `templates/files.html` - New file browser template
+- `templates/playlists.html` - Complete UI redesign
+
+#### Impact Analysis:
+- **Improved UX**: Users can now browse their data directory from web interface
+- **Better Organization**: Buttons are logically grouped following UI/UX best practices
+- **Enhanced Security**: File browser has proper path traversal protection
+- **Mobile Friendly**: Responsive design works on all devices
+- **Modern Look**: Updated to modern design standards with CSS custom properties
+
+#### Next Steps:
+- Test file browser functionality with various directory structures
+- Consider adding file preview capabilities for media files
+- Monitor user feedback on new UI layout
+
+### Log Entry #18 - 2025-01-21 16:45 UTC
+### Homepage UI Redesign - Left Sidebar Navigation
+
+#### Changes Made:
+1. **Redesigned Main Page Layout**
+   - **Left Sidebar Navigation**: Created fixed 250px sidebar with menu items
+   - **Right-aligned Action Buttons**: Moved functional buttons to header top-right
+   - **Smaller Title**: Changed "🎵 Local YouTube Player" to "🎵 YouTube Player" (18px)
+   - **Improved Mobile Responsiveness**: Sidebar collapses to horizontal menu on mobile
+
+2. **Navigation Menu Structure** 
+   - **Left Menu Items**: Track Library, Play History, Browse Files, Logs, Backups
+   - **Action Buttons (top-right)**: Add Playlist, Rescan, Backup, Restart, Stop
+   - **Server Info**: Moved to sidebar header in compact format
+
+3. **Layout Improvements**
+   - **Sidebar**: Fixed positioning with proper scrolling
+   - **Main Content**: Flexible area with proper margins
+   - **Visual Hierarchy**: Clear separation between navigation and actions
+   - **Consistent Spacing**: Reduced padding and improved density
+
+#### Files Modified:
+- `templates/playlists.html` - Complete layout redesign
+
+#### Impact Analysis:
+- **Better UX**: Clear separation between navigation and actions
+- **Space Efficiency**: More content visible with sidebar layout  
+- **Intuitive Design**: Follows standard web app patterns
+- **Mobile Friendly**: Responsive design that adapts to screen size
+
+#### User Feedback Addressed:
+- ✅ Navigation as left menu with items
+- ✅ Functional buttons in right upper corner  
+- ✅ Smaller title size
+- ✅ Preserved all existing functionality
