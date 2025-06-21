@@ -1,5 +1,12 @@
 # Cursor IDE Project Rules
 
+## 🚨 CRITICAL WORKFLOW REMINDER 🚨
+**EVERY TIME YOU EDIT DEVELOPMENT_LOG.md:**
+1. IMMEDIATELY run: `git log -1 --oneline`
+2. Check if commit exists in PROJECT_HISTORY.md
+3. If missing, add to PROJECT_HISTORY.md
+4. NO EXCEPTIONS - THIS IS MANDATORY
+
 ## Code Language Policy (MANDATORY)
 - ALL source code MUST be written exclusively in ENGLISH
 - This includes: variables, functions, classes, comments, documentation, strings, commit messages, error messages, logging, API responses
@@ -20,11 +27,13 @@
 - Format: new log entry with timestamp, affected files, reasoning
 - NO exceptions - even small changes must be logged
 
-## Git History Synchronization (MANDATORY)
-- AFTER EVERY edit to DEVELOPMENT_LOG.md, MUST check for new git commits not documented in PROJECT_HISTORY.md
+## Git History Synchronization (MANDATORY - NO EXCEPTIONS)
+- **IMMEDIATELY AFTER EVERY edit to DEVELOPMENT_LOG.md, MUST run `git log -1 --oneline`**
+- **MANDATORY WORKFLOW: Edit DEVELOPMENT_LOG.md → IMMEDIATELY check git → Update PROJECT_HISTORY.md if needed**
 - Compare current git log with documented commits in PROJECT_HISTORY.md
 - Add any missing commits to appropriate development phase in PROJECT_HISTORY.md
 - Keep development timeline current and complete
+- **FAILURE TO CHECK GIT AFTER DEVELOPMENT_LOG.md EDIT IS A CRITICAL RULE VIOLATION**
 
 ## Priority
 - These rules override any other language preferences

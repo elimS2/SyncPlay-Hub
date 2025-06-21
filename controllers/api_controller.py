@@ -54,6 +54,42 @@ def api_scan():
     except Exception as exc:
         return jsonify({"status": "error", "message": str(exc)}), 500
 
+@api_bp.route("/backup", methods=["POST"])
+def api_backup():
+    """Create database backup."""
+    try:
+        from database import create_backup
+        result = create_backup(ROOT_DIR)
+        
+        if result['success']:
+            log_message(f"Database backup created: {result['backup_folder']}")
+            return jsonify({
+                "status": "ok", 
+                "backup_path": result['backup_path'],
+                "timestamp": result['timestamp'],
+                "size_bytes": result['size_bytes']
+            })
+        else:
+            log_message(f"Database backup failed: {result['error']}")
+            return jsonify({
+                "status": "error", 
+                "message": result['error']
+            }), 500
+            
+    except Exception as exc:
+        log_message(f"Database backup error: {exc}")
+        return jsonify({"status": "error", "message": str(exc)}), 500
+
+@api_bp.route("/backups")
+def api_backups():
+    """Get list of all database backups."""
+    try:
+        from database import list_backups
+        backups = list_backups(ROOT_DIR)
+        return jsonify({"status": "ok", "backups": backups})
+    except Exception as exc:
+        return jsonify({"status": "error", "message": str(exc)}), 500
+
 @api_bp.route("/event", methods=["POST"])
 def api_event():
     """Record playback events."""

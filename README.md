@@ -59,6 +59,7 @@ That idea evolved into **SyncPlay-Hub**: a small Python toolset powered by `yt-d
 * "Forgotten" metric on the homepage – highlights tracks that were never played or haven't been heard in the last 30 days, helping you rediscover neglected songs.
 * Spreadsheet-style homepage: sortable columns (Tracks, Plays, Likes, Forgotten, Last Sync) with one-click **Resync** and **Link** actions.
 * One-click **Rescan Library** to update metadata without touching the CLI.
+* **Database Backup System** – create timestamped backups of your entire database with one click, preserving all track metadata, play statistics, and history safely.
 
 ---
 
@@ -285,6 +286,67 @@ Features:
 
 ---
 
+## Database Backup System
+
+The application includes a comprehensive backup system to protect your valuable music library data.
+
+### Creating Backups
+
+**From Web Interface:**
+- Click **"💾 Backup DB"** button on the main page
+- Or visit the **Backups** page and click **"Create New Backup"**
+
+**Backup Process:**
+1. Creates timestamped folder in `Backups/DB/YYYYMMDD_HHMMSS_UTC/`
+2. Uses SQLite's built-in backup API for consistency
+3. Records backup event in play history
+4. Returns backup size and location
+
+### Backup Contents
+
+Each backup preserves:
+- **All track metadata** – titles, durations, file sizes, bitrates
+- **Play statistics** – start/finish counts, likes, last played times
+- **Playlist relationships** – which tracks belong to which playlists
+- **Complete play history** – every playback event with timestamps
+- **Database structure** – tables, indexes, and constraints
+
+### Backup Management
+
+**Backups Page Features:**
+- **Sortable table** – by date, size, or backup ID
+- **Storage overview** – total backups count and disk usage
+- **File information** – creation time and file size for each backup
+- **Quick actions** – create new backups or refresh the list
+
+**Backup Location:**
+```
+root/
+└── Backups/
+    └── DB/
+        ├── 20250121_143000_UTC/
+        │   └── tracks.db        # 2.5 MB backup
+        └── 20250121_150000_UTC/
+            └── tracks.db        # 2.6 MB backup
+```
+
+### Restoration
+
+To restore from a backup:
+1. Stop the server
+2. Navigate to `Backups/DB/[timestamp]/`
+3. Copy `tracks.db` to your main `DB/` folder
+4. Restart the server
+
+### Best Practices
+
+- **Regular backups** – Create backups before major changes
+- **Before updates** – Backup before software updates
+- **Storage management** – Periodically clean old backups to save space
+- **Verification** – Check backup file sizes are reasonable (typically 1-10 MB)
+
+---
+
 ## API Endpoints
 
 The web player exposes several API endpoints for programmatic control:
@@ -303,6 +365,10 @@ The web player exposes several API endpoints for programmatic control:
 ### Server Control
 - `POST /api/restart` – Restart server process
 - `POST /api/stop` – Stop server gracefully
+
+### Database Backup
+- `POST /api/backup` – Create new database backup
+- `GET /api/backups` – List all available backups
 
 ### Live Streaming
 - `GET /api/streams` – List active streaming sessions
@@ -357,6 +423,12 @@ media-root/
 │   │   └── Removed Song [ID].mp3
 │   └── Playlist2/
 │       └── Removed Video [ID].webm
+├── Backups/              # Database backups (auto-created)
+│   └── DB/               # Database backup storage
+│       ├── 20250121_143000_UTC/
+│       │   └── tracks.db # Timestamped backup
+│       └── 20250121_150000_UTC/
+│           └── tracks.db # Another backup
 ├── DB/                   # Database files (auto-created)
 │   └── tracks.db         # SQLite database
 └── Logs/                 # Log files (auto-created)

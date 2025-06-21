@@ -88,6 +88,11 @@ def history_page():
     conn.close()
     return render_template("history.html", history=rows, page=page, has_next=has_next)
 
+@app.route("/backups")
+def backups_page():
+    """Database Backups Page."""
+    return render_template("backups.html")
+
 @app.route("/media/<path:filename>")
 def media(filename: str):
     """Serve media files."""

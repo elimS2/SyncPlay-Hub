@@ -191,8 +191,9 @@ def record_event(conn: sqlite3.Connection, video_id: str, event: str, position: 
     Supported events:
         - start, finish, next, prev, like  –  coming from the web player
         - removed                         –  file deletion during library sync
+        - backup_created                  –  database backup creation
     """
-    valid = {"start", "finish", "next", "prev", "like", "removed"}
+    valid = {"start", "finish", "next", "prev", "like", "removed", "backup_created"}
     if event not in valid:
         return
     cur = conn.cursor()
@@ -215,6 +216,9 @@ def record_event(conn: sqlite3.Connection, video_id: str, event: str, position: 
             return
         set_parts.append("play_likes = play_likes + 1")
     elif event == "removed":
+        # no per-track counters, only history log
+        pass
+    elif event == "backup_created":
         # no per-track counters, only history log
         pass
     if set_parts:
@@ -290,4 +294,156 @@ def get_history_page(conn: sqlite3.Connection, page: int = 1, per_page: int = 10
 
 
 def get_playlist_by_relpath(conn: sqlite3.Connection, relpath: str):
-    return conn.execute("SELECT * FROM playlists WHERE relpath=?", (relpath,)).fetchone() 
+    return conn.execute("SELECT * FROM playlists WHERE relpath=?", (relpath,)).fetchone()
+
+
+# ---------- Database Backup Functions ----------
+
+import shutil
+import datetime
+import os
+
+
+def create_backup(root_dir: Path) -> dict:
+    """Create a backup of the database with timestamp.
+    
+    Args:
+        root_dir: Root directory containing DB folder
+        
+    Returns:
+        dict with backup info: {'success': bool, 'backup_path': str, 'error': str}
+    """
+    try:
+        # Determine base directory - handle both root_dir patterns
+        # If root_dir ends with 'Playlists', go up one level to find DB
+        if root_dir.name == "Playlists":
+            base_dir = root_dir.parent
+        else:
+            base_dir = root_dir
+        
+        # Create backup directory structure
+        backups_dir = base_dir / "Backups" / "DB"
+        backups_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Generate timestamp folder name (UTC)
+        timestamp = datetime.datetime.utcnow().strftime("%Y%m%d_%H%M%S_UTC")
+        backup_folder = backups_dir / timestamp
+        backup_folder.mkdir(exist_ok=True)
+        
+        # Source database path
+        db_dir = base_dir / "DB"
+        source_db = db_dir / "tracks.db"
+        
+        if not source_db.exists():
+            return {
+                'success': False,
+                'backup_path': '',
+                'error': f'Database not found at {source_db}'
+            }
+        
+        # Backup file path
+        backup_db = backup_folder / "tracks.db"
+        
+        # Create backup using SQLite backup API (safer than file copy)
+        source_conn = sqlite3.connect(str(source_db))
+        backup_conn = sqlite3.connect(str(backup_db))
+        
+        # Perform backup
+        source_conn.backup(backup_conn)
+        
+        # Close connections
+        backup_conn.close()
+        source_conn.close()
+        
+        # Get backup file size
+        backup_size = backup_db.stat().st_size
+        
+        # Record backup event in history
+        try:
+            conn = get_connection()
+            record_event(conn, "system", "backup_created", position=float(backup_size))
+            conn.close()
+        except Exception:
+            pass  # Don't fail backup if history recording fails
+        
+        return {
+            'success': True,
+            'backup_path': str(backup_db),
+            'backup_folder': str(backup_folder),
+            'timestamp': timestamp,
+            'size_bytes': backup_size,
+            'error': ''
+        }
+        
+    except Exception as e:
+        return {
+            'success': False,
+            'backup_path': '',
+            'error': str(e)
+        }
+
+
+def list_backups(root_dir: Path) -> list:
+    """List all database backups with metadata.
+    
+    Args:
+        root_dir: Root directory containing Backups folder
+        
+    Returns:
+        list of backup info dicts sorted by date (newest first)
+    """
+    try:
+        # Handle both root_dir patterns - same logic as create_backup
+        if root_dir.name == "Playlists":
+            base_dir = root_dir.parent
+        else:
+            base_dir = root_dir
+            
+        backups_dir = base_dir / "Backups" / "DB"
+        if not backups_dir.exists():
+            return []
+        
+        backups = []
+        
+        for backup_folder in backups_dir.iterdir():
+            if backup_folder.is_dir():
+                backup_db = backup_folder / "tracks.db"
+                if backup_db.exists():
+                    stat = backup_db.stat()
+                    
+                    # Parse timestamp from folder name
+                    try:
+                        timestamp_str = backup_folder.name.replace("_UTC", "")
+                        backup_datetime = datetime.datetime.strptime(timestamp_str, "%Y%m%d_%H%M%S")
+                        backup_datetime = backup_datetime.replace(tzinfo=datetime.timezone.utc)
+                    except ValueError:
+                        # Fallback to file modification time
+                        backup_datetime = datetime.datetime.fromtimestamp(stat.st_mtime, tz=datetime.timezone.utc)
+                    
+                    backups.append({
+                        'folder_name': backup_folder.name,
+                        'backup_path': str(backup_db),
+                        'timestamp': backup_datetime.isoformat(),
+                        'timestamp_display': backup_datetime.strftime("%Y-%m-%d %H:%M:%S UTC"),
+                        'size_bytes': stat.st_size,
+                        'size_display': _format_file_size(stat.st_size)
+                    })
+        
+        # Sort by timestamp (newest first)
+        backups.sort(key=lambda x: x['timestamp'], reverse=True)
+        return backups
+        
+    except Exception:
+        return []
+
+
+def _format_file_size(size_bytes: int) -> str:
+    """Format file size in human readable format."""
+    if size_bytes < 1024:
+        return f"{size_bytes} B"
+    elif size_bytes < 1024 * 1024:
+        return f"{size_bytes / 1024:.1f} KB"
+    elif size_bytes < 1024 * 1024 * 1024:
+        return f"{size_bytes / (1024 * 1024):.1f} MB"
+    else:
+        return f"{size_bytes / (1024 * 1024 * 1024):.1f} GB" 

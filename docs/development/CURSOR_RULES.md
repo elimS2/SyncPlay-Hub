@@ -225,9 +225,18 @@ Check if recent commits are documented in:
 - `[commit_hash]` - **[Feature name]** - [Brief description]
 ```
 
-### **Git Integration Workflow**
+### **🚨 Git Integration Workflow (MANDATORY - NO EXCEPTIONS)**
 
-#### **Before Each Commit:**
+#### **CRITICAL TRIGGER: After EVERY DEVELOPMENT_LOG.md Edit**
+**IMMEDIATE MANDATORY ACTIONS:**
+1. **MUST RUN:** `git log -1 --oneline` (no exceptions)
+2. **MUST CHECK:** Find this commit in PROJECT_HISTORY.md timeline
+3. **IF MISSING:** Add to appropriate development phase immediately
+4. **MUST UPDATE:** Total commits count in PROJECT_HISTORY.md
+
+**⚠️ FAILURE TO FOLLOW THIS WORKFLOW IS A CRITICAL RULE VIOLATION**
+
+#### **Standard Git Workflow (Before Each Commit):**
 1. **Check current HEAD:** `git log -1 --oneline`
 2. **Verify in PROJECT_HISTORY.md:** Find this commit in timeline
 3. **If missing:** Add to appropriate phase

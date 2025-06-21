@@ -1,0 +1,219 @@
+<!-- Database backups list page -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Database Backups</title>
+  <style>
+    body{font-family:Arial, sans-serif; background:#111; color:#eee; margin:20px;}
+    h1{margin-bottom:20px;}
+    a{color:#61dafb; text-decoration:none;}
+    a:hover{text-decoration:underline;}
+    table{width:100%;border-collapse:collapse;margin-top:15px;font-size:15px;}
+    th,td{padding:8px 12px;text-align:left;}
+    th{border-bottom:2px solid #444;background:#1a1a1a;cursor:pointer;}
+    tbody tr{border-bottom:1px solid #333;}
+    tbody tr:hover{background:#1a1a1a;}
+    .arrow{margin-left:4px;font-size:10px;}
+    .no-backups{text-align:center;color:#888;padding:40px;}
+    .backup-info{background:#1a1a1a;padding:15px;border-radius:6px;margin-bottom:20px;}
+    .backup-info h3{margin:0 0 8px 0;color:#4caf50;}
+    .backup-actions{margin-top:15px;}
+    .backup-actions button{padding:6px 12px;font-size:14px;cursor:pointer;margin-right:8px;}
+    .create-backup{background:#4caf50;color:#fff;border:1px solid #388e3c;}
+    .create-backup:disabled{background:#666;border-color:#555;}
+  </style>
+</head>
+<body>
+  <div style="display:flex;justify-content:space-between;align-items:center;">
+    <div>
+      <h1 style="margin:0;">Database Backups</h1>
+      <div style="font-size:12px;color:#888;margin-top:4px;">
+        Automatic timestamped backups of the tracks database
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;">
+      <a href="/playlists" style="padding:6px 12px;font-size:14px;background:#222;border:1px solid #444;color:#61dafb;text-decoration:none;display:inline-block;border-radius:4px;">← Back to Playlists</a>
+      <button id="createBackupBtn" class="create-backup" style="padding:6px 12px;font-size:14px;cursor:pointer;border-radius:4px;">💾 Create New Backup</button>
+    </div>
+  </div>
+
+  <div class="backup-info">
+    <h3>💡 About Database Backups</h3>
+    <p style="margin:4px 0;color:#ccc;font-size:14px;">
+      Backups are stored in <code>Backups/DB/</code> with UTC timestamps. Each backup preserves:
+    </p>
+    <ul style="margin:8px 0;color:#aaa;font-size:13px;">
+      <li>All track metadata and play statistics</li>
+      <li>Playlist information and relationships</li>
+      <li>Complete play history</li>
+      <li>Database structure and indexes</li>
+    </ul>
+    <div class="backup-actions">
+      <button id="refreshBtn" style="padding:6px 12px;font-size:14px;cursor:pointer;">🔄 Refresh List</button>
+      <span style="color:#888;font-size:12px;margin-left:12px;">
+        Backups are created using SQLite's built-in backup API for consistency
+      </span>
+    </div>
+  </div>
+
+  <div id="backupsList">
+    <!-- Backups will be loaded here -->
+    <div style="text-align:center;color:#888;padding:40px;">
+      <div style="font-size:18px;margin-bottom:8px;">⏳</div>
+      Loading backups...
+    </div>
+  </div>
+
+  <script>
+    let backups = [];
+
+    async function loadBackups() {
+      const listDiv = document.getElementById('backupsList');
+      
+      try {
+        listDiv.innerHTML = '<div style="text-align:center;color:#888;padding:40px;"><div style="font-size:18px;margin-bottom:8px;">⏳</div>Loading backups...</div>';
+        
+        const res = await fetch('/api/backups');
+        const data = await res.json();
+        
+        if (data.status === 'ok') {
+          backups = data.backups || [];
+          renderBackups();
+        } else {
+          listDiv.innerHTML = `<div class="no-backups">❌ Error loading backups: ${data.message || 'Unknown error'}</div>`;
+        }
+      } catch (err) {
+        listDiv.innerHTML = `<div class="no-backups">❌ Failed to load backups: ${err.message}</div>`;
+      }
+    }
+
+    function renderBackups() {
+      const listDiv = document.getElementById('backupsList');
+      
+      if (backups.length === 0) {
+        listDiv.innerHTML = `
+          <div class="no-backups">
+            <div style="font-size:48px;margin-bottom:16px;">📦</div>
+            <h3 style="color:#888;margin:0 0 8px 0;">No backups found</h3>
+            <p style="color:#666;margin:0;">Create your first backup using the button above</p>
+          </div>
+        `;
+        return;
+      }
+
+      let html = `
+        <table id="backupsTable">
+          <thead>
+            <tr>
+              <th onclick="sortBackups('timestamp_display')">Date Created <span class="arrow">▼</span></th>
+              <th onclick="sortBackups('size_display')">File Size <span class="arrow"></span></th>
+              <th onclick="sortBackups('folder_name')">Backup ID <span class="arrow"></span></th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+      `;
+
+      backups.forEach(backup => {
+        html += `
+          <tr>
+            <td style="font-weight:500;">${backup.timestamp_display}</td>
+            <td>${backup.size_display}</td>
+            <td style="font-family:monospace;font-size:12px;color:#888;">${backup.folder_name}</td>
+            <td>
+              <button onclick="downloadBackup('${backup.backup_path}')" style="padding:4px 8px;font-size:12px;cursor:pointer;background:#2196f3;color:#fff;border:1px solid #1976d2;border-radius:3px;">📥 Download</button>
+            </td>
+          </tr>
+        `;
+      });
+
+      html += `
+          </tbody>
+        </table>
+        <div style="margin-top:15px;font-size:12px;color:#666;">
+          Total backups: ${backups.length} | 
+          Latest: ${backups[0]?.timestamp_display || 'None'} |
+          Storage used: ${calculateTotalSize()}
+        </div>
+      `;
+
+      listDiv.innerHTML = html;
+    }
+
+    function sortBackups(field) {
+      // Simple sort toggle
+      const isCurrentlySorted = backups.length > 1 && 
+        (field === 'timestamp_display' ? backups[0].timestamp > backups[1].timestamp : 
+         field === 'size_display' ? backups[0].size_bytes > backups[1].size_bytes :
+         backups[0][field] > backups[1][field]);
+      
+      backups.sort((a, b) => {
+        let aVal = field === 'size_display' ? a.size_bytes : a[field];
+        let bVal = field === 'size_display' ? b.size_bytes : b[field];
+        
+        if (isCurrentlySorted) {
+          return aVal < bVal ? -1 : aVal > bVal ? 1 : 0;
+        } else {
+          return aVal > bVal ? -1 : aVal < bVal ? 1 : 0;
+        }
+      });
+      
+      renderBackups();
+    }
+
+    function calculateTotalSize() {
+      const totalBytes = backups.reduce((sum, backup) => sum + backup.size_bytes, 0);
+      if (totalBytes < 1024 * 1024) {
+        return `${(totalBytes / 1024).toFixed(1)} KB`;
+      } else if (totalBytes < 1024 * 1024 * 1024) {
+        return `${(totalBytes / (1024 * 1024)).toFixed(1)} MB`;
+      } else {
+        return `${(totalBytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
+      }
+    }
+
+    function downloadBackup(backupPath) {
+      // For now, just show the path (could implement download later)
+      alert(`Backup location:\n${backupPath}\n\nYou can copy this file manually from the server.`);
+    }
+
+    // Create new backup
+    document.getElementById('createBackupBtn')?.addEventListener('click', async () => {
+      const btn = document.getElementById('createBackupBtn');
+      btn.disabled = true;
+      btn.textContent = '💾 Creating...';
+      
+      try {
+        const res = await fetch('/api/backup', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'}
+        });
+        const data = await res.json();
+        
+        if (data.status === 'ok') {
+          const sizeStr = data.size_bytes ? ` (${(data.size_bytes / (1024*1024)).toFixed(1)} MB)` : '';
+          alert(`Database backup created successfully!${sizeStr}\nTimestamp: ${data.timestamp}`);
+          // Reload the list
+          await loadBackups();
+        } else {
+          alert('Backup error: ' + (data.message || 'unknown'));
+        }
+      } catch (err) {
+        alert('Request failed: ' + err);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = '💾 Create New Backup';
+      }
+    });
+
+    // Refresh list
+    document.getElementById('refreshBtn')?.addEventListener('click', () => {
+      loadBackups();
+    });
+
+    // Load backups on page load
+    loadBackups();
+  </script>
+</body>
+</html> 

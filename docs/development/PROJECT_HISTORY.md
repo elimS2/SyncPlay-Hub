@@ -14,8 +14,9 @@ This file provides structured information about the project's evolution, key arc
 ## 📈 **Complete Development Timeline**
 
 ### **Project Statistics**
-- **Total Commits:** 63
-- **Development Period:** 2025-06-16 to 2025-06-20 (4 days intensive development)
+- **Total Commits:** 64
+- **Development Period:** 2025-06-16 to 2025-01-21 (extended development)
+- **Latest Commit:** 2d1242c - Trash management implementation
 - **Initial Import:** e299d24 - SyncPlay-Hub project inception
 
 ### **Phase 0: Project Genesis (2025-06-16)**
@@ -45,6 +46,7 @@ This file provides structured information about the project's evolution, key arc
 - `05bab04` - **Static log serving** - `/static_log` endpoint with security
 - `ba01dc5` - **Download tracking** - Active downloads with status updates
 - `705031e` - **Quick scan functionality** - Enhanced metadata fetching
+- `2d1242c` - **Trash management** - Move deleted files to Trash/ instead of permanent deletion
 
 ---
 
