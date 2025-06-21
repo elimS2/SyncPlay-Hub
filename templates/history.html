@@ -20,10 +20,18 @@
     .event-next{color:#9c27b0;} /* Purple for next */
     .event-prev{color:#9c27b0;} /* Purple for prev */
     .event-like{color:#e91e63;} /* Pink for like */
+    .event-volume_change{color:#ffeb3b;font-weight:bold;} /* Yellow for volume changes */
     .event-removed{color:#f44336;} /* Red for removed */
     .event-backup_created{color:#607d8b;} /* Gray for backup */
     
     .position-time{font-family:monospace;color:#aaa;font-size:12px;}
+    .volume-info{font-family:monospace;color:#ffeb3b;font-size:12px;}
+    .volume-change{background:#333;border-radius:3px;padding:2px 4px;}
+    .volume-source{color:#999;font-style:italic;font-size:11px;}
+    
+    /* Special highlighting for volume changes */
+    tr.volume-event{background:#1a1a0a !important;}
+    tr.volume-event:nth-child(even){background:#2a2a1a !important;}
   </style>
 </head>
 <body>
@@ -45,23 +53,72 @@
         <th>Title</th>
         <th>Event</th>
         <th>Timestamp</th>
-        <th>Pos (s)</th>
+        <th>Position</th>
+        <th>Volume Change</th>
+        <th>Source</th>
       </tr>
     </thead>
     <tbody>
       {% for h in history %}
-        <tr>
+        <tr{% if h['event'] == 'volume_change' %} class="volume-event"{% endif %}>
           <td>{{ loop.index }}</td>
-          <td><a href="https://youtu.be/{{ h['video_id'] }}" target="_blank">{{ h['video_id'] }}</a></td>
+          <td>
+            {% if h['video_id'] == 'system' %}
+              <span style="color:#999;">system</span>
+            {% else %}
+              <a href="https://youtu.be/{{ h['video_id'] }}" target="_blank">{{ h['video_id'] }}</a>
+            {% endif %}
+          </td>
           <td>{{ h['name'] or '-' }}</td>
           <td><span class="event-{{ h['event'] }}">{{ h['event'] }}</span></td>
           <td>{{ h['ts'] }}</td>
-          <td class="position-time">{% if h.get('position') is not none %}{{ '%.1f' % h.get('position') }}s{% else %}-{% endif %}</td>
+          <td class="position-time">
+            {% if h.get('position') is not none %}{{ '%.1f' % h.get('position') }}s{% else %}-{% endif %}
+          </td>
+          <td class="volume-info">
+            {% if h['event'] == 'volume_change' and h.get('volume_from') is not none and h.get('volume_to') is not none %}
+              <span class="volume-change">
+                🔊 {{ '%d' % (h['volume_from'] * 100) }}% → {{ '%d' % (h['volume_to'] * 100) }}%
+                {% set volume_diff = (h['volume_to'] - h['volume_from']) * 100 %}
+                {% if volume_diff > 0 %}
+                  <span style="color:#4caf50;">(+{{ '%d' % volume_diff }}%)</span>
+                {% elif volume_diff < 0 %}
+                  <span style="color:#f44336;">({{ '%d' % volume_diff }}%)</span>
+                {% endif %}
+              </span>
+            {% else %}
+              -
+            {% endif %}
+          </td>
+          <td class="volume-source">
+            {% if h.get('additional_data') %}
+              {{ h['additional_data'] }}
+            {% else %}
+              -
+            {% endif %}
+          </td>
         </tr>
       {% else %}
-        <tr><td colspan="6">No history yet.</td></tr>
+        <tr><td colspan="8">No history yet.</td></tr>
       {% endfor %}
     </tbody>
   </table>
+  
+  <div style="margin-top:20px;padding:15px;background:#222;border-radius:5px;">
+    <h3 style="margin-top:0;">Event Legend:</h3>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;font-size:13px;">
+      <div><span class="event-start">🟢 start</span> - Track begins playing from beginning</div>
+      <div><span class="event-play">🟢 play</span> - Resume playback after pause</div>
+      <div><span class="event-pause">🟠 pause</span> - Playback paused by user</div>
+      <div><span class="event-finish">🔵 finish</span> - Track completed successfully</div>
+      <div><span class="event-next">🟣 next</span> - Manual skip to next track</div>
+      <div><span class="event-prev">🟣 prev</span> - Manual skip to previous track</div>
+      <div><span class="event-like">🩷 like</span> - Track marked as favorite</div>
+      <div><span class="event-volume_change">🟡 volume_change</span> - Volume level adjusted</div>
+    </div>
+    <div style="margin-top:10px;font-size:12px;color:#aaa;">
+      <strong>Volume Sources:</strong> web (main player), remote (mobile control), gesture (swipe control)
+    </div>
+  </div>
 </body>
 </html> 

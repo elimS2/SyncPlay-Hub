@@ -697,9 +697,116 @@ This implementation provides seamless volume persistence without requiring any u
 
 ---
 
+### Log Entry #028 - 2025-06-21 18:42 UTC
+
+**Feature**: 🔊 Enhanced Volume Event Logging - Complete History Tracking with Context
+
+**Changes Made:**
+
+1. **Database Schema Enhancement** (`database.py`)
+   - **Extended `play_history` table** with new columns:
+     - `volume_from REAL` - Previous volume level (0.0-1.0)
+     - `volume_to REAL` - New volume level (0.0-1.0)  
+     - `additional_data TEXT` - Context info (source: web/remote/gesture)
+   - **Added automatic migration** for existing databases to include new columns
+   - **Added new event type** `volume_change` to valid events list
+   - **Created specialized function** `record_volume_change()` for easy volume event logging
+
+2. **Enhanced API Event Recording** (`controllers/api_controller.py`)
+   - **Updated `/api/volume/set`** to record volume change events with full context
+   - **Enhanced `/api/remote/volume`** to capture current track and position from player state
+   - **Added threshold filtering** - only records changes ≥1% to avoid noise
+   - **Comprehensive logging** with volume transitions: `85% → 90% (source: remote)`
+
+3. **JavaScript Context Enhancement** (`static/player.js`)
+   - **Enhanced `saveVolumeToDatabase()`** to send current track info and position
+   - **Updated volume change tracking** with `lastSavedVolume` variable
+   - **Rich payload** includes: video_id, position, volume_from, volume_to, source
+   - **Enhanced console logging** with track context: `🎵 Track: Song Name at 45s`
+
+4. **Mobile Remote Enhancement** (`templates/remote.html`)
+   - **Enhanced volume slider** to include current track and position data
+   - **Updated volume buttons** (🔉🔊) to send track context
+   - **Enhanced gesture control** to capture track information
+   - **Updated hardware volume control** to include track context
+   - **Added currentStatus tracking** for accurate context capture
+
+5. **History Page Complete Redesign** (`templates/history.html`)
+   - **Added new columns**: Volume Change, Source
+   - **Enhanced volume change display**: `🔊 75% → 85% (+10%)`
+   - **Visual highlighting** for volume events with special background colors
+   - **Source identification**: web, remote, gesture
+   - **System vs track differentiation** for volume_id display
+   - **Added comprehensive event legend** with visual indicators
+   - **Professional color coding** for all event types
+
+**Technical Implementation Details:**
+
+**Database Schema:**
+```sql
+ALTER TABLE play_history ADD COLUMN volume_from REAL;
+ALTER TABLE play_history ADD COLUMN volume_to REAL;
+ALTER TABLE play_history ADD COLUMN additional_data TEXT;
+```
+
+**Volume Event Recording:**
+```python
+def record_volume_change(conn, video_id, volume_from, volume_to, position=None, additional_data=None):
+    record_event(conn, video_id, 'volume_change', 
+                position=position, volume_from=volume_from, 
+                volume_to=volume_to, additional_data=additional_data)
+```
+
+**Enhanced JavaScript Payload:**
+```javascript
+const payload = {
+  volume: volume,
+  volume_from: lastSavedVolume || 1.0,
+  video_id: currentTrack ? currentTrack.video_id : 'system',
+  position: media.currentTime || null,
+  source: 'web'
+};
+```
+
+**Example Volume Events in History:**
+- **Track Volume Change**: `🔊 75% → 85% (+10%)` from `web` source at `45.2s` on track
+- **System Volume Change**: `🔊 60% → 80% (+20%)` from `remote` source 
+- **Gesture Volume**: `🔊 90% → 75% (-15%)` from `gesture` source on Android
+
+**User Experience Improvements:**
+
+- ✅ **Complete Traceability**: Every volume change recorded with full context
+- ✅ **Visual Clarity**: Color-coded events with intuitive icons and transitions
+- ✅ **Source Tracking**: Know whether change came from web player, mobile remote, or gestures
+- ✅ **Position Context**: See exactly when during playback volume was changed
+- ✅ **Smart Filtering**: Only meaningful changes (≥1%) are recorded to avoid spam
+- ✅ **Rich History**: Professional history page with comprehensive event legend
+
+**Benefits:**
+- **Enhanced Analytics**: Understand user volume preferences and patterns
+- **Debugging Capability**: Track volume changes across different control interfaces
+- **User Behavior Insights**: See how users interact with volume during different tracks
+- **Professional Documentation**: Complete audit trail of all player interactions
+- **Cross-Device Tracking**: Volume changes from web and mobile are both tracked
+
+**Workflow Example:**
+1. User plays track "Song.mp3" and adjusts volume from 75% to 85% at 45.2s
+2. Event recorded: `video_id: "abc123", volume_from: 0.75, volume_to: 0.85, position: 45.2, source: "web"`
+3. History page shows: `🔊 75% → 85% (+10%)` with green highlight for increase
+4. Later, mobile remote changes volume: recorded with `source: "remote"`
+5. All events visible in comprehensive history with visual indicators
+
+This implementation provides enterprise-level volume event tracking with complete context and professional visualization, enabling detailed analysis of user interaction patterns.
+
+---
+
+*End of Log Entry #028*
+
+---
+
 ## Ready for Next Entry
 
-**Next Entry Number:** #028  
+**Next Entry Number:** #029  
 **Guidelines:** Follow established format with git timestamps and commit hashes  
 **Archive Status:** Monitor file size; archive when reaching 10-15 entries
 

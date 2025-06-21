@@ -501,7 +501,15 @@
         this.volumeSlider.addEventListener('input', (e) => {
           const volume = parseInt(e.target.value);
           this.volumeValue.textContent = volume + '%';
-          this.sendCommand('volume', { volume: volume / 100 });
+          
+          // Add track info for volume logging
+          const payload = { volume: volume / 100 };
+          if (this.currentStatus && this.currentStatus.current_track) {
+            payload.video_id = this.currentStatus.current_track.video_id;
+            payload.position = this.currentStatus.progress;
+          }
+          
+          this.sendCommand('volume', payload);
         });
 
         // Volume buttons
@@ -510,7 +518,15 @@
           const newVolume = Math.min(100, currentVolume + 10);
           this.volumeSlider.value = newVolume;
           this.volumeValue.textContent = newVolume + '%';
-          this.sendCommand('volume', { volume: newVolume / 100 });
+          
+          // Add track info for volume logging
+          const payload = { volume: newVolume / 100 };
+          if (this.currentStatus && this.currentStatus.current_track) {
+            payload.video_id = this.currentStatus.current_track.video_id;
+            payload.position = this.currentStatus.progress;
+          }
+          
+          this.sendCommand('volume', payload);
           showVolumeToast(newVolume);
         });
 
@@ -519,7 +535,15 @@
           const newVolume = Math.max(0, currentVolume - 10);
           this.volumeSlider.value = newVolume;
           this.volumeValue.textContent = newVolume + '%';
-          this.sendCommand('volume', { volume: newVolume / 100 });
+          
+          // Add track info for volume logging
+          const payload = { volume: newVolume / 100 };
+          if (this.currentStatus && this.currentStatus.current_track) {
+            payload.video_id = this.currentStatus.current_track.video_id;
+            payload.position = this.currentStatus.progress;
+          }
+          
+          this.sendCommand('volume', payload);
           showVolumeToast(newVolume);
         });
 
@@ -582,6 +606,7 @@
       
       updateStatus(status) {
         console.log('📱 Remote: Updating status:', status);
+        this.currentStatus = status; // Store current status for volume logging
         
         // Update track info
         if (status.current_track) {
@@ -654,7 +679,9 @@
     
     // Initialize remote control when page loads
     document.addEventListener('DOMContentLoaded', () => {
-      new RemoteControl();
+      const remoteControl = new RemoteControl();
+      // Store reference for gesture control
+      document.querySelector('.remote-container').remoteControlInstance = remoteControl;
       
       // Hardware volume buttons integration
       initHardwareVolumeControl();
@@ -804,10 +831,19 @@
       container.addEventListener('touchend', (e) => {
         // Send final volume to server
         const finalVolume = parseInt(document.getElementById('volumeSlider').value);
+        const remoteControl = document.querySelector('.remote-container').remoteControlInstance;
+        
+        // Prepare payload with track info
+        const payload = { volume: finalVolume / 100 };
+        if (remoteControl && remoteControl.currentStatus && remoteControl.currentStatus.current_track) {
+          payload.video_id = remoteControl.currentStatus.current_track.video_id;
+          payload.position = remoteControl.currentStatus.progress;
+        }
+        
         fetch('/api/remote/volume', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ volume: finalVolume / 100 })
+          body: JSON.stringify(payload)
         });
         
         console.log('📱 Android gesture volume set to:', finalVolume + '%');
@@ -887,11 +923,19 @@
       volumeSlider.value = newVolume;
       volumeValue.textContent = newVolume + '%';
       
+      // Prepare payload with track info
+      const remoteControl = document.querySelector('.remote-container').remoteControlInstance;
+      const payload = { volume: newVolume / 100 };
+      if (remoteControl && remoteControl.currentStatus && remoteControl.currentStatus.current_track) {
+        payload.video_id = remoteControl.currentStatus.current_track.video_id;
+        payload.position = remoteControl.currentStatus.progress;
+      }
+      
       // Send to server
       fetch('/api/remote/volume', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ volume: newVolume / 100 })
+        body: JSON.stringify(payload)
       });
       
       // Show volume feedback

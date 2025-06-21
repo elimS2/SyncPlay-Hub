@@ -445,16 +445,33 @@ function shuffle(array) {
   
   // Save volume to database with debouncing
   let volumeSaveTimeout = null;
+  let lastSavedVolume = null;
+  
   async function saveVolumeToDatabase(volume) {
     clearTimeout(volumeSaveTimeout);
     volumeSaveTimeout = setTimeout(async () => {
       try {
+        const currentTrack = currentIndex >= 0 && currentIndex < queue.length ? queue[currentIndex] : null;
+        const payload = {
+          volume: volume,
+          volume_from: lastSavedVolume || 1.0,
+          video_id: currentTrack ? currentTrack.video_id : 'system',
+          position: media.currentTime || null,
+          source: 'web'
+        };
+        
         await fetch('/api/volume/set', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ volume: volume })
+          body: JSON.stringify(payload)
         });
-        console.log(`💾 Volume saved: ${Math.round(volume * 100)}%`);
+        
+        console.log(`💾 Volume saved: ${Math.round((lastSavedVolume || 1.0) * 100)}% → ${Math.round(volume * 100)}%`);
+        if (currentTrack) {
+          console.log(`🎵 Track: ${currentTrack.name} at ${Math.round(media.currentTime)}s`);
+        }
+        
+        lastSavedVolume = volume;
       } catch (error) {
         console.warn('⚠️ Failed to save volume:', error);
       }
@@ -470,17 +487,20 @@ function shuffle(array) {
       if (data.volume !== undefined) {
         media.volume = data.volume;
         cVol.value = data.volume;
+        lastSavedVolume = data.volume; // Set initial saved volume
         console.log(`🔊 Loaded saved volume: ${data.volume_percent}%`);
       } else {
         // Default volume if no saved setting
         media.volume = 1.0;
         cVol.value = 1.0;
+        lastSavedVolume = 1.0; // Set default as saved volume
         console.log('🔊 Using default volume: 100%');
       }
     } catch (error) {
       console.warn('⚠️ Failed to load saved volume, using default:', error);
       media.volume = 1.0;
       cVol.value = 1.0;
+      lastSavedVolume = 1.0; // Set default as saved volume
     }
     
     updateMuteIcon();

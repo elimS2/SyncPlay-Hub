@@ -696,17 +696,41 @@ def api_remote_stop():
 @api_bp.route("/remote/volume", methods=["POST"])
 def api_remote_volume():
     """Set volume."""
-    global COMMAND_QUEUE
+    global COMMAND_QUEUE, PLAYER_STATE
     data = request.get_json() or {}
     volume = data.get('volume', 1.0)
+    video_id = data.get('video_id')
+    position = data.get('position')
     
     # Clamp volume between 0 and 1
     volume = max(0.0, min(1.0, float(volume)))
     
-    # Save volume to database
+    # Save volume to database and record change event
     try:
         conn = get_connection()
+        volume_from = db.get_user_volume(conn)
         db.set_user_volume(conn, volume)
+        
+        # Record volume change event
+        if abs(volume - volume_from) >= 0.01:  # Only record if change is >= 1%
+            # Try to get current track info from player state
+            if not video_id and PLAYER_STATE['current_track']:
+                video_id = PLAYER_STATE['current_track'].get('video_id', 'system')
+            if not video_id:
+                video_id = 'system'
+            
+            if not position and PLAYER_STATE['progress']:
+                position = PLAYER_STATE['progress']
+                
+            db.record_volume_change(
+                conn, 
+                video_id, 
+                volume_from, 
+                volume, 
+                position=position,
+                additional_data='remote'
+            )
+        
         conn.close()
     except Exception as e:
         log_message(f"[Remote] Warning: Could not save volume to database: {e}")
@@ -860,17 +884,47 @@ def api_set_volume():
     try:
         data = request.get_json() or {}
         volume = data.get('volume', 1.0)
+        volume_from = data.get('volume_from')
+        video_id = data.get('video_id', 'system')
+        position = data.get('position')
+        source = data.get('source', 'web')  # web, remote, gesture, etc.
         
         # Validate and clamp volume
         volume = max(0.0, min(1.0, float(volume)))
         
         # Save to database
         conn = get_connection()
+        
+        # Get previous volume if not provided
+        if volume_from is None:
+            volume_from = db.get_user_volume(conn)
+        else:
+            volume_from = max(0.0, min(1.0, float(volume_from)))
+            
+        # Save new volume
         db.set_user_volume(conn, volume)
+        
+        # Record volume change event if there's a meaningful change
+        if abs(volume - volume_from) >= 0.01:  # Only record if change is >= 1%
+            db.record_volume_change(
+                conn, 
+                video_id, 
+                volume_from, 
+                volume, 
+                position=position,
+                additional_data=source
+            )
+        
         conn.close()
         
-        log_message(f"[Volume] Volume saved: {int(volume * 100)}%")
-        return jsonify({"status": "ok", "volume": volume, "volume_percent": int(volume * 100)})
+        log_message(f"[Volume] Volume saved: {int(volume_from * 100)}% → {int(volume * 100)}% (source: {source})")
+        return jsonify({
+            "status": "ok", 
+            "volume": volume, 
+            "volume_percent": int(volume * 100),
+            "volume_from": volume_from,
+            "change_recorded": abs(volume - volume_from) >= 0.01
+        })
         
     except Exception as e:
         log_message(f"[Volume] Error saving volume: {e}")
