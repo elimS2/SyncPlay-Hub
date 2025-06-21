@@ -4,7 +4,7 @@
 **EVERY TIME YOU EDIT DEVELOPMENT_LOG.md:**
 1. **FIRST: Verify current time using `mcp_time-server_get_current_time_utc_tool`**
 2. **Use accurate UTC timestamp in log entry header**
-3. IMMEDIATELY run: `git log -1 --oneline`
+3. IMMEDIATELY run: `git --no-pager log -1 --oneline`
 4. Check if commit exists in PROJECT_HISTORY.md
 5. If missing, add to PROJECT_HISTORY.md
 6. NO EXCEPTIONS - THIS IS MANDATORY
@@ -37,9 +37,9 @@
 - **NO exceptions - timestamp accuracy is critical for development traceability**
 
 ## Git History Synchronization (MANDATORY - NO EXCEPTIONS)
-- **IMMEDIATELY AFTER EVERY edit to DEVELOPMENT_LOG.md, MUST run `git log -1 --oneline`**
+- **IMMEDIATELY AFTER EVERY edit to DEVELOPMENT_LOG.md, MUST run `git --no-pager log -1 --oneline`**
 - **MANDATORY WORKFLOW: Edit DEVELOPMENT_LOG.md → IMMEDIATELY check git → Update ALL git log files**
-- **CRITICAL: Check git commit count with `git rev-list --count HEAD`**
+- **CRITICAL: Check git commit count with `git --no-pager rev-list --count HEAD`**
 - **MUST synchronize ALL THREE git log files:**
   - docs/development/PROJECT_HISTORY.md
   - docs/development/COMPLETE_COMMIT_REFERENCE.md
@@ -47,6 +47,13 @@
 - **If git count > docs count: ADD missing commits to ALL files**
 - **Update total commit counts in ALL files to match git**
 - **FAILURE TO SYNC ALL GIT LOG FILES IS A CRITICAL RULE VIOLATION**
+
+## Git Commands (MANDATORY)
+- **ALWAYS use --no-pager flag with ALL git commands** (prevents hanging in PowerShell)
+- **Correct:** `git --no-pager log --oneline -10`
+- **Wrong:** `git log --oneline -10` (may hang in PowerShell)
+- **Required for:** log, rev-list, show, and all output commands
+- **NO EXCEPTIONS** - this ensures cross-platform compatibility
 
 ## Priority
 - These rules override any other language preferences

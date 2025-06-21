@@ -213,6 +213,74 @@ git log --pretty=format:"%h %ad %s" --date=short -10
 git rev-list --count HEAD
 ```
 
+### **🔧 Git Commands Without Pager (PowerShell & Terminal)**
+
+#### **CRITICAL: Use --no-pager for All Git Commands**
+
+**Problem:** In PowerShell and some terminals, git commands open a pager that blocks output
+**Solution:** Always use `--no-pager` flag for automated git operations
+
+#### **Recommended Git Commands (No Pager):**
+
+**Get Recent Commits:**
+```bash
+# Last 1, 5, 10, 20 commits
+git --no-pager log --oneline -1
+git --no-pager log --oneline -5  
+git --no-pager log --oneline -10
+git --no-pager log --oneline -20
+
+# With dates and details
+git --no-pager log --pretty="format:%h %ci %s" -10
+```
+
+**Count Total Commits:**
+```bash
+# Total commit count
+git --no-pager rev-list --count HEAD
+```
+
+**Get Current HEAD:**
+```bash
+# Current commit info
+git --no-pager log -1 --pretty="format:%h %ci %s"
+```
+
+**Get Commit Range:**
+```bash
+# Commits between dates or hashes
+git --no-pager log --oneline --since="2025-06-20" --until="2025-06-22"
+git --no-pager log --oneline commit1..commit2
+```
+
+#### **Why --no-pager is Essential:**
+- ✅ **Works in PowerShell** - No hanging or blocking
+- ✅ **Script-friendly** - Clean output for automation
+- ✅ **Large outputs** - Can retrieve 30+ commits without issues
+- ✅ **Consistent behavior** - Same output across different terminals
+- ✅ **AI/Tool compatible** - Output directly usable in scripts
+
+#### **Examples of Successful Commands:**
+```bash
+# ✅ WORKS: Gets 20 commits cleanly in PowerShell
+git --no-pager log --oneline -20
+
+# ❌ PROBLEM: May hang in PowerShell
+git log --oneline -20
+
+# ✅ WORKS: Full commit info with dates
+git --no-pager log --pretty="format:%h %ci %s" -5
+
+# ✅ WORKS: Count verification
+git --no-pager rev-list --count HEAD
+```
+
+#### **Mandatory Usage in Development Rules:**
+- **ALL git history checks** must use `--no-pager`
+- **ALL commit count verifications** must use `--no-pager`
+- **ALL automated git queries** must use `--no-pager`
+- **NO exceptions** - this prevents terminal blocking issues
+
 #### **Step 2: Compare with PROJECT_HISTORY.md**
 Check if recent commits are documented in:
 - `## 📈 **Complete Development Timeline**`
@@ -229,7 +297,7 @@ Check if recent commits are documented in:
 
 #### **CRITICAL TRIGGER: After EVERY DEVELOPMENT_LOG.md Edit**
 **IMMEDIATE MANDATORY ACTIONS:**
-1. **MUST RUN:** `git log -1 --oneline` (no exceptions)
+1. **MUST RUN:** `git --no-pager log -1 --oneline` (no exceptions)
 2. **MUST CHECK:** Find this commit in PROJECT_HISTORY.md timeline
 3. **IF MISSING:** Add to appropriate development phase immediately
 4. **MUST UPDATE:** Total commits count in PROJECT_HISTORY.md
@@ -237,7 +305,7 @@ Check if recent commits are documented in:
 **⚠️ FAILURE TO FOLLOW THIS WORKFLOW IS A CRITICAL RULE VIOLATION**
 
 #### **Standard Git Workflow (Before Each Commit):**
-1. **Check current HEAD:** `git log -1 --oneline`
+1. **Check current HEAD:** `git --no-pager log -1 --oneline`
 2. **Verify in PROJECT_HISTORY.md:** Find this commit in timeline
 3. **If missing:** Add to appropriate phase
 4. **Update statistics:** Total commits count
@@ -245,7 +313,7 @@ Check if recent commits are documented in:
 #### **Example Missing Commit Detection:**
 ```bash
 # Current HEAD
-git log -1 --pretty=format:"%h %s"
+git --no-pager log -1 --pretty=format:"%h %s"
 # Output: abc1234 Fix template rendering error
 
 # Check PROJECT_HISTORY.md - if abc1234 not found:
@@ -290,7 +358,7 @@ git log -1 --pretty=format:"%h %s"
 #### **Quick Verification Commands:**
 ```bash
 # Get latest 5 commits
-git log --oneline -5
+git --no-pager log --oneline -5
 
 # Search for commit in PROJECT_HISTORY.md
 grep -i "[commit_hash]" docs/development/PROJECT_HISTORY.md
@@ -313,7 +381,7 @@ grep -i "[commit_hash]" docs/development/PROJECT_HISTORY.md
 #### **Step 1: Count Total Commits in Git**
 ```bash
 # Get exact commit count from git
-git rev-list --count HEAD
+git --no-pager rev-list --count HEAD
 ```
 
 #### **Step 2: Compare with Documentation Files**
@@ -324,7 +392,7 @@ Check commit counts in these files:
 
 #### **Step 3: Find Missing Commits**
 If git count > documentation count:
-1. **Run:** `git log --oneline -5` to see recent commits
+1. **Run:** `git --no-pager log --oneline -5` to see recent commits
 2. **Check each file** for missing commit hashes
 3. **Add missing commits** to all relevant files
 
@@ -367,7 +435,7 @@ After EVERY DEVELOPMENT_LOG.md edit:
 #### **Example Workflow:**
 ```bash
 # 1. Check git
-git rev-list --count HEAD
+git --no-pager rev-list --count HEAD
 # Output: 79
 
 # 2. Check docs (if they show 78, we're missing 1 commit)
@@ -375,7 +443,7 @@ grep "Total:" docs/development/COMPLETE_COMMIT_REFERENCE.md
 # Output: "Total: 78 commits"
 
 # 3. Find missing commit
-git log --oneline -1
+git --no-pager log --oneline -1
 # Output: "abc1234 feat: implement new feature"
 
 # 4. Add abc1234 to all three files as commit #79
@@ -393,8 +461,8 @@ git log --oneline -1
 - ❌ **Forgetting to check git commit count before documenting**
 
 #### **Quality Checks:**
-- ✅ Latest commit in PROJECT_HISTORY.md matches `git log -1`
-- ✅ Total commit count matches `git rev-list --count HEAD`
+- ✅ Latest commit in PROJECT_HISTORY.md matches `git --no-pager log -1`
+- ✅ Total commit count matches `git --no-pager rev-list --count HEAD`
 - ✅ All recent commits have appropriate phase classification
 - ✅ Commit messages match documented descriptions
 - ✅ **ALL THREE git log files show same total commit count**
