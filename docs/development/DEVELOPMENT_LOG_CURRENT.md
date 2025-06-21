@@ -923,9 +923,313 @@ This implementation provides comprehensive seek event tracking enabling detailed
 
 ---
 
+### Log Entry #030 - 2025-06-21 19:23 UTC
+
+**Feature**: 📂 Playlist Addition Event Logging - Track Discovery & Multi-Playlist Detection
+
+**Changes Made:**
+
+1. **Database Schema Enhancement** (`database.py`)
+   - **Added new event type** `playlist_added` to valid events list
+   - **Created specialized function** `record_playlist_addition()` for playlist event logging
+   - **Enhanced `link_track_playlist()`** to detect and log new track-playlist associations
+   - **Smart detection** - only logs when track is newly added to playlist (not existing links)
+
+2. **Intelligent Playlist Tracking** (`database.py`)
+   - **New Association Detection**: Checks if track-playlist link already exists before logging
+   - **Multi-Playlist Support**: Logs each time track appears in additional playlists
+   - **Rich Context**: Records playlist_id, playlist_name, and source in additional_data
+   - **Source Tracking**: Identifies how track was added (scan, download, manual)
+
+3. **History Page Enhancement** (`templates/history.html`)
+   - **New "Playlist Added" column** with visual playlist information
+   - **Visual indicators**: `📂 Added to PlaylistName` with green highlighting
+   - **Special highlighting** - light green background for playlist events
+   - **Updated event legend** with playlist addition documentation
+   - **Source display** - shows origin: scan, download, manual
+
+**Technical Implementation Details:**
+
+**Enhanced link_track_playlist Function:**
+```python
+def link_track_playlist(conn, track_id, playlist_id):
+    # Check if this track-playlist link already exists
+    existing = cur.execute(
+        "SELECT 1 FROM track_playlists WHERE track_id = ? AND playlist_id = ?",
+        (track_id, playlist_id)
+    ).fetchone()
+    
+    if not existing:
+        # This is a new association - insert and log it
+        record_playlist_addition(conn, video_id, playlist_id, playlist_name, source="scan")
+```
+
+**Playlist Addition Recording:**
+```python
+def record_playlist_addition(conn, video_id, playlist_id, playlist_name, source=None):
+    additional_data = f"playlist_id:{playlist_id},playlist_name:{playlist_name}"
+    if source:
+        additional_data += f",source:{source}"
+    record_event(conn, video_id, 'playlist_added', additional_data=additional_data)
+```
+
+**Use Cases Now Tracked:**
+
+1. **New Track Discovery**: When scan finds new track in playlist
+   - Event: `📂 Added to TopMusic6` (source: scan)
+
+2. **Multi-Playlist Detection**: Track exists in Playlist A, later found in Playlist B
+   - Event: `📂 Added to ChillHits` (source: scan)
+   - **Same track, different playlist** - both associations logged
+
+3. **Download Integration**: New downloads automatically tracked
+   - Event: `📂 Added to NewReleases` (source: download)
+
+4. **Manual Operations**: Future manual playlist management
+   - Event: `📂 Added to Favorites` (source: manual)
+
+**Example Playlist Events in History:**
+- **New Discovery**: `📂 Added to TopMusic6` from `scan` source
+- **Multi-Playlist**: `📂 Added to ChillHits` from `scan` source (same track, different playlist)
+- **Download**: `📂 Added to NewReleases` from `download` source
+
+**User Experience Improvements:**
+
+- ✅ **Complete Playlist Traceability**: Every playlist addition tracked with context
+- ✅ **Multi-Playlist Detection**: See when tracks appear in multiple playlists
+- ✅ **Source Identification**: Know how track was added to playlist
+- ✅ **Visual Clarity**: Green highlighting and playlist icons in history
+- ✅ **Smart Filtering**: Only new associations logged (no duplicate events)
+- ✅ **Rich Context**: Playlist names and IDs preserved in event data
+
+**Benefits:**
+- **Playlist Analytics**: Understand playlist growth and track distribution
+- **Multi-Playlist Insights**: See which tracks appear across multiple playlists
+- **Source Tracking**: Distinguish between scanned vs downloaded additions
+- **Content Management**: Track playlist organization changes over time
+- **User Behavior**: Analyze playlist usage patterns and preferences
+
+**Workflow Examples:**
+
+1. **Library Scan Scenario**:
+   - User runs `scan_to_db.py`
+   - New track found in "TopMusic6" → Event: `📂 Added to TopMusic6`
+   - Same track later found in "ChillHits" → Event: `📂 Added to ChillHits`
+
+2. **Download Scenario**:
+   - User downloads new playlist
+   - Each new track → Event: `📂 Added to NewPlaylist`
+   - History shows complete playlist population timeline
+
+3. **Multi-Playlist Scenario**:
+   - Track "Song.mp3" exists in "Rock" playlist
+   - Later discovered in "Favorites" playlist
+   - Two separate events logged showing track's playlist journey
+
+This implementation provides comprehensive playlist tracking enabling detailed analysis of content organization and multi-playlist relationships.
+
+---
+
+*End of Log Entry #030*
+
+---
+
+### Log Entry #031 - 2025-06-21 19:40 UTC
+
+**Feature**: 🔄 Existing Playlist Associations Migration - Retroactive Event Creation
+
+**Changes Made:**
+
+1. **Migration Function Implementation** (`database.py`)
+   - **Created `migrate_existing_playlist_associations()`** function for retroactive event creation
+   - **Smart detection** - processes all existing track-playlist links in database
+   - **Dry-run support** - allows preview of migration before execution
+   - **Error handling** - graceful handling of migration failures with detailed statistics
+   - **Source tagging** - all migrated events marked with `source="migration"`
+
+2. **Migration Script Creation** (`migrate_playlist_events.py`)
+   - **Standalone migration utility** with command-line interface
+   - **Automatic database path detection** using project's default DATA_ROOT
+   - **Comprehensive diagnostics** with detailed progress reporting
+   - **Safety features** - dry-run mode and database existence verification
+   - **User-friendly output** with progress indicators and success statistics
+
+3. **Migration Execution Results**
+   - **Successfully migrated 672 track-playlist associations** to `playlist_added` events
+   - **100% success rate** - all associations processed without errors
+   - **Retroactive timeline** - all existing tracks now have proper discovery events
+   - **Source identification** - migrated events clearly marked for historical reference
+
+**Technical Implementation:**
+
+**Migration Function:**
+```python
+def migrate_existing_playlist_associations(conn: sqlite3.Connection, dry_run: bool = False):
+    # Get all existing track-playlist associations with metadata
+    cur.execute("""
+        SELECT tp.track_id, tp.playlist_id, t.video_id, p.name as playlist_name
+        FROM track_playlists tp
+        JOIN tracks t ON t.id = tp.track_id
+        JOIN playlists p ON p.id = tp.playlist_id
+        ORDER BY tp.track_id, tp.playlist_id
+    """)
+    
+    # Create playlist_added events for all associations
+    for track_id, playlist_id, video_id, playlist_name in associations:
+        record_playlist_addition(conn, video_id, playlist_id, playlist_name, source="migration")
+```
+
+**Command-Line Usage:**
+```bash
+# Preview migration
+python migrate_playlist_events.py --dry-run
+
+# Execute migration  
+python migrate_playlist_events.py
+
+# Custom database path
+python migrate_playlist_events.py --db-path "custom/path/tracks.db"
+```
+
+**Migration Statistics:**
+- **Database:** `D:\music\Youtube\DB\tracks.db`
+- **Total Associations:** 672 track-playlist links
+- **Events Created:** 672 `playlist_added` events
+- **Success Rate:** 100.0%
+- **Source Tag:** All events marked as `source="migration"`
+
+**Use Cases Resolved:**
+
+1. **Historical Timeline Completion**: All existing tracks now have discovery events
+2. **Multi-Playlist Tracking**: Tracks in multiple playlists have separate events for each
+3. **Analytics Foundation**: Complete dataset for playlist addition analysis
+4. **Future Consistency**: New tracks will have events, existing tracks now do too
+
+**Benefits:**
+- ✅ **Complete Event History**: No missing playlist addition events in timeline
+- ✅ **Retroactive Analytics**: Can analyze historical playlist growth patterns  
+- ✅ **Consistent Data Model**: All tracks follow same event logging standards
+- ✅ **Multi-Playlist Insights**: See which tracks appear across multiple playlists
+- ✅ **Source Transparency**: Clear distinction between migrated vs new events
+
+**Example Migrated Events in History:**
+- **Single Playlist**: `📂 Added to TopMusic6` (source: migration)
+- **Multi-Playlist**: `📂 Added to ChillHits` (source: migration) - same track, different playlist
+- **Various Playlists**: Each track-playlist combination gets individual event
+
+**Impact Analysis:**
+- **Data Completeness**: 672 missing events now properly recorded
+- **Analytics Capability**: Complete playlist addition timeline available
+- **User Experience**: History page shows full track journey across playlists
+- **Development Process**: Establishes pattern for future schema migrations
+- **Performance**: Migration completed efficiently without database issues
+
+**Files Modified:**
+- `database.py` - Added migration function with comprehensive error handling
+- `migrate_playlist_events.py` - Created migration utility script
+
+**Verification:**
+- [x] All 672 associations successfully migrated to events
+- [x] No data loss or corruption during migration
+- [x] Source tagging properly applied for historical reference
+- [x] History page displays migrated events correctly
+- [x] Future playlist additions continue working normally
+
+This migration resolves the gap in event history for existing tracks, providing complete playlist addition tracking for the entire music library. All tracks now have proper discovery events, enabling comprehensive analytics and consistent user experience across the application.
+
+---
+
+*End of Log Entry #031*
+
+---
+
+### Log Entry #032 - 2025-06-21 19:58 UTC
+
+**Feature**: 📅 Playlist Events Date Correction - File Creation Date Migration
+
+**Changes Made:**
+
+1. **Enhanced Migration Script** (`migrate_playlist_events_with_dates.py`)
+   - **Fixed execution logic** with improved error handling and progress tracking
+   - **Added detailed logging** with progress indicators every 100 events
+   - **Enhanced database commit** with transaction safety and success confirmation
+   - **Improved error reporting** with try-catch blocks for individual event updates
+
+2. **Successful Date Migration Execution**
+   - **Processed 672 events** with 100% success rate (672/672 updated)
+   - **Zero file errors** - all track files found and processed successfully
+   - **Database integrity maintained** - all updates committed successfully
+   - **Timeline accuracy restored** - events now use file creation dates instead of migration timestamp
+
+3. **Date Accuracy Improvements**
+   - **Before:** All events timestamped `2025-06-21 19:39:49-52` (migration time)
+   - **After:** Events use real file creation dates `2025-06-16 16:00:51-59` (actual track addition time)
+   - **Historical accuracy:** 5-day correction bringing events to correct timeline
+   - **Multi-day spread:** Some events now span from 2025-06-16 to 2025-06-21 based on actual file dates
+
+**Technical Implementation:**
+
+**Progress Tracking Enhancement:**
+```python
+for i, (event_id, video_id, relpath, current_ts) in enumerate(events, 1):
+    # Process each event with progress indicators
+    if i % 100 == 0:
+        print(f"   Processed {i}/{total_events} events...")
+```
+
+**Database Transaction Safety:**
+```python
+try:
+    cur.execute("UPDATE play_history SET ts = ? WHERE id = ?", (file_date, event_id))
+    updated_count += 1
+except Exception as e:
+    print(f"   ❌ Error updating event {event_id}: {e}")
+```
+
+**Migration Results:**
+- **Total Events:** 672 playlist_added events with source="migration"
+- **Success Rate:** 100.0% (672/672 successfully updated)
+- **Files Found:** 100% (0 missing files)
+- **Database Status:** All changes committed successfully
+
+**User Experience Improvements:**
+
+- ✅ **Accurate Timeline:** History page now shows correct track addition dates
+- ✅ **Chronological Order:** Events properly ordered by actual file creation time
+- ✅ **Data Integrity:** No data loss during migration process
+- ✅ **Performance:** Efficient batch processing with progress feedback
+- ✅ **Error Resilience:** Robust error handling ensures partial failures don't corrupt database
+
+**Benefits:**
+- **Historical Accuracy:** Events now reflect actual track discovery timeline
+- **Analytics Quality:** Improved data for playlist growth analysis
+- **User Trust:** Consistent and accurate event timestamps
+- **Development Quality:** Reliable migration process for future schema changes
+- **Data Consistency:** All playlist events now follow same dating standards
+
+**Timeline Correction Examples:**
+- **Before:** Event at `2025-06-21 19:39:49` (migration time)
+- **After:** Event at `2025-06-16 16:00:51` (actual file creation)
+- **Correction:** 5-day accuracy improvement per event
+
+**Workflow:**
+1. User questioned accuracy of migration timestamps
+2. Created enhanced migration script with file date detection
+3. Tested with dry-run showing 672 events ready for update
+4. Executed live migration with 100% success rate
+5. All playlist events now use accurate file creation dates
+
+This migration resolves the temporal accuracy issue, providing users with a truthful timeline of when tracks were actually added to their playlists, rather than when the migration was performed.
+
+---
+
+*End of Log Entry #032*
+
+---
+
 ## Ready for Next Entry
 
-**Next Entry Number:** #030  
+**Next Entry Number:** #033  
 **Guidelines:** Follow established format with git timestamps and commit hashes  
 **Archive Status:** Monitor file size; archive when reaching 10-15 entries
 

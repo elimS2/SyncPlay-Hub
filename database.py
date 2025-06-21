@@ -182,11 +182,39 @@ def upsert_track(
 
 
 def link_track_playlist(conn: sqlite3.Connection, track_id: int, playlist_id: int):
-    conn.execute(
-        "INSERT OR IGNORE INTO track_playlists (track_id, playlist_id) VALUES (?, ?)",
-        (track_id, playlist_id),
-    )
-    conn.commit()
+    """Link track to playlist and log the event if it's a new association."""
+    cur = conn.cursor()
+    
+    # Check if this track-playlist link already exists
+    existing = cur.execute(
+        "SELECT 1 FROM track_playlists WHERE track_id = ? AND playlist_id = ?",
+        (track_id, playlist_id)
+    ).fetchone()
+    
+    if not existing:
+        # This is a new association - insert and log it
+        cur.execute(
+            "INSERT INTO track_playlists (track_id, playlist_id) VALUES (?, ?)",
+            (track_id, playlist_id),
+        )
+        
+        # Get track video_id and playlist name for logging
+        track_info = cur.execute(
+            "SELECT video_id FROM tracks WHERE id = ?", (track_id,)
+        ).fetchone()
+        
+        playlist_info = cur.execute(
+            "SELECT name FROM playlists WHERE id = ?", (playlist_id,)
+        ).fetchone()
+        
+        if track_info and playlist_info:
+            video_id = track_info[0]
+            playlist_name = playlist_info[0]
+            
+            # Log the playlist addition event
+            record_playlist_addition(conn, video_id, playlist_id, playlist_name, source="scan")
+        
+        conn.commit()
 
 
 def iter_tracks_with_playlists(conn: sqlite3.Connection) -> Iterator[sqlite3.Row]:
@@ -216,10 +244,11 @@ def record_event(conn: sqlite3.Connection, video_id: str, event: str, position: 
         - start, finish, next, prev, like, play, pause  –  coming from the web player
         - volume_change                                 –  volume change events
         - seek                                          –  seek/scrub events (position changes)
+        - playlist_added                                –  track added/discovered in playlist
         - removed                                       –  file deletion during library sync
         - backup_created                                –  database backup creation
     """
-    valid = {"start", "finish", "next", "prev", "like", "play", "pause", "volume_change", "seek", "removed", "backup_created"}
+    valid = {"start", "finish", "next", "prev", "like", "play", "pause", "volume_change", "seek", "playlist_added", "removed", "backup_created"}
     if event not in valid:
         return
     cur = conn.cursor()
@@ -241,6 +270,9 @@ def record_event(conn: sqlite3.Connection, video_id: str, event: str, position: 
             # skip counting duplicate like
             return
         set_parts.append("play_likes = play_likes + 1")
+    elif event == "playlist_added":
+        # no per-track counters, only history log
+        pass
     elif event == "removed":
         # no per-track counters, only history log
         pass
@@ -602,4 +634,84 @@ def record_seek_event(conn: sqlite3.Connection, video_id: str, seek_from: float,
         seek_from=seek_from,
         seek_to=seek_to,
         additional_data=additional_data
-    ) 
+    )
+
+
+def record_playlist_addition(conn: sqlite3.Connection, video_id: str, playlist_id: int, playlist_name: str, 
+                           source: Optional[str] = None):
+    """Record playlist addition event with detailed information.
+    
+    Args:
+        conn: Database connection
+        video_id: ID of the track being added
+        playlist_id: ID of the playlist
+        playlist_name: Name of the playlist
+        source: Source of addition (e.g., 'scan', 'download', 'manual')
+    """
+    additional_data = f"playlist_id:{playlist_id},playlist_name:{playlist_name}"
+    if source:
+        additional_data += f",source:{source}"
+    
+    record_event(
+        conn, 
+        video_id, 
+        'playlist_added', 
+        additional_data=additional_data
+    )
+
+
+def migrate_existing_playlist_associations(conn: sqlite3.Connection, dry_run: bool = False):
+    """Migrate existing track-playlist associations to playlist_added events.
+    
+    This function creates playlist_added events for all existing track-playlist
+    links that don't already have corresponding events in the history.
+    
+    Args:
+        conn: Database connection
+        dry_run: If True, only count what would be migrated without actually doing it
+        
+    Returns:
+        dict with migration statistics
+    """
+    cur = conn.cursor()
+    
+    # Get all existing track-playlist associations with track and playlist info
+    cur.execute("""
+        SELECT tp.track_id, tp.playlist_id, t.video_id, p.name as playlist_name
+        FROM track_playlists tp
+        JOIN tracks t ON t.id = tp.track_id
+        JOIN playlists p ON p.id = tp.playlist_id
+        ORDER BY tp.track_id, tp.playlist_id
+    """)
+    
+    associations = cur.fetchall()
+    total_associations = len(associations)
+    
+    if dry_run:
+        return {
+            'total_associations': total_associations,
+            'would_migrate': total_associations,
+            'dry_run': True
+        }
+    
+    # Create playlist_added events for all associations
+    migrated_count = 0
+    for track_id, playlist_id, video_id, playlist_name in associations:
+        try:
+            record_playlist_addition(
+                conn, 
+                video_id, 
+                playlist_id, 
+                playlist_name, 
+                source="migration"
+            )
+            migrated_count += 1
+        except Exception as e:
+            print(f"Error migrating track {video_id} to playlist {playlist_name}: {e}")
+            continue
+    
+    return {
+        'total_associations': total_associations,
+        'migrated': migrated_count,
+        'dry_run': False
+    } 

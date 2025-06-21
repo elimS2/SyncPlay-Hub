@@ -22,6 +22,7 @@
     .event-like{color:#e91e63;} /* Pink for like */
     .event-volume_change{color:#ffeb3b;font-weight:bold;} /* Yellow for volume changes */
     .event-seek{color:#00bcd4;font-weight:bold;} /* Cyan for seek events */
+    .event-playlist_added{color:#8bc34a;font-weight:bold;} /* Light green for playlist additions */
     .event-removed{color:#f44336;} /* Red for removed */
     .event-backup_created{color:#607d8b;} /* Gray for backup */
     
@@ -35,6 +36,10 @@
     .seek-forward{color:#4caf50;} /* Green for forward seeks */
     .seek-backward{color:#ff9800;} /* Orange for backward seeks */
     
+    .playlist-info{font-family:monospace;color:#8bc34a;font-size:12px;}
+    .playlist-addition{background:#1a3a1a;border-radius:3px;padding:2px 4px;}
+    .playlist-name{color:#a5d6a7;font-weight:bold;}
+    
     /* Special highlighting for volume changes */
     tr.volume-event{background:#1a1a0a !important;}
     tr.volume-event:nth-child(even){background:#2a2a1a !important;}
@@ -42,6 +47,10 @@
     /* Special highlighting for seek events */
     tr.seek-event{background:#0a1a1a !important;}
     tr.seek-event:nth-child(even){background:#1a2a2a !important;}
+    
+    /* Special highlighting for playlist events */
+    tr.playlist-event{background:#0a1a0a !important;}
+    tr.playlist-event:nth-child(even){background:#1a2a1a !important;}
   </style>
 </head>
 <body>
@@ -66,12 +75,13 @@
         <th>Position</th>
         <th>Volume Change</th>
         <th>Seek Change</th>
+        <th>Playlist Added</th>
         <th>Source</th>
       </tr>
     </thead>
     <tbody>
       {% for h in history %}
-        <tr{% if h['event'] == 'volume_change' %} class="volume-event"{% elif h['event'] == 'seek' %} class="seek-event"{% endif %}>
+        <tr{% if h['event'] == 'volume_change' %} class="volume-event"{% elif h['event'] == 'seek' %} class="seek-event"{% elif h['event'] == 'playlist_added' %} class="playlist-event"{% endif %}>
           <td>{{ loop.index }}</td>
           <td>
             {% if h['video_id'] == 'system' %}
@@ -115,6 +125,21 @@
               -
             {% endif %}
           </td>
+          <td class="playlist-info">
+            {% if h['event'] == 'playlist_added' and h.get('additional_data') %}
+              {% set playlist_data = h['additional_data'] %}
+              {% if 'playlist_name:' in playlist_data %}
+                {% set playlist_name = playlist_data.split('playlist_name:')[1].split(',')[0] %}
+                <span class="playlist-addition">
+                  📂 Added to <span class="playlist-name">{{ playlist_name }}</span>
+                </span>
+              {% else %}
+                <span class="playlist-addition">📂 Added to playlist</span>
+              {% endif %}
+            {% else %}
+              -
+            {% endif %}
+          </td>
           <td class="volume-source">
             {% if h.get('additional_data') %}
               {{ h['additional_data'] }}
@@ -124,7 +149,7 @@
           </td>
         </tr>
       {% else %}
-        <tr><td colspan="9">No history yet.</td></tr>
+        <tr><td colspan="10">No history yet.</td></tr>
       {% endfor %}
     </tbody>
   </table>
@@ -141,10 +166,12 @@
       <div><span class="event-like">🩷 like</span> - Track marked as favorite</div>
       <div><span class="event-volume_change">🟡 volume_change</span> - Volume level adjusted</div>
       <div><span class="event-seek">🔵 seek</span> - Position changed (seek/scrub)</div>
+      <div><span class="event-playlist_added">🟢 playlist_added</span> - Track added/discovered in playlist</div>
     </div>
     <div style="margin-top:10px;font-size:12px;color:#aaa;">
       <strong>Volume Sources:</strong> web (main player), remote (mobile control), gesture (swipe control)<br>
-      <strong>Seek Sources:</strong> progress_bar (click), keyboard (Shift+arrows, Up/Down), remote (future)
+      <strong>Seek Sources:</strong> progress_bar (click), keyboard (Shift+arrows, Up/Down), remote (future)<br>
+      <strong>Playlist Sources:</strong> scan (library scan), download (new download), manual (user action)
     </div>
   </div>
 </body>
