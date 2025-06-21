@@ -254,9 +254,19 @@ function shuffle(array) {
 
   media.addEventListener('play', () => {
     cPlay.textContent = '⏸';
+    // Report play/resume event with current position
+    if(currentIndex >= 0 && currentIndex < queue.length) {
+      const track = queue[currentIndex];
+      reportEvent(track.video_id, 'play', media.currentTime);
+    }
   });
   media.addEventListener('pause', () => {
     cPlay.textContent = '▶️';
+    // Report pause event with current position
+    if(currentIndex >= 0 && currentIndex < queue.length) {
+      const track = queue[currentIndex];
+      reportEvent(track.video_id, 'pause', media.currentTime);
+    }
   });
 
   function formatTime(s) {

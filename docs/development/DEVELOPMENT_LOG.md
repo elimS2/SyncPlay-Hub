@@ -1187,4 +1187,64 @@ Database backup failed: Database not found at D:\music\Youtube\Playlists\DB\trac
 
 ---
 
-*End of Log Entry #008* 
+*End of Log Entry #008*
+
+### Log Entry #14 - 2025-01-21 15:30 UTC
+### Pause/Play Events Implementation
+
+**Issue:** User requested adding pause and resume events to play history with position tracking.
+
+**Changes Made:**
+1. **Frontend (static/player.js):**
+   - Added event listeners for 'play' and 'pause' events on media element
+   - Added logic to report 'play' event when resuming from pause (vs 'start' for new tracks)
+   - Added logic to report 'pause' event with current playback position
+   - Both events include exact position in seconds where event occurred
+
+2. **Backend API (controllers/api_controller.py):**
+   - Extended valid events list to include 'play' and 'pause'
+   - Updated event validation in `/api/event` endpoint
+
+3. **Database (database.py):**
+   - Added 'play' and 'pause' to valid events in `record_event()` function
+   - Updated function documentation to reflect new events
+   - Events are logged to play_history table with position data
+
+4. **UI Enhancement (templates/history.html):**
+   - Added CSS styling for different event types with color coding:
+     - Green (bold): start/finish events
+     - Light green: play (resume) events  
+     - Orange: pause events
+     - Purple: next/prev navigation
+     - Pink: like events
+   - Enhanced position display with 's' suffix and monospace font
+   - Applied event-specific CSS classes to table cells
+
+5. **Documentation (README.md):**
+   - Updated database schema documentation
+   - Enhanced playback statistics description
+   - Added detailed Play History section with event type table
+   - Updated feature descriptions to mention pause/resume tracking
+
+**Testing:**
+- Created comprehensive test HTML file demonstrating functionality
+- Verified event logging with position tracking
+- Tested visual styling in history page
+
+**Impact:**
+- Users can now see detailed pause/resume patterns in play history
+- Provides insights into listening behavior and track engagement
+- Position tracking shows exactly where users pause/resume tracks
+- Enhanced visual feedback makes event types easily distinguishable
+
+**Files Modified:**
+- `static/player.js` - Added pause/play event handlers
+- `controllers/api_controller.py` - Extended valid events
+- `database.py` - Added new event types to validation
+- `templates/history.html` - Enhanced styling and display
+- `README.md` - Updated documentation
+- `test_pause_play.html` - Created demo file
+
+---
+
+*End of Log Entry #14* 

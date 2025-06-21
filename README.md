@@ -182,7 +182,7 @@ Starting from v0.2 the project includes a lightweight **SQLite** database automa
 * Per-track counters: starts, finishes, *next* / *prev* skips
 * Per-track **likes** – counted via ❤️ button (only one like per track per 12 h)
 * Timestamps of the last start / finish event
-* Full play history (every start / finish / skip / like event with position)
+* Full play history (every start / finish / play / pause / skip / like event with position)
 
 ### How it works
 
@@ -195,7 +195,7 @@ Starting from v0.2 the project includes a lightweight **SQLite** database automa
    * **Track Library** – paginated table with all tracks and counters
    * **Play History** – paginated log (1000 rows/page) of all playback events (freshest first)
 
-> Stats are updated in real-time while you interact with the player: starting a track, skipping to next/previous, reaching the end of playback.
+> Stats are updated in real-time while you interact with the player: starting a track, pausing/resuming playback, skipping to next/previous, reaching the end of playback. Each event is recorded with the exact position (in seconds) where it occurred.
 
 ### Database schema (v0.3)
 
@@ -206,7 +206,7 @@ SQLite file: `tracks.db`
 | `playlists` | One row per local playlist folder | `id` PK · `name` · `relpath` UNIQUE · `track_count` · `last_sync_ts` · `source_url` |
 | `tracks` | Unique entry for each YouTube video / audio file | `id` PK · `video_id` UNIQUE · `name` · `relpath` · `duration` · `size_bytes` · playback counters |
 | `track_playlists` | Many-to-many link between tracks and playlists | composite PK (`track_id`,`playlist_id`) |
-| `play_history` | Immutable log of all user events | `id` PK · `video_id` · `event` (`start`/`finish`/`next`/`prev`/`like`/`removed`) · `ts` · `position` |
+| `play_history` | Immutable log of all user events | `id` PK · `video_id` · `event` (`start`/`finish`/`play`/`pause`/`next`/`prev`/`like`/`removed`) · `ts` · `position` |
 
 This design keeps track statistics even if a file is removed from every playlist: the file's row in `tracks` remains, only the linking rows in `track_playlists` are deleted. If the same YouTube video re-appears later, it will reuse the existing stats.
 
@@ -284,6 +284,22 @@ Features:
 - **Default sorting** – Newest files appear first automatically  
 - **Main log highlighting** – `SyncPlay-Hub.log` is visually distinguished
 - **Real-time viewing** – Click any log file for live streaming view
+
+### Detailed Play History
+
+The **Play History** page shows all user interactions with visual event type indicators:
+
+| Event Type | Description | Visual Indicator |
+|------------|-------------|------------------|
+| **start** | Track begins playing from the beginning | 🟢 Green (bold) |
+| **play** | Resume playback after pause | 🟢 Light green |
+| **pause** | Playback paused by user | 🟠 Orange |
+| **finish** | Track completed successfully | 🔵 Blue (bold) |
+| **next** | Manual skip to next track | 🟣 Purple |
+| **prev** | Manual skip to previous track | 🟣 Purple |
+| **like** | Track marked as favorite | 🩷 Pink |
+
+Each event records the exact playback position (in seconds) where it occurred, providing detailed insights into listening patterns and user behavior.
 
 ---
 

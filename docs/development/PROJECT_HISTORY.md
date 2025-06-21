@@ -141,6 +141,13 @@ This file provides structured information about the project's evolution, key arc
 - **Problem:** Wrong ROOT_DIR causing 404 errors
 - **Solution:** ROOT_DIR = PLAYLISTS_DIR not base directory
 
+### **Issue #4: Navigation Links Inconsistency**
+- **Date:** 2025-01-21
+- **Commit:** `7c82c5c` Fix navigation links across templates
+- **Problem:** Inconsistent "Back to" links and broken `/playlists` route
+- **Solution:** Standardized all templates to use "← Back to Home" with correct `/` route
+- **Files:** `templates/backups.html`, `templates/tracks.html`, `templates/streams.html`, `templates/history.html`, `templates/logs.html`
+
 ---
 
 ## 📊 **Current Status (2025-01-21)**

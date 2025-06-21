@@ -189,11 +189,11 @@ def record_event(conn: sqlite3.Connection, video_id: str, event: str, position: 
     """Record playback or library event and update counters/history.
 
     Supported events:
-        - start, finish, next, prev, like  –  coming from the web player
-        - removed                         –  file deletion during library sync
-        - backup_created                  –  database backup creation
+        - start, finish, next, prev, like, play, pause  –  coming from the web player
+        - removed                                       –  file deletion during library sync
+        - backup_created                                –  database backup creation
     """
-    valid = {"start", "finish", "next", "prev", "like", "removed", "backup_created"}
+    valid = {"start", "finish", "next", "prev", "like", "play", "pause", "removed", "backup_created"}
     if event not in valid:
         return
     cur = conn.cursor()
