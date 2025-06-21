@@ -382,16 +382,38 @@ The web player exposes several API endpoints for programmatic control:
 
 ```
 project-root/
-├── web_player.py           # Main Flask application
+├── app.py                  # Main Flask application
 ├── download_playlist.py    # YouTube playlist downloader
 ├── scan_to_db.py          # Library scanner for database
 ├── database.py            # SQLite database operations
-├── log_utils.py           # Logging utilities
 ├── restart_server.py      # Server restart helper
 ├── requirements.txt       # Python dependencies
 ├── README.md             # This file
 ├── .cursorrules          # Cursor IDE rules
-├── CURSOR_RULES.md       # Development guidelines
+├── controllers/          # API controllers
+│   ├── __init__.py
+│   └── api_controller.py # API endpoint handlers
+├── services/             # Business logic services
+│   ├── __init__.py
+│   ├── download_service.py  # Download management
+│   ├── playlist_service.py  # Playlist operations
+│   └── streaming_service.py # Streaming functionality
+├── utils/                # Utilities
+│   ├── __init__.py
+│   └── logging_utils.py  # Centralized logging system
+├── docs/                 # Documentation
+│   ├── README.md         # Documentation index
+│   ├── development/      # Development documentation
+│   │   ├── DEVELOPMENT_LOG.md    # Issue tracking & fixes
+│   │   ├── PROJECT_HISTORY.md    # Git history & AI context
+│   │   ├── CURSOR_RULES.md       # Development guidelines
+│   │   ├── REFACTORING_CHECKLIST.md # Code comparison
+│   │   └── DEEP_VERIFICATION_PLAN.md # Testing methodology
+│   └── user/             # User documentation (future)
+├── legacy/               # Legacy code archive
+│   ├── README.md         # Legacy files documentation
+│   ├── web_player.py     # Original monolithic app (1,129 lines)
+│   └── log_utils.py      # Original logging utility
 ├── static/               # Web assets
 │   ├── player.js         # Main player JavaScript
 │   └── stream_client.js  # Streaming client code
@@ -403,7 +425,8 @@ project-root/
     ├── logs.html         # Log file browser
     ├── log_view.html     # Individual log viewer
     ├── streams.html      # Streaming sessions
-    └── stream_view.html  # Stream player
+    ├── stream_view.html  # Stream player
+    └── backups.html      # Database backup management
 ```
 
 ### Data Directory Structure

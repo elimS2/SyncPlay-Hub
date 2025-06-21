@@ -22,7 +22,7 @@ import os
 import textwrap
 import shutil
 import datetime
-import log_utils  # noqa: F401 (patches builtins.print with timestamp+PID)
+from utils.logging_utils import log_message  # Unified logging system
 
 try:
     from yt_dlp import YoutubeDL

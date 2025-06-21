@@ -272,6 +272,125 @@ Need to establish automatic documentation of all code changes to:
 
 *End of Log Entry #009*
 
+### Log Entry #010 - 2025-01-21 17:00
+**Change:** Legacy Code Organization - Moved Obsolete Files to Archive
+
+#### Files Modified
+- **Moved:** `web_player.py` → `legacy/web_player.py`
+- **Moved:** `log_utils.py` → `legacy/log_utils.py`
+- **Deleted:** `fetch_playlist_metadata_placeholder` (empty file)
+- **Created:** `legacy/README.md` - Comprehensive documentation for legacy files
+- **Updated:** `README.md` - Corrected project structure documentation
+- **Updated:** `download_playlist.py` - Changed import from `log_utils` to `utils.logging_utils`
+- **Updated:** `scan_to_db.py` - Changed import from `log_utils` to `utils.logging_utils`
+
+#### Reason for Change
+**Code organization improvement** - Following best practices for legacy code management:
+
+1. **Clean project structure** - Remove obsolete files from main directory
+2. **Preserve historical context** - Keep original implementations for reference
+3. **Clear migration path** - Document what replaced what and why
+4. **Developer guidance** - Provide clear guidelines for legacy file usage
+
+#### Legacy Files Identified
+
+**1. `web_player.py` (1,129 lines)**
+- **Status:** Completely replaced by modular architecture
+- **Replaced by:** `app.py` + `controllers/` + `services/` + `utils/`
+- **Why preserved:** Reference implementation, debugging support, architecture documentation
+
+**2. `log_utils.py` (34 lines)**
+- **Status:** Replaced by enhanced logging system
+- **Replaced by:** `utils/logging_utils.py` (159 lines)
+- **Why preserved:** Simple fallback option, migration reference
+
+**3. `fetch_playlist_metadata_placeholder`**
+- **Status:** Empty placeholder file
+- **Action:** Deleted (no historical value)
+
+#### Migration Impact Analysis
+
+**Import Updates:**
+```python
+# Before
+import log_utils  # noqa: F401
+
+# After  
+from utils.logging_utils import log_message
+```
+
+**Functionality Verification:**
+- ✅ `download_playlist.py` imports successfully
+- ✅ `scan_to_db.py` imports successfully  
+- ✅ `app.py` imports successfully
+- ✅ All core functionality preserved
+- ✅ No breaking changes introduced
+
+#### Legacy Documentation Created
+
+**`legacy/README.md` includes:**
+- **File descriptions** with line counts and purposes
+- **Replacement mapping** - what replaced each legacy file
+- **Architecture evolution** - monolithic → modular transition
+- **Usage guidelines** for developers and AI assistants
+- **Migration status** - complete verification checklist
+- **Removal timeline** - long-term preservation strategy
+
+#### Project Structure Improvements
+
+**Before:**
+```
+project-root/
+├── web_player.py           # 1,129 lines (legacy)
+├── log_utils.py           # 34 lines (legacy)
+├── fetch_playlist_metadata_placeholder  # empty
+└── [other files...]
+```
+
+**After:**
+```
+project-root/
+├── app.py                  # 305 lines (current)
+├── controllers/           # modular API handlers
+├── services/              # business logic
+├── utils/                 # utilities including logging
+├── legacy/                # archived legacy code
+│   ├── README.md          # comprehensive documentation
+│   ├── web_player.py      # original monolithic app
+│   └── log_utils.py       # original logging utility
+└── [other files...]
+```
+
+#### Benefits Achieved
+
+1. **Cleaner main directory** - Only active files in project root
+2. **Preserved history** - All original code safely archived with documentation
+3. **Clear migration path** - Developers can understand the evolution
+4. **Better organization** - Follows industry best practices for legacy code
+5. **AI assistant support** - Legacy files provide context for future development
+6. **Reference availability** - Original implementations available for debugging
+
+#### Verification Steps
+
+- [x] All legacy files moved to `legacy/` directory
+- [x] Comprehensive `legacy/README.md` created
+- [x] Import statements updated in affected files
+- [x] All import tests pass successfully
+- [x] Main `README.md` structure updated
+- [x] No functionality broken by changes
+- [x] Git history preserved (files moved, not deleted)
+
+#### Future Maintenance
+
+- **Legacy files:** Preserved indefinitely for reference
+- **Documentation:** Keep `legacy/README.md` updated if architecture changes
+- **Access pattern:** Reference-only, no modifications to legacy files
+- **Removal consideration:** Only after 6+ months of stable operation without needing legacy reference
+
+---
+
+*End of Log Entry #010*
+
 ### Log Entry #003 - 2025-01-21 15:15
 **Change:** Created PROJECT_HISTORY.md for enhanced AI context
 
