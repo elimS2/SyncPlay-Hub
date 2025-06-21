@@ -10,4 +10,8 @@ Logs/
 
 # Temporary files
 check_db.py
-test_*.py 
+test_*.py
+
+# Runtime files
+*.pid
+syncplay_hub.pid 

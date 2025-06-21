@@ -1694,13 +1694,126 @@ This fix resolves the core usability issue where the Toggle All button appeared 
 
 ---
 
+### Log Entry #037 - 2025-06-21 22:10 UTC
+
+**Feature**: 🔐 Server Duplicate Prevention - PID-based Process Tracking
+
+**Changes Made:**
+
+1. **Server Duplicate Detection System** (`app.py`)
+   - **PID file tracking** - creates `syncplay_hub.pid` on startup
+   - **Process validation** - verifies running process is THIS specific `app.py` file
+   - **Port conflict detection** - checks if specified port is already in use
+   - **Graceful psutil handling** - optional import with fallback to port-only checking
+   - **Force start option** - `--force` flag to bypass duplicate detection
+
+2. **Enhanced Process Verification** (`app.py`)
+   - **Full path comparison** - ensures exact same app.py file is running
+   - **Cross-platform support** - works on Windows and Unix systems
+   - **Detailed server info** - shows PID, uptime, memory, working directory
+   - **Smart cleanup** - removes stale PID files automatically
+
+3. **Restart Function Fix** (`controllers/api_controller.py`)
+   - **Force flag injection** - adds `--force` to restart command automatically
+   - **PID file cleanup** - removes PID file before process termination
+   - **Proper shutdown sequence** - ensures clean transition between processes
+   - **Enhanced logging** - detailed restart and stop event logging
+
+4. **Stop Function Enhancement** (`controllers/api_controller.py`)
+   - **PID file cleanup** - removes tracking file on graceful shutdown
+   - **Improved logging** - comprehensive stop event documentation
+
+5. **Git Repository Hygiene** (`.gitignore`)
+   - **Runtime files exclusion** - added `*.pid` and `syncplay_hub.pid`
+   - **Clean repository** - prevents temporary files from being committed
+
+**Technical Implementation:**
+
+**PID File Management:**
+```python
+def _write_pid_file():
+    pid_file = Path.cwd() / "syncplay_hub.pid"
+    with open(pid_file, 'w') as f:
+        f.write(str(os.getpid()))
+
+def _is_process_running(pid):
+    # Verify process runs THIS exact app.py file
+    current_app_path = Path(__file__).resolve()
+    for arg in proc.cmdline():
+        if Path(arg).resolve() == current_app_path:
+            return True
+```
+
+**Duplicate Prevention Logic:**
+1. **Read PID file** → get existing server PID
+2. **Validate process** → confirm it's running our exact app.py
+3. **Check port usage** → verify port conflict
+4. **Display info** → show detailed server status
+5. **Block startup** → prevent duplicate unless `--force` used
+
+**Problem Solved:**
+- **Issue:** Multiple server instances could run simultaneously causing port conflicts and unpredictable behavior
+- **Root Cause:** No mechanism to detect existing server processes
+- **Impact:** Users confused by multiple servers, resource waste, debugging difficulties
+
+**User Experience Improvements:**
+
+- ✅ **Clear Error Messages**: Detailed info about running server (PID, uptime, memory)
+- ✅ **Smart Detection**: Only blocks if same app.py file is running
+- ✅ **Force Override**: `--force` flag for special cases
+- ✅ **Restart Compatibility**: Web restart function works seamlessly
+- ✅ **Graceful Degradation**: Works without psutil (port-only checking)
+- ✅ **Cross-Platform**: Windows and Unix support
+
+**Example Output:**
+```
+🚨 SERVER ALREADY RUNNING!
+==================================================
+📋 Process PID: 12345
+📁 Working directory: C:\Users\eL\...\Youtube
+⏰ Started at: 2025-06-21 20:15:30
+⏳ Uptime: 1:55:04
+💾 Memory: 45.2 MB
+🌐 Port 8000: 🔴 IN USE
+🔗 Command line: python app.py --root D:\music\Youtube
+==================================================
+❌ New server startup cancelled.
+💡 To stop the running server use:
+   taskkill /PID 12345 /F
+   or go to web interface and click 'Stop Server'
+```
+
+**Benefits:**
+- **Resource Protection**: Prevents multiple servers consuming system resources
+- **User Clarity**: Clear feedback about server status
+- **Development Quality**: Eliminates common "multiple server" debugging issues
+- **Production Safety**: Prevents accidental duplicate deployments
+- **Restart Reliability**: Web-based restart function works correctly
+
+**Files Modified:**
+- `app.py` - Added PID tracking and duplicate detection system
+- `controllers/api_controller.py` - Enhanced restart/stop with PID cleanup
+- `.gitignore` - Excluded PID files from repository
+
+**Dependencies:**
+- `psutil` - Optional for advanced process detection
+- Falls back to port-only checking if not available
+
+This implementation provides enterprise-level process management ensuring only one server instance runs at a time, with comprehensive user feedback and graceful handling of edge cases.
+
+---
+
+*End of Log Entry #037*
+
+---
+
 ## Ready for Next Entry
 
-**Next Entry Number:** #037  
+**Next Entry Number:** #038  
 **Guidelines:** Follow established format with git timestamps and commit hashes  
 **Archive Status:** Monitor file size; archive when reaching 10-15 entries
 
 ---
 
 *Current Log Established: 2025-01-21 - Log Splitting Implementation*
-*Timestamps Corrected: 2025-01-21 - Git synchronization with actual commit times* 
+*Timestamps Corrected: 2025-01-21 - Git synchronization with actual commit times*

@@ -21,6 +21,15 @@ from controllers.api_controller import api_bp, init_api_controller
 # Import database functions
 from database import get_connection, iter_tracks_with_playlists, get_history_page
 
+# Add psutil import for process checking (optional)
+try:
+    import psutil
+    PSUTIL_AVAILABLE = True
+except ImportError:
+    PSUTIL_AVAILABLE = False
+    print("Warning: psutil not installed. Server duplicate detection disabled.")
+    print("Install with: pip install psutil")
+
 # Create Flask app
 app = Flask(__name__)
 
@@ -39,6 +48,146 @@ def _get_local_ip() -> str:
             return s.getsockname()[0]
     except Exception:
         return "127.0.0.1"
+
+def _get_pid_file_path():
+    """Get path to PID file for server instance tracking."""
+    # Store PID file in temp directory or current directory
+    return Path.cwd() / "syncplay_hub.pid"
+
+def _write_pid_file():
+    """Write current PID to file."""
+    pid_file = _get_pid_file_path()
+    try:
+        with open(pid_file, 'w') as f:
+            f.write(str(os.getpid()))
+        return True
+    except Exception:
+        return False
+
+def _read_pid_file():
+    """Read PID from file if exists."""
+    pid_file = _get_pid_file_path()
+    if not pid_file.exists():
+        return None
+    try:
+        with open(pid_file, 'r') as f:
+            return int(f.read().strip())
+    except (ValueError, FileNotFoundError):
+        return None
+
+def _remove_pid_file():
+    """Remove PID file."""
+    pid_file = _get_pid_file_path()
+    try:
+        pid_file.unlink(missing_ok=True)
+    except Exception:
+        pass
+
+def _is_process_running(pid):
+    """Check if process with given PID is running THIS specific app.py file."""
+    if not pid or not PSUTIL_AVAILABLE:
+        return False
+    
+    try:
+        proc = psutil.Process(pid)
+        if not proc.is_running():
+            return False
+        
+        cmdline = proc.cmdline()
+        if not cmdline:
+            return False
+        
+        # Get the current app.py full path for comparison
+        current_app_path = Path(__file__).resolve()
+        
+        # Check if process is running THIS specific app.py file
+        for arg in cmdline:
+            try:
+                arg_path = Path(arg).resolve()
+                if arg_path == current_app_path:
+                    return True
+            except (OSError, ValueError):
+                continue
+        
+        return False
+    except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+        return False
+
+def _check_port_in_use(port):
+    """Check if specified port is already in use."""
+    try:
+        import socket
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.settimeout(1)
+            result = s.connect_ex(('localhost', port))
+            return result == 0  # 0 means connection successful (port in use)
+    except Exception:
+        return False
+
+def _check_server_already_running(port=8000):
+    """Check if server is already running and display info."""
+    if not PSUTIL_AVAILABLE:
+        # Without psutil, only check port
+        if _check_port_in_use(port):
+            print("⚠️ WARNING: Port already in use!")
+            print("=" * 50)
+            print(f"🌐 Port {port} is being used by another process")
+            print("🔍 Cannot check if it's our server (psutil not available)")
+            print("💡 Install psutil for better process detection:")
+            print("   pip install psutil")
+            print("💡 Or manually check processes:")
+            print(f"   netstat -ano | findstr :{port}")
+            print("=" * 50)
+            return True
+        return False
+    
+    existing_pid = _read_pid_file()
+    if existing_pid and _is_process_running(existing_pid):
+        try:
+            proc = psutil.Process(existing_pid)
+            create_time = datetime.datetime.fromtimestamp(proc.create_time())
+            uptime = datetime.datetime.now() - create_time
+            uptime_str = str(uptime).split('.')[0]  # Remove microseconds
+            
+            # Additional check: verify this process is using the expected port
+            port_in_use = _check_port_in_use(port)
+            
+            print("🚨 SERVER ALREADY RUNNING!")
+            print("=" * 50)
+            print(f"📋 Process PID: {existing_pid}")
+            print(f"📁 Working directory: {proc.cwd()}")
+            print(f"⏰ Started at: {create_time.strftime('%Y-%m-%d %H:%M:%S')}")
+            print(f"⏳ Uptime: {uptime_str}")
+            print(f"💾 Memory: {proc.memory_info().rss / 1024 / 1024:.1f} MB")
+            print(f"🌐 Port {port}: {'🔴 IN USE' if port_in_use else '🟢 available'}")
+            print(f"🔗 Command line: {' '.join(proc.cmdline())}")
+            print("=" * 50)
+            print("❌ New server startup cancelled.")
+            print("💡 To stop the running server use:")
+            print(f"   taskkill /PID {existing_pid} /F")
+            print("   or go to web interface and click 'Stop Server'")
+            return True
+        except (psutil.NoSuchProcess, psutil.AccessDenied):
+            # Process no longer exists, remove stale PID file
+            _remove_pid_file()
+            return False
+    
+    # If no PID file but port is in use, check if it might be our server
+    if _check_port_in_use(port):
+        print("⚠️ WARNING: Port already in use!")
+        print("=" * 50)
+        print(f"🌐 Port {port} is being used by another process")
+        print("🔍 Possibly a server running without PID file")
+        print("💡 Check processes manually:")
+        print(f"   netstat -ano | findstr :{port}")
+        print("=" * 50)
+        return True
+    
+    # Clean up stale PID file if process is not running
+    if existing_pid:
+        _remove_pid_file()
+    
+    return False
 
 # -------- PAGE ROUTES --------
 
@@ -296,7 +445,12 @@ def main():
     parser.add_argument("--host", default="0.0.0.0", help="Host to bind to")
     parser.add_argument("--port", type=int, default=8000, help="Port to bind to")
     parser.add_argument("--logs", type=Path, help="Logs directory (default: root/Logs)")
+    parser.add_argument("--force", action="store_true", help="Force start even if server already running")
     args = parser.parse_args()
+    
+    # Check if server is already running (unless --force is used)
+    if not args.force and _check_server_already_running(args.port):
+        sys.exit(1)
 
     # Parse arguments like original web_player.py
     BASE_DIR = args.root.resolve()
@@ -333,6 +487,10 @@ def main():
     from utils.logging_utils import set_logs_dir
     set_logs_dir(LOGS_DIR)
     
+    # Write PID file to track this server instance
+    if not _write_pid_file():
+        log_message("Warning: Could not create PID file")
+    
     # Log startup
     log_message(f"Starting server PID {os.getpid()} at {SERVER_START_TIME.strftime('%Y-%m-%d %H:%M:%S')}")
     log_message(f"Root directory: {ROOT_DIR}")
@@ -349,6 +507,10 @@ def main():
         log_message("Server stopped by user")
     except Exception as e:
         log_message(f"Server error: {e}")
+    finally:
+        # Clean up PID file on exit
+        _remove_pid_file()
+        log_message(f"Server PID {os.getpid()} shutdown complete")
 
 if __name__ == "__main__":
     main() 

@@ -253,6 +253,9 @@ feat: Enhance filter functionality with smart toggle control: Implemented server
 **#081** `9e0b97b` 2025-06-21 23:55:00 +0300  
 feat: Implement server-side event filtering for comprehensive data access: Fixed Toggle All button state management by implementing three-state logic (no filter, empty filter, specific filter), enhanced backend parameter parsing with explicit None handling, redesigned template logic for accurate checkbox state reflection, and resolved user experience issues where Toggle All appeared broken. Added proper URL parameter handling and empty list database queries for complete filter functionality.
 
+**#082** `ee805de` 2025-06-22 00:48:37 +0300  
+feat: Implement server duplicate prevention with PID-based process tracking: Added comprehensive server duplicate detection system with PID file tracking, process validation, port conflict detection, and graceful psutil handling. Enhanced restart function with force flag injection and PID file cleanup, implemented proper shutdown sequence, and added runtime files exclusion to git repository. Provides enterprise-level process management ensuring only one server instance runs at a time.
+
 ---
 
 ## Key Development Log Mappings (Based on Content Analysis)
@@ -296,8 +299,10 @@ feat: Implement server-side event filtering for comprehensive data access: Fixed
 - **Entry #030-#032** (Playlist Addition Logging & Migration) → **Commit #078** - feat: Implement playlist addition event logging and migration
 - **Entry #033-#034** (Advanced Event Filtering & Sorting) → **Commit #079** - feat: Redesign History Page to Events with Advanced Filtering and Sorting
 - **Entry #035** (Server-Side Event Filtering) → **Commit #080** - feat: Enhance filter functionality with smart toggle control
+- **Entry #036** (Toggle All Button Fix) → **Commit #081** - feat: Implement server-side event filtering for comprehensive data access
+- **Entry #037** (Server Duplicate Prevention) → **Commit #082** - feat: Implement server duplicate prevention with PID-based process tracking
 
 ---
 
-*Created: 2025-06-16 | Total: 81 commits | Period: 2025-06-16 to 2025-06-21*  
+*Created: 2025-06-16 | Total: 82 commits | Period: 2025-06-16 to 2025-06-21*  
 *Version: FULL ORIGINAL TITLES - Maximum Accuracy* 

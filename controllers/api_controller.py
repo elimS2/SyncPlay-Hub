@@ -411,8 +411,8 @@ def api_restart():
         current_pid = os.getpid()
         log_message(f"Initiating restart of server PID {current_pid} at {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         
-        # Build restart command with same arguments
-        restart_cmd = [sys.executable] + sys.argv
+        # Build restart command with same arguments + --force to bypass duplicate check
+        restart_cmd = [sys.executable] + sys.argv + ["--force"]
         
         try:
             # Start new process in same console window (no CREATE_NEW_CONSOLE)
@@ -423,6 +423,15 @@ def api_restart():
                 subprocess.Popen(restart_cmd)
             
             log_message(f"New server process started, terminating current PID {current_pid}")
+            
+            # Clean up PID file before exit to allow new process to start
+            try:
+                from pathlib import Path
+                pid_file = Path.cwd() / "syncplay_hub.pid"
+                pid_file.unlink(missing_ok=True)
+                log_message("PID file cleaned up for restart")
+            except Exception as e:
+                log_message(f"Warning: Could not clean PID file: {e}")
             
             # Give new process time to start before terminating
             time.sleep(1.5)
@@ -450,6 +459,16 @@ def api_stop():
         # Log current PID before stopping
         current_pid = os.getpid()
         log_message(f"Stopping server PID {current_pid} at {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        
+        # Clean up PID file before exit
+        try:
+            from pathlib import Path
+            pid_file = Path.cwd() / "syncplay_hub.pid"
+            pid_file.unlink(missing_ok=True)
+            log_message("PID file cleaned up")
+        except Exception as e:
+            log_message(f"Warning: Could not clean PID file: {e}")
+        
         log_message("Server stopped gracefully")
         log_message("You can restart the server by running the same command again")
         
