@@ -345,15 +345,56 @@ def iter_history(conn: sqlite3.Connection, limit: int = 500):
 # Pagination
 
 
-def get_history_page(conn: sqlite3.Connection, page: int = 1, per_page: int = 1000):
+def get_history_page(conn: sqlite3.Connection, page: int = 1, per_page: int = 1000, 
+                     event_types: list = None, track_filter: str = None, video_id_filter: str = None):
+    """Get paginated history with optional server-side filtering.
+    
+    Args:
+        conn: Database connection
+        page: Page number (1-based)
+        per_page: Items per page
+        event_types: List of event types to include (e.g. ['like', 'start'])
+        track_filter: Filter by track name (partial match)
+        video_id_filter: Filter by video ID (partial match)
+        
+    Returns:
+        tuple: (rows, has_next)
+    """
     if page < 1:
         page = 1
     offset = (page - 1) * per_page
+    
+    # Build WHERE clause based on filters
+    where_conditions = []
+    params = []
+    
+    # Event type filter
+    if event_types:
+        placeholders = ','.join('?' * len(event_types))
+        where_conditions.append(f"ph.event IN ({placeholders})")
+        params.extend(event_types)
+    
+    # Track name filter
+    if track_filter:
+        where_conditions.append("t.name LIKE ?")
+        params.append(f"%{track_filter}%")
+    
+    # Video ID filter
+    if video_id_filter:
+        where_conditions.append("ph.video_id LIKE ?")
+        params.append(f"%{video_id_filter}%")
+    
+    # Construct SQL query
+    base_query = "SELECT ph.*, t.name FROM play_history ph LEFT JOIN tracks t ON t.video_id = ph.video_id"
+    
+    if where_conditions:
+        base_query += " WHERE " + " AND ".join(where_conditions)
+    
+    base_query += " ORDER BY ph.id DESC LIMIT ? OFFSET ?"
+    params.extend([per_page + 1, offset])
+    
     cur = conn.cursor()
-    cur.execute(
-        "SELECT ph.*, t.name FROM play_history ph LEFT JOIN tracks t ON t.video_id = ph.video_id ORDER BY ph.id DESC LIMIT ? OFFSET ?",
-        (per_page + 1, offset),
-    )
+    cur.execute(base_query, params)
     rows = cur.fetchall()
     has_next = len(rows) > per_page
     return rows[:per_page], has_next 

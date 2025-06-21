@@ -80,14 +80,44 @@ def tracks_page():
 @app.route("/history")
 @app.route("/events")
 def events_page():
-    """Events Page (formerly History Page)."""
+    """Events Page (formerly History Page) with server-side filtering."""
     from flask import request
     page = int(request.args.get("page", 1))
+    
+    # Get filter parameters from URL
+    event_types_param = request.args.get("event_types", "")
+    track_filter = request.args.get("track_filter", "").strip()
+    video_id_filter = request.args.get("video_id_filter", "").strip()
+    
+    # Parse event types (comma-separated)
+    event_types = None
+    if event_types_param:
+        event_types = [t.strip() for t in event_types_param.split(",") if t.strip()]
+    
+    # Convert empty strings to None for database function
+    track_filter = track_filter if track_filter else None
+    video_id_filter = video_id_filter if video_id_filter else None
+    
     conn = get_connection()
-    rows, has_next = get_history_page(conn, page=page, per_page=1000)
+    rows, has_next = get_history_page(
+        conn, 
+        page=page, 
+        per_page=1000,
+        event_types=event_types,
+        track_filter=track_filter,
+        video_id_filter=video_id_filter
+    )
     rows = [dict(r) for r in rows]
     conn.close()
-    return render_template("history.html", history=rows, page=page, has_next=has_next)
+    
+    # Pass filter parameters to template for maintaining state
+    filter_params = {
+        'event_types': event_types or [],
+        'track_filter': track_filter or '',
+        'video_id_filter': video_id_filter or ''
+    }
+    
+    return render_template("history.html", history=rows, page=page, has_next=has_next, filters=filter_params, request=request)
 
 @app.route("/backups")
 def backups_page():

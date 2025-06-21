@@ -192,10 +192,10 @@
   <p>
     <a href="/">← Back to Home</a>
     {% if page > 1 %}
-      | <a href="/events?page={{ page - 1 }}">« Previous</a>
+      | <a href="/events?{{ request.query_string.decode() }}&page={{ page - 1 }}">« Previous</a>
     {% endif %}
     {% if has_next %}
-      | <a href="/events?page={{ page + 1 }}">Next »</a>
+      | <a href="/events?{{ request.query_string.decode() }}&page={{ page + 1 }}">Next »</a>
     {% endif %}
   </p>
   
@@ -208,43 +208,43 @@
         <label>Event Types</label>
         <div class="event-types">
           <label class="event-type-checkbox" for="filter-start">
-            <input type="checkbox" id="filter-start" checked>
+            <input type="checkbox" id="filter-start" {% if not filters.event_types or 'start' in filters.event_types %}checked{% endif %}>
             <span>Start</span>
           </label>
           <label class="event-type-checkbox" for="filter-finish">
-            <input type="checkbox" id="filter-finish" checked>
+            <input type="checkbox" id="filter-finish" {% if not filters.event_types or 'finish' in filters.event_types %}checked{% endif %}>
             <span>Finish</span>
           </label>
           <label class="event-type-checkbox" for="filter-play">
-            <input type="checkbox" id="filter-play" checked>
+            <input type="checkbox" id="filter-play" {% if not filters.event_types or 'play' in filters.event_types %}checked{% endif %}>
             <span>Play</span>
           </label>
           <label class="event-type-checkbox" for="filter-pause">
-            <input type="checkbox" id="filter-pause" checked>
+            <input type="checkbox" id="filter-pause" {% if not filters.event_types or 'pause' in filters.event_types %}checked{% endif %}>
             <span>Pause</span>
           </label>
           <label class="event-type-checkbox" for="filter-next">
-            <input type="checkbox" id="filter-next" checked>
+            <input type="checkbox" id="filter-next" {% if not filters.event_types or 'next' in filters.event_types %}checked{% endif %}>
             <span>Next</span>
           </label>
           <label class="event-type-checkbox" for="filter-prev">
-            <input type="checkbox" id="filter-prev" checked>
+            <input type="checkbox" id="filter-prev" {% if not filters.event_types or 'prev' in filters.event_types %}checked{% endif %}>
             <span>Previous</span>
           </label>
           <label class="event-type-checkbox" for="filter-like">
-            <input type="checkbox" id="filter-like" checked>
+            <input type="checkbox" id="filter-like" {% if not filters.event_types or 'like' in filters.event_types %}checked{% endif %}>
             <span>Like</span>
           </label>
           <label class="event-type-checkbox" for="filter-volume_change">
-            <input type="checkbox" id="filter-volume_change" checked>
+            <input type="checkbox" id="filter-volume_change" {% if not filters.event_types or 'volume_change' in filters.event_types %}checked{% endif %}>
             <span>Volume</span>
           </label>
           <label class="event-type-checkbox" for="filter-seek">
-            <input type="checkbox" id="filter-seek" checked>
+            <input type="checkbox" id="filter-seek" {% if not filters.event_types or 'seek' in filters.event_types %}checked{% endif %}>
             <span>Seek</span>
           </label>
           <label class="event-type-checkbox" for="filter-playlist_added">
-            <input type="checkbox" id="filter-playlist_added" checked>
+            <input type="checkbox" id="filter-playlist_added" {% if not filters.event_types or 'playlist_added' in filters.event_types %}checked{% endif %}>
             <span>Playlist</span>
           </label>
         </div>
@@ -254,12 +254,12 @@
     <div class="filter-row">
       <div class="filter-group">
         <label>Search Track</label>
-        <input type="text" id="filter-track" placeholder="Search by track name...">
+        <input type="text" id="filter-track" placeholder="Search by track name..." value="{{ filters.track_filter }}">
       </div>
       
       <div class="filter-group">
         <label>Video ID</label>
-        <input type="text" id="filter-video-id" placeholder="Search by video ID...">
+        <input type="text" id="filter-video-id" placeholder="Search by video ID..." value="{{ filters.video_id_filter }}">
       </div>
       
               <button class="clear-filters" onclick="clearAllFilters()">Toggle All</button>
@@ -268,7 +268,7 @@
   
   <!-- Results info -->
   <div class="results-info">
-    Showing: <span id="visible-count">{{ history|length }}</span> of <span id="total-count">{{ history|length }}</span> events
+    Showing: {{ history|length }} events {% if filters.event_types or filters.track_filter or filters.video_id_filter %}(filtered){% endif %}
   </div>
   
   <table id="events-table">
@@ -278,7 +278,7 @@
         <th>Video ID</th>
         <th>Track Name</th>
         <th>Event Type</th>
-        <th class="sortable" data-sort="timestamp">Timestamp <span class="sort-indicator"></span></th>
+        <th>Timestamp</th>
         <th>Position</th>
         <th>Volume Change</th>
         <th>Seek Change</th>
@@ -288,7 +288,7 @@
     </thead>
     <tbody id="events-tbody">
       {% for h in history %}
-        <tr data-event-type="{{ h['event'] }}" data-track-name="{{ h['name'] or '' }}" data-video-id="{{ h['video_id'] }}" data-timestamp="{{ h['ts'] }}"{% if h['event'] == 'volume_change' %} class="volume-event"{% elif h['event'] == 'seek' %} class="seek-event"{% elif h['event'] == 'playlist_added' %} class="playlist-event"{% endif %}>
+        <tr{% if h['event'] == 'volume_change' %} class="volume-event"{% elif h['event'] == 'seek' %} class="seek-event"{% elif h['event'] == 'playlist_added' %} class="playlist-event"{% endif %}>
           <td>{{ loop.index }}</td>
           <td>
             {% if h['video_id'] == 'system' %}
@@ -389,127 +389,38 @@
   </div>
 
   <script>
-    let currentSort = { column: null, direction: 'asc' };
-    
-    // Event filtering
-    function filterEvents() {
+    // Server-side filtering - build URL and redirect
+    function applyFilters() {
       const checkboxes = document.querySelectorAll('.event-type-checkbox input[type="checkbox"]');
-      const trackFilter = document.getElementById('filter-track').value.toLowerCase();
-      const videoIdFilter = document.getElementById('filter-video-id').value.toLowerCase();
+      const trackFilter = document.getElementById('filter-track').value.trim();
+      const videoIdFilter = document.getElementById('filter-video-id').value.trim();
       
-      const selectedTypes = new Set();
+      // Collect selected event types
+      const selectedTypes = [];
       checkboxes.forEach(cb => {
         if (cb.checked) {
-          selectedTypes.add(cb.id.replace('filter-', ''));
+          selectedTypes.push(cb.id.replace('filter-', ''));
         }
       });
       
-      const rows = document.querySelectorAll('#events-tbody tr');
-      let visibleCount = 0;
+      // Build URL parameters
+      const params = new URLSearchParams();
       
-      rows.forEach(row => {
-        const eventType = row.dataset.eventType;
-        const trackName = row.dataset.trackName.toLowerCase();
-        const videoId = row.dataset.videoId.toLowerCase();
-        
-        const typeMatch = selectedTypes.has(eventType);
-        const trackMatch = !trackFilter || trackName.includes(trackFilter);
-        const videoIdMatch = !videoIdFilter || videoId.includes(videoIdFilter);
-        
-        if (typeMatch && trackMatch && videoIdMatch) {
-          row.classList.remove('hidden-row');
-          visibleCount++;
-        } else {
-          row.classList.add('hidden-row');
-        }
-      });
-      
-      // Update results count
-      document.getElementById('visible-count').textContent = visibleCount;
-      
-      // Show/hide no results message
-      const noResults = document.getElementById('no-results');
-      const table = document.getElementById('events-table');
-      if (visibleCount === 0 && rows.length > 0) {
-        table.style.display = 'none';
-        noResults.style.display = 'block';
-      } else {
-        table.style.display = 'table';
-        noResults.style.display = 'none';
+      if (selectedTypes.length > 0 && selectedTypes.length < checkboxes.length) {
+        params.set('event_types', selectedTypes.join(','));
       }
       
-      // Update checkbox container styling
-      updateCheckboxStyling();
-    }
-    
-    // Update checkbox styling based on state
-    function updateCheckboxStyling() {
-      document.querySelectorAll('.event-type-checkbox').forEach(container => {
-        const checkbox = container.querySelector('input[type="checkbox"]');
-        if (checkbox.checked) {
-          container.classList.add('checked');
-        } else {
-          container.classList.remove('checked');
-        }
-      });
-    }
-    
-    // Sort functionality
-    function sortTable(column) {
-      const tbody = document.getElementById('events-tbody');
-      const rows = Array.from(tbody.querySelectorAll('tr'));
-      
-      // Determine sort direction
-      if (currentSort.column === column) {
-        currentSort.direction = currentSort.direction === 'asc' ? 'desc' : 'asc';
-      } else {
-        currentSort.column = column;
-        currentSort.direction = 'asc';
+      if (trackFilter) {
+        params.set('track_filter', trackFilter);
       }
       
-      // Sort rows
-      rows.sort((a, b) => {
-        let aVal, bVal;
-        
-        switch (column) {
-          case 'timestamp':
-            aVal = new Date(a.dataset.timestamp);
-            bVal = new Date(b.dataset.timestamp);
-            break;
-          default:
-            return 0;
-        }
-        
-        if (currentSort.direction === 'asc') {
-          return aVal < bVal ? -1 : (aVal > bVal ? 1 : 0);
-        } else {
-          return aVal > bVal ? -1 : (aVal < bVal ? 1 : 0);
-        }
-      });
-      
-      // Re-append sorted rows
-      rows.forEach(row => tbody.appendChild(row));
-      
-      // Update sort indicators
-      document.querySelectorAll('th.sortable').forEach(th => {
-        th.classList.remove('sort-asc', 'sort-desc');
-      });
-      
-      const currentTh = document.querySelector(`th[data-sort="${column}"]`);
-      if (currentTh) {
-        currentTh.classList.add(currentSort.direction === 'asc' ? 'sort-asc' : 'sort-desc');
+      if (videoIdFilter) {
+        params.set('video_id_filter', videoIdFilter);
       }
       
-      // Update row numbers
-      updateRowNumbers();
-    }
-    
-    // Update row numbers after sorting/filtering
-    function updateRowNumbers() {
-      const visibleRows = document.querySelectorAll('#events-tbody tr:not(.hidden-row)');
-      visibleRows.forEach((row, index) => {
-        row.cells[0].textContent = index + 1;
-      });
+      // Redirect to filtered URL
+      const newUrl = '/events' + (params.toString() ? '?' + params.toString() : '');
+      window.location.href = newUrl;
     }
     
     // Toggle all filters - smart behavior
@@ -531,33 +442,42 @@
         document.getElementById('filter-video-id').value = '';
       }
       
-      // Apply filters
-      filterEvents();
+      // Apply filters immediately
+      applyFilters();
+    }
+    
+    // Update checkbox styling based on state
+    function updateCheckboxStyling() {
+      document.querySelectorAll('.event-type-checkbox').forEach(container => {
+        const checkbox = container.querySelector('input[type="checkbox"]');
+        if (checkbox.checked) {
+          container.classList.add('checked');
+        } else {
+          container.classList.remove('checked');
+        }
+      });
+    }
+    
+    // Debounced filter application for text inputs
+    let filterTimeout = null;
+    function debounceFilter() {
+      clearTimeout(filterTimeout);
+      filterTimeout = setTimeout(applyFilters, 500); // 500ms delay
     }
     
     // Event listeners
     document.addEventListener('DOMContentLoaded', function() {
-      // Filter event listeners
+      // Checkbox filter listeners (immediate)
       document.querySelectorAll('.event-type-checkbox input[type="checkbox"]').forEach(cb => {
-        cb.addEventListener('change', filterEvents);
+        cb.addEventListener('change', applyFilters);
       });
       
-
+      // Text filter listeners (debounced)
+      document.getElementById('filter-track').addEventListener('input', debounceFilter);
+      document.getElementById('filter-video-id').addEventListener('input', debounceFilter);
       
-      document.getElementById('filter-track').addEventListener('input', filterEvents);
-      document.getElementById('filter-video-id').addEventListener('input', filterEvents);
-      
-      // Sort event listeners
-      document.querySelectorAll('th.sortable').forEach(th => {
-        th.addEventListener('click', () => {
-          const sortColumn = th.dataset.sort;
-          sortTable(sortColumn);
-        });
-      });
-      
-      // Initialize
-      filterEvents();
-      updateRowNumbers();
+      // Initialize checkbox styling
+      updateCheckboxStyling();
     });
   </script>
 </body>

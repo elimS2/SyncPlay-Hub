@@ -14,9 +14,9 @@ This file provides structured information about the project's evolution, key arc
 ## 📈 **Complete Development Timeline**
 
 ### **Project Statistics**
-- **Total Commits:** 77
+- **Total Commits:** 80
 - **Development Period:** 2025-06-16 to 2025-06-21 (active development)
-- **Latest Commit:** cd3b838 - Comprehensive seek event logging with detailed tracking
+- **Latest Commit:** 5a94430 - Enhance filter functionality with smart toggle control
 - **Initial Import:** e299d24 - SyncPlay-Hub project inception
 
 ### **Phase 0: Project Genesis (2025-06-16)**
@@ -274,6 +274,16 @@ This file provides structured information about the project's evolution, key arc
 - **Development Log:** Entry #030-#032 - Playlist addition tracking with retroactive migration
 - **Impact:** Complete playlist addition history with file creation date accuracy
 - **Files:** `database.py`, `migrate_playlist_events.py`, `migrate_playlist_events_with_dates.py`
+
+**Commit #079:** `ff96434` - **Redesign History Page to Events with Advanced Filtering and Sorting**
+- **Development Log:** Entry #033-#034 - Complete history page redesign with filtering system
+- **Impact:** Professional event analysis tool with real-time filtering and smart toggle controls
+- **Files:** `templates/history.html`, `app.py`, `templates/playlists.html`
+
+**Commit #080:** `5a94430` - **Enhance filter functionality with smart toggle control**
+- **Development Log:** Entry #035 - Server-side event filtering implementation
+- **Impact:** Fixed 1000 events limitation with database-level filtering for complete data access
+- **Files:** `database.py`, `app.py`, `templates/history.html`
 
 ### **Feature #10: Enhanced Volume Event Logging**
 - **Date:** 2025-06-21
