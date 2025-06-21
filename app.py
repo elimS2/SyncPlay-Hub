@@ -85,14 +85,17 @@ def events_page():
     page = int(request.args.get("page", 1))
     
     # Get filter parameters from URL
-    event_types_param = request.args.get("event_types", "")
+    event_types_param = request.args.get("event_types")  # None if not present
     track_filter = request.args.get("track_filter", "").strip()
     video_id_filter = request.args.get("video_id_filter", "").strip()
     
     # Parse event types (comma-separated)
     event_types = None
-    if event_types_param:
-        event_types = [t.strip() for t in event_types_param.split(",") if t.strip()]
+    if event_types_param is not None:  # Parameter exists (could be empty)
+        if event_types_param.strip():  # Parameter has content
+            event_types = [t.strip() for t in event_types_param.split(",") if t.strip()]
+        else:  # Parameter is empty - show no events
+            event_types = []
     
     # Convert empty strings to None for database function
     track_filter = track_filter if track_filter else None
@@ -112,7 +115,8 @@ def events_page():
     
     # Pass filter parameters to template for maintaining state
     filter_params = {
-        'event_types': event_types or [],
+        'event_types': event_types if event_types is not None else None,
+        'event_types_filter_applied': event_types is not None,
         'track_filter': track_filter or '',
         'video_id_filter': video_id_filter or ''
     }

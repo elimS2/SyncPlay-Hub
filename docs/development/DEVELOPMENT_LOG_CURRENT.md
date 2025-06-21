@@ -1592,9 +1592,111 @@ This resolves the fundamental limitation where users could only filter within th
 
 ---
 
+### Log Entry #036 - 2025-06-21 21:37 UTC
+
+**Bugfix**: 🔄 Fixed Toggle All Button - Resolved Filter State Display Issue
+
+**Problem Identified:**
+- **User Report:** Toggle All button immediately re-enabled all checkboxes even when unchecking all
+- **Root Cause:** Template logic couldn't distinguish between "no filter applied" vs "empty filter applied"
+- **Impact:** Users couldn't use Toggle All to hide all events, button appeared broken
+
+**Technical Analysis:**
+
+**Problem:** Template condition `{% if not filters.event_types or 'start' in filters.event_types %}`
+- When `filters.event_types = []` (empty list), `not filters.event_types` returns `True`
+- Result: All checkboxes shown as checked even when server returned 0 events
+- User sees contradiction: empty results but all filters "enabled"
+
+**Solution:** Added explicit filter state tracking with three distinct states:
+1. **No filter** (`event_types_filter_applied = False`) → Show all events, all checkboxes checked
+2. **Empty filter** (`event_types_filter_applied = True`, `event_types = []`) → Show no events, all checkboxes unchecked  
+3. **Specific filter** (`event_types_filter_applied = True`, `event_types = ['like']`) → Show filtered events, specific checkboxes checked
+
+**Changes Made:**
+
+1. **Backend Logic Enhancement** (`app.py`)
+   - **Enhanced parameter parsing**: `event_types_param = request.args.get("event_types")` (None if not present)
+   - **Three-state logic**: Distinguish None (no filter) vs empty string (empty filter) vs content (specific filter)
+   - **Added filter state flag**: `event_types_filter_applied` to track if filter was explicitly set
+   - **Template context**: Pass both filter content and application state
+
+2. **Database Query Logic** (`database.py`)
+   - **Enhanced `get_history_page()`**: Handle `event_types = []` with `WHERE 1 = 0` (always false)
+   - **Explicit None checking**: `if event_types is not None` to distinguish filter states
+   - **Empty list handling**: Return zero results when empty filter explicitly applied
+
+3. **Template Logic Redesign** (`templates/history.html`)
+   - **Fixed checkbox conditions**: `{% if not filters.event_types_filter_applied or (filters.event_types and 'start' in filters.event_types) %}`
+   - **Proper state reflection**: Checkboxes now accurately reflect server-side filter state
+   - **Consistent messaging**: Filter indicators and empty state messages use same logic
+
+4. **JavaScript URL Building** (`templates/history.html`)
+   - **Enhanced parameter logic**: Always set `event_types` parameter except when all selected
+   - **Empty parameter support**: Send `event_types=` for "show nothing" state
+   - **Proper state transitions**: Toggle All correctly cycles between all/none states
+
+**Technical Implementation:**
+
+**Backend State Management:**
+```python
+# Parse event types with explicit None handling
+event_types_param = request.args.get("event_types")  # None if not present
+if event_types_param is not None:  # Parameter exists
+    if event_types_param.strip():  # Has content
+        event_types = [t.strip() for t in event_types_param.split(",") if t.strip()]
+    else:  # Empty parameter - show no events
+        event_types = []
+```
+
+**Database Query Logic:**
+```python
+if event_types is not None:  # Filter was specified
+    if event_types:  # Non-empty list
+        where_conditions.append(f"ph.event IN ({placeholders})")
+    else:  # Empty list - show no events
+        where_conditions.append("1 = 0")  # Always false
+```
+
+**Template State Logic:**
+```html
+{% if not filters.event_types_filter_applied or (filters.event_types and 'start' in filters.event_types) %}checked{% endif %}
+```
+
+**User Experience Improvements:**
+
+- ✅ **Correct Toggle Behavior**: Toggle All now properly cycles between all events and no events
+- ✅ **Visual Consistency**: Checkbox states accurately reflect actual filter results
+- ✅ **Predictable Interface**: Users see expected behavior when toggling filters
+- ✅ **Clear State Indication**: Filter status clearly shows when filters are active
+- ✅ **Proper Empty State**: "No events found" message appears when all filters unchecked
+
+**Testing Scenarios:**
+
+1. **Initial Load** (`/events`) → All checkboxes checked, all events shown
+2. **Toggle All (first click)** → All checkboxes unchecked, 0 events shown, URL: `/events?event_types=`
+3. **Toggle All (second click)** → All checkboxes checked, all events shown, URL: `/events`
+4. **Partial Selection** → Only selected checkboxes checked, filtered events shown
+5. **Text Filters** → Checkbox states preserved while text filtering applied
+
+**Benefits:**
+- **Fixed User Confusion**: Toggle All button now works as expected
+- **Improved UX**: Clear visual feedback for all filter states
+- **Technical Robustness**: Proper state management prevents edge cases
+- **Maintainable Code**: Clear separation between filter states and display logic
+- **Consistent Behavior**: All filter controls work harmoniously together
+
+This fix resolves the core usability issue where the Toggle All button appeared broken, providing users with reliable and intuitive filter control functionality.
+
+---
+
+*End of Log Entry #036*
+
+---
+
 ## Ready for Next Entry
 
-**Next Entry Number:** #036  
+**Next Entry Number:** #037  
 **Guidelines:** Follow established format with git timestamps and commit hashes  
 **Archive Status:** Monitor file size; archive when reaching 10-15 entries
 

@@ -14,9 +14,9 @@ This file provides structured information about the project's evolution, key arc
 ## 📈 **Complete Development Timeline**
 
 ### **Project Statistics**
-- **Total Commits:** 80
+- **Total Commits:** 81
 - **Development Period:** 2025-06-16 to 2025-06-21 (active development)
-- **Latest Commit:** 5a94430 - Enhance filter functionality with smart toggle control
+- **Latest Commit:** 9e0b97b - Implement server-side event filtering for comprehensive data access
 - **Initial Import:** e299d24 - SyncPlay-Hub project inception
 
 ### **Phase 0: Project Genesis (2025-06-16)**
@@ -284,6 +284,11 @@ This file provides structured information about the project's evolution, key arc
 - **Development Log:** Entry #035 - Server-side event filtering implementation
 - **Impact:** Fixed 1000 events limitation with database-level filtering for complete data access
 - **Files:** `database.py`, `app.py`, `templates/history.html`
+
+**Commit #081:** `9e0b97b` - **Implement server-side event filtering for comprehensive data access**
+- **Development Log:** Entry #036 - Toggle All button state management fix
+- **Impact:** Fixed Toggle All button functionality with proper three-state logic (no filter, empty filter, specific filter)
+- **Files:** `app.py`, `database.py`, `templates/history.html`
 
 ### **Feature #10: Enhanced Volume Event Logging**
 - **Date:** 2025-06-21

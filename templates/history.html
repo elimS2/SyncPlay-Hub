@@ -208,43 +208,43 @@
         <label>Event Types</label>
         <div class="event-types">
           <label class="event-type-checkbox" for="filter-start">
-            <input type="checkbox" id="filter-start" {% if not filters.event_types or 'start' in filters.event_types %}checked{% endif %}>
+            <input type="checkbox" id="filter-start" {% if not filters.event_types_filter_applied or (filters.event_types and 'start' in filters.event_types) %}checked{% endif %}>
             <span>Start</span>
           </label>
           <label class="event-type-checkbox" for="filter-finish">
-            <input type="checkbox" id="filter-finish" {% if not filters.event_types or 'finish' in filters.event_types %}checked{% endif %}>
+            <input type="checkbox" id="filter-finish" {% if not filters.event_types_filter_applied or (filters.event_types and 'finish' in filters.event_types) %}checked{% endif %}>
             <span>Finish</span>
           </label>
           <label class="event-type-checkbox" for="filter-play">
-            <input type="checkbox" id="filter-play" {% if not filters.event_types or 'play' in filters.event_types %}checked{% endif %}>
+            <input type="checkbox" id="filter-play" {% if not filters.event_types_filter_applied or (filters.event_types and 'play' in filters.event_types) %}checked{% endif %}>
             <span>Play</span>
           </label>
           <label class="event-type-checkbox" for="filter-pause">
-            <input type="checkbox" id="filter-pause" {% if not filters.event_types or 'pause' in filters.event_types %}checked{% endif %}>
+            <input type="checkbox" id="filter-pause" {% if not filters.event_types_filter_applied or (filters.event_types and 'pause' in filters.event_types) %}checked{% endif %}>
             <span>Pause</span>
           </label>
           <label class="event-type-checkbox" for="filter-next">
-            <input type="checkbox" id="filter-next" {% if not filters.event_types or 'next' in filters.event_types %}checked{% endif %}>
+            <input type="checkbox" id="filter-next" {% if not filters.event_types_filter_applied or (filters.event_types and 'next' in filters.event_types) %}checked{% endif %}>
             <span>Next</span>
           </label>
           <label class="event-type-checkbox" for="filter-prev">
-            <input type="checkbox" id="filter-prev" {% if not filters.event_types or 'prev' in filters.event_types %}checked{% endif %}>
+            <input type="checkbox" id="filter-prev" {% if not filters.event_types_filter_applied or (filters.event_types and 'prev' in filters.event_types) %}checked{% endif %}>
             <span>Previous</span>
           </label>
           <label class="event-type-checkbox" for="filter-like">
-            <input type="checkbox" id="filter-like" {% if not filters.event_types or 'like' in filters.event_types %}checked{% endif %}>
+            <input type="checkbox" id="filter-like" {% if not filters.event_types_filter_applied or (filters.event_types and 'like' in filters.event_types) %}checked{% endif %}>
             <span>Like</span>
           </label>
           <label class="event-type-checkbox" for="filter-volume_change">
-            <input type="checkbox" id="filter-volume_change" {% if not filters.event_types or 'volume_change' in filters.event_types %}checked{% endif %}>
+            <input type="checkbox" id="filter-volume_change" {% if not filters.event_types_filter_applied or (filters.event_types and 'volume_change' in filters.event_types) %}checked{% endif %}>
             <span>Volume</span>
           </label>
           <label class="event-type-checkbox" for="filter-seek">
-            <input type="checkbox" id="filter-seek" {% if not filters.event_types or 'seek' in filters.event_types %}checked{% endif %}>
+            <input type="checkbox" id="filter-seek" {% if not filters.event_types_filter_applied or (filters.event_types and 'seek' in filters.event_types) %}checked{% endif %}>
             <span>Seek</span>
           </label>
           <label class="event-type-checkbox" for="filter-playlist_added">
-            <input type="checkbox" id="filter-playlist_added" {% if not filters.event_types or 'playlist_added' in filters.event_types %}checked{% endif %}>
+            <input type="checkbox" id="filter-playlist_added" {% if not filters.event_types_filter_applied or (filters.event_types and 'playlist_added' in filters.event_types) %}checked{% endif %}>
             <span>Playlist</span>
           </label>
         </div>
@@ -268,7 +268,7 @@
   
   <!-- Results info -->
   <div class="results-info">
-    Showing: {{ history|length }} events {% if filters.event_types or filters.track_filter or filters.video_id_filter %}(filtered){% endif %}
+    Showing: {{ history|length }} events {% if filters.event_types_filter_applied or filters.track_filter or filters.video_id_filter %}(filtered){% endif %}
   </div>
   
   <table id="events-table">
@@ -356,7 +356,13 @@
           </td>
         </tr>
       {% else %}
-        <tr><td colspan="10">No events yet.</td></tr>
+        <tr><td colspan="10" style="text-align:center;padding:40px;color:#666;font-style:italic;">
+          {% if filters.event_types_filter_applied or filters.track_filter or filters.video_id_filter %}
+            🔍 No events match your filters. Try adjusting or clearing them.
+          {% else %}
+            No events yet.
+          {% endif %}
+        </td></tr>
       {% endfor %}
     </tbody>
   </table>
@@ -406,7 +412,11 @@
       // Build URL parameters
       const params = new URLSearchParams();
       
-      if (selectedTypes.length > 0 && selectedTypes.length < checkboxes.length) {
+      // Always set event_types parameter to distinguish from "no filter"
+      if (selectedTypes.length === checkboxes.length) {
+        // All selected - don't set parameter (show all)
+      } else {
+        // Some or none selected - set parameter (even if empty)
         params.set('event_types', selectedTypes.join(','));
       }
       

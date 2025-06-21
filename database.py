@@ -369,10 +369,13 @@ def get_history_page(conn: sqlite3.Connection, page: int = 1, per_page: int = 10
     params = []
     
     # Event type filter
-    if event_types:
-        placeholders = ','.join('?' * len(event_types))
-        where_conditions.append(f"ph.event IN ({placeholders})")
-        params.extend(event_types)
+    if event_types is not None:  # Filter was specified
+        if event_types:  # Non-empty list
+            placeholders = ','.join('?' * len(event_types))
+            where_conditions.append(f"ph.event IN ({placeholders})")
+            params.extend(event_types)
+        else:  # Empty list - show no events
+            where_conditions.append("1 = 0")  # Always false condition
     
     # Track name filter
     if track_filter:
