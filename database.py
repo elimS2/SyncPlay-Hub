@@ -78,6 +78,45 @@ def _ensure_schema(conn: sqlite3.Connection):
             setting_value TEXT NOT NULL,
             updated_at TEXT DEFAULT (datetime('now'))
         );
+
+        -- New tables for channel system --
+        CREATE TABLE IF NOT EXISTS channel_groups (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL UNIQUE,
+            behavior_type TEXT NOT NULL DEFAULT 'music',
+            play_order TEXT NOT NULL DEFAULT 'random',
+            auto_delete_enabled BOOLEAN DEFAULT 0,
+            folder_path TEXT,
+            created_at TEXT DEFAULT (datetime('now')),
+            updated_at TEXT DEFAULT (datetime('now'))
+        );
+
+        CREATE TABLE IF NOT EXISTS channels (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            url TEXT NOT NULL UNIQUE,
+            channel_group_id INTEGER,
+            date_from TEXT,
+            enabled BOOLEAN DEFAULT 1,
+            last_sync_ts TEXT,
+            track_count INTEGER DEFAULT 0,
+            created_at TEXT DEFAULT (datetime('now')),
+            FOREIGN KEY (channel_group_id) REFERENCES channel_groups(id) ON DELETE SET NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS deleted_tracks (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            video_id TEXT NOT NULL,
+            original_name TEXT NOT NULL,
+            original_relpath TEXT NOT NULL,
+            deleted_at TEXT DEFAULT (datetime('now')),
+            deletion_reason TEXT DEFAULT 'manual',
+            channel_group TEXT,
+            trash_path TEXT,
+            can_restore BOOLEAN DEFAULT 1,
+            restored_at TEXT,
+            additional_data TEXT
+        );
         """
     )
     conn.commit()
@@ -91,6 +130,17 @@ def _ensure_schema(conn: sqlite3.Connection):
                 cur.execute(f"ALTER TABLE tracks ADD COLUMN {col} INTEGER DEFAULT 0")
             else:
                 cur.execute(f"ALTER TABLE tracks ADD COLUMN {col} TEXT")
+    
+    # Add new channel-related columns to tracks table
+    for col in ("published_date", "duration_seconds", "channel_group", "auto_delete_after_finish"):
+        if col not in cols:
+            if col == "duration_seconds":
+                cur.execute(f"ALTER TABLE tracks ADD COLUMN {col} INTEGER")
+            elif col == "auto_delete_after_finish":
+                cur.execute(f"ALTER TABLE tracks ADD COLUMN {col} BOOLEAN DEFAULT 0")
+            else:
+                cur.execute(f"ALTER TABLE tracks ADD COLUMN {col} TEXT")
+    
     conn.commit()
 
     # ensure history table exists (for upgrades before)
@@ -122,6 +172,15 @@ def _ensure_schema(conn: sqlite3.Connection):
     if "source_url" not in cols:
         cur.execute("ALTER TABLE playlists ADD COLUMN source_url TEXT")
     conn.commit()
+
+    # Ensure valid event types include new channel events
+    _add_valid_event_types()
+
+
+def _add_valid_event_types():
+    """Add new event types for channel system"""
+    # This will be used in record_event validation
+    pass
 
 
 # ---------- Convenience queries ----------
@@ -247,8 +306,9 @@ def record_event(conn: sqlite3.Connection, video_id: str, event: str, position: 
         - playlist_added                                –  track added/discovered in playlist
         - removed                                       –  file deletion during library sync
         - backup_created                                –  database backup creation
+        - channel_downloaded                            –  channel content downloaded
     """
-    valid = {"start", "finish", "next", "prev", "like", "play", "pause", "volume_change", "seek", "playlist_added", "removed", "backup_created"}
+    valid = {"start", "finish", "next", "prev", "like", "play", "pause", "volume_change", "seek", "playlist_added", "removed", "backup_created", "channel_downloaded"}
     if event not in valid:
         return
     cur = conn.cursor()
@@ -759,3 +819,303 @@ def migrate_existing_playlist_associations(conn: sqlite3.Connection, dry_run: bo
         'migrated': migrated_count,
         'dry_run': False
     } 
+
+
+# ---------- Channel System Functions ----------
+
+
+def create_channel_group(conn: sqlite3.Connection, name: str, behavior_type: str = 'music', 
+                        play_order: str = 'random', auto_delete_enabled: bool = False, 
+                        folder_path: str = None) -> int:
+    """Create a new channel group.
+    
+    Args:
+        conn: Database connection
+        name: Group name (e.g., 'Music', 'News', 'Education')
+        behavior_type: Type of behavior ('music', 'news', 'education', 'podcasts')
+        play_order: Play order ('random', 'chronological_newest', 'chronological_oldest')
+        auto_delete_enabled: Whether to auto-delete tracks after finish
+        folder_path: Path to the group folder
+        
+    Returns:
+        ID of created channel group
+    """
+    cur = conn.cursor()
+    cur.execute(
+        """
+        INSERT INTO channel_groups (name, behavior_type, play_order, auto_delete_enabled, folder_path)
+        VALUES (?, ?, ?, ?, ?)
+        """,
+        (name, behavior_type, play_order, auto_delete_enabled, folder_path)
+    )
+    conn.commit()
+    return cur.lastrowid
+
+
+def get_channel_groups(conn: sqlite3.Connection):
+    """Get all channel groups with channel counts."""
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT 
+            cg.id, cg.name, cg.behavior_type, cg.play_order, 
+            cg.auto_delete_enabled, cg.folder_path, cg.created_at,
+            COUNT(c.id) as channel_count,
+            COALESCE(SUM(c.track_count), 0) as total_tracks
+        FROM channel_groups cg
+        LEFT JOIN channels c ON c.channel_group_id = cg.id AND c.enabled = 1
+        GROUP BY cg.id, cg.name, cg.behavior_type, cg.play_order, 
+                 cg.auto_delete_enabled, cg.folder_path, cg.created_at
+        ORDER BY cg.name
+    """)
+    rows = cur.fetchall()
+    
+    # Convert rows to dictionaries for JSON serialization
+    groups = []
+    for row in rows:
+        groups.append({
+            'id': row[0],
+            'name': row[1],
+            'behavior_type': row[2],
+            'play_order': row[3],
+            'auto_delete_enabled': bool(row[4]),
+            'folder_path': row[5],
+            'created_at': row[6],
+            'channel_count': row[7],
+            'total_tracks': row[8]
+        })
+    return groups
+
+
+def get_channel_group_by_id(conn: sqlite3.Connection, group_id: int):
+    """Get channel group by ID."""
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM channel_groups WHERE id = ?", (group_id,))
+    return cur.fetchone()
+
+
+def create_channel(conn: sqlite3.Connection, name: str, url: str, channel_group_id: int,
+                  date_from: str = None, enabled: bool = True) -> int:
+    """Create a new channel.
+    
+    Args:
+        conn: Database connection
+        name: Channel name (extracted from URL or custom)
+        url: YouTube channel URL
+        channel_group_id: ID of the channel group
+        date_from: Download videos from this date (YYYY-MM-DD format)
+        enabled: Whether channel is enabled for syncing
+        
+    Returns:
+        ID of created channel
+    """
+    cur = conn.cursor()
+    cur.execute(
+        """
+        INSERT INTO channels (name, url, channel_group_id, date_from, enabled)
+        VALUES (?, ?, ?, ?, ?)
+        """,
+        (name, url, channel_group_id, date_from, enabled)
+    )
+    conn.commit()
+    return cur.lastrowid
+
+
+def get_channels_by_group(conn: sqlite3.Connection, group_id: int):
+    """Get all channels in a group."""
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT 
+            c.*, 
+            cg.name as group_name,
+            cg.behavior_type,
+            cg.auto_delete_enabled
+        FROM channels c
+        JOIN channel_groups cg ON cg.id = c.channel_group_id
+        WHERE c.channel_group_id = ?
+        ORDER BY c.name
+    """, (group_id,))
+    return cur.fetchall()
+
+
+def get_channel_by_url(conn: sqlite3.Connection, url: str):
+    """Get channel by URL with group information."""
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT c.*, cg.name as group_name 
+        FROM channels c
+        LEFT JOIN channel_groups cg ON c.channel_group_id = cg.id
+        WHERE c.url = ?
+    """, (url,))
+    return cur.fetchone()
+
+
+def get_channel_by_id(conn: sqlite3.Connection, channel_id: int):
+    """Get channel by ID with group information."""
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT c.*, cg.name as group_name 
+        FROM channels c
+        LEFT JOIN channel_groups cg ON c.channel_group_id = cg.id
+        WHERE c.id = ?
+    """, (channel_id,))
+    return cur.fetchone()
+
+
+def update_channel_sync(conn: sqlite3.Connection, channel_id: int, track_count: int):
+    """Update channel sync timestamp and track count."""
+    cur = conn.cursor()
+    cur.execute(
+        """
+        UPDATE channels 
+        SET last_sync_ts = datetime('now'), track_count = ? 
+        WHERE id = ?
+        """,
+        (track_count, channel_id)
+    )
+    conn.commit()
+
+
+def record_track_deletion(conn: sqlite3.Connection, video_id: str, original_name: str,
+                         original_relpath: str, deletion_reason: str = 'auto_delete',
+                         channel_group: str = None, trash_path: str = None,
+                         additional_data: str = None):
+    """Record a track deletion for potential restoration.
+    
+    Args:
+        conn: Database connection
+        video_id: Video ID of deleted track
+        original_name: Original track name
+        original_relpath: Original file path
+        deletion_reason: Reason for deletion ('auto_delete', 'manual_delete', 'sync_removal')
+        channel_group: Name of channel group (for organization)
+        trash_path: Path in trash folder
+        additional_data: Additional context data
+    """
+    cur = conn.cursor()
+    cur.execute(
+        """
+        INSERT INTO deleted_tracks 
+        (video_id, original_name, original_relpath, deletion_reason, 
+         channel_group, trash_path, additional_data)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        """,
+        (video_id, original_name, original_relpath, deletion_reason,
+         channel_group, trash_path, additional_data)
+    )
+    conn.commit()
+    
+    # Also record as event in play_history
+    record_event(conn, video_id, 'auto_deleted' if deletion_reason == 'auto_delete' else 'removed',
+                additional_data=f"reason:{deletion_reason},trash_path:{trash_path}")
+
+
+def get_deleted_tracks(conn: sqlite3.Connection, channel_group: str = None, 
+                      days_back: int = 30, limit: int = 100):
+    """Get deleted tracks for restoration interface.
+    
+    Args:
+        conn: Database connection
+        channel_group: Filter by channel group name
+        days_back: How many days back to search
+        limit: Maximum number of results
+        
+    Returns:
+        List of deleted tracks with restoration info
+    """
+    cur = conn.cursor()
+    
+    query = """
+        SELECT 
+            dt.*,
+            CASE 
+                WHEN dt.trash_path IS NOT NULL AND dt.can_restore = 1 
+                THEN 'file_restore'
+                ELSE 're_download'
+            END as restoration_method
+        FROM deleted_tracks dt
+        WHERE dt.deleted_at >= datetime('now', '-{} days')
+    """.format(days_back)
+    
+    params = []
+    if channel_group:
+        query += " AND dt.channel_group = ?"
+        params.append(channel_group)
+    
+    query += " ORDER BY dt.deleted_at DESC LIMIT ?"
+    params.append(limit)
+    
+    cur.execute(query, params)
+    return cur.fetchall()
+
+
+def restore_deleted_track(conn: sqlite3.Connection, deleted_track_id: int):
+    """Mark a deleted track as restored.
+    
+    Args:
+        conn: Database connection
+        deleted_track_id: ID of the deleted track record
+    """
+    cur = conn.cursor()
+    cur.execute(
+        """
+        UPDATE deleted_tracks 
+        SET restored_at = datetime('now'), can_restore = 0
+        WHERE id = ?
+        """,
+        (deleted_track_id,)
+    )
+    conn.commit()
+
+
+def should_auto_delete_track(conn: sqlite3.Connection, video_id: str) -> bool:
+    """Check if track should be auto-deleted based on its channel group settings.
+    
+    Args:
+        conn: Database connection
+        video_id: Video ID to check
+        
+    Returns:
+        True if track should be auto-deleted, False otherwise
+    """
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT t.auto_delete_after_finish, cg.auto_delete_enabled
+        FROM tracks t
+        LEFT JOIN channels c ON c.url LIKE '%' || SUBSTR(t.relpath, 1, INSTR(t.relpath, '/') - 1) || '%'
+        LEFT JOIN channel_groups cg ON cg.id = c.channel_group_id
+        WHERE t.video_id = ?
+    """, (video_id,))
+    
+    result = cur.fetchone()
+    if result:
+        track_setting = result[0]  # Individual track setting
+        group_setting = result[1]  # Channel group setting
+        
+        # Individual track setting overrides group setting
+        if track_setting is not None:
+            return bool(track_setting)
+        
+        # Fall back to group setting
+        return bool(group_setting) if group_setting is not None else False
+    
+    return False
+
+
+def record_channel_added(conn: sqlite3.Connection, channel_url: str, channel_name: str, 
+                        group_name: str, additional_data: str = None):
+    """Record channel addition event."""
+    event_data = f"channel_name:{channel_name},group:{group_name}"
+    if additional_data:
+        event_data += f",{additional_data}"
+    
+    record_event(conn, 'system', 'channel_added', additional_data=event_data)
+
+
+def record_channel_synced(conn: sqlite3.Connection, channel_url: str, channel_name: str, 
+                         tracks_added: int, tracks_total: int, additional_data: str = None):
+    """Record channel sync event."""
+    event_data = f"channel_name:{channel_name},tracks_added:{tracks_added},tracks_total:{tracks_total}"
+    if additional_data:
+        event_data += f",{additional_data}"
+    
+    record_event(conn, 'system', 'channel_synced', additional_data=event_data) 

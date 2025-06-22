@@ -63,6 +63,7 @@ def api_active_downloads():
 def api_scan():
     """Scan Playlists directory and update database."""
     try:
+        from scan_to_db import scan as scan_library
         scan_library(ROOT_DIR)
         return jsonify({"status": "ok"})
     except Exception as exc:
@@ -1004,4 +1005,700 @@ def api_record_seek():
         
     except Exception as e:
         log_message(f"[Seek] Error recording seek: {e}")
+        return jsonify({"status": "error", "error": str(e)}), 500 
+
+# ==============================
+# CHANNELS SYSTEM API ENDPOINTS  
+# ==============================
+
+@api_bp.route("/channel_groups")
+def api_get_channel_groups():
+    """Get all channel groups with statistics."""
+    try:
+        conn = get_connection()
+        groups = db.get_channel_groups(conn)
+        conn.close()
+        
+        log_message(f"[Channels] Retrieved {len(groups)} channel groups")
+        return jsonify({"status": "ok", "groups": groups})
+        
+    except Exception as e:
+        log_message(f"[Channels] Error retrieving channel groups: {e}")
+        return jsonify({"status": "error", "error": str(e)}), 500
+
+@api_bp.route("/channels/<int:group_id>")
+def api_get_channels_by_group(group_id: int):
+    """Get all channels in a specific group."""
+    try:
+        conn = get_connection()
+        channels_raw = db.get_channels_by_group(conn, group_id)
+        conn.close()
+        
+        # Convert sqlite3.Row objects to dictionaries
+        channels = [dict(channel) for channel in channels_raw]
+        
+        log_message(f"[Channels] Retrieved {len(channels)} channels for group {group_id}")
+        return jsonify({"status": "ok", "channels": channels})
+        
+    except Exception as e:
+        log_message(f"[Channels] Error retrieving channels for group {group_id}: {e}")
+        return jsonify({"status": "error", "error": str(e)}), 500
+
+@api_bp.route("/create_channel_group", methods=["POST"])
+def api_create_channel_group():
+    """Create a new channel group."""
+    try:
+        data = request.get_json() or {}
+        name = data.get('name', '').strip()
+        behavior_type = data.get('behavior_type', 'music')
+        auto_delete_enabled = data.get('auto_delete_enabled', False)
+        play_order = data.get('play_order', 'random')
+        
+        # Validate required fields
+        if not name:
+            return jsonify({"status": "error", "error": "Group name is required"}), 400
+        
+        # Validate behavior type
+        valid_behaviors = ['music', 'news', 'education', 'podcasts']
+        if behavior_type not in valid_behaviors:
+            return jsonify({"status": "error", "error": f"Invalid behavior type. Must be one of: {valid_behaviors}"}), 400
+        
+        # Validate play order
+        valid_orders = ['random', 'newest_first', 'oldest_first']
+        if play_order not in valid_orders:
+            return jsonify({"status": "error", "error": f"Invalid play order. Must be one of: {valid_orders}"}), 400
+        
+        # Create group
+        conn = get_connection()
+        group_id = db.create_channel_group(
+            conn, 
+            name=name,
+            behavior_type=behavior_type,
+            auto_delete_enabled=auto_delete_enabled,
+            play_order=play_order
+        )
+        conn.close()
+        
+        log_message(f"[Channels] Created channel group: {name} (ID: {group_id}, type: {behavior_type})")
+        return jsonify({"status": "ok", "group_id": group_id, "message": f"Channel group '{name}' created successfully"})
+        
+    except Exception as e:
+        log_message(f"[Channels] Error creating channel group: {e}")
+        return jsonify({"status": "error", "error": str(e)}), 500
+
+@api_bp.route("/add_channel", methods=["POST"])
+def api_add_channel():
+    """Add a YouTube channel to a group and start downloading."""
+    try:
+        data = request.get_json() or {}
+        group_id = data.get('group_id')
+        channel_url = data.get('url', '').strip()  # Accept 'url' parameter
+        date_from = data.get('date_from')  # Optional date filter
+        
+        # Validate required fields
+        if not group_id:
+            return jsonify({"status": "error", "error": "Group ID is required"}), 400
+        
+        if not channel_url:
+            return jsonify({"status": "error", "error": "Channel URL is required"}), 400
+        
+        # Validate YouTube channel URL format
+        import re
+        channel_patterns = [
+            r'youtube\.com/@([^/\s]+)(?:/videos)?',  # @ChannelName or @ChannelName/videos format
+            r'youtube\.com/c/([^/\s]+)',  # /c/ChannelName format
+            r'youtube\.com/channel/([^/\s]+)',  # /channel/ChannelID format
+            r'youtube\.com/user/([^/\s]+)'  # /user/Username format
+        ]
+        
+        valid_url = False
+        for pattern in channel_patterns:
+            if re.search(pattern, channel_url):
+                valid_url = True
+                break
+        
+        if not valid_url:
+            return jsonify({
+                "status": "error", 
+                "error": "Invalid YouTube channel URL. Supported formats: @ChannelName, /c/ChannelName, /channel/ChannelID, /user/Username"
+            }), 400
+        
+        # Check if channel already exists
+        conn = get_connection()
+        existing_channel = db.get_channel_by_url(conn, channel_url)
+        if existing_channel:
+            conn.close()
+            return jsonify({
+                "status": "error", 
+                "error": f"Channel already exists in group '{existing_channel['group_name']}'"
+            }), 400
+        
+        # Get group info
+        group = db.get_channel_group_by_id(conn, group_id)
+        if not group:
+            conn.close()
+            return jsonify({"status": "error", "error": "Channel group not found"}), 404
+        
+        # Extract channel name from URL for display
+        import re
+        channel_name = "Unknown Channel"
+        name_match = re.search(r'@([^/\s]+)', channel_url)
+        if name_match:
+            channel_name = name_match.group(1)
+        else:
+            # Try other patterns
+            for pattern in [r'/c/([^/\s]+)', r'/channel/([^/\s]+)', r'/user/([^/\s]+)']:
+                match = re.search(pattern, channel_url)
+                if match:
+                    channel_name = match.group(1)
+                    break
+        
+        # Create channel entry
+        channel_id = db.create_channel(conn, channel_name, channel_url, group_id, date_from)
+        
+        # Record channel addition event
+        db.record_channel_added(conn, channel_url, channel_name, group['name'])
+        
+        conn.close()
+        
+        # Start background download
+        import threading
+        from pathlib import Path
+        
+        def _download_worker():
+            try:
+                # Import download_content from new module
+                from download_content import download_content
+                import shutil
+                
+                # Set up progress callback for logging
+                def progress_callback(msg):
+                    log_message(f"[Channel Download] {msg}")
+                
+                # FIRST: Check if files for this channel already exist in other groups
+                existing_files_moved = False
+                target_folder = ROOT_DIR / group['name'] / f"Channel-{channel_name}"
+                
+                # Search for existing channel folders in all groups (including current)
+                for group_folder in ROOT_DIR.iterdir():
+                    if group_folder.is_dir():
+                        # Try multiple possible folder names (same logic as refresh_stats)
+                        possible_folders = []
+                        possible_folders.append(group_folder / f"Channel-{channel_name}")
+                        
+                        if '@' in channel_url:
+                            url_channel_name = channel_url.split('@')[1].split('/')[0]  
+                            possible_folders.append(group_folder / f"Channel-{url_channel_name}")
+                        
+                        short_name = channel_name.replace('enjoy', '').replace('music', '').replace('official', '').strip()
+                        if short_name != channel_name:
+                            possible_folders.append(group_folder / f"Channel-{short_name}")
+                        
+                        for existing_folder in possible_folders:
+                            if existing_folder.exists():
+                                try:
+                                    # Count files in existing folder
+                                    video_extensions = ['.mp4', '.webm', '.mkv', '.avi', '.mp3', '.m4a']
+                                    existing_files = [f for f in existing_folder.iterdir() 
+                                                    if f.is_file() and f.suffix.lower() in video_extensions]
+                                    
+                                    if existing_files:
+                                        if group_folder.name == group['name']:
+                                            # Files already in correct group - just use them
+                                            log_message(f"[Channel Download] Found {len(existing_files)} existing files in current group: {existing_folder}")
+                                            existing_files_moved = True
+                                            break
+                                        else:
+                                            # Files in different group - move them
+                                            log_message(f"[Channel Download] Found existing files for {channel_name} in {existing_folder}")
+                                            log_message(f"[Channel Download] Moving {len(existing_files)} files to new group: {group['name']}")
+                                            
+                                            # Create target folder
+                                            target_folder.mkdir(parents=True, exist_ok=True)
+                                            
+                                            # Move all files
+                                            moved_count = 0
+                                            for file in existing_files:
+                                                try:
+                                                    target_file = target_folder / file.name
+                                                    if not target_file.exists():
+                                                        shutil.move(str(file), str(target_file))
+                                                        moved_count += 1
+                                                except Exception as move_error:
+                                                    log_message(f"[Channel Download] Error moving file {file.name}: {move_error}")
+                                            
+                                            # Remove empty source folder if all files moved
+                                            if moved_count > 0:
+                                                try:
+                                                    remaining_files = [f for f in existing_folder.iterdir() if f.is_file()]
+                                                    if not remaining_files:
+                                                        existing_folder.rmdir()
+                                                        log_message(f"[Channel Download] Removed empty folder: {existing_folder}")
+                                                except Exception:
+                                                    pass  # Ignore errors when removing empty folder
+                                            
+                                            if moved_count > 0:
+                                                log_message(f"[Channel Download] Successfully moved {moved_count} files from {existing_folder} to {target_folder}")
+                                                existing_files_moved = True
+                                                break
+                                        
+                                except Exception as search_error:
+                                    log_message(f"[Channel Download] Error searching folder {existing_folder}: {search_error}")
+                            
+                            if existing_files_moved:
+                                break
+                    
+                    if existing_files_moved:
+                        break
+                
+                # SECOND: Download new content (will skip existing files)
+                if existing_files_moved:
+                    log_message(f"[Channel Download] Files moved successfully, now syncing for any new content...")
+                else:
+                    log_message(f"[Channel Download] No existing files found, downloading fresh content...")
+                
+                download_content(
+                    url=channel_url,
+                    output_dir=ROOT_DIR,
+                    audio_only=False,  # Download video files for channels
+                    sync=True,
+                    channel_group=group['name'],
+                    date_from=date_from,
+                    exclude_shorts=True,  # Exclude Shorts from download
+                    progress_callback=progress_callback
+                )
+                
+                # Update channel sync timestamp - get actual track count
+                conn = get_connection()
+                
+                # Count actual files in the channel folder (both moved and downloaded)
+                import pathlib
+                final_folder = ROOT_DIR / group['name'] / f"Channel-{channel_name}"
+                actual_track_count = 0
+                if final_folder.exists():
+                    # Count all media files (video and audio)
+                    media_extensions = ['.mp4', '.webm', '.mkv', '.avi', '.mp3', '.m4a']
+                    actual_track_count = len([f for f in final_folder.iterdir() 
+                                            if f.is_file() and f.suffix.lower() in media_extensions])
+                
+                db.update_channel_sync(conn, channel_id, actual_track_count)
+                conn.close()
+                
+                if existing_files_moved:
+                    log_message(f"[Channels] Channel setup complete: {actual_track_count} tracks (existing files reused + new downloads)")
+                else:
+                    log_message(f"[Channels] Channel download complete: {actual_track_count} tracks downloaded")
+                
+                # Scan downloaded files into database
+                try:
+                    from scan_to_db import scan as scan_library
+                    scan_library(ROOT_DIR)
+                    log_message(f"[Channels] Database scan completed for new downloads")
+                except Exception as scan_error:
+                    log_message(f"[Channels] Warning: Database scan failed: {scan_error}")
+                
+                log_message(f"[Channels] Successfully downloaded channel: {channel_url}")
+                
+            except Exception as e:
+                log_message(f"[Channels] Error downloading channel {channel_url}: {e}")
+        
+        # Start download in background
+        download_thread = threading.Thread(target=_download_worker, daemon=True)
+        download_thread.start()
+        
+        log_message(f"[Channels] Added channel to group '{group['name']}': {channel_url} (download started)")
+        return jsonify({
+            "status": "started", 
+            "channel_id": channel_id, 
+            "message": f"Channel added to group '{group['name']}' and download started in background"
+        })
+        
+    except Exception as e:
+        log_message(f"[Channels] Error adding channel: {e}")
+        return jsonify({"status": "error", "error": str(e)}), 500
+
+@api_bp.route("/sync_channel_group/<int:group_id>", methods=["POST"])
+def api_sync_channel_group(group_id: int):
+    """Sync all channels in a group."""
+    try:
+        data = request.get_json() or {}
+        date_from = data.get('date_from')  # Optional date filter
+        date_to = data.get('date_to')  # Optional date filter
+        
+        conn = get_connection()
+        
+        # Get group info
+        group = db.get_channel_group_by_id(conn, group_id)
+        if not group:
+            conn.close()
+            return jsonify({"status": "error", "error": "Channel group not found"}), 404
+        
+        # Get channels in group
+        channels_raw = db.get_channels_by_group(conn, group_id)
+        if not channels_raw:
+            conn.close()
+            return jsonify({"status": "error", "error": "No channels found in group"}), 400
+        
+        # Convert sqlite3.Row objects to dictionaries
+        channels = [dict(channel) for channel in channels_raw]
+        
+        conn.close()
+        
+        # Start background sync for all channels
+        import threading
+        
+        def _sync_worker():
+            try:
+                from download_content import download_content
+                
+                success_count = 0
+                for channel in channels:
+                    try:
+                        # Set up progress callback for logging
+                        def progress_callback(msg):
+                            log_message(f"[Group Sync] {channel['name']}: {msg}")
+                        
+                        # Sync channel content
+                        download_content(
+                            url=channel['url'],
+                            output_dir=ROOT_DIR,
+                            audio_only=False,  # Download video files for channels
+                            sync=True,
+                            channel_group=group['name'],
+                            date_from=date_from,
+                            exclude_shorts=True,  # Exclude Shorts from download
+                            progress_callback=progress_callback
+                        )
+                        
+                        # Update channel sync timestamp - count actual tracks
+                        conn = get_connection()
+                        
+                        # Count actual files in channel folder
+                        import pathlib
+                        channel_folder = ROOT_DIR / group['name'] / f"Channel-{channel['name']}"
+                        actual_track_count = 0
+                        if channel_folder.exists():
+                            video_extensions = ['.mp4', '.webm', '.mkv', '.avi']
+                            actual_track_count = len([f for f in channel_folder.iterdir() 
+                                                    if f.is_file() and f.suffix.lower() in video_extensions])
+                        
+                        db.update_channel_sync(conn, channel['id'], actual_track_count)
+                        conn.close()
+                        
+                        success_count += 1
+                        log_message(f"[Group Sync] Successfully synced channel: {channel['name']}")
+                        
+                    except Exception as e:
+                        log_message(f"[Group Sync] Error syncing channel {channel['name']}: {e}")
+                
+                log_message(f"[Group Sync] Completed group '{group['name']}': {success_count}/{len(channels)} channels synced")
+                
+            except Exception as e:
+                log_message(f"[Group Sync] Error syncing group '{group['name']}': {e}")
+        
+        # Start sync in background
+        sync_thread = threading.Thread(target=_sync_worker, daemon=True)
+        sync_thread.start()
+        
+        log_message(f"[Channels] Started sync for group '{group['name']}' with {len(channels)} channels")
+        
+        return jsonify({
+            "status": "started", 
+            "message": f"Sync started for {len(channels)} channels in group '{group['name']}'",
+            "group_name": group['name'],
+            "channels_count": len(channels),
+            "date_filter": {"from": date_from, "to": date_to} if date_from or date_to else None
+        })
+        
+    except Exception as e:
+        log_message(f"[Channels] Error syncing channel group: {e}")
+        return jsonify({"status": "error", "error": str(e)}), 500
+
+@api_bp.route("/sync_channel/<int:channel_id>", methods=["POST"])
+def api_sync_channel(channel_id: int):
+    """Sync individual channel."""
+    try:
+        data = request.get_json() or {}
+        date_from = data.get('date_from')  # Optional date filter
+        date_to = data.get('date_to')  # Optional date filter
+        
+        conn = get_connection()
+        
+        # Get channel info
+        channel_raw = db.get_channel_by_id(conn, channel_id)
+        if not channel_raw:
+            conn.close()
+            return jsonify({"status": "error", "error": "Channel not found"}), 404
+        
+        # Convert to dict for easier access
+        channel = dict(channel_raw)
+        
+        # Get group info
+        group = db.get_channel_group_by_id(conn, channel['channel_group_id'])
+        
+        conn.close()
+        
+        # Start background sync
+        import threading
+        
+        def _sync_worker():
+            try:
+                from download_content import download_content
+                
+                # Set up progress callback for logging
+                def progress_callback(msg):
+                    log_message(f"[Channel Sync] {channel['name']}: {msg}")
+                
+                # Sync channel content
+                download_content(
+                    url=channel['url'],
+                    output_dir=ROOT_DIR,
+                    audio_only=False,  # Download video files for channels
+                    sync=True,
+                    channel_group=group['name'] if group else None,
+                    date_from=date_from,
+                    exclude_shorts=True,  # Exclude Shorts from download
+                    progress_callback=progress_callback
+                )
+                
+                # Update channel sync timestamp - count actual tracks
+                conn = get_connection()
+                
+                # Count actual files in channel folder
+                import pathlib
+                channel_folder = ROOT_DIR / (group['name'] if group else '') / f"Channel-{channel['name']}"
+                actual_track_count = 0
+                if channel_folder.exists():
+                    video_extensions = ['.mp4', '.webm', '.mkv', '.avi']
+                    actual_track_count = len([f for f in channel_folder.iterdir() 
+                                            if f.is_file() and f.suffix.lower() in video_extensions])
+                
+                db.update_channel_sync(conn, channel_id, actual_track_count)
+                conn.close()
+                
+                log_message(f"[Channel Sync] Successfully synced channel: {channel['name']}")
+                
+            except Exception as e:
+                log_message(f"[Channel Sync] Error syncing channel {channel['name']}: {e}")
+        
+        # Start sync in background
+        sync_thread = threading.Thread(target=_sync_worker, daemon=True)
+        sync_thread.start()
+        
+        log_message(f"[Channels] Started sync for channel: {channel['name']}")
+        
+        return jsonify({
+            "status": "started", 
+            "message": f"Sync started for channel '{channel['name']}'",
+            "channel_url": channel['url'],
+            "channel_name": channel['name'],
+            "date_filter": {"from": date_from, "to": date_to} if date_from or date_to else None
+        })
+        
+    except Exception as e:
+        log_message(f"[Channels] Error syncing channel: {e}")
+        return jsonify({"status": "error", "error": str(e)}), 500
+
+@api_bp.route("/refresh_channel_stats/<int:channel_id>", methods=["POST"])
+def api_refresh_channel_stats(channel_id: int):
+    """Refresh channel statistics by counting actual files."""
+    try:
+        conn = get_connection()
+        
+        # Get channel info
+        channel_raw = db.get_channel_by_id(conn, channel_id)
+        if not channel_raw:
+            conn.close()
+            return jsonify({"status": "error", "error": "Channel not found"}), 404
+        
+        channel = dict(channel_raw)
+        
+        # Get group info
+        group = db.get_channel_group_by_id(conn, channel['channel_group_id'])
+        if not group:
+            conn.close()
+            return jsonify({"status": "error", "error": "Channel group not found"}), 404
+        
+        # Count actual files in channel folder
+        import pathlib
+        import re
+        
+        # Try multiple possible folder names for the channel
+        possible_folders = []
+        
+        # 1. Try full channel name
+        possible_folders.append(ROOT_DIR / group['name'] / f"Channel-{channel['name']}")
+        
+        # 2. Try extracting channel name from URL
+        url = channel['url']
+        if '@' in url:
+            # Extract from URL like https://www.youtube.com/@LAUDenjoy/videos
+            url_channel_name = url.split('@')[1].split('/')[0]
+            possible_folders.append(ROOT_DIR / group['name'] / f"Channel-{url_channel_name}")
+        
+        # 3. Try short name (remove common suffixes)
+        short_name = channel['name'].replace('enjoy', '').replace('music', '').replace('official', '').strip()
+        if short_name != channel['name']:
+            possible_folders.append(ROOT_DIR / group['name'] / f"Channel-{short_name}")
+        
+        actual_track_count = 0
+        found_folder = None
+        
+        for channel_folder in possible_folders:
+            if channel_folder.exists():
+                found_folder = channel_folder
+                video_extensions = ['.mp4', '.webm', '.mkv', '.avi', '.mp3', '.m4a']  # Include audio too
+                actual_track_count = len([f for f in channel_folder.iterdir() 
+                                        if f.is_file() and f.suffix.lower() in video_extensions])
+                break
+        
+        # Update database with actual count
+        db.update_channel_sync(conn, channel_id, actual_track_count)
+        conn.close()
+        
+        folder_info = f" in {found_folder}" if found_folder else " (folder not found)"
+        log_message(f"[Channels] Refreshed stats for {channel['name']}: {actual_track_count} tracks{folder_info}")
+        
+        return jsonify({
+            "status": "success", 
+            "track_count": actual_track_count,
+            "message": f"Statistics updated: {actual_track_count} tracks found"
+        })
+        
+    except Exception as e:
+        log_message(f"[Channels] Error refreshing channel stats: {e}")
+        return jsonify({"status": "error", "error": str(e)}), 500
+
+@api_bp.route("/deleted_tracks")
+def api_get_deleted_tracks():
+    """Get deleted tracks for restoration page."""
+    try:
+        conn = get_connection()
+        deleted_tracks = db.get_deleted_tracks(conn)
+        conn.close()
+        
+        log_message(f"[Restore] Retrieved {len(deleted_tracks)} deleted tracks")
+        return jsonify({"status": "ok", "tracks": deleted_tracks})
+        
+    except Exception as e:
+        log_message(f"[Restore] Error retrieving deleted tracks: {e}")
+        return jsonify({"status": "error", "error": str(e)}), 500
+
+@api_bp.route("/restore_track", methods=["POST"])
+def api_restore_track():
+    """Restore a deleted track."""
+    try:
+        data = request.get_json() or {}
+        track_id = data.get('track_id')
+        restore_method = data.get('method', 'file')  # 'file' or 'redownload'
+        
+        # Validate required fields
+        if not track_id:
+            return jsonify({"status": "error", "error": "Track ID is required"}), 400
+        
+        if restore_method not in ['file', 'redownload']:
+            return jsonify({"status": "error", "error": "Invalid restore method. Must be 'file' or 'redownload'"}), 400
+        
+        conn = get_connection()
+        
+        # TODO: Implement actual restoration logic in Phase 4.2 (Restoration Logic)
+        # For now, just mark as restored in database
+        result = db.restore_deleted_track(conn, track_id)
+        
+        if result:
+            log_message(f"[Restore] Track {track_id} marked as restored (method: {restore_method})")
+            conn.close()
+            return jsonify({
+                "status": "placeholder", 
+                "message": f"Track marked as restored",
+                "track_id": track_id,
+                "method": restore_method,
+                "note": "Actual file restoration implementation coming in Phase 4.2"
+            })
+        else:
+            conn.close()
+            return jsonify({"status": "error", "error": "Track not found or already restored"}), 404
+        
+    except Exception as e:
+        log_message(f"[Restore] Error restoring track: {e}")
+        return jsonify({"status": "error", "error": str(e)}), 500 
+
+@api_bp.route("/remove_channel/<int:channel_id>", methods=["POST"])
+def api_remove_channel(channel_id: int):
+    """Remove channel from its group."""
+    try:
+        data = request.get_json() or {}
+        keep_files = data.get('keep_files', True)  # Default: keep files on disk
+        
+        conn = get_connection()
+        
+        # Get channel info before deletion 
+        channel_raw = db.get_channel_by_id(conn, channel_id)
+        if not channel_raw:
+            conn.close()
+            return jsonify({"status": "error", "error": "Channel not found"}), 404
+        
+        channel = dict(channel_raw)
+        
+        # Get group info for folder path
+        group = db.get_channel_group_by_id(conn, channel['channel_group_id'])
+        if not group:
+            conn.close()
+            return jsonify({"status": "error", "error": "Channel group not found"}), 404
+        
+        # Remove channel from database
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM channels WHERE id = ?", (channel_id,))
+        conn.commit()
+        
+        removed_count = cursor.rowcount
+        conn.close()
+        
+        if removed_count > 0:
+            log_message(f"[Channels] Removed channel '{channel['name']}' from group '{group['name']}'")
+            
+            # Optional: Remove files from disk
+            if not keep_files:
+                import pathlib
+                import shutil
+                
+                # Try multiple possible folder names (same logic as refresh_stats)
+                possible_folders = []
+                possible_folders.append(ROOT_DIR / group['name'] / f"Channel-{channel['name']}")
+                
+                if '@' in channel['url']:
+                    url_channel_name = channel['url'].split('@')[1].split('/')[0]
+                    possible_folders.append(ROOT_DIR / group['name'] / f"Channel-{url_channel_name}")
+                
+                short_name = channel['name'].replace('enjoy', '').replace('music', '').replace('official', '').strip()
+                if short_name != channel['name']:
+                    possible_folders.append(ROOT_DIR / group['name'] / f"Channel-{short_name}")
+                
+                deleted_folder = None
+                for channel_folder in possible_folders:
+                    if channel_folder.exists():
+                        try:
+                            shutil.rmtree(channel_folder)
+                            deleted_folder = channel_folder
+                            log_message(f"[Channels] Deleted folder: {channel_folder}")
+                            break
+                        except Exception as e:
+                            log_message(f"[Channels] Error deleting folder {channel_folder}: {e}")
+                
+                folder_info = f" and deleted folder {deleted_folder}" if deleted_folder else " (folder not found)"
+            else:
+                folder_info = " (files kept on disk)"
+            
+            return jsonify({
+                "status": "success",
+                "message": f"Channel '{channel['name']}' removed from group '{group['name']}'{folder_info}",
+                "channel_name": channel['name'],
+                "group_name": group['name'],
+                "files_deleted": not keep_files
+            })
+        else:
+            return jsonify({"status": "error", "error": "Channel not found or already removed"}), 404
+            
+    except Exception as e:
+        log_message(f"[Channels] Error removing channel: {e}")
         return jsonify({"status": "error", "error": str(e)}), 500 

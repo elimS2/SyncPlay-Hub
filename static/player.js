@@ -11,6 +11,192 @@ function shuffle(array) {
   }
 }
 
+// ===== SMART CHANNEL PLAYBACK LOGIC =====
+
+function smartShuffle(list){
+   const now = new Date();
+   const group1=[];const group2=[];const group3=[];const group4=[];const group5=[];const group6=[];
+
+   const getWeekOfYear=(d)=>{
+     const onejan=new Date(d.getFullYear(),0,1);
+     return Math.ceil((((d - onejan)/86400000)+onejan.getDay()+1)/7);
+   };
+
+   for(const t of list){
+      if(!t.last_play){group1.push(t);continue;}
+      const tsStr = t.last_play.replace(' ', 'T')+'Z';
+      const ts=new Date(tsStr);
+      if(ts.getFullYear()<now.getFullYear()){group2.push(t);continue;}
+      if(ts.getMonth()<now.getMonth()){group3.push(t);continue;}
+      if(getWeekOfYear(ts)<getWeekOfYear(now)){group4.push(t);continue;}
+      if(ts.getDate()<now.getDate()){group5.push(t);continue;}
+      group6.push(t);
+   }
+
+   const all=[group1,group2,group3,group4,group5,group6].flatMap(arr=>{shuffle(arr);return arr;});
+   return all;
+}
+
+function detectChannelGroup(track) {
+  /**
+   * Detect channel group from file path
+   * Returns: { type: 'music'|'news'|'education'|'podcasts'|'playlist', group: string, isChannel: boolean }
+   */
+  if (!track || !track.relpath) {
+    return { type: 'playlist', group: 'Unknown', isChannel: false };
+  }
+  
+  const path = track.relpath.toLowerCase();
+  
+  // Check for channel group patterns: Music/Channel-Artist/, News/Channel-News/, etc.
+  const channelGroupMatch = path.match(/^(music|news|education|podcasts)\/channel-([^\/]+)\//);
+  if (channelGroupMatch) {
+    const groupType = channelGroupMatch[1];
+    const channelName = channelGroupMatch[2];
+    return { 
+      type: groupType, 
+      group: `${groupType.charAt(0).toUpperCase() + groupType.slice(1)} Channels`,
+      channel: channelName,
+      isChannel: true 
+    };
+  }
+  
+  // Check for direct channel folders: Channel-Artist/
+  const directChannelMatch = path.match(/^channel-([^\/]+)\//);
+  if (directChannelMatch) {
+    const channelName = directChannelMatch[1];
+    return { 
+      type: 'music', // Default to music for direct channels
+      group: 'Channels',
+      channel: channelName,
+      isChannel: true 
+    };
+  }
+  
+  // Regular playlist
+  const playlistMatch = path.match(/^([^\/]+)\//);
+  if (playlistMatch) {
+    const playlistName = playlistMatch[1];
+    return { 
+      type: 'playlist', 
+      group: playlistName,
+      isChannel: false 
+    };
+  }
+  
+  return { type: 'playlist', group: 'Unknown', isChannel: false };
+}
+
+function smartChannelShuffle(tracks) {
+  /**
+   * Smart shuffle based on channel groups:
+   * - Music: Random shuffle with repeat
+   * - News: Chronological newest-first (by filename/date)
+   * - Education: Sequential oldest-first
+   * - Podcasts: Sequential newest-first
+   * - Playlists: Smart shuffle (existing logic)
+   */
+  
+  if (!tracks || tracks.length === 0) return [];
+  
+  // Group tracks by channel group
+  const groups = {};
+  tracks.forEach(track => {
+    const detection = detectChannelGroup(track);
+    const key = `${detection.type}:${detection.group}`;
+    if (!groups[key]) {
+      groups[key] = { tracks: [], detection: detection };
+    }
+    groups[key].tracks.push(track);
+  });
+  
+  // Process each group according to its type
+  const processedTracks = [];
+  
+  Object.values(groups).forEach(group => {
+    const { tracks: groupTracks, detection } = group;
+    let orderedTracks = [...groupTracks];
+    
+    switch (detection.type) {
+      case 'music':
+        // Random shuffle for music
+        shuffle(orderedTracks);
+        console.log(`🎵 Music group "${detection.group}": ${orderedTracks.length} tracks shuffled randomly`);
+        break;
+        
+      case 'news':
+        // Chronological newest-first for news
+        orderedTracks.sort((a, b) => {
+          // Try to extract date from filename or use last_play as fallback
+          const aTime = a.last_play || a.name;
+          const bTime = b.last_play || b.name;
+          return bTime.localeCompare(aTime); // Newest first
+        });
+        console.log(`📰 News group "${detection.group}": ${orderedTracks.length} tracks ordered newest-first`);
+        break;
+        
+      case 'education':
+        // Sequential oldest-first for education
+        orderedTracks.sort((a, b) => {
+          const aTime = a.last_play || a.name;
+          const bTime = b.last_play || b.name;
+          return aTime.localeCompare(bTime); // Oldest first
+        });
+        console.log(`🎓 Education group "${detection.group}": ${orderedTracks.length} tracks ordered oldest-first`);
+        break;
+        
+      case 'podcasts':
+        // Sequential newest-first for podcasts
+        orderedTracks.sort((a, b) => {
+          const aTime = a.last_play || a.name;
+          const bTime = b.last_play || b.name;
+          return bTime.localeCompare(aTime); // Newest first
+        });
+        console.log(`🎙️ Podcast group "${detection.group}": ${orderedTracks.length} tracks ordered newest-first`);
+        break;
+        
+      case 'playlist':
+      default:
+        // Use existing smart shuffle logic for playlists
+        orderedTracks = smartShuffle(groupTracks);
+        console.log(`📋 Playlist "${detection.group}": ${orderedTracks.length} tracks smart shuffled`);
+        break;
+    }
+    
+    processedTracks.push(...orderedTracks);
+  });
+  
+  return processedTracks;
+}
+
+function getGroupPlaybackInfo(tracks) {
+  /**
+   * Get playback information for current track mix
+   */
+  if (!tracks || tracks.length === 0) return null;
+  
+  const groups = {};
+  tracks.forEach(track => {
+    const detection = detectChannelGroup(track);
+    const key = `${detection.type}:${detection.group}`;
+    if (!groups[key]) {
+      groups[key] = { count: 0, detection: detection };
+    }
+    groups[key].count++;
+  });
+  
+  const groupInfo = Object.values(groups).map(group => ({
+    type: group.detection.type,
+    group: group.detection.group,
+    count: group.count,
+    isChannel: group.detection.isChannel
+  }));
+  
+  return groupInfo;
+}
+
+// ===== END SMART CHANNEL PLAYBACK LOGIC =====
+
 (async () => {
   const media = document.getElementById('player');
   const listElem = document.getElementById('tracklist');
@@ -46,32 +232,23 @@ function shuffle(array) {
   const playlistRel = typeof PLAYLIST_REL !== 'undefined' ? PLAYLIST_REL : '';
   let tracks = await fetchTracks(playlistRel);
 
-  function smartShuffle(list){
-     const now = new Date();
-     const group1=[];const group2=[];const group3=[];const group4=[];const group5=[];const group6=[];
-
-     const getWeekOfYear=(d)=>{
-       const onejan=new Date(d.getFullYear(),0,1);
-       return Math.ceil((((d - onejan)/86400000)+onejan.getDay()+1)/7);
-     };
-
-     for(const t of list){
-        if(!t.last_play){group1.push(t);continue;}
-        const tsStr = t.last_play.replace(' ', 'T')+'Z';
-        const ts=new Date(tsStr);
-        if(ts.getFullYear()<now.getFullYear()){group2.push(t);continue;}
-        if(ts.getMonth()<now.getMonth()){group3.push(t);continue;}
-        if(getWeekOfYear(ts)<getWeekOfYear(now)){group4.push(t);continue;}
-        if(ts.getDate()<now.getDate()){group5.push(t);continue;}
-        group6.push(t);
-     }
-
-     const all=[group1,group2,group3,group4,group5,group6].flatMap(arr=>{shuffle(arr);return arr;});
-     return all;
-  }
-
-  let queue = smartShuffle([...tracks]);
+  let queue = smartChannelShuffle([...tracks]);
   let currentIndex = -1;
+  
+  // Log playback info
+  const playbackInfo = getGroupPlaybackInfo(tracks);
+  if (playbackInfo && playbackInfo.length > 0) {
+    console.log('🎯 Smart Playback Info:');
+    playbackInfo.forEach(info => {
+      const icon = info.type === 'music' ? '🎵' : 
+                   info.type === 'news' ? '📰' : 
+                   info.type === 'education' ? '🎓' : 
+                   info.type === 'podcasts' ? '🎙️' : '📋';
+      console.log(`  ${icon} ${info.group}: ${info.count} tracks (${info.isChannel ? 'Channel' : 'Playlist'})`);
+    });
+    }
+
+
 
   // ---- Google Cast Integration ----
   console.log('🔄 CAST DEBUG: Starting Google Cast integration setup...');
@@ -304,6 +481,9 @@ function shuffle(array) {
     // report finish first
     if (finishedTrack) {
       reportEvent(finishedTrack.video_id, 'finish');
+      
+      // Trigger auto-delete check for channel content
+      triggerAutoDeleteCheck(finishedTrack);
     }
 
     // then move to next track if available
@@ -313,13 +493,31 @@ function shuffle(array) {
   });
 
   shuffleBtn.onclick = () => {
+    // Regular random shuffle
     queue = [...tracks];
     shuffle(queue);
+    console.log('🔀 Random shuffle applied to all tracks');
     playIndex(0);
   };
 
   smartShuffleBtn.onclick = ()=>{
-     queue = smartShuffle([...tracks]);
+     // Smart channel-aware shuffle
+     queue = smartChannelShuffle([...tracks]);
+     console.log('🧠 Smart channel shuffle applied');
+     
+     // Log playback info
+     const playbackInfo = getGroupPlaybackInfo(tracks);
+     if (playbackInfo && playbackInfo.length > 0) {
+       console.log('🎯 Updated Playback Info:');
+       playbackInfo.forEach(info => {
+         const icon = info.type === 'music' ? '🎵' : 
+                      info.type === 'news' ? '📰' : 
+                      info.type === 'education' ? '🎓' : 
+                      info.type === 'podcasts' ? '🎙️' : '📋';
+         console.log(`  ${icon} ${info.group}: ${info.count} tracks (${info.isChannel ? 'Channel' : 'Playlist'})`);
+       });
+     }
+     
      playIndex(0);
   };
 
@@ -705,6 +903,32 @@ function shuffle(array) {
      }
   }
 
+  async function triggerAutoDeleteCheck(track) {
+    /**
+     * Trigger auto-delete check for finished track if it's from a channel.
+     */
+    try {
+      if (!track || !track.video_id) return;
+      
+      // Detect if this is channel content
+      const detection = detectChannelGroup(track);
+      if (!detection.isChannel) {
+        console.log(`🚫 Auto-delete skip: ${track.video_id} is not from a channel`);
+        return;
+      }
+      
+      const finishPosition = media.currentTime || media.duration || 0;
+      
+      console.log(`🗑️ Auto-delete check triggered for ${track.video_id} from ${detection.group} (${finishPosition.toFixed(1)}s)`);
+      
+      // The auto-delete service will handle the actual deletion logic
+      // This just logs that the finish event occurred for a channel track
+      
+    } catch (err) {
+      console.warn('triggerAutoDeleteCheck error:', err);
+     }
+  }
+
   async function sendStreamEvent(payload){
      if(!streamIdLeader) return;
      try{
@@ -927,4 +1151,20 @@ function shuffle(array) {
   setInterval(pollRemoteCommands, 1000);
   
   console.log('🎮 Remote control synchronization initialized');
+  
+  // Initial render of the playlist after all functions are defined
+  console.log('🎵 Initializing playlist render...');
+  console.log('📊 Tracks loaded:', tracks.length);
+  console.log('📊 Queue length:', queue.length);
+  console.log('🎯 Current index:', currentIndex);
+  
+  if (tracks.length === 0) {
+    console.warn('❌ No tracks loaded - check API endpoint');
+  } else if (queue.length === 0) {
+    console.warn('❌ Queue is empty - check smartChannelShuffle function');
+  } else {
+    console.log('✅ Data looks good, rendering playlist...');
+    renderList();
+    console.log('✅ Playlist rendered successfully');
+  }
 })(); 

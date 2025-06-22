@@ -529,37 +529,92 @@
         <ul class="nav-menu">
           <li class="nav-item">
             <a href="/tracks" class="nav-link">
-              <span class="nav-icon">📊</span>
+              <span class="nav-icon">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"></path>
+                </svg>
+              </span>
               Track Library
             </a>
           </li>
           <li class="nav-item">
             <a href="/events" class="nav-link">
-              <span class="nav-icon">📊</span>
+              <span class="nav-icon">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M22 12h-4l-3 9L9 3l-3 9H2"></path>
+                </svg>
+              </span>
               Events
             </a>
           </li>
           <li class="nav-item">
+            <a href="/channels" class="nav-link">
+              <span class="nav-icon">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <rect width="20" height="15" x="2" y="3" rx="2" ry="2"></rect>
+                  <circle cx="8" cy="21" r="1"></circle>
+                  <circle cx="16" cy="21" r="1"></circle>
+                </svg>
+              </span>
+              Channels
+            </a>
+          </li>
+          <li class="nav-item">
+            <a href="/deleted" class="nav-link">
+              <span class="nav-icon">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="3,6 5,6 21,6"></polyline>
+                  <path d="m19,6v14a2,2 0 0,1-2,2H7a2,2 0 0,1-2-2V6m3,0V4a2,2 0 0,1,2-2h4a2,2 0 0,1,2,2v2"></path>
+                </svg>
+              </span>
+              Deleted Tracks
+            </a>
+          </li>
+          <li class="nav-item">
             <a href="/files" class="nav-link">
-              <span class="nav-icon">📁</span>
+              <span class="nav-icon">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"></path>
+                </svg>
+              </span>
               Browse Files
             </a>
           </li>
           <li class="nav-item">
             <a href="/logs" class="nav-link">
-              <span class="nav-icon">📋</span>
+              <span class="nav-icon">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"></path>
+                  <polyline points="14,2 14,8 20,8"></polyline>
+                  <line x1="16" y1="13" x2="8" y2="13"></line>
+                  <line x1="16" y1="17" x2="8" y2="17"></line>
+                  <polyline points="10,9 9,9 8,9"></polyline>
+                </svg>
+              </span>
               Logs
             </a>
           </li>
           <li class="nav-item">
             <a href="/backups" class="nav-link">
-              <span class="nav-icon">💾</span>
+              <span class="nav-icon">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="12" cy="13" r="8"></circle>
+                  <path d="M5 7a1 1 0 0 1 1-1h4l1-2h2l1 2h4a1 1 0 0 1 1 1v2.5"></path>
+                  <path d="M12 17.5V10l-2 2"></path>
+                  <path d="m12 10 2 2"></path>
+                </svg>
+              </span>
               Backups
             </a>
           </li>
           <li class="nav-item">
             <a href="/remote" class="nav-link">
-              <span class="nav-icon">📱</span>
+              <span class="nav-icon">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <rect width="14" height="20" x="5" y="2" rx="2" ry="2"></rect>
+                  <path d="M12 18h.01"></path>
+                </svg>
+              </span>
               Remote Control
             </a>
           </li>
@@ -573,12 +628,52 @@
       <div class="header">
         <h1 class="page-title">Playlists</h1>
         <div class="action-buttons">
-          <button id="addPlBtn" class="btn btn-primary">➕ Add Playlist</button>
-          <button id="scanBtn" class="btn btn-primary">🔄 Rescan</button>
-          <button id="backupBtn" class="btn btn-success">💾 Backup</button>
-          <button id="qrBtn" class="btn btn-primary">📱 QR Remote</button>
-          <button id="restartBtn" class="btn btn-warning">🔄 Restart</button>
-          <button id="stopBtn" class="btn btn-error">🛑 Stop</button>
+          <button id="addPlBtn" class="btn btn-primary">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M5 12h14m-7-7v14"/>
+            </svg>
+            Add Playlist
+          </button>
+          <button id="scanBtn" class="btn btn-primary">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/>
+              <path d="M21 3v5h-5"/>
+              <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/>
+              <path d="M8 16H3v5"/>
+            </svg>
+            Rescan
+          </button>
+          <button id="backupBtn" class="btn btn-success">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="13" r="8"></circle>
+              <path d="M5 7a1 1 0 0 1 1-1h4l1-2h2l1 2h4a1 1 0 0 1 1 1v2.5"></path>
+              <path d="M12 17.5V10l-2 2"></path>
+              <path d="m12 10 2 2"></path>
+            </svg>
+            Backup
+          </button>
+          <button id="qrBtn" class="btn btn-primary">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect width="14" height="20" x="5" y="2" rx="2" ry="2"></rect>
+              <path d="M12 18h.01"></path>
+            </svg>
+            QR Remote
+          </button>
+          <button id="restartBtn" class="btn btn-warning">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/>
+              <path d="M21 3v5h-5"/>
+              <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/>
+              <path d="M8 16H3v5"/>
+            </svg>
+            Restart
+          </button>
+          <button id="stopBtn" class="btn btn-error">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect width="18" height="18" x="3" y="3" rx="2" ry="2"></rect>
+            </svg>
+            Stop
+          </button>
         </div>
       </div>
 
@@ -586,7 +681,15 @@
       {% if active_downloads %}
       <div class="downloads-section">
         <div class="downloads-header">
-          <h3 class="downloads-title">🔄 Active Downloads ({{ active_downloads|length }})</h3>
+          <h3 class="downloads-title">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display: inline; vertical-align: text-top;">
+              <path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/>
+              <path d="M21 3v5h-5"/>
+              <path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/>
+              <path d="M8 16H3v5"/>
+            </svg>
+            Active Downloads ({{ active_downloads|length }})
+          </h3>
           <div style="font-size: 12px; color: var(--text-muted);">
             Auto-refreshes every 10 seconds
           </div>
@@ -610,7 +713,12 @@
       <!-- Playlists Table -->
       <div class="playlists-section">
         <div class="playlists-header">
-          <h3 class="playlists-title">📚 Available Playlists</h3>
+          <h3 class="playlists-title">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display: inline; vertical-align: text-top;">
+              <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"></path>
+            </svg>
+            Available Playlists
+          </h3>
         </div>
         
         <table id="playlistTable">

@@ -433,6 +433,16 @@ def remote_page():
     """Mobile remote control page."""
     return render_template("remote.html", server_ip=_get_local_ip())
 
+@app.route("/channels")
+def channels_page():
+    """Channel management page."""
+    return render_template("channels.html")
+
+@app.route("/deleted")
+def deleted_tracks_page():
+    """Deleted tracks restoration page."""
+    return render_template("deleted.html")
+
 # Register API blueprint
 app.register_blueprint(api_bp)
 
@@ -487,6 +497,10 @@ def main():
     from utils.logging_utils import set_logs_dir
     set_logs_dir(LOGS_DIR)
     
+    # Start auto-delete service for channel management
+    from services.auto_delete_service import start_auto_delete_service
+    start_auto_delete_service(ROOT_DIR)
+    
     # Write PID file to track this server instance
     if not _write_pid_file():
         log_message("Warning: Could not create PID file")
@@ -508,6 +522,10 @@ def main():
     except Exception as e:
         log_message(f"Server error: {e}")
     finally:
+        # Stop auto-delete service
+        from services.auto_delete_service import stop_auto_delete_service
+        stop_auto_delete_service()
+        
         # Clean up PID file on exit
         _remove_pid_file()
         log_message(f"Server PID {os.getpid()} shutdown complete")

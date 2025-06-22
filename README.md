@@ -50,6 +50,7 @@ That idea evolved into **SyncPlay-Hub**: a small Python toolset powered by `yt-d
 
 ## Features
 
+### Core Features
 * Reliable playlist sync (detects additions/removals; preserves "unavailable" videos as archive).  
 * Fast / safe modes, live progress counter.  
 * Cookie support for age-restricted or region-blocked videos.  
@@ -60,6 +61,23 @@ That idea evolved into **SyncPlay-Hub**: a small Python toolset powered by `yt-d
 * Spreadsheet-style homepage: sortable columns (Tracks, Plays, Likes, Forgotten, Last Sync) with one-click **Resync** and **Link** actions.
 * One-click **Rescan Library** to update metadata without touching the CLI.
 * **Database Backup System** – create timestamped backups of your entire database with one click, preserving all track metadata, play statistics, and history safely.
+
+### 🆕 YouTube Channel Management
+* **Full Channel Downloads** – Download entire YouTube channels (not just playlists) with support for all channel URL formats (`@ChannelName`, `/c/`, `/channel/`, `/user/`)
+* **Channel Groups** – Organize channels by categories (Music, News, Education, Podcasts) with different behaviors:
+  - **Music**: Random shuffle, permanent storage
+  - **News**: Chronological playback, auto-delete after listening
+  - **Education**: Sequential playback, optional auto-delete
+  - **Podcasts**: Sequential newest-first, smart deletion
+* **Smart Auto-Delete** – Automatically remove listened content from News/temporary channels with safety rules:
+  - Only deletes finished tracks (not skipped)
+  - Requires minimum 5 seconds play time
+  - Never deletes liked tracks
+  - Moves to Trash/ folder for recovery
+* **Date Filtering** – Download only recent videos with `--date-from` parameter
+* **Channel Sync** – Keep channels updated with latest videos automatically
+* **Deleted Tracks Recovery** – Comprehensive restoration interface for accidentally deleted content
+* **Professional Web Interface** – Dedicated `/channels` page with group management, sync controls, and statistics
 
 ---
 
@@ -102,10 +120,33 @@ python download_playlist.py "https://www.youtube.com/playlist?list=PLxxxxxxxxxxx
 * The script grabs the best available video + audio stream and stores it as `Title [VIDEO_ID].mp4` under `MyVideos/<Playlist Title>/` (container decided by `yt-dlp`).
 * Local files whose IDs are no longer in the playlist are moved to trash automatically. If the video is unavailable online, the file is kept and its ID is stored in `unavailable_ids.txt`. Should the video ever become public again, the file will be treated normally on the next run (i.e., moved to trash if still absent from the playlist). Use `--no-sync` to skip any file management.
 
-### 3) Extra flags
+### 3) Download YouTube Channels
+
+```bash
+# Download entire music channel (audio only)
+python download_content.py "https://www.youtube.com/@ArtistName" \
+       --output MyMusic --audio-only --channel-group "Music"
+
+# Download news channel with date filtering
+python download_content.py "https://www.youtube.com/@NewsChannel/videos" \
+       --output MyContent --channel-group "News" --date-from "2025-06-01"
+
+# Download educational content
+python download_content.py "https://www.youtube.com/c/EducationalChannel" \
+       --output MyContent --channel-group "Education"
+```
+
+**Channel Organization:**
+- Files are organized as: `<output>/<group>/<Channel-Name>/video.mp3`
+- Example: `MyMusic/Music/Channel-ArtistName/Song Title [VIDEO_ID].mp3`
+- Groups determine playback behavior and auto-delete settings
+
+### 4) Extra flags
 
 * `--no-sync` – keep local files even if they were removed from the playlist online (disables any file management).
 * `--debug` – show full yt-dlp output and internal progress (useful for troubleshooting cookies or network issues).
+* `--channel-group` – organize channel downloads by category (Music, News, Education, Podcasts).
+* `--date-from` – download only videos published after specified date (YYYY-MM-DD format, channels only).
 
 ---
 
@@ -145,10 +186,18 @@ The repository ships with a lightweight **Flask** application that turns every f
 
 ```bash
 # Serve everything under D:\Media on port 8000, accessible on your local network
-python web_player.py --root "D:\Media" --host 0.0.0.0 --port 8000
+python app.py --root "D:\Media" --host 0.0.0.0 --port 8000
 ```
 
 Open `http://<your_ip>:8000/` in a modern browser – the UI is responsive and works on both desktop and mobile.
+
+**Web Interface Pages:**
+- **`/`** – Main playlists and channels overview
+- **`/channels`** – Channel management (create groups, add channels, sync)
+- **`/deleted`** – Restore accidentally deleted tracks
+- **`/tracks`** – Browse all tracks with statistics
+- **`/history`** – Complete playback history
+- **`/backups`** – Database backup management
 
 ### File discovery
 
@@ -161,6 +210,8 @@ Open `http://<your_ip>:8000/` in a modern browser – the UI is responsive and w
 |------|---------|
 | **Queue logic** | Auto-shuffle on first load, manual Shuffle button, click-to-play, automatic next-track on end |
 | **Smart Shuffle** | New algorithm prioritises never-played tracks, then oldest (year→month→week→day) – accessible via button and used by default |
+| **🆕 Channel-Aware Playback** | **Smart algorithms per content type**: Music (random), News (chronological newest-first), Education (sequential oldest-first), Podcasts (sequential newest-first) |
+| **🆕 Auto-Delete Integration** | **Background service** automatically removes finished tracks from News/temporary channels with comprehensive safety rules |
 | **Controls** | Prev · Play/Pause · Next · Like · YouTube · Mute/Volume · Seekbar · Timestamps · Fullscreen |
 | **YouTube Integration** | Click YouTube button to open current track on YouTube in new tab |
 | **Unified Icons** | All control buttons use consistent SVG Material Design icons with perfect alignment and 32x32px sizing |
@@ -172,6 +223,88 @@ Open `http://<your_ip>:8000/` in a modern browser – the UI is responsive and w
 | **Theming** | Dark/Light via `prefers-color-scheme`; colours centralised in CSS variables |
 
 All client logic lives in **`static/player.js`** – extend, re-skin or integrate with external APIs as you wish.
+
+---
+
+## 🆕 Channel Management Guide
+
+### Getting Started with Channels
+
+1. **Create Channel Groups** (organize by content type):
+   ```bash
+   # Via web interface: http://localhost:8000/channels
+   # Or via API:
+   curl -X POST http://localhost:8000/api/create_channel_group \
+        -H "Content-Type: application/json" \
+        -d '{"name": "Music", "behavior_type": "music", "auto_delete_enabled": false}'
+   ```
+
+2. **Add YouTube Channels**:
+   ```bash
+   # Command line
+   python download_content.py "https://www.youtube.com/@ArtistName" \
+          --output MyMusic --audio-only --channel-group "Music"
+   
+   # Or via web interface: Add channel button on /channels page
+   ```
+
+3. **Organize Content**:
+   - **Music Channels**: Random playback, permanent storage
+   - **News Channels**: Chronological playback, auto-delete after listening
+   - **Educational**: Sequential playback, optional deletion
+   - **Podcasts**: Newest-first, smart deletion rules
+
+### Channel Group Behaviors
+
+| Group Type | Play Order | Auto-Delete | Use Case |
+|------------|------------|-------------|----------|
+| **Music** | Random shuffle | ❌ Never | Artists, music channels, permanent collection |
+| **News** | Chronological (newest first) | ✅ After finish | News channels, current events |
+| **Education** | Sequential (oldest first) | ⚠️ Optional | Tutorials, courses, learning content |
+| **Podcasts** | Sequential (newest first) | ⚠️ Smart rules | Podcast channels, talk shows |
+
+### Auto-Delete Safety Rules
+
+Content is only auto-deleted when **ALL** conditions are met:
+- ✅ Track finished playing (not skipped)
+- ✅ Played for at least 5 seconds
+- ✅ Track is not liked (❤️)
+- ✅ No subsequent playback events
+- ✅ Channel group has auto-delete enabled
+- ✅ Track belongs to a channel (not regular playlist)
+
+Deleted tracks are moved to `Trash/` folder and can be restored via `/deleted` page.
+
+### Channel Sync Options
+
+- **Manual Sync**: Click sync buttons in web interface
+- **Date Filtering**: Only download videos newer than specified date
+- **Background Processing**: Downloads happen without blocking the UI
+- **Progress Monitoring**: Real-time logs available in `/logs` page
+
+### File Organization
+
+```
+root/
+├── Playlists/
+│   ├── Music/
+│   │   ├── Channel-ArtistName/
+│   │   │   ├── Song Title [VIDEO_ID].mp3
+│   │   │   └── Another Song [VIDEO_ID].mp3
+│   │   └── Channel-MusicLabel/
+│   ├── News/
+│   │   └── Channel-NewsOutlet/
+│   │       ├── Breaking News [VIDEO_ID].mp3
+│   │       └── Daily Update [VIDEO_ID].mp3
+│   └── Trash/  # Deleted content for recovery
+│       ├── Channel-NewsOutlet/
+│       └── Channel-ArtistName/
+├── DB/
+│   └── tracks.db  # Enhanced with channel tables
+└── Logs/
+    ├── SyncPlay-Hub.log  # Main application log
+    └── Channel-*.log     # Individual channel sync logs
+```
 
 ---
 
@@ -198,16 +331,19 @@ Starting from v0.2 the project includes a lightweight **SQLite** database automa
 
 > Stats are updated in real-time while you interact with the player: starting a track, pausing/resuming playback, skipping to next/previous, reaching the end of playback. Each event is recorded with the exact position (in seconds) where it occurred.
 
-### Database schema (v0.3)
+### Database schema (v0.4)
 
 SQLite file: `tracks.db`
 
 | Table | Purpose | Key columns |
 |-------|---------|-------------|
 | `playlists` | One row per local playlist folder | `id` PK · `name` · `relpath` UNIQUE · `track_count` · `last_sync_ts` · `source_url` |
-| `tracks` | Unique entry for each YouTube video / audio file | `id` PK · `video_id` UNIQUE · `name` · `relpath` · `duration` · `size_bytes` · playback counters |
+| `tracks` | Unique entry for each YouTube video / audio file | `id` PK · `video_id` UNIQUE · `name` · `relpath` · `duration` · `size_bytes` · `published_date` · `duration_seconds` · `channel_group` · `auto_delete_after_finish` · playback counters |
 | `track_playlists` | Many-to-many link between tracks and playlists | composite PK (`track_id`,`playlist_id`) |
-| `play_history` | Immutable log of all user events | `id` PK · `video_id` · `event` (`start`/`finish`/`play`/`pause`/`next`/`prev`/`like`/`removed`) · `ts` · `position` |
+| `play_history` | Immutable log of all user events | `id` PK · `video_id` · `event` (`start`/`finish`/`play`/`pause`/`next`/`prev`/`like`/`removed`/`channel_downloaded`) · `ts` · `position` · `additional_data` |
+| **🆕 `channel_groups`** | **Channel organization categories** | `id` PK · `name` UNIQUE · `behavior_type` · `play_order` · `auto_delete_enabled` · `folder_path` |
+| **🆕 `channels`** | **YouTube channels being tracked** | `id` PK · `name` · `url` UNIQUE · `channel_group_id` FK · `date_from` · `enabled` · `last_sync_ts` · `track_count` |
+| **🆕 `deleted_tracks`** | **Soft-deleted tracks for recovery** | `id` PK · `video_id` · `original_name` · `original_relpath` · `deletion_reason` · `channel_group` · `trash_path` · `deleted_at` |
 
 This design keeps track statistics even if a file is removed from every playlist: the file's row in `tracks` remains, only the linking rows in `track_playlists` are deleted. If the same YouTube video re-appears later, it will reuse the existing stats.
 
@@ -375,6 +511,16 @@ The web player exposes several API endpoints for programmatic control:
 - `POST /api/resync` – Resync existing playlist with YouTube
 - `POST /api/link_playlist` – Link local folder to YouTube URL
 
+### 🆕 Channel Management
+- `GET /api/channel_groups` – List all channel groups with statistics
+- `POST /api/create_channel_group` – Create new channel group
+- `POST /api/add_channel` – Add YouTube channel to group (starts download)
+- `GET /api/channels/<group_id>` – Get channels in specific group
+- `POST /api/sync_channel_group/<group_id>` – Sync all channels in group
+- `POST /api/sync_channel/<channel_id>` – Sync specific channel
+- `GET /api/deleted_tracks` – List deleted tracks for recovery
+- `POST /api/restore_track/<track_id>` – Restore deleted track from trash
+
 ### Track & Playback
 - `GET /api/tracks/<path>` – Get tracks for specific playlist
 - `POST /api/event` – Record playback events (start, finish, skip, like)
@@ -401,9 +547,10 @@ The web player exposes several API endpoints for programmatic control:
 ```
 project-root/
 ├── app.py                  # Main Flask application
-├── download_playlist.py    # YouTube playlist downloader
+├── download_playlist.py    # YouTube playlist downloader (legacy)
+├── 🆕 download_content.py  # Universal YouTube downloader (playlists + channels)
 ├── scan_to_db.py          # Library scanner for database
-├── database.py            # SQLite database operations
+├── database.py            # SQLite database operations (extended for channels)
 ├── restart_server.py      # Server restart helper
 ├── requirements.txt       # Python dependencies
 ├── README.md             # This file
@@ -415,7 +562,8 @@ project-root/
 │   ├── __init__.py
 │   ├── download_service.py  # Download management
 │   ├── playlist_service.py  # Playlist operations
-│   └── streaming_service.py # Streaming functionality
+│   ├── streaming_service.py # Streaming functionality
+│   └── 🆕 auto_delete_service.py # Background auto-deletion for channels
 ├── utils/                # Utilities
 │   ├── __init__.py
 │   └── logging_utils.py  # Centralized logging system
@@ -446,9 +594,23 @@ project-root/
 │   ├── web_player.py     # Original monolithic app (1,129 lines)
 │   └── log_utils.py      # Original logging utility
 ├── static/               # Web assets
-│   ├── player.js         # Main player JavaScript
-│   └── stream_client.js  # Streaming client code
-└── templates/            # HTML templates
+│   ├── player.js         # Main player JavaScript (enhanced with channel support)
+│   ├── stream_client.js  # Streaming client functionality
+│   └── favicon.ico       # Application icon
+├── templates/            # HTML templates
+│   ├── index.html        # Main playlists page
+│   ├── 🆕 channels.html  # Channel management interface
+│   ├── 🆕 deleted.html   # Deleted tracks recovery page
+│   ├── tracks.html       # Track library browser
+│   ├── history.html      # Playback history viewer
+│   ├── backups.html      # Database backup management
+│   ├── playlists.html    # Playlist details view
+│   ├── logs.html         # Log file viewer
+│   ├── log_view.html     # Individual log streaming
+│   ├── streams.html      # Active streams management
+│   ├── stream_view.html  # Stream viewer interface
+│   ├── files.html        # File browser
+│   └── remote.html       # Mobile remote control
     ├── index.html        # Main player interface
     ├── playlists.html    # Playlist overview
     ├── tracks.html       # Track library
