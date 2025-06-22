@@ -137,26 +137,27 @@
     }
 
     .control-btn {
-      background: var(--card-bg);
-      border: 2px solid var(--border);
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.15);
       color: var(--text);
       border-radius: 15px;
       cursor: pointer;
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 24px;
       transition: all 0.2s ease;
       min-height: 70px;
       min-width: 70px;
       position: relative;
-      box-shadow: var(--shadow);
+      backdrop-filter: blur(10px);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
     }
 
     .control-btn:hover {
-      background: var(--accent);
-      border-color: var(--accent);
+      background: rgba(255, 255, 255, 0.15);
+      border-color: rgba(255, 255, 255, 0.3);
       transform: translateY(-2px);
+      backdrop-filter: blur(10px);
       box-shadow: 0 6px 20px rgba(0, 0, 0, 0.2);
     }
 
@@ -168,7 +169,6 @@
     .control-btn.large {
       min-width: 100px;
       min-height: 100px;
-      font-size: 36px;
     }
 
     .control-btn.wide {
@@ -190,6 +190,14 @@
       background: var(--card-bg);
       border-color: var(--border);
       transform: none;
+    }
+
+    .control-btn.like-active {
+      color: #e74c3c;
+    }
+    .control-btn.like-active svg {
+      fill: #e74c3c;
+      stroke: #e74c3c;
     }
 
     .volume-section {
@@ -241,30 +249,31 @@
     }
 
     .volume-btn {
-      background: var(--card-bg);
-      border: 2px solid var(--border);
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.15);
       color: var(--text);
       border-radius: 10px;
       cursor: pointer;
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 18px;
       width: 50px;
       height: 50px;
       transition: all 0.2s ease;
-      box-shadow: var(--shadow);
+      backdrop-filter: blur(10px);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
     }
 
     .volume-btn:hover {
-      background: var(--accent);
-      border-color: var(--accent);
+      background: rgba(255, 255, 255, 0.15);
+      border-color: rgba(255, 255, 255, 0.3);
       transform: translateY(-1px);
+      backdrop-filter: blur(15px);
     }
 
     .volume-btn:active {
       transform: translateY(0);
-      background: var(--accent-hover);
+      background: rgba(255, 255, 255, 0.2);
     }
 
     .status-indicator {
@@ -339,7 +348,6 @@
       .control-btn {
         min-height: 60px;
         min-width: 60px;
-        font-size: 20px;
         /* Improve touch response */
         -webkit-tap-highlight-color: rgba(0, 0, 0, 0.1);
       }
@@ -347,7 +355,6 @@
       .control-btn.large {
         min-width: 80px;
         min-height: 80px;
-        font-size: 28px;
       }
 
       .volume-slider {
@@ -400,22 +407,64 @@
     <div class="controls">
       <!-- Playback Controls -->
       <div class="control-row">
-        <button class="control-btn" id="prevBtn" title="Previous">⏮️</button>
-        <button class="control-btn large" id="playBtn" title="Play/Pause">▶️</button>
-        <button class="control-btn" id="nextBtn" title="Next">⏭️</button>
+        <button class="control-btn" id="prevBtn" title="Previous">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polygon points="19,20 9,12 19,4"></polygon>
+            <line x1="5" y1="19" x2="5" y2="5"></line>
+          </svg>
+        </button>
+        <button class="control-btn large" id="playBtn" title="Play/Pause">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polygon points="5,3 19,12 5,21"></polygon>
+          </svg>
+        </button>
+        <button class="control-btn" id="nextBtn" title="Next">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polygon points="5,4 15,12 5,20"></polygon>
+            <line x1="19" y1="5" x2="19" y2="19"></line>
+          </svg>
+        </button>
       </div>
 
       <!-- Secondary Controls -->
       <div class="control-row">
-        <button class="control-btn" id="shuffleBtn" title="Shuffle">🔀</button>
-        <button class="control-btn" id="likeBtn" title="Like">❤️</button>
-        <button class="control-btn" id="youtubeBtn" title="Open on YouTube">📺</button>
+        <button class="control-btn" id="shuffleBtn" title="Shuffle">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="16,3 21,3 21,8"></polyline>
+            <line x1="4" y1="20" x2="21" y2="3"></line>
+            <polyline points="21,16 21,21 16,21"></polyline>
+            <line x1="15" y1="15" x2="21" y2="21"></line>
+            <line x1="4" y1="4" x2="9" y2="9"></line>
+          </svg>
+        </button>
+        <button class="control-btn" id="likeBtn" title="Like">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
+          </svg>
+        </button>
+        <button class="control-btn" id="youtubeBtn" title="Open on YouTube">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M2.5 17a24.12 24.12 0 0 1 0-10 2 2 0 0 1 1.4-1.4 49.56 49.56 0 0 1 16.2 0A2 2 0 0 1 21.5 7a24.12 24.12 0 0 1 0 10 2 2 0 0 1-1.4 1.4 49.55 49.55 0 0 1-16.2 0A2 2 0 0 1 2.5 17"></path>
+            <polygon points="10,8 16,12 10,16"></polygon>
+          </svg>
+        </button>
       </div>
 
       <!-- Utility Controls -->
       <div class="control-row">
-        <button class="control-btn wide" id="stopBtn" title="Stop">⏹️</button>
-        <button class="control-btn wide" id="fullscreenBtn" title="Fullscreen">⛶</button>
+        <button class="control-btn wide" id="stopBtn" title="Stop">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="6" y="6" width="12" height="12" rx="2"></rect>
+          </svg>
+        </button>
+        <button class="control-btn wide" id="fullscreenBtn" title="Fullscreen">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M8 3H5a2 2 0 0 0-2 2v3"></path>
+            <path d="M21 8V5a2 2 0 0 0-2-2h-3"></path>
+            <path d="M3 16v3a2 2 0 0 0 2 2h3"></path>
+            <path d="M16 21h3a2 2 0 0 0 2-2v-3"></path>
+          </svg>
+        </button>
       </div>
     </div>
 
@@ -423,9 +472,20 @@
     <div class="volume-section">
       <div class="volume-label">Volume: <span id="volumeValue">100%</span></div>
       <div class="volume-controls">
-        <button class="volume-btn" id="volumeDownBtn" title="Volume Down">🔉</button>
+        <button class="volume-btn" id="volumeDownBtn" title="Volume Down">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+            <line x1="23" y1="9" x2="17" y2="15"></line>
+            <line x1="17" y1="9" x2="23" y2="15"></line>
+          </svg>
+        </button>
         <input type="range" class="volume-slider" id="volumeSlider" min="0" max="100" value="100">
-        <button class="volume-btn" id="volumeUpBtn" title="Volume Up">🔊</button>
+        <button class="volume-btn" id="volumeUpBtn" title="Volume Up">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+            <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+          </svg>
+        </button>
       </div>
     </div>
 
@@ -492,7 +552,11 @@
         this.playBtn.addEventListener('click', () => this.sendCommand('play'));
         this.nextBtn.addEventListener('click', () => this.sendCommand('next'));
         this.shuffleBtn.addEventListener('click', () => this.sendCommand('shuffle'));
-        this.likeBtn.addEventListener('click', () => this.sendCommand('like'));
+        this.likeBtn.addEventListener('click', () => {
+          // Toggle like state immediately for better UX
+          this.likeBtn.classList.toggle('like-active');
+          this.sendCommand('like');
+        });
         this.youtubeBtn.addEventListener('click', () => this.sendCommand('youtube'));
         this.stopBtn.addEventListener('click', () => this.sendCommand('stop'));
         this.fullscreenBtn.addEventListener('click', () => this.sendCommand('fullscreen'));
@@ -608,11 +672,21 @@
         console.log('📱 Remote: Updating status:', status);
         this.currentStatus = status; // Store current status for volume logging
         
+        // Check if track changed (reset like state)
+        const trackChanged = !this.currentTrack || 
+          (status.current_track && status.current_track.video_id !== this.currentTrack.video_id);
+        
+        if (trackChanged && status.current_track) {
+          this.currentTrack = status.current_track;
+          // Reset like state when track changes
+          this.likeBtn.classList.remove('like-active');
+        }
+        
         // Update track info
         if (status.current_track) {
           const track = status.current_track;
           this.trackTitle.textContent = track.name || 'Unknown Track';
-          this.trackStatus.textContent = status.playing ? '▶️ Playing' : '⏸️ Paused';
+          this.trackStatus.textContent = status.playing ? 'Playing' : 'Paused';
           
           // Update progress
           if (status.progress !== undefined && track.duration) {
@@ -634,7 +708,14 @@
         }
         
         // Update play button
-        this.playBtn.textContent = status.playing ? '⏸️' : '▶️';
+        this.playBtn.innerHTML = status.playing 
+          ? `<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+               <rect x="6" y="4" width="4" height="16"></rect>
+               <rect x="14" y="4" width="4" height="16"></rect>
+             </svg>`
+          : `<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+               <polygon points="5,3 19,12 5,21"></polygon>
+             </svg>`;
         this.playBtn.classList.toggle('playing', status.playing);
         
         // Update volume
@@ -867,7 +948,7 @@
         text-align: center;
         backdrop-filter: blur(10px);
       `;
-      instructionDiv.innerHTML = '💡 Swipe up/down anywhere or use 🔉🔊 buttons for volume';
+              instructionDiv.innerHTML = 'Swipe up/down anywhere or use volume buttons';
       
       document.body.appendChild(instructionDiv);
       
@@ -971,7 +1052,25 @@
         box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
       `;
       
-      const volumeIcon = volume === 0 ? '🔇' : volume < 30 ? '🔈' : volume < 70 ? '🔉' : '🔊';
+              const volumeIcon = volume === 0 
+          ? `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+               <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+               <line x1="23" y1="9" x2="17" y2="15"></line>
+               <line x1="17" y1="9" x2="23" y2="15"></line>
+             </svg>`
+          : volume < 30 
+            ? `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                 <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+               </svg>`
+            : volume < 70 
+              ? `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                   <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+                   <path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+                 </svg>`
+              : `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                   <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+                   <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+                 </svg>`;
       toast.innerHTML = `${volumeIcon} ${volume}%`;
       
       document.body.appendChild(toast);

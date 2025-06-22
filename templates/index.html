@@ -62,19 +62,103 @@
     #controlBar.hidden{display:none;}
     .left-group{display:flex;align-items:center;}
     .ctrl-btn{
-      background:none;border:none;color:var(--text);font-size:20px;margin:0 6px;cursor:pointer;
+      background:rgba(255,255,255,0.1);border:none;color:var(--text);font-size:20px;margin:0 4px;cursor:pointer;
       display:inline-flex;align-items:center;justify-content:center;
-      width:32px;height:32px;border-radius:4px;
-      transition:background-color 0.2s, opacity 0.2s;
+      width:40px;height:40px;border-radius:8px;
+      transition:all 0.2s ease;
+      backdrop-filter:blur(10px);
+      border:1px solid rgba(255,255,255,0.1);
     }
-    .ctrl-btn.like-active{color:#ff5f5f;}
-    .ctrl-btn:hover{opacity:0.7;background:rgba(255,255,255,0.1);}
-    #cYoutube{color:#ff0000;} /* YouTube red color */
-    #cYoutube:hover{color:#cc0000;opacity:1;background:rgba(255,0,0,0.1);} /* Darker red on hover */
+    .ctrl-btn:hover{
+      transform:translateY(-2px);
+      background:rgba(255,255,255,0.2);
+      box-shadow:0 4px 12px rgba(0,0,0,0.3);
+      border-color:rgba(255,255,255,0.3);
+    }
+    .ctrl-btn:active{
+      transform:translateY(0);
+      box-shadow:0 2px 6px rgba(0,0,0,0.2);
+    }
+    .ctrl-btn.like-active{
+      color:#e74c3c;
+    }
+    .ctrl-btn.like-active svg {
+      fill: #e74c3c;
+      stroke: #e74c3c;
+    }
+    #cYoutube{
+      background:rgba(255,255,255,0.15);
+      border-color:rgba(255,255,255,0.3);
+    }
+    #cYoutube:hover{
+      background:rgba(255,255,255,0.25);
+      border-color:rgba(255,255,255,0.4);
+    }
     .progress{flex:1;height:6px;background:var(--progress-bg);margin:0 8px;border-radius:3px;cursor:pointer;}
     .progress-bar{height:100%;width:0%;background:var(--progress-fill);border-radius:3px;}
     .time{color:var(--text);font-size:12px;margin-right:8px;white-space:nowrap;}
-    .vol-slider{width:80px;margin-left:4px;filter:brightness(0.9);}
+    .vol-slider{
+      width:80px;margin-left:8px;
+      -webkit-appearance:none;
+      height:4px;
+      border-radius:2px;
+      background:rgba(255,255,255,0.3);
+      outline:none;
+      transition:all 0.2s ease;
+    }
+    .vol-slider::-webkit-slider-thumb{
+      -webkit-appearance:none;
+      appearance:none;
+      width:16px;height:16px;
+      border-radius:50%;
+      background:var(--text);
+      cursor:pointer;
+      transition:all 0.2s ease;
+      box-shadow:0 2px 4px rgba(0,0,0,0.3);
+    }
+    .vol-slider::-webkit-slider-thumb:hover{
+      transform:scale(1.2);
+      background:#fff;
+    }
+    .vol-slider::-moz-range-thumb{
+      width:16px;height:16px;
+      border-radius:50%;
+      background:var(--text);
+      cursor:pointer;
+      border:none;
+      transition:all 0.2s ease;
+      box-shadow:0 2px 4px rgba(0,0,0,0.3);
+    }
+    .vol-slider::-moz-range-thumb:hover{
+      transform:scale(1.2);
+      background:#fff;
+    }
+    
+    /* Enhanced progress bar styling */
+    .progress{
+      flex:1;height:8px;background:rgba(255,255,255,0.2);
+      margin:0 12px;border-radius:4px;cursor:pointer;
+      transition:height 0.2s ease;
+      position:relative;
+      overflow:hidden;
+    }
+    .progress:hover{height:12px;}
+    .progress-bar{
+      height:100%;width:0%;
+      background:rgba(255,255,255,0.8);
+      border-radius:4px;
+      transition:all 0.2s ease;
+      position:relative;
+    }
+    .progress-bar::after{
+      content:'';
+      position:absolute;
+      top:0;right:0;
+      width:3px;height:100%;
+      background:rgba(255,255,255,1);
+      border-radius:2px;
+      box-shadow:0 0 6px rgba(255,255,255,0.6);
+    }
 
     /* fullscreen adjustments */
     #videoWrapper:fullscreen video{width:100%;height:100%;object-fit:contain;}
@@ -86,9 +170,139 @@
     .playlist-panel.collapsed .side-list{display:none;}
     .side-list{list-style:none;margin:0;padding:0;flex:1 1 auto;overflow-y:auto;}
     /* control bar layout */
-    .control-bar{display:flex;align-items:center;}
-    .toggle-btn-header{margin-left:auto;background:var(--bg);color:var(--text);border:none;padding:4px 8px;cursor:pointer;border-radius:4px;font-size:14px;}
-    .toggle-btn-header:hover{opacity:.8;}
+    .control-bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:12px 0;}
+    
+    /* Modern Button Styles */
+    .modern-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 16px;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 500;
+      font-family: inherit;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      text-decoration: none;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      position: relative;
+      overflow: hidden;
+    }
+    
+    .modern-btn:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+    }
+    
+    .modern-btn:active {
+      transform: translateY(0);
+      box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+    }
+    
+    .modern-btn svg {
+      transition: transform 0.2s ease;
+    }
+    
+    .modern-btn:hover svg {
+      transform: scale(1.05);
+    }
+    
+    /* Minimalist Button Variants */
+    .modern-btn-primary {
+      background: rgba(255,255,255,0.1);
+      color: var(--text);
+      border: 1px solid rgba(255,255,255,0.3);
+    }
+    
+    .modern-btn-primary:hover {
+      background: rgba(255,255,255,0.2);
+      border-color: rgba(255,255,255,0.5);
+    }
+    
+    .modern-btn-secondary {
+      background: transparent;
+      color: var(--text);
+      border: 1px solid rgba(255,255,255,0.2);
+    }
+    
+    .modern-btn-secondary:hover {
+      background: rgba(255,255,255,0.1);
+      border-color: rgba(255,255,255,0.3);
+    }
+    
+    .modern-btn-accent {
+      background: rgba(255,255,255,0.05);
+      color: var(--text);
+      border: 1px solid rgba(255,255,255,0.25);
+    }
+    
+    .modern-btn-accent:hover {
+      background: rgba(255,255,255,0.15);
+      border-color: rgba(255,255,255,0.4);
+    }
+    
+    .modern-btn-success {
+      background: rgba(255,255,255,0.08);
+      color: var(--text);
+      border: 1px solid rgba(255,255,255,0.25);
+    }
+    
+    .modern-btn-success:hover {
+      background: rgba(255,255,255,0.18);
+      border-color: rgba(255,255,255,0.4);
+    }
+    
+    .modern-btn-danger {
+      background: rgba(255,255,255,0.08);
+      color: var(--text);
+      border: 1px solid rgba(255,255,255,0.25);
+    }
+    
+    .modern-btn-danger:hover {
+      background: rgba(255,255,255,0.18);
+      border-color: rgba(255,255,255,0.4);
+    }
+    
+    .modern-btn-outline {
+      background: transparent;
+      color: var(--text);
+      border: 1px solid rgba(255,255,255,0.15);
+    }
+    
+    .modern-btn-outline:hover {
+      background: rgba(255,255,255,0.08);
+      border-color: rgba(255,255,255,0.25);
+    }
+    
+    /* Responsive adjustments */
+    @media (max-width: 768px) {
+      .modern-btn {
+        padding: 8px 12px;
+        font-size: 13px;
+      }
+      
+      .modern-btn span {
+        display: none;
+      }
+      
+      .modern-btn svg {
+        margin: 0;
+      }
+    }
+    
+    /* Active states for toggleable buttons */
+    .modern-btn.active {
+      background: rgba(255,255,255,0.3);
+      color: var(--text);
+      border-color: rgba(255,255,255,0.6);
+    }
+    
+    .modern-btn.active:hover {
+      background: rgba(255,255,255,0.4);
+      border-color: rgba(255,255,255,0.7);
+    }
   </style>
   <script>
     // Local server IP injected by Flask for proper Cast functionality
@@ -108,15 +322,73 @@
     <span style="font-size:16px;color:var(--text);">{{ playlist_name }}</span>
   </div>
   <div id="controlBar" class="control-bar">
-    <button id="prevBtn">⏮ Prev</button>
-    <button id="playBtn">▶️ Play/Pause</button>
-    <button id="nextBtn">Next ⏭</button>
-    <button id="shuffleBtn">Shuffle</button>
-    <button id="smartShuffleBtn">Smart Shuffle</button>
-    <button id="stopBtn">Stop</button>
-    <button id="streamBtn">Start Stream 📡</button>
-    <button id="fullBtn">Fullscreen ⛶</button>
-    <button id="toggleListBtn" class="toggle-btn-header">☰ Hide playlist</button>
+    <button id="prevBtn" class="modern-btn modern-btn-secondary">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <polygon points="19,20 9,12 19,4"></polygon>
+        <line x1="5" y1="19" x2="5" y2="5"></line>
+      </svg>
+      <span>Prev</span>
+    </button>
+    <button id="playBtn" class="modern-btn modern-btn-primary">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <polygon points="5,3 19,12 5,21"></polygon>
+      </svg>
+      <span>Play</span>
+    </button>
+    <button id="nextBtn" class="modern-btn modern-btn-secondary">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <polygon points="5,4 15,12 5,20"></polygon>
+        <line x1="19" y1="5" x2="19" y2="19"></line>
+      </svg>
+      <span>Next</span>
+    </button>
+    <button id="shuffleBtn" class="modern-btn modern-btn-accent">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <polyline points="16,3 21,3 21,8"></polyline>
+        <line x1="4" y1="20" x2="21" y2="3"></line>
+        <polyline points="21,16 21,21 16,21"></polyline>
+        <line x1="15" y1="15" x2="21" y2="21"></line>
+        <line x1="4" y1="4" x2="9" y2="9"></line>
+      </svg>
+      <span>Shuffle</span>
+    </button>
+    <button id="smartShuffleBtn" class="modern-btn modern-btn-accent">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M12 2a3 3 0 0 1 3 3c0 1-1 3-3 3s-3-2-3-3a3 3 0 0 1 3-3Z"></path>
+        <path d="M19 11c-.64-.64-1.27-.68-2.5 0-2.5 1.4-6 1.4-8.5 0-.68-.68-1.26-.64-2.5 0-.64.64-.68 1.27 0 2.5 1.4 2.5 1.4 6 0 8.5-.68.68-.64 1.26 0 2.5.64.64 1.27.68 2.5 0 2.5-1.4 6-1.4 8.5 0 .68.68 1.26.64 2.5 0 .64-.64.68-1.27 0-2.5-1.4-2.5-1.4-6 0-8.5Z"></path>
+      </svg>
+      <span>Smart</span>
+    </button>
+    <button id="stopBtn" class="modern-btn modern-btn-danger">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <rect x="6" y="6" width="12" height="12" rx="2"></rect>
+      </svg>
+      <span>Stop</span>
+    </button>
+    <button id="streamBtn" class="modern-btn modern-btn-success">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M21.2 8.4c.5.38.8.97.8 1.6v4a2 2 0 0 1-.8 1.6l-7 5.25A2 2 0 0 1 11 19.25v-4.5a2 2 0 0 1 .8-1.6l7-5.25Z"></path>
+        <path d="M11 15V9a2 2 0 0 0-1.2-1.84l-6-2.7A2 2 0 0 0 1 6.3v11.4a2 2 0 0 0 2.8 1.84l6-2.7A2 2 0 0 0 11 15Z"></path>
+      </svg>
+      <span>Stream</span>
+    </button>
+    <button id="fullBtn" class="modern-btn modern-btn-secondary">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M8 3H5a2 2 0 0 0-2 2v3"></path>
+        <path d="M21 8V5a2 2 0 0 0-2-2h-3"></path>
+        <path d="M3 16v3a2 2 0 0 0 2 2h3"></path>
+        <path d="M16 21h3a2 2 0 0 0 2-2v-3"></path>
+      </svg>
+      <span>Full</span>
+    </button>
+    <button id="toggleListBtn" class="modern-btn modern-btn-outline">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <line x1="4" y1="6" x2="20" y2="6"></line>
+        <line x1="4" y1="12" x2="20" y2="12"></line>
+        <line x1="4" y1="18" x2="20" y2="18"></line>
+      </svg>
+      <span>Playlist</span>
+    </button>
   </div>
   <div id="playerContainer" class="player-container" style="margin-top:10px; position:relative;">
     <div id="videoWrapper" style="position:relative; flex:1 1 auto;">
@@ -125,38 +397,46 @@
       <div id="customControls" class="controls">
         <div class="left-group">
           <button id="cPrev" class="ctrl-btn" title="Previous">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polygon points="19,20 9,12 19,4"></polygon>
+              <line x1="5" y1="19" x2="5" y2="5"></line>
             </svg>
           </button>
           <button id="cPlay" class="ctrl-btn" title="Play/Pause">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M8 5v14l11-7z"/>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polygon points="5,3 19,12 5,21"></polygon>
             </svg>
           </button>
           <button id="cNext" class="ctrl-btn" title="Next">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polygon points="5,4 15,12 5,20"></polygon>
+              <line x1="19" y1="5" x2="19" y2="19"></line>
             </svg>
           </button>
           <button id="cLike" class="ctrl-btn" title="Like">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
             </svg>
           </button>
           <button id="cYoutube" class="ctrl-btn" title="Open on YouTube">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M2.5 17a24.12 24.12 0 0 1 0-10 2 2 0 0 1 1.4-1.4 49.56 49.56 0 0 1 16.2 0A2 2 0 0 1 21.5 7a24.12 24.12 0 0 1 0 10 2 2 0 0 1-1.4 1.4 49.55 49.55 0 0 1-16.2 0A2 2 0 0 1 2.5 17"></path>
+              <polygon points="10,8 16,12 10,16"></polygon>
             </svg>
           </button>
           <button id="castBtn" class="ctrl-btn" title="Play on TV">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M1 18v3h3c0-1.66-1.34-3-3-3zm0-4v2c2.76 0 5 2.24 5 5h2c0-3.87-3.13-7-7-7zm0-4v2c4.97 0 9 4.03 9 9h2c0-6.08-4.93-11-11-11zm20-7H3c-1.1 0-2 .9-2 2v3h2V5h18v14h-7v2h7c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z"/>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M2 8V6a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-6"></path>
+              <path d="M2 12a9 9 0 0 1 8 8"></path>
+              <path d="M2 16a5 5 0 0 1 4 4"></path>
+              <circle cx="2" cy="20" r="1"></circle>
             </svg>
           </button>
           <button id="cMute" class="ctrl-btn" title="Mute/Unmute">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z"/>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+              <path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+              <path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path>
             </svg>
           </button>
           <input type="range" id="cVol" min="0" max="1" step="0.05" value="1" class="vol-slider" />
@@ -164,8 +444,11 @@
         <div id="progressContainer" class="progress"><div id="progressBar" class="progress-bar"></div></div>
         <span id="timeLabel" class="time">0:00 / 0:00</span>
         <button id="cFull" class="ctrl-btn" title="Fullscreen">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M8 3H5a2 2 0 0 0-2 2v3"></path>
+            <path d="M21 8V5a2 2 0 0 0-2-2h-3"></path>
+            <path d="M3 16v3a2 2 0 0 0 2 2h3"></path>
+            <path d="M16 21h3a2 2 0 0 0 2-2v-3"></path>
           </svg>
         </button>
       </div>
