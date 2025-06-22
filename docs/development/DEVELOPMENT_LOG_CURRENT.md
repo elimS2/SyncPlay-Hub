@@ -2198,8 +2198,67 @@ This implementation provides enterprise-level process management ensuring only o
 
 ---
 
+### Log Entry #043 - 2025-06-22 12:27 UTC
+
+**Task**: Remove video ID hash from track names in remote control display
+**Status**: ✅ COMPLETED
+
+**Problem**: 
+- Remote control showed full track names including video ID in brackets (e.g., "Song Title [dQw4w9WgXcQ]")
+- Main playlist already had clean names without hash
+- Inconsistent display between interfaces
+
+**Files Modified**:
+- `templates/remote.html` - Updated track name display logic
+
+**Solution Implemented**:
+
+1. **Found existing logic in main player**:
+   ```javascript
+   // From static/player.js line 262
+   const displayName = t.name.replace(/\s*\[.*?\]$/, '');
+   ```
+
+2. **Applied same logic to remote control**:
+   ```javascript
+   // BEFORE:
+   this.trackTitle.textContent = track.name || 'Unknown Track';
+
+   // AFTER:
+   const displayName = track.name ? track.name.replace(/\s*\[.*?\]$/, '') : 'Unknown Track';
+   this.trackTitle.textContent = displayName;
+   ```
+
+3. **Regex explanation**:
+   - `\s*` - matches any whitespace before brackets
+   - `\[.*?\]` - matches brackets and any content inside (non-greedy)
+   - `$` - ensures match is at end of string
+   - Result: "Song Title [dQw4w9WgXcQ]" → "Song Title"
+
+**Benefits**:
+- ✅ **Clean track names** in remote control interface
+- ✅ **Consistent display** between main player and remote
+- ✅ **Better UX** - no technical video IDs visible to user
+- ✅ **Preserved functionality** - all database operations still use full names
+
+**Verification**: 
+- Remote control displays clean track names without video ID hash
+- Matches the display format used in main playlist
+- Database operations continue to work with full track names
+
+**Development Rules Compliance**:
+- ✅ English-only code maintained
+- ✅ Time verification completed with MCP Time Server
+- ✅ Development logging updated immediately after changes
+
+---
+
+*End of Log Entry #043*
+
+---
+
 ## Ready for Next Entry
 
-**Next Entry Number:** #043  
+**Next Entry Number:** #044  
 **Guidelines:** Follow established format with git timestamps and commit hashes  
 **Archive Status:** Monitor file size; archive when reaching 10-15 entries

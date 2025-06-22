@@ -685,7 +685,8 @@
         // Update track info
         if (status.current_track) {
           const track = status.current_track;
-          this.trackTitle.textContent = track.name || 'Unknown Track';
+          const displayName = track.name ? track.name.replace(/\s*\[.*?\]$/, '') : 'Unknown Track';
+          this.trackTitle.textContent = displayName;
           this.trackStatus.textContent = status.playing ? 'Playing' : 'Paused';
           
           // Update progress
