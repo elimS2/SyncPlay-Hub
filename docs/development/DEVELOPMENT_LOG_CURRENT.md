@@ -12,7 +12,7 @@
 ### Archive Information
 - **Previous Archives:**
   - [Archive 001](DEVELOPMENT_LOG_001.md) - Entries #001-#010
-  - [Archive 002](DEVELOPMENT_LOG_002.md) - Entries #011-#019  
+  - [Archive 002](DEVELOPMENT_LOG_002.md) - Entries #011-#019
   - [Archive 003](DEVELOPMENT_LOG_003.md) - Entries #020-#053 (YouTube Channels System)
 - **Current Status:** Ready for Entry #055
 - **Last Archived Entry:** #053 - WELLBOYmusic Channel Download Success
@@ -140,4 +140,71 @@
 
 ---
 
-*Ready for next development entry (#055)* 
+### Log Entry #055 - 2025-06-22 20:49 UTC
+**Change:** WELLBOYmusic Channel Database Recording Issue - Root Cause Analysis
+
+#### Problem Identified
+**Issue:** Channel sync shows "Recorded 0 new downloads in database" despite 65 files downloaded successfully.
+
+**Evidence from logs:**
+- `2025-06-22 23:39:43 [Channel Sync] WELLBOYmusic: [Info] Recorded 0 new downloads in database`
+- `2025-06-22 23:42:25 [Channels] Refreshed stats for WELLBOYmusic: 37 tracks in Channel-WELLBOY`
+- **Downloaded files:** 65 individual files (video + audio formats)
+- **Detected by refresh:** 37 unique tracks
+
+#### Root Cause Analysis
+**Problem in `download_content.py` lines 823-840:**
+
+```python
+# Log event for each new video
+for video_id in current_ids:           # ← current_ids = 1 (playlist ID)
+    if video_id not in local_before:   # ← local_before = 0 (empty folder)
+        record_event(...)              # ← Records 1 event only
+
+log_progress(f"[Info] Recorded {added} new downloads in database")  # ← added = 1
+```
+
+**The Logic Flaw:**
+1. **`current_ids`** contains only 1 element (playlist "Wellboy - Shorts" ID)
+2. **`local_before`** was empty (new channel folder)
+3. **Recording logic** processes playlist IDs, not individual video IDs
+4. **Actual downloads** were 65 files from within that playlist
+5. **Database recording** only logs the playlist-level event, not individual videos
+
+#### Why Refresh Found 37 Tracks
+**`scan_to_db.py` logic:**
+- Scans **actual files** in folder using filename patterns `[VIDEO_ID]`
+- Extracts **individual video IDs** from each file
+- Records **each unique video** as separate track
+- **37 unique videos** × 2 formats (mp4 + webm) = 65 total files
+
+#### Impact Analysis
+- **✅ Files Downloaded:** All 65 files successfully downloaded
+- **✅ Content Available:** All tracks playable and accessible  
+- **❌ Database Sync:** Channel download events not recorded during sync
+- **✅ Database Recovery:** Manual refresh correctly populated database
+- **⚠️ Statistics:** Channel sync counters inaccurate during download
+
+#### Technical Details
+**Channel metadata extraction returns:**
+- Entry #1: "Wellboy - Videos" (37 videos) - not selected
+- Entry #2: "Wellboy - Shorts" (80 videos) - selected for download
+- **Download processed:** Last entry playlist containing individual videos
+- **Database recording:** Only logs the playlist container, not contents
+
+#### Files Involved
+- `download_content.py` - Database recording logic (lines 823-840)
+- `scan_to_db.py` - File-based scanning logic (working correctly)
+- Channel sync API - Relies on download_content.py recording
+
+#### Next Steps Required
+1. **Fix database recording** to process actual downloaded video IDs
+2. **Enhance progress tracking** to show real vs estimated counts  
+3. **Improve channel detection** to handle playlist structures
+4. **Test with other channels** to verify fix effectiveness
+
+*End of Log Entry #055*
+
+---
+
+*Ready for next development entry (#056)* 
