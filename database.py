@@ -1167,7 +1167,7 @@ def record_channel_synced(conn: sqlite3.Connection, channel_url: str, channel_na
     if additional_data:
         event_data += f",{additional_data}"
     
-    record_event(conn, 'system', 'channel_synced', additional_data=event_data)
+    record_event(conn, 'system', 'channel_synced', additional_data=event_data) 
 
 
 # ---------- YouTube Video Metadata Functions ----------

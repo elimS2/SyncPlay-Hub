@@ -352,6 +352,88 @@ Results Summary:
 *End of Log Entry #057*
 
 ---
+
+### Log Entry #058 - 2025-06-23 00:27 UTC
+**Change:** Project Structure Organization - Scripts Directory Creation
+
+#### Files Modified
+- Created: `scripts/` directory - New folder for CLI tools organization
+- Moved: `extract_channel_metadata.py` → `scripts/extract_channel_metadata.py`
+- Created: `scripts/README.md` - Documentation for CLI scripts organization and usage guidelines
+
+#### Reason for Change
+User asked about optimal location for CLI scripts in project structure. Current organization had CLI tools scattered in root directory making it difficult to distinguish between core application files and utility scripts. Need better project architecture for maintainability and new developer onboarding.
+
+#### What Changed
+1. **Project Structure Improvement:**
+   - Created dedicated `scripts/` directory for all CLI tools
+   - Moved `extract_channel_metadata.py` from root to `scripts/`
+   - Established clear separation between core app files and utility scripts
+
+2. **Documentation Creation:**
+   - Comprehensive `scripts/README.md` with usage guidelines
+   - Categorized existing scripts by function: CLI Tools, Maintenance, Migration, Utilities
+   - Provided recommended organization structure for future expansion
+   - Included running instructions and development guidelines
+
+3. **Architecture Planning:**
+   - Identified 10+ CLI scripts currently in root directory that should be organized
+   - Planned categorization: metadata/, download/, database/, maintenance/, utilities/
+   - Maintained backwards compatibility considerations for existing automation
+
+#### Current Script Categories Identified
+**CLI Tools (Interactive):**
+- `download_playlist.py` - Download YouTube playlists
+- `scan_to_db.py` - Scan local files and update database  
+- `download_content.py` - Download content with advanced options
+
+**Maintenance Scripts:**
+- `update_channel_stats.py` - Update channel statistics
+- `restart_server.py` - Server management
+
+**Migration Scripts:**
+- `migrate_playlist_events.py` - Database migration for playlist events
+- `migrate_playlist_events_with_dates.py` - Migration with date handling
+
+**Utility Scripts:**
+- `check_laud_channel.py` - Channel-specific operations
+- `clear_kola_archive.py` - Archive cleanup
+
+#### Impact Analysis
+- **✅ Project Organization:** Clear separation of concerns between core app and CLI tools
+- **✅ Developer Experience:** New developers can easily find and understand CLI tools
+- **✅ Maintainability:** Easier to manage and document CLI scripts
+- **✅ Scalability:** Framework for adding new CLI tools in organized manner
+- **✅ Backwards Compatibility:** Existing usage patterns maintained during transition
+- **⚠️ Migration Needed:** 10+ scripts in root should be moved to organized structure
+
+#### Technical Implementation
+**Usage Change:**
+```bash
+# Old (root directory)
+python extract_channel_metadata.py "URL"
+
+# New (scripts directory)  
+python scripts/extract_channel_metadata.py "URL"
+```
+
+**Directory Structure:**
+```
+scripts/
+├── README.md                        # Documentation and guidelines
+├── extract_channel_metadata.py     # Moved metadata extraction tool
+└── [future organization by category]
+```
+
+#### Next Steps
+1. Gradually move remaining CLI scripts from root to `scripts/` with categorization
+2. Update documentation and automation scripts with new paths
+3. Consider creating wrapper scripts for backwards compatibility
+4. Establish guidelines for new CLI tool development
+
+*End of Log Entry #058*
+
+---
 1. **Fix database recording** to process actual downloaded video IDs
 2. **Enhance progress tracking** to show real vs estimated counts  
 3. **Improve channel detection** to handle playlist structures
