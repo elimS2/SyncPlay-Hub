@@ -117,6 +117,55 @@ def _ensure_schema(conn: sqlite3.Connection):
             restored_at TEXT,
             additional_data TEXT
         );
+
+        -- YouTube Video Metadata Table --
+        CREATE TABLE IF NOT EXISTS youtube_video_metadata (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            _type TEXT,
+            ie_key TEXT,
+            youtube_id TEXT NOT NULL UNIQUE,
+            url TEXT,
+            title TEXT,
+            description TEXT,
+            duration REAL,
+            channel_id TEXT,
+            channel TEXT,
+            channel_url TEXT,
+            uploader TEXT,
+            uploader_id TEXT,
+            uploader_url TEXT,
+            timestamp INTEGER,
+            release_timestamp INTEGER,
+            availability TEXT,
+            view_count INTEGER,
+            live_status TEXT,
+            channel_is_verified BOOLEAN,
+            __x_forwarded_for_ip TEXT,
+            webpage_url TEXT,
+            original_url TEXT,
+            webpage_url_basename TEXT,
+            webpage_url_domain TEXT,
+            extractor TEXT,
+            extractor_key TEXT,
+            playlist_count INTEGER,
+            playlist TEXT,
+            playlist_id TEXT,
+            playlist_title TEXT,
+            playlist_uploader TEXT,
+            playlist_uploader_id TEXT,
+            playlist_channel TEXT,
+            playlist_channel_id TEXT,
+            playlist_webpage_url TEXT,
+            n_entries INTEGER,
+            playlist_index INTEGER,
+            __last_playlist_index INTEGER,
+            playlist_autonumber INTEGER,
+            epoch INTEGER,
+            duration_string TEXT,
+            release_year INTEGER,
+            created_at TEXT DEFAULT (datetime('now')),
+            updated_at TEXT DEFAULT (datetime('now'))
+        );
         """
     )
     conn.commit()
@@ -1118,4 +1167,124 @@ def record_channel_synced(conn: sqlite3.Connection, channel_url: str, channel_na
     if additional_data:
         event_data += f",{additional_data}"
     
-    record_event(conn, 'system', 'channel_synced', additional_data=event_data) 
+    record_event(conn, 'system', 'channel_synced', additional_data=event_data)
+
+
+# ---------- YouTube Video Metadata Functions ----------
+
+def upsert_youtube_metadata(conn: sqlite3.Connection, metadata: dict) -> int:
+    """Insert or update YouTube video metadata"""
+    cur = conn.cursor()
+    
+    # Extract all fields from metadata dict
+    fields = [
+        '_type', 'ie_key', 'youtube_id', 'url', 'title', 'description', 'duration',
+        'channel_id', 'channel', 'channel_url', 'uploader', 'uploader_id', 'uploader_url',
+        'timestamp', 'release_timestamp', 'availability', 'view_count', 'live_status',
+        'channel_is_verified', '__x_forwarded_for_ip', 'webpage_url', 'original_url',
+        'webpage_url_basename', 'webpage_url_domain', 'extractor', 'extractor_key',
+        'playlist_count', 'playlist', 'playlist_id', 'playlist_title', 'playlist_uploader',
+        'playlist_uploader_id', 'playlist_channel', 'playlist_channel_id', 'playlist_webpage_url',
+        'n_entries', 'playlist_index', '__last_playlist_index', 'playlist_autonumber',
+        'epoch', 'duration_string', 'release_year'
+    ]
+    
+    # Build column list and value placeholders
+    columns = ', '.join(fields)
+    placeholders = ', '.join(['?' for _ in fields])
+    update_clause = ', '.join([f'{field}=excluded.{field}' for field in fields if field != 'youtube_id'])
+    
+    values = [metadata.get(field) for field in fields]
+    
+    cur.execute(f"""
+        INSERT INTO youtube_video_metadata ({columns}, updated_at)
+        VALUES ({placeholders}, datetime('now'))
+        ON CONFLICT(youtube_id) DO UPDATE SET
+            {update_clause},
+            updated_at=datetime('now')
+        RETURNING id
+    """, values)
+    
+    result = cur.fetchone()
+    conn.commit()
+    return result[0] if result else None
+
+
+def get_youtube_metadata_by_id(conn: sqlite3.Connection, youtube_id: str) -> Optional[sqlite3.Row]:
+    """Get YouTube video metadata by video ID"""
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM youtube_video_metadata WHERE youtube_id = ?", (youtube_id,))
+    return cur.fetchone()
+
+
+def get_youtube_metadata_by_playlist(conn: sqlite3.Connection, playlist_id: str) -> Iterator[sqlite3.Row]:
+    """Get all YouTube video metadata for a specific playlist"""
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM youtube_video_metadata WHERE playlist_id = ? ORDER BY playlist_index", (playlist_id,))
+    return cur.fetchall()
+
+
+def delete_youtube_metadata(conn: sqlite3.Connection, youtube_id: str) -> bool:
+    """Delete YouTube video metadata by video ID"""
+    cur = conn.cursor()
+    cur.execute("DELETE FROM youtube_video_metadata WHERE youtube_id = ?", (youtube_id,))
+    conn.commit()
+    return cur.rowcount > 0
+
+
+def search_youtube_metadata(conn: sqlite3.Connection, query: str, limit: int = 100) -> Iterator[sqlite3.Row]:
+    """Search YouTube video metadata by title or description"""
+    cur = conn.cursor()
+    search_query = f"%{query}%"
+    cur.execute("""
+        SELECT * FROM youtube_video_metadata 
+        WHERE title LIKE ? OR description LIKE ? OR channel LIKE ?
+        ORDER BY created_at DESC
+        LIMIT ?
+    """, (search_query, search_query, search_query, limit))
+    return cur.fetchall()
+
+
+def get_youtube_metadata_stats(conn: sqlite3.Connection) -> dict:
+    """Get statistics about YouTube metadata in database"""
+    cur = conn.cursor()
+    
+    # Total count
+    cur.execute("SELECT COUNT(*) FROM youtube_video_metadata")
+    total_count = cur.fetchone()[0]
+    
+    # Count by playlist
+    cur.execute("""
+        SELECT playlist_title, COUNT(*) as count 
+        FROM youtube_video_metadata 
+        WHERE playlist_title IS NOT NULL 
+        GROUP BY playlist_title 
+        ORDER BY count DESC 
+        LIMIT 10
+    """)
+    top_playlists = cur.fetchall()
+    
+    # Count by channel
+    cur.execute("""
+        SELECT channel, COUNT(*) as count 
+        FROM youtube_video_metadata 
+        WHERE channel IS NOT NULL 
+        GROUP BY channel 
+        ORDER BY count DESC 
+        LIMIT 10
+    """)
+    top_channels = cur.fetchall()
+    
+    # Recent additions
+    cur.execute("""
+        SELECT COUNT(*) FROM youtube_video_metadata 
+        WHERE created_at >= datetime('now', '-7 days')
+    """)
+    recent_count = cur.fetchone()[0]
+    
+    return {
+        'total_count': total_count,
+        'top_playlists': [dict(row) for row in top_playlists],
+        'top_channels': [dict(row) for row in top_channels],
+        'recent_additions': recent_count
+    } 
