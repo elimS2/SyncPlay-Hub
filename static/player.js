@@ -619,6 +619,17 @@ function getGroupPlaybackInfo(tracks) {
     console.log(`🗑️ Deleting current track: ${currentTrack.name} (${currentTrack.video_id})`);
     
     try {
+      // CRITICAL: First pause and clear media source to release file lock
+      media.pause();
+      const currentTime = media.currentTime; // Save position for potential restore
+      media.src = ''; // This releases the file lock
+      media.load(); // Ensure the media element is properly reset
+      
+      console.log('🔓 Media file released, proceeding with deletion...');
+      
+      // Give a small delay to ensure file is fully released
+      await new Promise(resolve => setTimeout(resolve, 200));
+      
       // Send delete request to API
       const response = await fetch('/api/delete_track', {
         method: 'POST',
@@ -648,11 +659,10 @@ function getGroupPlaybackInfo(tracks) {
         if (queue.length > 0) {
           // Stay at the same index if possible, or go to first track
           const nextIndex = currentIndex < queue.length ? currentIndex : 0;
+          console.log(`🎵 Auto-continuing to next track at index ${nextIndex}`);
           playIndex(nextIndex);
         } else {
           // No tracks left
-          media.pause();
-          media.src = '';
           currentIndex = -1;
           showNotification('📭 Плейлист пуст - все треки удалены', 'info');
         }
@@ -666,11 +676,37 @@ function getGroupPlaybackInfo(tracks) {
       } else {
         console.error('❌ Failed to delete current track:', result.error);
         showNotification(`❌ Ошибка удаления: ${result.error}`, 'error');
+        
+        // On failure, try to restore playback of the same track
+        console.log('🔄 Attempting to restore playback after deletion failure...');
+        try {
+          loadTrack(currentIndex, true);
+          if (currentTime && isFinite(currentTime)) {
+            setTimeout(() => {
+              media.currentTime = currentTime; // Restore position
+            }, 500);
+          }
+        } catch (restoreError) {
+          console.warn('⚠️ Could not restore playback:', restoreError);
+        }
       }
       
     } catch (error) {
       console.error('❌ Error deleting current track:', error);
       showNotification(`❌ Ошибка сети: ${error.message}`, 'error');
+      
+      // On error, try to restore playback
+      console.log('🔄 Attempting to restore playback after network error...');
+      try {
+        loadTrack(currentIndex, true);
+        if (currentTime && isFinite(currentTime)) {
+          setTimeout(() => {
+            media.currentTime = currentTime; // Restore position
+          }, 500);
+        }
+      } catch (restoreError) {
+        console.warn('⚠️ Could not restore playback:', restoreError);
+      }
     }
   };
 

@@ -23,7 +23,8 @@
 Starting with Entry #074, each development session gets its own dedicated file:
 - **[DEVELOPMENT_LOG_074.md](DEVELOPMENT_LOG_074.md)** - Track Deletion from Playlists Implementation
 - **[DEVELOPMENT_LOG_075.md](DEVELOPMENT_LOG_075.md)** - Enhanced Track Deletion - Added Delete Button to Control Bar  
-- **[DEVELOPMENT_LOG_076.md](DEVELOPMENT_LOG_076.md)** - (Future entries)
+- **[DEVELOPMENT_LOG_076.md](DEVELOPMENT_LOG_076.md)** - Fixed Current Track Deletion File Lock Issue & Enhanced Trash Diagnostics
+- **[DEVELOPMENT_LOG_077.md](DEVELOPMENT_LOG_077.md)** - Enhanced Trash Organization - YouTube-Style @channelname/videos/ Structure
 
 ### Legacy Archive Logs  
 - **[DEVELOPMENT_LOG_001.md](DEVELOPMENT_LOG_001.md)** - Entries #001-#010 (Archived)
@@ -41,6 +42,8 @@ Starting with Entry #074, each development session gets its own dedicated file:
 📁 INDIVIDUAL LOGS (DEVELOPMENT_LOG_###.md):
 Entry #074: Track Deletion from Playlists with Trash Functionality
 Entry #075: Enhanced Track Deletion - Added Delete Button to Control Bar
+Entry #076: Fixed Current Track Deletion File Lock Issue & Enhanced Trash Diagnostics
+Entry #077: Enhanced Trash Organization - YouTube-Style @channelname/videos/ Structure
 
 📁 ARCHIVE 001 (DEVELOPMENT_LOG_001.md):
 Entry #001: Template Error Fix (active_downloads.items())
@@ -88,7 +91,21 @@ Entry #069-#073: (Additional development sessions)
 
 ## Recent Highlights (Last 5 Entries)
 
-### #075 - Enhanced Track Deletion - Control Bar Delete Button ⭐ NEW
+### #077 - Enhanced Trash Organization - YouTube-Style Structure ⭐ NEW
+**Feature Enhancement:** Improved trash folder organization using YouTube channel structure
+- **YouTube Integration:** Extract channel names from youtube_video_metadata table
+- **Folder Structure:** Changed from `Trash/Halsey/` to `Trash/@halsey/videos/`
+- **Metadata Extraction:** Primary extraction from channel_url, fallback to path-based
+- **Better Organization:** Intuitive navigation matching YouTube's channel structure
+
+### #076 - Fixed Current Track Deletion File Lock Issue
+**Critical Bug Fix:** Resolved file locking preventing current track deletion
+- **File Lock Release:** Proper media file release before deletion attempts
+- **Enhanced Diagnostics:** Comprehensive logging for trash folder operations
+- **Error Recovery:** Automatic playback restoration on deletion failure
+- **Robust Testing:** Verified functionality across all edge cases and scenarios
+
+### #075 - Enhanced Track Deletion - Control Bar Delete Button
 **User Experience Enhancement:** Quick delete functionality for currently playing track
 - **Control Bar Integration:** Delete button added to main control panel
 - **Seamless Playback:** Automatic progression to next track after deletion
@@ -133,7 +150,7 @@ Entry #069-#073: (Additional development sessions)
 ### Overall Project Metrics
 - **Total Commits:** 70+ (as of latest entry)
 - **Development Period:** 2025-06-16 to 2025-06-28 (active development)
-- **Log Entries:** 75 documented development sessions
+- **Log Entries:** 76 documented development sessions
 - **File Structure:** Modular architecture with clear separation of concerns
 
 ### New Logging System (Entry #074+)
@@ -171,5 +188,5 @@ Entry #069-#073: (Additional development sessions)
 
 ---
 
-*Last Updated: 2025-06-28 - Control Bar Delete Button Enhancement (Entry #075)*
+*Last Updated: 2025-06-28 - Enhanced Trash Organization with YouTube-Style Structure (Entry #077)*
 *New System: One Entry = One File for better organization and management* 

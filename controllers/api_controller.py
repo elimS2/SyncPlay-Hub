@@ -1663,22 +1663,75 @@ def api_delete_track():
             log_message(f"[Delete] File not found: {full_file_path}")
             return jsonify({"status": "error", "error": "File not found on disk"}), 404
         
-        # Extract channel name from file path for trash organization
-        # Based on user requirement: D:\music\Youtube\Playlists\Trash\имя_канала_автора_видео
-        channel_name = "Unknown"
-        if "Channel-" in track_relpath:
-            # Extract channel name from path like "Music/Channel-Artist/video.mp4"
-            channel_match = re.search(r'Channel-([^/\\]+)', track_relpath)
-            if channel_match:
-                channel_name = channel_match.group(1)
-        else:
-            # For regular playlists, use the playlist name as channel
-            path_parts = Path(track_relpath).parts
-            if len(path_parts) > 0:
-                channel_name = path_parts[0]
+        # Extract channel name from YouTube metadata for trash organization
+        # Based on user requirement: D:\music\Youtube\Playlists\Trash\@channelname\videos\
+        channel_folder = "Unknown"
+        log_message(f"[Delete] Analyzing track path: {track_relpath}")
         
-        # Create trash directory structure: Trash/channel_name/
-        trash_dir = ROOT_DIR / "Playlists" / "Trash" / channel_name
+        # Try to get channel info from youtube_video_metadata first
+        try:
+            cursor.execute("""
+                SELECT channel, channel_url, uploader_url
+                FROM youtube_video_metadata 
+                WHERE youtube_id = ?
+            """, (video_id,))
+            
+            metadata = cursor.fetchone()
+            if metadata:
+                channel_name = metadata[0]  # channel
+                channel_url = metadata[1]   # channel_url
+                uploader_url = metadata[2]  # uploader_url
+                
+                # Extract @channelname from URLs
+                extracted_name = None
+                
+                # Try channel_url first (e.g., https://www.youtube.com/@halsey)
+                if channel_url and '@' in channel_url:
+                    url_parts = channel_url.split('@')
+                    if len(url_parts) > 1:
+                        extracted_name = url_parts[1].split('/')[0]
+                        log_message(f"[Delete] Extracted @{extracted_name} from channel_url: {channel_url}")
+                
+                # Try uploader_url as backup (e.g., https://www.youtube.com/@halsey)
+                elif uploader_url and '@' in uploader_url:
+                    url_parts = uploader_url.split('@')
+                    if len(url_parts) > 1:
+                        extracted_name = url_parts[1].split('/')[0]
+                        log_message(f"[Delete] Extracted @{extracted_name} from uploader_url: {uploader_url}")
+                
+                # Use extracted name if found, otherwise use channel name
+                if extracted_name:
+                    channel_folder = f"@{extracted_name}"
+                elif channel_name:
+                    channel_folder = f"@{channel_name.replace(' ', '_')}"
+                
+                log_message(f"[Delete] Using YouTube metadata channel: {channel_folder}")
+            else:
+                log_message(f"[Delete] No YouTube metadata found for video_id: {video_id}")
+        except Exception as e:
+            log_message(f"[Delete] Error getting YouTube metadata: {e}")
+        
+        # Fallback to path-based extraction if metadata didn't work
+        if channel_folder == "Unknown":
+            if "Channel-" in track_relpath:
+                # Extract channel name from path like "New Music/Channel-Artist/video.mp4"
+                channel_match = re.search(r'Channel-([^/\\]+)', track_relpath)
+                if channel_match:
+                    channel_folder = f"@{channel_match.group(1)}"
+                    log_message(f"[Delete] Extracted from Channel- pattern: {channel_folder}")
+                else:
+                    log_message(f"[Delete] Found Channel- in path but failed to extract name")
+            else:
+                # For regular playlists, use the playlist name as channel
+                path_parts = Path(track_relpath).parts
+                if len(path_parts) > 0:
+                    channel_folder = f"@{path_parts[0].replace(' ', '_')}"
+                    log_message(f"[Delete] Using playlist name as channel: {channel_folder}")
+        
+        log_message(f"[Delete] Final channel folder for trash: {channel_folder}")
+        
+        # Create trash directory structure: Trash/@channelname/videos/
+        trash_dir = ROOT_DIR / "Playlists" / "Trash" / channel_folder / "videos"
         trash_dir.mkdir(parents=True, exist_ok=True)
         
         # Generate unique filename in trash if file already exists
@@ -1711,7 +1764,7 @@ def api_delete_track():
             track_name, 
             track_relpath, 
             deletion_reason='manual_delete',
-            channel_group=channel_name,
+            channel_group=channel_folder,
             trash_path=trash_path,
             additional_data=f"deleted_from_playlist_ui"
         )
@@ -1724,7 +1777,7 @@ def api_delete_track():
         log_message(f"[Delete] Successfully deleted track {video_id} ({track_name}) to trash")
         return jsonify({
             "status": "ok",
-            "message": f"Track moved to trash: {channel_name}/{target_file.name}",
+            "message": f"Track moved to trash: {channel_folder}/videos/{target_file.name}",
             "video_id": video_id,
             "track_name": track_name,
             "trash_path": trash_path
