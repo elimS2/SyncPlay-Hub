@@ -22,10 +22,40 @@ import sys
 from datetime import datetime
 from typing import Dict, List, Any
 import os
+from pathlib import Path
+
+# Add parent directory to path for imports
+sys.path.append(str(Path(__file__).parent.parent))
+
+# Load .env file manually
+def load_env_file():
+    """Load .env file manually and return config dict."""
+    env_path = Path(__file__).parent.parent / '.env'
+    config = {}
+    
+    if env_path.exists():
+        try:
+            with open(env_path, 'r', encoding='utf-8') as f:
+                for line in f:
+                    line = line.strip()
+                    if line and not line.startswith('#') and '=' in line:
+                        key, value = line.split('=', 1)
+                        # Remove BOM if present
+                        key = key.strip().lstrip('\ufeff')
+                        config[key] = value.strip()
+            print(f"📄 Loaded .env file from: {env_path}")
+        except Exception as e:
+            print(f"⚠️  Error reading .env file: {e}")
+    
+    return config
+
+# Load .env configuration
+env_config = load_env_file()
 
 from utils.logging_utils import log_message
 from database import (
     get_connection, 
+    set_db_path,
     upsert_youtube_metadata, 
     get_youtube_metadata_by_id
 )
@@ -176,6 +206,10 @@ def process_channel_metadata(url: str) -> Dict[str, int]:
                     # Ensure youtube_id field is set correctly
                     metadata['youtube_id'] = video_id
                     
+                    # Ensure channel_url is set (flat-playlist doesn't always provide it)
+                    if not metadata.get('channel_url'):
+                        metadata['channel_url'] = url
+                    
                     # Check if record already exists
                     existing = get_youtube_metadata_by_id(conn, video_id)
                     
@@ -208,6 +242,25 @@ def process_channel_metadata(url: str) -> Dict[str, int]:
                     continue
         
         finally:
+            # Update metadata_last_updated field in channels table
+            try:
+                cur = conn.cursor()
+                current_time = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')
+                cur.execute("""
+                    UPDATE channels 
+                    SET metadata_last_updated = ? 
+                    WHERE url = ?
+                """, (current_time, url))
+                
+                if cur.rowcount > 0:
+                    log_message(f"Updated metadata_last_updated for channel: {current_time}")
+                else:
+                    log_message(f"Warning: Channel not found in database, metadata_last_updated not set")
+                
+                conn.commit()
+            except Exception as e:
+                log_message(f"Warning: Failed to update metadata_last_updated: {e}")
+            
             conn.close()
     
     except Exception as e:
@@ -257,6 +310,20 @@ Examples:
     )
     
     args = parser.parse_args()
+    
+    # Set database path from .env file
+    db_path = env_config.get('DB_PATH')
+    if db_path:
+        from pathlib import Path
+        db_file = Path(db_path)
+        if db_file.exists():
+            set_db_path(db_path)
+            print(f"🔗 Using database: {db_path}")
+        else:
+            print(f"⚠️  Database file not found: {db_path}")
+            print(f"🔗 Using default database: tracks.db (current directory)")
+    else:
+        print(f"🔗 Using default database: tracks.db (current directory)")
     
     # Validate URL format
     if not any(domain in args.url.lower() for domain in ['youtube.com', 'youtu.be']):

@@ -178,6 +178,74 @@ def get_download_status(conn, youtube_id: str) -> Dict[str, Any]:
     return status
 
 
+def get_metadata_info(conn, channel_url: str) -> Dict[str, Any]:
+    """Get metadata information for a channel."""
+    cur = conn.cursor()
+    
+    # Count total metadata records for this channel
+    # Use same pattern matching as get_channel_metadata
+    if '@' in channel_url:
+        # @ChannelName format
+        channel_name = channel_url.split('@')[1].split('/')[0]
+        search_pattern = f'%@{channel_name}%'
+    elif '/channel/' in channel_url:
+        # /channel/UC... format
+        channel_id = channel_url.split('/channel/')[1].split('/')[0]
+        search_pattern = f'%{channel_id}%'
+    elif '/c/' in channel_url:
+        # /c/ChannelName format
+        channel_name = channel_url.split('/c/')[1].split('/')[0]
+        search_pattern = f'%{channel_name}%'
+    else:
+        search_pattern = f'%{channel_url}%'
+    
+    cur.execute("""
+        SELECT COUNT(*) as total_count,
+               MAX(timestamp) as latest_video_timestamp,
+               MIN(timestamp) as earliest_video_timestamp
+        FROM youtube_video_metadata 
+        WHERE (channel_url LIKE ? OR channel LIKE ?)
+    """, (search_pattern, search_pattern))
+    
+    result = cur.fetchone()
+    total_count = result[0] if result else 0
+    latest_timestamp = result[1] if result else None
+    earliest_timestamp = result[2] if result else None
+    
+    # Get metadata update info from channel table
+    cur.execute("""
+        SELECT metadata_last_updated 
+        FROM channels 
+        WHERE url = ?
+    """, (channel_url,))
+    
+    result = cur.fetchone()
+    last_updated = result[0] if result else None
+    
+    # Convert timestamps to readable dates
+    latest_video_date = None
+    earliest_video_date = None
+    if latest_timestamp:
+        try:
+            latest_video_date = datetime.fromtimestamp(latest_timestamp).strftime('%Y-%m-%d')
+        except (ValueError, OSError):
+            latest_video_date = "Invalid date"
+    
+    if earliest_timestamp:
+        try:
+            earliest_video_date = datetime.fromtimestamp(earliest_timestamp).strftime('%Y-%m-%d')
+        except (ValueError, OSError):
+            earliest_video_date = "Invalid date"
+    
+    return {
+        'has_metadata': total_count > 0,
+        'total_count': total_count,
+        'last_updated': last_updated,
+        'latest_video_date': latest_video_date,
+        'earliest_video_date': earliest_video_date
+    }
+
+
 def format_duration(seconds: Optional[float]) -> str:
     """Format duration in human readable format."""
     if seconds is None:
@@ -293,7 +361,7 @@ def get_channel_folder_info(channel: Dict, root_dir: str) -> Dict[str, Any]:
     return result
 
 
-def print_channel_summary(channel: Dict, video_count: int, downloaded_count: int, deleted_count: int):
+def print_channel_summary(conn, channel: Dict, video_count: int, downloaded_count: int, deleted_count: int):
     """Print channel summary information."""
     print(f"\n{'='*80}")
     print(f"📺 CHANNEL: {channel['name']}")
@@ -318,6 +386,23 @@ def print_channel_summary(channel: Dict, video_count: int, downloaded_count: int
         print(f"   ❌ Folder does not exist")
         if len(folder_info['possible_paths']) > 1:
             print(f"   💡 Also checked: {', '.join(folder_info['possible_paths'][1:])}")
+    
+    # Show metadata information
+    metadata_info = get_metadata_info(conn, channel['url'])
+    
+    print(f"")
+    print(f"🎬 METADATA INFORMATION:")
+    if metadata_info['has_metadata']:
+        print(f"   ✅ YouTube metadata: {metadata_info['total_count']} videos")
+        if metadata_info['earliest_video_date'] and metadata_info['latest_video_date']:
+            print(f"   📅 Video range: {metadata_info['earliest_video_date']} to {metadata_info['latest_video_date']}")
+        if metadata_info['last_updated']:
+            print(f"   🔄 Metadata updated: {metadata_info['last_updated']}")
+        else:
+            print(f"   🔄 Metadata updated: Unknown (update database schema)")
+    else:
+        print(f"   ❌ No YouTube metadata found")
+        print(f"   💡 Run: python scripts/extract_channel_metadata.py \"{channel['url']}\"")
     
     print(f"")
     print(f"📈 ANALYSIS RESULTS:")
@@ -425,7 +510,7 @@ def analyze_channel(conn, channel: Dict, days_back: Optional[int] = None, show_d
             print_video_status(video, status, show_details=True)
     
     # Print summary
-    print_channel_summary(channel, len(videos), downloaded_count, deleted_count)
+    print_channel_summary(conn, channel, len(videos), downloaded_count, deleted_count)
     
     return {
         'total_videos': len(videos),
