@@ -1701,9 +1701,9 @@ def api_delete_track():
                 
                 # Use extracted name if found, otherwise use channel name
                 if extracted_name:
-                    channel_folder = f"@{extracted_name}"
+                    channel_folder = extracted_name.replace(' ', '_')
                 elif channel_name:
-                    channel_folder = f"@{channel_name.replace(' ', '_')}"
+                    channel_folder = channel_name.replace(' ', '_')
                 
                 log_message(f"[Delete] Using YouTube metadata channel: {channel_folder}")
             else:
@@ -1717,7 +1717,7 @@ def api_delete_track():
                 # Extract channel name from path like "New Music/Channel-Artist/video.mp4"
                 channel_match = re.search(r'Channel-([^/\\]+)', track_relpath)
                 if channel_match:
-                    channel_folder = f"@{channel_match.group(1)}"
+                    channel_folder = channel_match.group(1).replace(' ', '_')
                     log_message(f"[Delete] Extracted from Channel- pattern: {channel_folder}")
                 else:
                     log_message(f"[Delete] Found Channel- in path but failed to extract name")
@@ -1725,33 +1725,57 @@ def api_delete_track():
                 # For regular playlists, use the playlist name as channel
                 path_parts = Path(track_relpath).parts
                 if len(path_parts) > 0:
-                    channel_folder = f"@{path_parts[0].replace(' ', '_')}"
+                    channel_folder = path_parts[0].replace(' ', '_')
                     log_message(f"[Delete] Using playlist name as channel: {channel_folder}")
         
         log_message(f"[Delete] Final channel folder for trash: {channel_folder}")
         
-        # Create trash directory structure: Trash/@channelname/videos/
-        trash_dir = ROOT_DIR / "Playlists" / "Trash" / channel_folder / "videos"
+        # Create trash directory structure: Trash/Playlists/channelname/videos/
+        # ROOT_DIR points to D:\music\Youtube\Playlists, so we need to go up one level for Trash
+        trash_dir = ROOT_DIR.parent / "Trash" / "Playlists" / channel_folder / "videos"
         trash_dir.mkdir(parents=True, exist_ok=True)
         
+        # Sanitize filename for Windows filesystem compatibility
+        def sanitize_filename(filename):
+            """Remove or replace invalid characters for Windows filesystem"""
+            # Invalid characters for Windows: < > : " | ? * and control chars
+            invalid_chars = '<>:"|?*'
+            sanitized = filename
+            for char in invalid_chars:
+                sanitized = sanitized.replace(char, '_')
+            # Also replace control characters
+            sanitized = ''.join(c if ord(c) >= 32 else '_' for c in sanitized)
+            return sanitized.strip()
+        
         # Generate unique filename in trash if file already exists
-        target_file = trash_dir / full_file_path.name
+        sanitized_name = sanitize_filename(full_file_path.name)
+        target_file = trash_dir / sanitized_name
+        
         if target_file.exists():
             # Add timestamp to avoid conflicts
             import datetime
             timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-            name_parts = full_file_path.name.rsplit('.', 1)
+            name_parts = sanitized_name.rsplit('.', 1)
             if len(name_parts) == 2:
                 new_name = f"{name_parts[0]}_{timestamp}.{name_parts[1]}"
             else:
-                new_name = f"{full_file_path.name}_{timestamp}"
+                new_name = f"{sanitized_name}_{timestamp}"
             target_file = trash_dir / new_name
+            
+        log_message(f"[Delete] Sanitized filename: {full_file_path.name} → {target_file.name}")
         
         # Move file to trash
         import shutil
         try:
-            shutil.move(str(full_file_path), str(target_file))
-            trash_path = str(target_file.relative_to(ROOT_DIR))
+            # Convert to absolute paths to avoid relative path issues
+            source_path = str(full_file_path.resolve())
+            target_path = str(target_file.resolve())
+            
+            log_message(f"[Delete] Moving file: {source_path} → {target_path}")
+            shutil.move(source_path, target_path)
+            
+            # Calculate trash_path relative to ROOT_DIR parent (D:\music\Youtube)
+            trash_path = str(target_file.relative_to(ROOT_DIR.parent))
             log_message(f"[Delete] Moved to trash: {track_name} → {trash_path}")
         except Exception as e:
             log_message(f"[Delete] Failed to move to trash: {e}")
@@ -1769,8 +1793,10 @@ def api_delete_track():
             additional_data=f"deleted_from_playlist_ui"
         )
         
-        # Record deletion event in play_history
-        record_event(conn, video_id, 'removed', additional_data=f'manual_delete_to_trash:{trash_path}')
+        # Record deletion event in play_history with full path information
+        full_source_path = str(full_file_path)
+        full_target_path = str(target_file)
+        record_event(conn, video_id, 'removed', additional_data=f'manual_delete_move_from:{full_source_path}_to:{full_target_path}')
         
         conn.close()
         
