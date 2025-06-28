@@ -591,7 +591,7 @@ class JobQueueService:
             return job
     
     def get_jobs(self, status: Optional[JobStatus] = None, job_type: Optional[JobType] = None, 
-                 limit: int = 100) -> List[Job]:
+                 limit: int = 100, offset: int = 0) -> List[Job]:
         """Получает список задач с фильтрацией."""
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
@@ -617,8 +617,9 @@ class JobQueueService:
             if conditions:
                 query += " WHERE " + " AND ".join(conditions)
             
-            query += " ORDER BY created_at DESC LIMIT ?"
+            query += " ORDER BY created_at DESC LIMIT ? OFFSET ?"
             params.append(limit)
+            params.append(offset)
             
             cursor.execute(query, params)
             

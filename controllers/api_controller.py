@@ -1764,7 +1764,7 @@ def api_get_jobs():
                 'parent_job_id': job.parent_job_id,
                 'error_message': job.error_message,
                 'log_file_path': job.log_file_path,
-                'job_data': job.job_data,
+                'job_data': job.job_data._data,
                 'elapsed_time': job.get_elapsed_time()
             }
             jobs_data.append(job_data)
@@ -1864,7 +1864,7 @@ def api_get_job(job_id: int):
             'parent_job_id': job.parent_job_id,
             'error_message': job.error_message,
             'log_file_path': job.log_file_path,
-            'job_data': job.job_data,
+            'job_data': job.job_data._data,
             'elapsed_time': job.get_elapsed_time()
         }
         
