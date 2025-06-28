@@ -21,6 +21,14 @@ from .job_types import (
     create_job_with_defaults
 )
 
+# Performance monitoring and optimization (Phase 7)
+try:
+    from utils.performance_monitor import get_performance_monitor
+    from utils.database_optimizer import get_database_optimizer
+    PHASE_7_ENABLED = True
+except ImportError:
+    PHASE_7_ENABLED = False
+
 
 class JobQueueService:
     """Основной сервис управления очередью задач."""
@@ -69,6 +77,17 @@ class JobQueueService:
             'failed_jobs': 0,
             'start_time': datetime.utcnow()
         }
+        
+        # Phase 7: Performance monitoring and database optimization
+        self._performance_monitor = None
+        self._database_optimizer = None
+        if PHASE_7_ENABLED:
+            try:
+                self._performance_monitor = get_performance_monitor(self.db_path, self)
+                self._database_optimizer = get_database_optimizer(self.db_path, pool_size=15)
+                print("✅ Phase 7 Performance & Optimization enabled")
+            except Exception as e:
+                print(f"⚠️ Phase 7 initialization failed: {e}")
         
         # Инициализация
         self._init_database()
@@ -159,63 +178,72 @@ class JobQueueService:
     def _get_next_job(self) -> Optional[Job]:
         """Получает следующую задачу для выполнения."""
         with self._lock:
-            with sqlite3.connect(self.db_path) as conn:
-                cursor = conn.cursor()
-                
-                # Ищем задачи готовые к выполнению с учетом retry timing
-                current_time = datetime.utcnow().isoformat()
-                cursor.execute("""
-                    SELECT id, job_type, job_data, status, priority, created_at,
-                           log_file_path, error_message, retry_count, max_retries,
-                           timeout_seconds, parent_job_id, next_retry_at, failure_type
-                    FROM job_queue 
-                    WHERE (
-                        status = 'pending' OR 
-                        (status = 'retrying' AND (next_retry_at IS NULL OR next_retry_at <= ?))
-                    )
-                    ORDER BY priority DESC, created_at ASC
-                    LIMIT 1
-                """, (current_time,))
-                
-                row = cursor.fetchone()
-                if not row:
-                    return None
-                
-                # Создаем объект Job
-                job = Job(
-                    job_type=JobType(row[1]),
-                    job_data=JobData.from_json(row[2]),
-                    priority=JobPriority(row[4])
-                )
-                
-                job.id = row[0]
-                job.status = JobStatus(row[3])
-                job.created_at = datetime.fromisoformat(row[5])
-                job.log_file_path = row[6]
-                job.error_message = row[7]
-                job.retry_count = row[8]
-                job.max_retries = row[9]
-                job.timeout_seconds = row[10]
-                job.parent_job_id = row[11]
-                
-                # Новые поля для enhanced error handling
-                if row[12]:  # next_retry_at
-                    job.next_retry_at = datetime.fromisoformat(row[12])
-                if row[13]:  # failure_type
-                    job.failure_type = JobFailureType(row[13])
-                
-                # Помечаем задачу как выполняющуюся
-                cursor.execute("""
-                    UPDATE job_queue 
-                    SET status = 'running', started_at = CURRENT_TIMESTAMP
-                    WHERE id = ?
-                """, (job.id,))
-                conn.commit()
-                
-                job.status = JobStatus.RUNNING
-                job.started_at = datetime.utcnow()
-                
-                return job
+            # Use optimized database connection if available
+            if self._database_optimizer:
+                with self._database_optimizer.get_optimized_connection() as conn:
+                    return self._get_next_job_from_connection(conn)
+            else:
+                with sqlite3.connect(self.db_path) as conn:
+                    return self._get_next_job_from_connection(conn)
+    
+    def _get_next_job_from_connection(self, conn) -> Optional[Job]:
+        """Helper method to get next job from provided connection."""
+        cursor = conn.cursor()
+        
+        # Ищем задачи готовые к выполнению с учетом retry timing
+        current_time = datetime.utcnow().isoformat()
+        cursor.execute("""
+            SELECT id, job_type, job_data, status, priority, created_at,
+                   log_file_path, error_message, retry_count, max_retries,
+                   timeout_seconds, parent_job_id, next_retry_at, failure_type
+            FROM job_queue 
+            WHERE (
+                status = 'pending' OR 
+                (status = 'retrying' AND (next_retry_at IS NULL OR next_retry_at <= ?))
+            )
+            ORDER BY priority DESC, created_at ASC
+            LIMIT 1
+        """, (current_time,))
+        
+        row = cursor.fetchone()
+        if not row:
+            return None
+        
+        # Создаем объект Job
+        job = Job(
+            job_type=JobType(row[1]),
+            job_data=JobData.from_json(row[2]),
+            priority=JobPriority(row[4])
+        )
+        
+        job.id = row[0]
+        job.status = JobStatus(row[3])
+        job.created_at = datetime.fromisoformat(row[5])
+        job.log_file_path = row[6]
+        job.error_message = row[7]
+        job.retry_count = row[8]
+        job.max_retries = row[9]
+        job.timeout_seconds = row[10]
+        job.parent_job_id = row[11]
+        
+        # Новые поля для enhanced error handling
+        if row[12]:  # next_retry_at
+            job.next_retry_at = datetime.fromisoformat(row[12])
+        if row[13]:  # failure_type
+            job.failure_type = JobFailureType(row[13])
+        
+        # Помечаем задачу как выполняющуюся
+        cursor.execute("""
+            UPDATE job_queue 
+            SET status = 'running', started_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+        """, (job.id,))
+        conn.commit()
+        
+        job.status = JobStatus.RUNNING
+        job.started_at = datetime.utcnow()
+        
+        return job
     
     def _execute_job(self, job: Job, worker_name: str):
         """Выполняет задачу."""
