@@ -1724,14 +1724,14 @@ def api_get_jobs():
         status_enum = None
         if status_filter:
             try:
-                status_enum = JobStatus(status_filter.upper())
+                status_enum = JobStatus(status_filter)
             except ValueError:
                 return jsonify({"status": "error", "error": f"Invalid status: {status_filter}"}), 400
         
         job_type_enum = None
         if job_type_filter:
             try:
-                job_type_enum = JobType(job_type_filter.upper())
+                job_type_enum = JobType(job_type_filter)
             except ValueError:
                 return jsonify({"status": "error", "error": f"Invalid job type: {job_type_filter}"}), 400
         
@@ -1797,7 +1797,7 @@ def api_create_job():
         
         # Convert job_type to enum
         try:
-            job_type_enum = JobType(job_type.upper())
+            job_type_enum = JobType(job_type)
         except ValueError:
             return jsonify({"status": "error", "error": f"Invalid job_type: {job_type}"}), 400
         
