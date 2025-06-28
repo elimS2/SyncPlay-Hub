@@ -61,12 +61,13 @@ from database import (
 )
 
 
-def run_ytdlp_extract(url: str) -> List[Dict[str, Any]]:
+def run_ytdlp_extract(url: str, max_entries: int = None) -> List[Dict[str, Any]]:
     """
     Run yt-dlp to extract metadata from YouTube channel
     
     Args:
         url: YouTube channel URL
+        max_entries: Maximum number of videos to extract (optional)
         
     Returns:
         List of video metadata dictionaries
@@ -83,6 +84,10 @@ def run_ytdlp_extract(url: str) -> List[Dict[str, Any]]:
         "--dump-json", 
         url
     ]
+    
+    # Add max entries limit if specified
+    if max_entries:
+        cmd.extend(["--max-downloads", str(max_entries)])
     
     try:
         # Run yt-dlp and capture output
@@ -157,12 +162,14 @@ def compare_metadata(existing: Dict[str, Any], new: Dict[str, Any]) -> bool:
     return False
 
 
-def process_channel_metadata(url: str) -> Dict[str, int]:
+def process_channel_metadata(url: str, force_update: bool = False, max_entries: int = None) -> Dict[str, int]:
     """
     Process YouTube channel metadata extraction and database storage
     
     Args:
         url: YouTube channel URL
+        force_update: Force update existing metadata even if unchanged
+        max_entries: Maximum number of videos to process
         
     Returns:
         Dictionary with statistics: total, inserted, updated, errors
@@ -181,7 +188,7 @@ def process_channel_metadata(url: str) -> Dict[str, int]:
     
     try:
         # Step 1: Extract metadata using yt-dlp
-        metadata_list = run_ytdlp_extract(url)
+        metadata_list = run_ytdlp_extract(url, max_entries)
         stats['total'] = len(metadata_list)
         
         if not metadata_list:
@@ -215,11 +222,14 @@ def process_channel_metadata(url: str) -> Dict[str, int]:
                     
                     if existing:
                         # Check if update is needed
-                        if compare_metadata(dict(existing), metadata):
+                        if force_update or compare_metadata(dict(existing), metadata):
                             # Update existing record
                             upsert_youtube_metadata(conn, metadata)
                             stats['updated'] += 1
-                            log_message(f"Updated metadata for video {video_id} ({i}/{stats['total']})")
+                            if force_update:
+                                log_message(f"Force updated metadata for video {video_id} ({i}/{stats['total']})")
+                            else:
+                                log_message(f"Updated metadata for video {video_id} ({i}/{stats['total']})")
                         else:
                             # No changes needed
                             log_message(f"No changes for video {video_id} ({i}/{stats['total']})")
@@ -309,21 +319,50 @@ Examples:
         help="Extract metadata but don't save to database (for testing)"
     )
     
+    parser.add_argument(
+        "--db-path",
+        type=str,
+        help="Path to the database file (overrides .env file)"
+    )
+    
+    parser.add_argument(
+        "--force-update",
+        action="store_true",
+        help="Force update existing metadata even if unchanged"
+    )
+    
+    parser.add_argument(
+        "--max-entries",
+        type=int,
+        help="Maximum number of videos to process"
+    )
+    
+    parser.add_argument(
+        "--verbose",
+        action="store_true",
+        help="Enable verbose logging output"
+    )
+    
     args = parser.parse_args()
     
-    # Set database path from .env file
-    db_path = env_config.get('DB_PATH')
+    # Set database path from command line argument or .env file
+    db_path = args.db_path
+    if not db_path:
+        db_path = env_config.get('DB_PATH')
+    
     if db_path:
         from pathlib import Path
         db_file = Path(db_path)
         if db_file.exists():
             set_db_path(db_path)
-            print(f"[INFO] Using database: {db_path}")
+            if args.verbose:
+                print(f"[INFO] Using database: {db_path}")
         else:
             print(f"[WARNING] Database file not found: {db_path}")
             print(f"[INFO] Using default database: tracks.db (current directory)")
     else:
-        print(f"[INFO] Using default database: tracks.db (current directory)")
+        if args.verbose:
+            print(f"[INFO] Using default database: tracks.db (current directory)")
     
     # Validate URL format
     if not any(domain in args.url.lower() for domain in ['youtube.com', 'youtu.be']):
@@ -334,7 +373,7 @@ Examples:
         if args.dry_run:
             log_message("DRY RUN MODE: Metadata will be extracted but not saved to database")
             # Run extraction only
-            metadata_list = run_ytdlp_extract(args.url)
+            metadata_list = run_ytdlp_extract(args.url, args.max_entries)
             log_message(f"DRY RUN: Would process {len(metadata_list)} videos")
             
             # Show sample metadata
@@ -345,7 +384,7 @@ Examples:
                     log_message(f"  {key}: {value}")
         else:
             # Full processing
-            stats = process_channel_metadata(args.url)
+            stats = process_channel_metadata(args.url, args.force_update, args.max_entries)
             
             # Exit with error code if there were issues
             if stats['errors'] > 0 and stats['total'] == stats['errors']:
