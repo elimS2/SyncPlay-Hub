@@ -5,7 +5,7 @@ import threading
 from pathlib import Path
 from flask import Blueprint, request, jsonify
 
-from .shared import ROOT_DIR, get_connection, log_message
+from .shared import get_root_dir, get_connection, log_message
 from services.download_service import add_active_download, update_download_status, remove_active_download
 import database as db
 
@@ -61,7 +61,13 @@ def api_add_playlist():
             log_message(f"[AddPlaylist] Metadata fetched successfully: {title} | Task ID: {task_id}")
             
             folder_name = sanitize_filename(title, restricted=True)
-            target_dir = ROOT_DIR / folder_name
+            root_dir = get_root_dir()
+            if not root_dir:
+                log_message(f"[AddPlaylist] Error: ROOT_DIR not initialized")
+                remove_active_download(task_id)
+                return
+                
+            target_dir = root_dir / folder_name
             
             # Check if already exists
             if target_dir.exists():
@@ -133,14 +139,14 @@ def api_add_playlist():
                         elif "Detailed scan completed" in msg:
                             update_download_status(task_id, "downloading files")
                     
-                    _dl_playlist(url, ROOT_DIR, audio_only=False, sync=True, debug=False, progress_callback=progress_callback)
+                    _dl_playlist(url, root_dir, audio_only=False, sync=True, debug=False, progress_callback=progress_callback)
                     
                     # Update status to finalizing
                     update_download_status(task_id, "updating database")
                     
                     # Update DB after download
                     from scan_to_db import scan as scan_library  # local import
-                    scan_library(ROOT_DIR)
+                    scan_library(root_dir)
                     success_msg = f"[DONE]  {datetime.datetime.now():%Y-%m-%d %H:%M:%S}  Successfully downloaded {title}"
                     dual_print(success_msg)
                     
@@ -228,13 +234,20 @@ def api_resync():
                             update_download_status(task_id, "downloading files")
                     
                     _dl_playlist = __import__("download_playlist").download_playlist
-                    _dl_playlist(url, ROOT_DIR, audio_only=False, sync=True, debug=False, progress_callback=progress_callback)
+                    root_dir = get_root_dir()
+                    if not root_dir:
+                        error_msg = f"[ERROR] ROOT_DIR not initialized"
+                        dual_print(error_msg)
+                        update_download_status(task_id, "error")
+                        return
+                        
+                    _dl_playlist(url, root_dir, audio_only=False, sync=True, debug=False, progress_callback=progress_callback)
                     
                     # Update status to finalizing
                     update_download_status(task_id, "updating database")
                     
                     from scan_to_db import scan as scan_library
-                    scan_library(ROOT_DIR)
+                    scan_library(root_dir)
                     success_msg = f"[DONE] {datetime.datetime.now():%Y-%m-%d %H:%M:%S}"
                     dual_print(success_msg)
                     

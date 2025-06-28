@@ -2,7 +2,7 @@
 
 from pathlib import Path
 from flask import Blueprint, jsonify, send_from_directory
-from .shared import ROOT_DIR, log_message, _format_file_size
+from .shared import get_root_dir, log_message, _format_file_size
 
 # Create blueprint
 browser_bp = Blueprint('browser', __name__)
@@ -13,7 +13,8 @@ def api_browse(subpath: str):
     """Browse directory structure and files."""
     try:
         # Start from ROOT_DIR parent to show the full data structure
-        base_dir = ROOT_DIR.parent if ROOT_DIR else Path.cwd()
+        root_dir = get_root_dir()
+        base_dir = root_dir.parent if root_dir else Path.cwd()
         
         # Handle subpath safely
         if subpath:
@@ -82,7 +83,8 @@ def api_browse(subpath: str):
 def api_download_file(filepath: str):
     """Download a file from the data directory."""
     try:
-        base_dir = ROOT_DIR.parent if ROOT_DIR else Path.cwd()
+        root_dir = get_root_dir() 
+        base_dir = root_dir.parent if root_dir else Path.cwd()
         file_path = base_dir / filepath
         
         # Security check

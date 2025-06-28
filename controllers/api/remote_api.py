@@ -4,7 +4,7 @@ import random
 import time
 from pathlib import Path
 from flask import Blueprint, request, jsonify
-from .shared import PLAYER_STATE, COMMAND_QUEUE, ROOT_DIR, get_connection, log_message, record_event
+from .shared import PLAYER_STATE, COMMAND_QUEUE, get_root_dir, get_connection, log_message, record_event
 import database as db
 
 # Create blueprint
@@ -208,7 +208,10 @@ def api_remote_load_playlist():
             base_dir = _ensure_subdir(Path(playlist_path))
             tracks = scan_tracks(base_dir)
         else:
-            tracks = scan_tracks(ROOT_DIR)
+            root_dir = get_root_dir()
+            if not root_dir:
+                return jsonify({"error": "Server configuration error"}), 500
+            tracks = scan_tracks(root_dir)
         
         if tracks:
             PLAYER_STATE['playlist'] = tracks

@@ -2,7 +2,7 @@
 
 from pathlib import Path
 from flask import Blueprint, request, jsonify
-from .shared import ROOT_DIR, get_connection, log_message, record_event
+from .shared import get_root_dir, get_connection, log_message, record_event
 from services.playlist_service import scan_tracks, _ensure_subdir, list_playlists
 from services.download_service import get_active_downloads
 
@@ -13,14 +13,20 @@ base_bp = Blueprint('base', __name__)
 @base_bp.route("/tracks/<path:subpath>")
 def api_tracks(subpath: str):
     """Get tracks from a directory."""
-    base_dir = _ensure_subdir(Path(subpath)) if subpath else ROOT_DIR
+    root_dir = get_root_dir()
+    if not root_dir:
+        return jsonify({"error": "Server configuration error"}), 500
+    base_dir = _ensure_subdir(Path(subpath)) if subpath else root_dir
     tracks = scan_tracks(base_dir)
     return jsonify(tracks)
 
 @base_bp.route("/playlists")
 def api_playlists():
     """Get list of all playlists."""
-    return jsonify(list_playlists(ROOT_DIR))
+    root_dir = get_root_dir()
+    if not root_dir:
+        return jsonify({"error": "Server configuration error"}), 500
+    return jsonify(list_playlists(root_dir))
 
 @base_bp.route("/active_downloads")
 def api_active_downloads():
@@ -31,8 +37,11 @@ def api_active_downloads():
 def api_scan():
     """Scan Playlists directory and update database."""
     try:
+        root_dir = get_root_dir()
+        if not root_dir:
+            return jsonify({"error": "Server configuration error"}), 500
         from scan_to_db import scan as scan_library
-        scan_library(ROOT_DIR)
+        scan_library(root_dir)
         return jsonify({"status": "ok"})
     except Exception as exc:
         return jsonify({"status": "error", "message": str(exc)}), 500
@@ -41,8 +50,11 @@ def api_scan():
 def api_backup():
     """Create database backup."""
     try:
+        root_dir = get_root_dir()
+        if not root_dir:
+            return jsonify({"error": "Server configuration error"}), 500
         from database import create_backup
-        result = create_backup(ROOT_DIR)
+        result = create_backup(root_dir)
         
         if result['success']:
             log_message(f"Database backup created: {result['backup_folder']}")
@@ -67,8 +79,11 @@ def api_backup():
 def api_backups():
     """Get list of all database backups."""
     try:
+        root_dir = get_root_dir()
+        if not root_dir:
+            return jsonify({"error": "Server configuration error"}), 500
         from database import list_backups
-        backups = list_backups(ROOT_DIR)
+        backups = list_backups(root_dir)
         return jsonify({"status": "ok", "backups": backups})
     except Exception as exc:
         return jsonify({"status": "error", "message": str(exc)}), 500

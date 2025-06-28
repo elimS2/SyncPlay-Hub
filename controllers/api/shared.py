@@ -20,6 +20,10 @@ import queue
 # Global ROOT_DIR will be set by main app
 ROOT_DIR = None
 
+def get_root_dir():
+    """Get current ROOT_DIR value."""
+    return ROOT_DIR
+
 # Global state for remote control - in a real app this would be in Redis/database
 PLAYER_STATE = {
     'current_track': None,

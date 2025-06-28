@@ -7,7 +7,7 @@ import datetime
 from pathlib import Path
 from flask import Blueprint, request, jsonify
 
-from .shared import get_connection, log_message, ROOT_DIR, record_event
+from .shared import get_connection, log_message, get_root_dir, record_event
 import database as db
 
 # Create blueprint
@@ -173,10 +173,15 @@ def api_add_channel():
                 
                 # FIRST: Check if files for this channel already exist in other groups
                 existing_files_moved = False
-                target_folder = ROOT_DIR / group['name'] / f"Channel-{channel_name}"
+                root_dir = get_root_dir()
+                if not root_dir:
+                    log_message(f"[Channel Download] Error: ROOT_DIR not initialized")
+                    return
+                    
+                target_folder = root_dir / group['name'] / f"Channel-{channel_name}"
                 
                 # Search for existing channel folders in all groups (including current)
-                for group_folder in ROOT_DIR.iterdir():
+                for group_folder in root_dir.iterdir():
                     if group_folder.is_dir():
                         # Try multiple possible folder names (same logic as refresh_stats)
                         possible_folders = []
@@ -255,7 +260,7 @@ def api_add_channel():
                 
                 download_content(
                     url=channel_url,
-                    output_dir=ROOT_DIR,
+                    output_dir=root_dir,
                     audio_only=False,  # Download video files for channels
                     sync=True,
                     channel_group=group['name'],
@@ -268,7 +273,7 @@ def api_add_channel():
                 conn = get_connection()
                 
                 # Count actual files in the channel folder (both moved and downloaded)
-                final_folder = ROOT_DIR / group['name'] / f"Channel-{channel_name}"
+                final_folder = root_dir / group['name'] / f"Channel-{channel_name}"
                 actual_track_count = 0
                 if final_folder.exists():
                     # Count all media files (video and audio)
@@ -287,7 +292,7 @@ def api_add_channel():
                 # Scan downloaded files into database
                 try:
                     from scan_to_db import scan as scan_library
-                    scan_library(ROOT_DIR)
+                    scan_library(root_dir)
                     log_message(f"[Channels] Database scan completed for new downloads")
                 except Exception as scan_error:
                     log_message(f"[Channels] Warning: Database scan failed: {scan_error}")
@@ -352,9 +357,14 @@ def api_sync_channel_group(group_id: int):
                             log_message(f"[Group Sync] {channel['name']}: {msg}")
                         
                         # Sync channel content
+                        root_dir = get_root_dir()
+                        if not root_dir:
+                            log_message(f"[Group Sync] Error: ROOT_DIR not initialized")
+                            return
+                            
                         download_content(
                             url=channel['url'],
-                            output_dir=ROOT_DIR,
+                            output_dir=root_dir,
                             audio_only=False,  # Download video files for channels
                             sync=True,
                             channel_group=group['name'],
@@ -367,7 +377,7 @@ def api_sync_channel_group(group_id: int):
                         conn = get_connection()
                         
                         # Count actual files in channel folder
-                        channel_folder = ROOT_DIR / group['name'] / f"Channel-{channel['name']}"
+                        channel_folder = root_dir / group['name'] / f"Channel-{channel['name']}"
                         actual_track_count = 0
                         if channel_folder.exists():
                             video_extensions = ['.mp4', '.webm', '.mkv', '.avi']
@@ -440,9 +450,14 @@ def api_sync_channel(channel_id: int):
                     log_message(f"[Channel Sync] {channel['name']}: {msg}")
                 
                 # Sync channel content
+                root_dir = get_root_dir()
+                if not root_dir:
+                    log_message(f"[Channel Sync] Error: ROOT_DIR not initialized")
+                    return
+                    
                 download_content(
                     url=channel['url'],
-                    output_dir=ROOT_DIR,
+                    output_dir=root_dir,
                     audio_only=False,  # Download video files for channels
                     sync=True,
                     channel_group=group['name'] if group else None,
@@ -455,7 +470,7 @@ def api_sync_channel(channel_id: int):
                 conn = get_connection()
                 
                 # Count actual files in channel folder
-                channel_folder = ROOT_DIR / (group['name'] if group else '') / f"Channel-{channel['name']}"
+                channel_folder = root_dir / (group['name'] if group else '') / f"Channel-{channel['name']}"
                 actual_track_count = 0
                 if channel_folder.exists():
                     video_extensions = ['.mp4', '.webm', '.mkv', '.avi']
@@ -510,22 +525,26 @@ def api_refresh_channel_stats(channel_id: int):
         
         # Count actual files in channel folder
         # Try multiple possible folder names for the channel
+        root_dir = get_root_dir()
+        if not root_dir:
+            return jsonify({"status": "error", "error": "Server configuration error"}), 500
+            
         possible_folders = []
         
         # 1. Try full channel name
-        possible_folders.append(ROOT_DIR / group['name'] / f"Channel-{channel['name']}")
+        possible_folders.append(root_dir / group['name'] / f"Channel-{channel['name']}")
         
         # 2. Try extracting channel name from URL
         url = channel['url']
         if '@' in url:
             # Extract from URL like https://www.youtube.com/@LAUDenjoy/videos
             url_channel_name = url.split('@')[1].split('/')[0]
-            possible_folders.append(ROOT_DIR / group['name'] / f"Channel-{url_channel_name}")
+            possible_folders.append(root_dir / group['name'] / f"Channel-{url_channel_name}")
         
         # 3. Try short name (remove common suffixes)
         short_name = channel['name'].replace('enjoy', '').replace('music', '').replace('official', '').strip()
         if short_name != channel['name']:
-            possible_folders.append(ROOT_DIR / group['name'] / f"Channel-{short_name}")
+            possible_folders.append(root_dir / group['name'] / f"Channel-{short_name}")
         
         actual_track_count = 0
         found_folder = None
@@ -641,7 +660,12 @@ def api_delete_track():
         channel_group = track[4] if track[4] else 'Unknown'
         
         # Construct full file path
-        full_file_path = ROOT_DIR / track_relpath
+        root_dir = get_root_dir()
+        if not root_dir:
+            log_message(f"[Delete] Error: ROOT_DIR not initialized")
+            return jsonify({"status": "error", "error": "Server configuration error"}), 500
+            
+        full_file_path = root_dir / track_relpath
         
         if not full_file_path.exists():
             log_message(f"[Delete] File not found: {full_file_path}")
@@ -716,7 +740,7 @@ def api_delete_track():
         
         # Create trash directory structure: Trash/Playlists/channelname/videos/
         # ROOT_DIR points to D:\music\Youtube\Playlists, so we need to go up one level for Trash
-        trash_dir = ROOT_DIR.parent / "Trash" / "Playlists" / channel_folder / "videos"
+        trash_dir = root_dir.parent / "Trash" / "Playlists" / channel_folder / "videos"
         trash_dir.mkdir(parents=True, exist_ok=True)
         
         # Sanitize filename for Windows filesystem compatibility
@@ -757,7 +781,7 @@ def api_delete_track():
             shutil.move(source_path, target_path)
             
             # Calculate trash_path relative to ROOT_DIR parent (D:\music\Youtube)
-            trash_path = str(target_file.relative_to(ROOT_DIR.parent))
+            trash_path = str(target_file.relative_to(root_dir.parent))
             log_message(f"[Delete] Moved to trash: {track_name} → {trash_path}")
         except Exception as e:
             log_message(f"[Delete] Failed to move to trash: {e}")
@@ -832,16 +856,20 @@ def api_remove_channel(channel_id: int):
             # Optional: Remove files from disk
             if not keep_files:
                 # Try multiple possible folder names (same logic as refresh_stats)
+                root_dir = get_root_dir()
+                if not root_dir:
+                    return jsonify({"status": "error", "error": "Server configuration error"}), 500
+                    
                 possible_folders = []
-                possible_folders.append(ROOT_DIR / group['name'] / f"Channel-{channel['name']}")
+                possible_folders.append(root_dir / group['name'] / f"Channel-{channel['name']}")
                 
                 if '@' in channel['url']:
                     url_channel_name = channel['url'].split('@')[1].split('/')[0]
-                    possible_folders.append(ROOT_DIR / group['name'] / f"Channel-{url_channel_name}")
+                    possible_folders.append(root_dir / group['name'] / f"Channel-{url_channel_name}")
                 
                 short_name = channel['name'].replace('enjoy', '').replace('music', '').replace('official', '').strip()
                 if short_name != channel['name']:
-                    possible_folders.append(ROOT_DIR / group['name'] / f"Channel-{short_name}")
+                    possible_folders.append(root_dir / group['name'] / f"Channel-{short_name}")
                 
                 deleted_folder = None
                 for channel_folder in possible_folders:
