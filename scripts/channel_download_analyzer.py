@@ -4,6 +4,7 @@ Channel Download Analyzer
 
 Analyzes channel download status by comparing metadata with locally downloaded files.
 Shows detailed information about each video: download status, play statistics, deletion status.
+Now includes functionality to detect and auto-queue incomplete downloads (audio-only .f251 files).
 
 Usage:
     python scripts/channel_download_analyzer.py
@@ -11,6 +12,7 @@ Usage:
     python scripts/channel_download_analyzer.py --group-id 2
     python scripts/channel_download_analyzer.py --days-back 30
     python scripts/channel_download_analyzer.py --auto-queue-metadata
+    python scripts/channel_download_analyzer.py --auto-queue-incomplete --channel-id 15
 """
 
 import argparse
@@ -19,6 +21,7 @@ import sys
 from datetime import datetime, timedelta
 from typing import Dict, List, Any, Optional
 from pathlib import Path
+import re
 
 # Add parent directory to path for imports
 sys.path.append(str(Path(__file__).parent.parent))
@@ -26,14 +29,14 @@ sys.path.append(str(Path(__file__).parent.parent))
 from database import get_connection, set_db_path
 from utils.logging_utils import log_message
 
-# Job Queue imports for automatic metadata extraction
+# Job Queue imports for automatic metadata extraction and incomplete download fixes
 try:
     from services.job_queue_service import get_job_queue_service
     from services.job_types import JobType, JobPriority
     JOB_QUEUE_AVAILABLE = True
 except ImportError:
     JOB_QUEUE_AVAILABLE = False
-    print("[WARNING] Job Queue system not available. --auto-queue-metadata option will be disabled.")
+    print("[WARNING] Job Queue system not available. --auto-queue-metadata and --auto-queue-incomplete options will be disabled.")
 
 # Try to load .env file manually
 def load_env_file():
@@ -60,8 +63,9 @@ def load_env_file():
 # Load .env configuration
 env_config = load_env_file()
 
-# Global variable to track created metadata jobs
+# Global variable to track created jobs
 metadata_jobs_created = 0
+incomplete_download_jobs_created = 0
 
 def get_channels_to_analyze(conn, channel_id: Optional[int] = None, group_id: Optional[int] = None) -> List[Dict]:
     """Get list of channels to analyze."""
@@ -298,79 +302,203 @@ def format_file_size(size_bytes: Optional[int]) -> str:
 
 
 def get_channel_folder_info(channel: Dict, root_dir: str) -> Dict[str, Any]:
-    """Determine channel folder path and check if it exists."""
+    """Get information about channel folder and files."""
     from pathlib import Path
     
-    root_path = Path(root_dir)
-    group_name = channel['group_name']
     channel_name = channel['name']
-    channel_url = channel['url']
+    group_name = channel.get('group_name', 'Unknown')
     
-    # Try multiple possible folder names (expanded logic for real-world folders)
-    possible_folders = []
+    # Try different possible folder structures
+    possible_paths = []
     
-    # 1. Full channel name
-    possible_folders.append(root_path / group_name / f"Channel-{channel_name}")
+    # Standard structure: ROOT_DIR/GROUP/Channel-NAME/
+    if group_name and group_name != 'Unknown':
+        standard_path = Path(root_dir) / group_name / f"Channel-{channel_name}"
+        possible_paths.append(standard_path)
     
-    # 2. Extract channel name from URL (@username)
-    if '@' in channel_url:
-        url_channel_name = channel_url.split('@')[1].split('/')[0]
-        possible_folders.append(root_path / group_name / f"Channel-{url_channel_name}")
+    # Legacy structure: ROOT_DIR/Channel-NAME/
+    legacy_path = Path(root_dir) / f"Channel-{channel_name}"
+    possible_paths.append(legacy_path)
     
-    # 3. Short name (remove common suffixes)
-    short_name = channel_name.replace('enjoy', '').replace('music', '').replace('official', '').strip()
-    if short_name != channel_name:
-        possible_folders.append(root_path / group_name / f"Channel-{short_name}")
+    # Also try with spaces in channel name (fallback)
+    for base_path in [Path(root_dir) / group_name if group_name and group_name != 'Unknown' else None, Path(root_dir)]:
+        if base_path:
+            # Find folder that starts with "Channel-" and contains the channel name
+            if base_path.exists():
+                for folder in base_path.iterdir():
+                    if folder.is_dir() and folder.name.startswith("Channel-"):
+                        # Simple name matching (could be improved)
+                        if channel_name.lower() in folder.name.lower() or folder.name.lower() in channel_name.lower():
+                            possible_paths.append(folder)
     
-    # 4. Uppercase short name
-    possible_folders.append(root_path / group_name / f"Channel-{short_name.upper()}")
-    
-    # 5. Channel name with spaces (for names like "Ann in Black")
-    spaced_name = channel_name.replace('InBlack', ' in Black').replace('BAND', '').strip()
-    if spaced_name != channel_name:
-        possible_folders.append(root_path / group_name / f"Channel-{spaced_name}")
-    
-    # 6. Capitalized short names (Wellboy vs WELLBOYmusic)
-    capitalized_short = short_name.capitalize()
-    if capitalized_short != short_name:
-        possible_folders.append(root_path / group_name / f"Channel-{capitalized_short}")
-    
-    # 7. Try searching in group folder for any Channel-* folders (brute force)
-    group_folder = root_path / group_name
-    if group_folder.exists():
-        for item in group_folder.iterdir():
-            if item.is_dir() and item.name.startswith('Channel-'):
-                folder_channel_name = item.name[8:]  # Remove "Channel-" prefix
-                # Check if this could be our channel (contains part of our name)
-                if (folder_channel_name.upper() in channel_name.upper() or 
-                    channel_name.upper() in folder_channel_name.upper() or
-                    any(part in folder_channel_name.upper() for part in channel_name.upper().split()) or
-                    any(part in channel_name.upper() for part in folder_channel_name.upper().split())):
-                    possible_folders.append(item)
-    
-    # Check which folder exists and count files
-    result = {
-        'expected_path': str(possible_folders[0]),  # Primary expected path
-        'actual_path': None,
-        'exists': False,
-        'file_count': 0,
-        'possible_paths': [str(p) for p in possible_folders]
-    }
-    
-    # Find existing folder
-    for folder_path in possible_folders:
-        if folder_path.exists():
-            result['actual_path'] = str(folder_path)
-            result['exists'] = True
-            
+    # Check which folder exists and has content
+    for folder_path in possible_paths:
+        if folder_path.exists() and folder_path.is_dir():
             # Count media files
-            video_extensions = ['.mp4', '.webm', '.mkv', '.avi', '.mp3', '.m4a']
-            media_files = [f for f in folder_path.iterdir() 
-                          if f.is_file() and f.suffix.lower() in video_extensions]
-            result['file_count'] = len(media_files)
-            break
+            media_extensions = ['.mp3', '.m4a', '.opus', '.webm', '.flac', '.mp4', '.mkv', '.mov']
+            files = [f for f in folder_path.iterdir() if f.is_file() and f.suffix.lower() in media_extensions]
+            
+            return {
+                'exists': True,
+                'actual_path': str(folder_path),
+                'expected_path': str(possible_paths[0]),
+                'possible_paths': [str(p) for p in possible_paths],
+                'file_count': len(files),
+                'files': files
+            }
     
-    return result
+    # No folder found
+    return {
+        'exists': False,
+        'actual_path': None,
+        'expected_path': str(possible_paths[0]) if possible_paths else 'Unknown',
+        'possible_paths': [str(p) for p in possible_paths],
+        'file_count': 0,
+        'files': []
+    }
+
+
+def detect_incomplete_downloads(channel_folder_path: Path) -> List[Dict[str, Any]]:
+    """
+    Detect videos that have only audio (.f251) files without video component.
+    
+    Returns:
+        List of incomplete download info dictionaries
+    """
+    incomplete_downloads = []
+    
+    if not channel_folder_path.exists():
+        return incomplete_downloads
+    
+    # Pattern for extracting video ID from filename: Title [VIDEO_ID].ext
+    video_id_pattern = re.compile(r'\[([A-Za-z0-9_-]{11})\]\.f251\.(webm|mp3|m4a)$')
+    video_component_pattern = re.compile(r'\[([A-Za-z0-9_-]{11})\]\.(f\d+|mp4|webm|mkv|mov)$')
+    
+    # Find all .f251 audio files (these indicate audio-only downloads)
+    audio_only_files = {}
+    video_files = set()
+    
+    for file_path in channel_folder_path.iterdir():
+        if file_path.is_file():
+            filename = file_path.name
+            
+            # Check for .f251 audio files
+            audio_match = video_id_pattern.search(filename)
+            if audio_match:
+                video_id = audio_match.group(1)
+                audio_only_files[video_id] = {
+                    'video_id': video_id,
+                    'audio_file': file_path,
+                    'filename': filename
+                }
+            
+            # Check for video component files
+            video_match = video_component_pattern.search(filename)
+            if video_match:
+                video_id = video_match.group(1)
+                format_code = video_match.group(2)
+                # Skip .f251 files as they are audio-only
+                if format_code != 'f251':
+                    video_files.add(video_id)
+    
+    # Find videos that have only audio (.f251) but no video component
+    for video_id, audio_info in audio_only_files.items():
+        if video_id not in video_files:
+            incomplete_downloads.append({
+                'video_id': video_id,
+                'audio_file_path': audio_info['audio_file'],
+                'audio_filename': audio_info['filename'],
+                'missing_video': True,
+                'file_size': audio_info['audio_file'].stat().st_size if audio_info['audio_file'].exists() else 0
+            })
+    
+    return incomplete_downloads
+
+
+def get_video_url_from_metadata(conn, video_id: str) -> Optional[str]:
+    """Get YouTube URL for a video from metadata."""
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT url, webpage_url 
+        FROM youtube_video_metadata 
+        WHERE youtube_id = ?
+    """, (video_id,))
+    
+    result = cur.fetchone()
+    if result:
+        # Try webpage_url first, then url
+        return result['webpage_url'] or result['url'] or f"https://www.youtube.com/watch?v={video_id}"
+    
+    # Fallback to standard YouTube URL format
+    return f"https://www.youtube.com/watch?v={video_id}"
+
+
+def queue_incomplete_download_fixes(conn, channel: Dict, incomplete_downloads: List[Dict[str, Any]]) -> int:
+    """
+    Queue jobs to fix incomplete downloads.
+    
+    Returns:
+        Number of jobs created
+    """
+    if not JOB_QUEUE_AVAILABLE or not incomplete_downloads:
+        return 0
+    
+    try:
+        job_service = get_job_queue_service(max_workers=1)
+        jobs_created = 0
+        
+        # Get channel folder info for target folder
+        root_dir = env_config.get('ROOT_DIR', 'D:/music/Youtube')
+        folder_info = get_channel_folder_info(channel, root_dir)
+        
+        if not folder_info['exists']:
+            print(f"   [WARNING] Channel folder not found, cannot queue incomplete download fixes")
+            return 0
+        
+        # Extract target folder from actual path
+        channel_folder_path = Path(folder_info['actual_path'])
+        
+        # Determine target folder structure for job
+        # e.g., "Music/Channel-Artist" or just "Channel-Artist"
+        root_path = Path(root_dir) / 'Playlists'
+        try:
+            relative_path = channel_folder_path.relative_to(root_path)
+            # Get parent folder (group) and channel folder name
+            if len(relative_path.parts) > 1:
+                target_folder = str(relative_path.parent / relative_path.name)
+            else:
+                target_folder = str(relative_path)
+        except ValueError:
+            # Fallback if path calculation fails
+            target_folder = channel_folder_path.name
+        
+        for incomplete_download in incomplete_downloads:
+            video_id = incomplete_download['video_id']
+            video_url = get_video_url_from_metadata(conn, video_id)
+            
+            # Create single video download job
+            job_id = job_service.create_and_add_job(
+                JobType.SINGLE_VIDEO_DOWNLOAD,
+                priority=JobPriority.NORMAL,
+                playlist_url=video_url,
+                target_folder=target_folder,
+                format_selector='bestvideo+bestaudio/best',  # Ensure we get both video and audio
+                extract_audio=False,  # We want video, not just audio
+                download_archive=True,
+                force_redownload=True  # Force re-download to get video component
+            )
+            
+            jobs_created += 1
+            print(f"   [QUEUED] Incomplete download fix job #{job_id} for video {video_id}")
+            
+            # Log the action
+            log_message(f"[Incomplete Download Fix] Queued job {job_id} for video {video_id} in channel {channel['name']}")
+        
+        return jobs_created
+        
+    except Exception as e:
+        print(f"   [ERROR] Failed to queue incomplete download fixes: {e}")
+        return 0
 
 
 def print_channel_summary(conn, channel: Dict, video_count: int, downloaded_count: int, deleted_count: int, auto_queue_metadata: bool = False):
@@ -395,6 +523,25 @@ def print_channel_summary(conn, channel: Dict, video_count: int, downloaded_coun
     if folder_info['exists']:
         print(f"   Local folder: {folder_info['actual_path']}")
         print(f"   Files in folder: {folder_info['file_count']}")
+        
+        # Check for incomplete downloads
+        channel_folder_path = Path(folder_info['actual_path'])
+        incomplete_downloads = detect_incomplete_downloads(channel_folder_path)
+        
+        if incomplete_downloads:
+            print(f"   ⚠️  Incomplete downloads found: {len(incomplete_downloads)} (audio-only .f251 files)")
+            if len(incomplete_downloads) <= 5:
+                for incomplete in incomplete_downloads:
+                    file_size_mb = incomplete['file_size'] / (1024 * 1024) if incomplete['file_size'] > 0 else 0
+                    print(f"      - {incomplete['video_id']}: {incomplete['audio_filename']} ({file_size_mb:.1f} MB)")
+            else:
+                print(f"      First 5 incomplete downloads:")
+                for incomplete in incomplete_downloads[:5]:
+                    file_size_mb = incomplete['file_size'] / (1024 * 1024) if incomplete['file_size'] > 0 else 0
+                    print(f"      - {incomplete['video_id']}: {incomplete['audio_filename']} ({file_size_mb:.1f} MB)")
+                print(f"      ... and {len(incomplete_downloads) - 5} more")
+        else:
+            print(f"   ✅ All downloads appear complete (no audio-only .f251 files found)")
     else:
         print(f"   Expected folder: {folder_info['expected_path']}")
         print(f"   [ERROR] Folder does not exist")
@@ -443,13 +590,13 @@ def print_channel_summary(conn, channel: Dict, video_count: int, downloaded_coun
     print(f"   Total videos in metadata: {video_count}")
     print(f"   Downloaded locally: {downloaded_count}")
     print(f"   Previously deleted: {deleted_count}")
-    print(f"   Not downloaded: {video_count - downloaded_count}")
-    
     if video_count > 0:
         download_rate = (downloaded_count / video_count) * 100
         print(f"   Download rate: {download_rate:.1f}%")
-    
-    print(f"\n{'─'*80}")
+        
+        undownloaded = video_count - downloaded_count
+        if undownloaded > 0:
+            print(f"   Still to download: {undownloaded}")
 
 
 def print_video_status(video: Dict, status: Dict, show_details: bool = True):
@@ -511,8 +658,9 @@ def print_video_status(video: Dict, status: Dict, show_details: bool = True):
     print()
 
 
-def analyze_channel(conn, channel: Dict, days_back: Optional[int] = None, show_details: bool = True, auto_queue_metadata: bool = False) -> Dict[str, int]:
+def analyze_channel(conn, channel: Dict, days_back: Optional[int] = None, show_details: bool = True, auto_queue_metadata: bool = False, auto_queue_incomplete: bool = False) -> Dict[str, int]:
     """Analyze a single channel and return statistics."""
+    global incomplete_download_jobs_created
     
     # Get date filter
     date_from = channel['date_from']
@@ -543,6 +691,30 @@ def analyze_channel(conn, channel: Dict, days_back: Optional[int] = None, show_d
         if show_details:
             print_video_status(video, status, show_details=True)
     
+    # Check for incomplete downloads and auto-queue fixes if enabled
+    incomplete_count = 0
+    if auto_queue_incomplete:
+        root_dir = env_config.get('ROOT_DIR', 'D:/music/Youtube')
+        folder_info = get_channel_folder_info(channel, root_dir)
+        
+        if folder_info['exists']:
+            channel_folder_path = Path(folder_info['actual_path'])
+            incomplete_downloads = detect_incomplete_downloads(channel_folder_path)
+            incomplete_count = len(incomplete_downloads)
+            
+            if incomplete_downloads:
+                print(f"\n[INCOMPLETE DOWNLOAD FIXES]")
+                print(f"Found {len(incomplete_downloads)} incomplete downloads (audio-only .f251 files)")
+                
+                # Queue jobs to fix incomplete downloads
+                jobs_created = queue_incomplete_download_fixes(conn, channel, incomplete_downloads)
+                incomplete_download_jobs_created += jobs_created
+                
+                if jobs_created > 0:
+                    print(f"Created {jobs_created} jobs to fix incomplete downloads")
+                else:
+                    print(f"Failed to create jobs for incomplete download fixes")
+    
     # Print summary
     print_channel_summary(conn, channel, len(videos), downloaded_count, deleted_count, auto_queue_metadata)
     
@@ -550,14 +722,15 @@ def analyze_channel(conn, channel: Dict, days_back: Optional[int] = None, show_d
         'total_videos': len(videos),
         'downloaded': downloaded_count,
         'deleted': deleted_count,
-        'not_downloaded': len(videos) - downloaded_count
+        'not_downloaded': len(videos) - downloaded_count,
+        'incomplete_downloads': incomplete_count
     }
 
 
 def main():
     """Main function with command line argument parsing."""
     parser = argparse.ArgumentParser(
-        description="Analyze channel download status and statistics",
+        description="Analyze channel download status and detect incomplete downloads",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
@@ -567,10 +740,19 @@ Examples:
     python scripts/channel_download_analyzer.py --days-back 30                 # Last 30 days only
     python scripts/channel_download_analyzer.py --summary-only                 # Just summaries
     python scripts/channel_download_analyzer.py --auto-queue-metadata          # Auto-queue metadata extraction
+    python scripts/channel_download_analyzer.py --auto-queue-incomplete --channel-id 15  # Fix incomplete downloads
     python scripts/channel_download_analyzer.py --db-path "D:/music/Youtube/DB/tracks.db"  # Use specific database
+
+Incomplete Download Detection:
+    The script can detect videos that were downloaded incompletely (audio-only .f251 files without video component).
+    Use --auto-queue-incomplete to automatically create jobs to re-download these videos with proper video quality.
+    
+    Example for fixing incomplete downloads in channel 15:
+    python scripts/channel_download_analyzer.py --channel-id 15 --auto-queue-incomplete
 
 .env file variables:
     DB_PATH         Path to the database file (e.g., D:/music/Youtube/DB/tracks.db)
+    ROOT_DIR        Path to the media files root directory (e.g., D:/music/Youtube)
         """
     )
     
@@ -608,6 +790,12 @@ Examples:
         "--auto-queue-metadata",
         action="store_true",
         help="Automatically queue metadata extraction for channels without metadata"
+    )
+    
+    parser.add_argument(
+        "--auto-queue-incomplete",
+        action="store_true",
+        help="Automatically queue incomplete download fixes for channels without complete downloads"
     )
     
     args = parser.parse_args()
@@ -664,12 +852,21 @@ Examples:
             else:
                 print(f"[WARNING] Auto-queueing disabled: Job Queue system not available")
         
+        # Show incomplete download auto-queueing status
+        if args.auto_queue_incomplete:
+            if JOB_QUEUE_AVAILABLE:
+                print(f"[AUTO-QUEUE] Incomplete download fixes enabled")
+                print(f"[INFO] Will create jobs for channels missing complete downloads")
+            else:
+                print(f"[WARNING] Auto-queueing disabled: Job Queue system not available")
+        
         # Analyze each channel
         total_stats = {
             'total_videos': 0,
             'downloaded': 0,
             'deleted': 0,
-            'not_downloaded': 0
+            'not_downloaded': 0,
+            'incomplete_downloads': 0
         }
         
         for i, channel in enumerate(channels, 1):
@@ -680,7 +877,8 @@ Examples:
                 channel, 
                 days_back=args.days_back, 
                 show_details=not args.summary_only,
-                auto_queue_metadata=args.auto_queue_metadata
+                auto_queue_metadata=args.auto_queue_metadata,
+                auto_queue_incomplete=args.auto_queue_incomplete
             )
             
             # Add to totals
@@ -696,10 +894,16 @@ Examples:
             print(f"Downloaded locally: {total_stats['downloaded']}")
             print(f"Previously deleted: {total_stats['deleted']}")
             print(f"Not downloaded: {total_stats['not_downloaded']}")
+            print(f"Incomplete downloads found: {total_stats['incomplete_downloads']}")
             
             if total_stats['total_videos'] > 0:
                 download_rate = (total_stats['downloaded'] / total_stats['total_videos']) * 100
                 print(f"Overall download rate: {download_rate:.1f}%")
+            
+            # Show incomplete download rate if any found
+            if total_stats['downloaded'] > 0 and total_stats['incomplete_downloads'] > 0:
+                incomplete_rate = (total_stats['incomplete_downloads'] / total_stats['downloaded']) * 100
+                print(f"Incomplete download rate: {incomplete_rate:.1f}% ({total_stats['incomplete_downloads']} of {total_stats['downloaded']} downloaded)")
             
             # Folder summary
             print(f"\n[FOLDER SUMMARY]")
@@ -725,6 +929,17 @@ Examples:
             print(f"Monitor job progress at: /jobs (web interface)")
         elif args.auto_queue_metadata and metadata_jobs_created == 0:
             print(f"\n[INFO] All channels already have metadata - no jobs needed")
+        
+        # Show incomplete download job creation summary
+        if args.auto_queue_incomplete and incomplete_download_jobs_created > 0:
+            print(f"\n[INCOMPLETE DOWNLOAD FIXES CREATED]")
+            print(f"Jobs queued: {incomplete_download_jobs_created}")
+            print(f"Jobs will be processed automatically by job queue workers")
+            print(f"Monitor job progress at: /jobs (web interface)")
+            print(f"[INFO] These jobs will re-download videos to get the missing video components")
+        elif args.auto_queue_incomplete and incomplete_download_jobs_created == 0:
+            if args.auto_queue_incomplete:
+                print(f"\n[INFO] All downloaded videos appear complete - no incomplete download fixes needed")
         
         conn.close()
         
