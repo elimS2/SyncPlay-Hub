@@ -10,6 +10,7 @@ Usage:
     python scripts/channel_download_analyzer.py --channel-id 1
     python scripts/channel_download_analyzer.py --group-id 2
     python scripts/channel_download_analyzer.py --days-back 30
+    python scripts/channel_download_analyzer.py --auto-queue-metadata
 """
 
 import argparse
@@ -24,6 +25,15 @@ sys.path.append(str(Path(__file__).parent.parent))
 
 from database import get_connection, set_db_path
 from utils.logging_utils import log_message
+
+# Job Queue imports for automatic metadata extraction
+try:
+    from services.job_queue_service import get_job_queue_service
+    from services.job_types import JobType, JobPriority
+    JOB_QUEUE_AVAILABLE = True
+except ImportError:
+    JOB_QUEUE_AVAILABLE = False
+    print("⚠️  Job Queue system not available. --auto-queue-metadata option will be disabled.")
 
 # Try to load .env file manually
 def load_env_file():
@@ -50,6 +60,8 @@ def load_env_file():
 # Load .env configuration
 env_config = load_env_file()
 
+# Global variable to track created metadata jobs
+metadata_jobs_created = 0
 
 def get_channels_to_analyze(conn, channel_id: Optional[int] = None, group_id: Optional[int] = None) -> List[Dict]:
     """Get list of channels to analyze."""
@@ -361,8 +373,10 @@ def get_channel_folder_info(channel: Dict, root_dir: str) -> Dict[str, Any]:
     return result
 
 
-def print_channel_summary(conn, channel: Dict, video_count: int, downloaded_count: int, deleted_count: int):
+def print_channel_summary(conn, channel: Dict, video_count: int, downloaded_count: int, deleted_count: int, auto_queue_metadata: bool = False):
     """Print channel summary information."""
+    global metadata_jobs_created
+    
     print(f"\n{'='*80}")
     print(f"📺 CHANNEL: {channel['name']}")
     print(f"{'='*80}")
@@ -402,7 +416,27 @@ def print_channel_summary(conn, channel: Dict, video_count: int, downloaded_coun
             print(f"   🔄 Metadata updated: Unknown (update database schema)")
     else:
         print(f"   ❌ No YouTube metadata found")
-        print(f"   💡 Run: python scripts/extract_channel_metadata.py \"{channel['url']}\"")
+        
+        # Auto-queue metadata extraction if enabled
+        if auto_queue_metadata and JOB_QUEUE_AVAILABLE:
+            try:
+                job_service = get_job_queue_service(max_workers=1)
+                job_id = job_service.create_and_add_job(
+                    JobType.METADATA_EXTRACTION,
+                    priority=JobPriority.HIGH,
+                    channel_url=channel['url'],
+                    channel_id=channel['id'],
+                    force_update=False
+                )
+                metadata_jobs_created += 1
+                print(f"   🎯 Auto-queued metadata extraction job #{job_id}")
+                print(f"   ⏱️  Job will start automatically when workers are available")
+            except Exception as e:
+                print(f"   ⚠️  Failed to queue metadata extraction: {e}")
+        else:
+            print(f"   💡 Run: python scripts/extract_channel_metadata.py \"{channel['url']}\"")
+            if auto_queue_metadata and not JOB_QUEUE_AVAILABLE:
+                print(f"   ⚠️  Auto-queueing disabled: Job Queue system not available")
     
     print(f"")
     print(f"📈 ANALYSIS RESULTS:")
@@ -477,7 +511,7 @@ def print_video_status(video: Dict, status: Dict, show_details: bool = True):
     print()
 
 
-def analyze_channel(conn, channel: Dict, days_back: Optional[int] = None, show_details: bool = True) -> Dict[str, int]:
+def analyze_channel(conn, channel: Dict, days_back: Optional[int] = None, show_details: bool = True, auto_queue_metadata: bool = False) -> Dict[str, int]:
     """Analyze a single channel and return statistics."""
     
     # Get date filter
@@ -510,7 +544,7 @@ def analyze_channel(conn, channel: Dict, days_back: Optional[int] = None, show_d
             print_video_status(video, status, show_details=True)
     
     # Print summary
-    print_channel_summary(conn, channel, len(videos), downloaded_count, deleted_count)
+    print_channel_summary(conn, channel, len(videos), downloaded_count, deleted_count, auto_queue_metadata)
     
     return {
         'total_videos': len(videos),
@@ -532,6 +566,7 @@ Examples:
     python scripts/channel_download_analyzer.py --group-id 2                   # All channels in group
     python scripts/channel_download_analyzer.py --days-back 30                 # Last 30 days only
     python scripts/channel_download_analyzer.py --summary-only                 # Just summaries
+    python scripts/channel_download_analyzer.py --auto-queue-metadata          # Auto-queue metadata extraction
     python scripts/channel_download_analyzer.py --db-path "D:/music/Youtube/DB/tracks.db"  # Use specific database
 
 .env file variables:
@@ -567,6 +602,12 @@ Examples:
         "--db-path",
         type=str,
         help="Path to the database file (overrides .env file)"
+    )
+    
+    parser.add_argument(
+        "--auto-queue-metadata",
+        action="store_true",
+        help="Automatically queue metadata extraction for channels without metadata"
     )
     
     args = parser.parse_args()
@@ -615,6 +656,14 @@ Examples:
                 
                 print(f"   📺 {channel['name']:25} | Group: {channel['group_name']:15} | {folder_icon} {folder_text}")
         
+        # Show metadata auto-queueing status
+        if args.auto_queue_metadata:
+            if JOB_QUEUE_AVAILABLE:
+                print(f"🎯 Auto-queueing metadata extraction enabled")
+                print(f"⚡ Will create jobs for channels missing metadata")
+            else:
+                print(f"⚠️  Auto-queueing disabled: Job Queue system not available")
+        
         # Analyze each channel
         total_stats = {
             'total_videos': 0,
@@ -630,7 +679,8 @@ Examples:
                 conn, 
                 channel, 
                 days_back=args.days_back, 
-                show_details=not args.summary_only
+                show_details=not args.summary_only,
+                auto_queue_metadata=args.auto_queue_metadata
             )
             
             # Add to totals
@@ -666,6 +716,15 @@ Examples:
             print(f"📁 Folders exist: {folders_exist}/{len(channels)}")
             print(f"📄 Total files in folders: {total_files}")
             print(f"📍 Root directory: {root_dir}")
+        
+        # Show metadata job creation summary
+        if args.auto_queue_metadata and metadata_jobs_created > 0:
+            print(f"\n🎯 METADATA EXTRACTION JOBS CREATED:")
+            print(f"📋 Jobs queued: {metadata_jobs_created}")
+            print(f"⏱️  Jobs will be processed automatically by job queue workers")
+            print(f"💡 Monitor job progress at: /jobs (web interface)")
+        elif args.auto_queue_metadata and metadata_jobs_created == 0:
+            print(f"\n✅ All channels already have metadata - no jobs needed")
         
         conn.close()
         

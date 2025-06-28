@@ -511,7 +511,8 @@ def main():
     from services.job_workers import ChannelDownloadWorker, MetadataExtractionWorker, CleanupWorker, PlaylistDownloadWorker
     
     try:
-        job_service = get_job_queue_service()
+        # Use only 1 worker to prevent parallel execution issues
+        job_service = get_job_queue_service(max_workers=1)
         
         # Register workers
         job_service.register_worker(ChannelDownloadWorker())
@@ -553,7 +554,7 @@ def main():
         
         # Stop Job Queue Service
         try:
-            job_service = get_job_queue_service()
+            job_service = get_job_queue_service(max_workers=1)
             job_service.stop()
             log_message("Job Queue Service stopped successfully")
         except Exception as e:
