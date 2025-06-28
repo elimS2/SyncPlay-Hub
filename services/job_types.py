@@ -12,6 +12,16 @@ from abc import ABC, abstractmethod
 import json
 
 
+# Delayed import to avoid circular dependencies
+def _get_job_logger_class():
+    """Lazy import of JobLogger to avoid circular dependencies."""
+    try:
+        from utils.job_logging import JobLogger
+        return JobLogger
+    except ImportError:
+        return None
+
+
 class JobType(Enum):
     """Типы задач в системе очереди."""
     
@@ -143,6 +153,56 @@ class Job:
         
         # Зависимости
         self.parent_job_id = parent_job_id
+        
+        # Логгер задачи (создается при начале выполнения)
+        self._job_logger: Optional['JobLogger'] = None
+    
+    def create_logger(self) -> Optional['JobLogger']:
+        """Создает логгер для задачи."""
+        if self.id is None:
+            return None
+            
+        JobLoggerClass = _get_job_logger_class()
+        if JobLoggerClass is None:
+            return None
+            
+        try:
+            self._job_logger = JobLoggerClass(self.id, self.job_type.value)
+            self.log_file_path = self._job_logger.get_log_files()['directory']
+            return self._job_logger
+        except Exception as e:
+            print(f"Failed to create job logger for job {self.id}: {e}")
+            return None
+    
+    def get_logger(self) -> Optional['JobLogger']:
+        """Возвращает логгер задачи."""
+        return self._job_logger
+    
+    def log_info(self, message: str):
+        """Логирует информационное сообщение."""
+        if self._job_logger:
+            self._job_logger.info(message)
+    
+    def log_error(self, message: str):
+        """Логирует ошибку."""
+        if self._job_logger:
+            self._job_logger.error(message)
+    
+    def log_progress(self, message: str, percentage: Optional[float] = None):
+        """Логирует прогресс выполнения."""
+        if self._job_logger:
+            self._job_logger.progress(message, percentage)
+    
+    def log_exception(self, exc: Exception, context: str = ""):
+        """Логирует исключение."""
+        if self._job_logger:
+            self._job_logger.log_exception(exc, context)
+    
+    def finalize_logging(self, success: bool, error_message: Optional[str] = None):
+        """Завершает логирование задачи."""
+        if self._job_logger:
+            self._job_logger.finalize(success, error_message)
+            self._job_logger = None
     
     @classmethod
     def create(
@@ -223,6 +283,50 @@ class JobWorker(ABC):
         """Возвращает список поддерживаемых типов задач."""
         pass
     
+    def execute_job_with_logging(self, job: Job) -> bool:
+        """
+        Выполняет задачу с полным логированием.
+        
+        Args:
+            job: Задача для выполнения
+            
+        Returns:
+            True если задача выполнена успешно, False если провалилась
+        """
+        # Создаем логгер для задачи
+        logger = job.create_logger()
+        
+        success = False
+        error_message = None
+        
+        try:
+            job.log_info(f"Starting job execution with worker {self.worker_id}")
+            job.log_info(f"Job data: {job.job_data._data}")
+            
+            # Используем захват вывода если логгер доступен
+            if logger:
+                with logger.capture_output():
+                    success = self.execute_job(job)
+            else:
+                success = self.execute_job(job)
+                
+            if success:
+                job.log_info("Job completed successfully")
+            else:
+                error_message = "Job execution returned False"
+                job.log_error(error_message)
+                
+        except Exception as e:
+            success = False
+            error_message = str(e)
+            job.log_exception(e, f"execute_job in {self.worker_id}")
+            
+        finally:
+            # Завершаем логирование
+            job.finalize_logging(success, error_message)
+            
+        return success
+
     @abstractmethod
     def execute_job(self, job: Job) -> bool:
         """

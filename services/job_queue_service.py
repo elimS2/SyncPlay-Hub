@@ -20,7 +20,6 @@ from .job_types import (
     Job, JobType, JobStatus, JobPriority, JobData, JobWorker,
     create_job_with_defaults
 )
-from ..utils.job_logging import create_job_logger
 
 
 class JobQueueService:
@@ -204,10 +203,6 @@ class JobQueueService:
         """Выполняет задачу."""
         job.worker_id = worker_name
         
-        # Создаем логгер для задачи
-        job_logger = create_job_logger(job.id, job.job_type.value)
-        job.log_file_path = job_logger.get_log_files()['directory']
-        
         success = False
         error_message = None
         
@@ -215,30 +210,24 @@ class JobQueueService:
             with self._lock:
                 self._running_jobs[job.id] = job
             
-            job_logger.info(f"Starting job execution with worker {worker_name}")
-            job_logger.info(f"Job data: {job.job_data._data}")
-            
             # Найдем подходящего воркера
             worker = self._find_worker_for_job(job)
             
             if worker is None:
                 raise Exception(f"No worker available for job type {job.job_type.value}")
             
-            # Выполняем задачу с захватом вывода
-            with job_logger.capture_output():
-                success = worker.execute_job(job)
-            
-            if success:
-                job_logger.info("Job completed successfully")
-            else:
-                error_message = "Job execution returned False"
-                job_logger.error(error_message)
+            # Выполняем задачу с встроенным логированием
+            success = worker.execute_job_with_logging(job)
                 
         except Exception as e:
             success = False
             error_message = str(e)
-            job_logger.log_exception(e, "job execution")
-            
+            # Если у job есть логгер, используем его, иначе печатаем в консоль
+            if job.get_logger():
+                job.log_exception(e, "job execution in JobQueueService")
+            else:
+                print(f"Job {job.id} execution error: {e}")
+                
         finally:
             # Обновляем статус в базе
             with self._lock:
@@ -246,9 +235,6 @@ class JobQueueService:
                     del self._running_jobs[job.id]
                 
                 self._update_job_completion(job, success, error_message)
-            
-            # Завершаем логирование
-            job_logger.finalize(success, error_message)
             
             # Вызываем callbacks
             self._call_job_callbacks(job.id, success, error_message)

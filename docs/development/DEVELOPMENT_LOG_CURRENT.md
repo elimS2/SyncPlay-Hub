@@ -964,4 +964,154 @@ python test_job_queue.py status
 
 ---
 
-*Ready for next development entry (#060)* 
+### Log Entry #060 - 2025-06-28 13:32 UTC
+**Change:** Job Queue System Phase 5 - Enhanced Individual Job Logging System Integration
+
+#### Files Modified
+- Modified: `services/job_types.py` - Integrated JobLogger into Job and JobWorker base classes
+- Modified: `services/job_queue_service.py` - Updated _execute_job method to use new logging system  
+- Created: `test_phase5_logging.py` - Comprehensive logging system validation tests
+- Already implemented: `utils/job_logging.py` - Complete JobLogger system from previous phases
+
+#### Reason for Change
+**Phase 5 Completion:** Integration системы JobLogger с базовыми классами Job и JobWorker.
+Хотя utils/job_logging.py уже была реализована, она не была интегрирована с основными классами системы очереди. Требовалась полная интеграция для автоматического логирования каждой задачи без дополнительных усилий от разработчиков воркеров.
+
+#### What Changed
+
+**1. Job Class Logging Integration (`services/job_types.py`):**
+- **Lazy imports:** Добавлен _get_job_logger_class() для избежания циклических зависимостей
+- **Job logger field:** Добавлено поле _job_logger для хранения экземпляра JobLogger  
+- **create_logger():** Автоматическое создание логгера с ID задачи и типом
+- **Logging methods:** log_info(), log_error(), log_progress(), log_exception()
+- **Auto path setup:** Автоматическое обновление log_file_path при создании логгера
+- **finalize_logging():** Proper cleanup логгера при завершении задачи
+
+**2. JobWorker Enhanced Execution (`services/job_types.py`):**
+- **execute_job_with_logging():** Новый метод-обертка для автоматического логирования
+- **Output capture:** Автоматический захват stdout/stderr через logger.capture_output()
+- **Exception handling:** Полное логирование исключений с context information
+- **Success/failure:** Automatic logging финального статуса выполнения
+- **Graceful degradation:** Fallback на execute_job() если логгер недоступен
+
+**3. JobQueueService Simplification (`services/job_queue_service.py`):**
+- **Simplified _execute_job():** Удален дублирующий код логирования
+- **Delegation to workers:** Использует worker.execute_job_with_logging() 
+- **Error handling:** Упрощенная обработка ошибок с использованием Job logging methods
+- **Removed dependency:** Удален устаревший импорт create_job_logger
+
+**4. Testing Infrastructure (`test_phase5_logging.py`):**
+- **Direct logger test:** Тестирование JobLogger класса напрямую
+- **Integration test:** Тестирование через JobQueueService с MetadataExtractionWorker
+- **File verification:** Проверка создания всех лог-файлов и их содержимого
+- **Output capture test:** Валидация захвата stdout/stderr
+- **Log analysis:** Чтение и анализ созданных лог-файлов
+
+#### Technical Implementation Details
+
+**Lazy Import Pattern:**
+```python
+def _get_job_logger_class():
+    try:
+        from utils.job_logging import JobLogger
+        return JobLogger
+    except ImportError:
+        return None
+```
+
+**Automatic Logger Creation:**
+```python
+def create_logger(self) -> Optional['JobLogger']:
+    if self.id is None:
+        return None
+    JobLoggerClass = _get_job_logger_class()
+    self._job_logger = JobLoggerClass(self.id, self.job_type.value)
+    self.log_file_path = self._job_logger.get_log_files()['directory']
+```
+
+**Enhanced Worker Execution:**
+```python
+def execute_job_with_logging(self, job: Job) -> bool:
+    logger = job.create_logger()
+    try:
+        if logger:
+            with logger.capture_output():
+                success = self.execute_job(job)
+        else:
+            success = self.execute_job(job)
+    finally:
+        job.finalize_logging(success, error_message)
+```
+
+#### Testing Results
+**✅ JobLogger Direct Test:**
+- Created logger for job 999 with correct directory structure
+- All log files created properly (job.log: 450 bytes, stdout.log: 39 bytes, stderr.log: 22 bytes, progress.log: 107 bytes, summary.txt: 195 bytes)
+- Output capture working correctly for both stdout and stderr
+- Finalization and cleanup successful
+
+**✅ Integration Test (with failed worker):**
+- Job successfully created (job_000001_metadata_extraction folder)
+- All log files generated correctly during job execution
+- stdout.log captured subprocess output (3372 bytes from extract_channel_metadata.py)
+- job.log recorded complete execution flow (545 bytes with timestamps)
+- summary.txt created with job completion status
+- Failed job handled gracefully with proper error logging
+
+#### Impact Analysis
+
+**✅ Seamless Integration:**
+- Воркеры автоматически получают полное логирование без изменений в их коде
+- Job класс предоставляет удобные методы логирования
+- JobQueueService значительно упрощен за счет делегирования логирования
+
+**✅ Developer Experience:**
+- Разработчикам воркеров больше не нужно заботиться о настройке логирования
+- Все логи автоматически организованы в индивидуальные папки
+- Простой API для логирования: job.log_info(), job.log_progress(), etc.
+
+**✅ Production Readiness:**
+- Каждая задача получает отдельную папку: `logs/jobs/job_XXXXXX_type/`
+- Полный захват всех subprocess outputs
+- Автоматическая cleanup логгеров при завершении задач
+- Thread-safe операции с индивидуальными файлами
+
+**✅ Debugging & Monitoring:**
+- Детальные логи каждой операции с временными метками
+- Separate files для stdout, stderr, progress, и summary
+- Exception logging с полными traceback записями
+- Integration с веб-интерфейсом для просмотра логов
+
+#### Architecture Benefits
+
+**Previous:** Ручная настройка логирования в каждом воркере  
+**Current:** Автоматическое логирование встроено в жизненный цикл задач
+
+**Individual Job Logs Structure:**
+```
+logs/jobs/job_000001_metadata_extraction/
+├── job.log        # Main execution log with timestamps
+├── stdout.log     # Captured subprocess stdout  
+├── stderr.log     # Captured subprocess stderr
+├── progress.log   # Progress updates with percentages
+└── summary.txt    # Job completion summary
+```
+
+#### Next Phase Ready
+
+**Phase 5 Status:** ✅ COMPLETED
+- [x] JobLogger integration в Job и JobWorker классы
+- [x] Автоматическое создание и финализация логгеров
+- [x] Capture stdout/stderr во время выполнения задач
+- [x] Comprehensive testing и validation
+- [x] Production-ready logging infrastructure
+
+**Progress Update:** 9/24 tasks completed (37.5% of Job Queue System)
+
+**Ready for:** Phase 6 - API enhancements и Web Interface improvements
+
+*End of Log Entry #060*
+
+---
+
+*Ready for next development entry (#061)* 
