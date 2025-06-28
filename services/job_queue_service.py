@@ -17,7 +17,7 @@ import queue
 import traceback
 
 from .job_types import (
-    Job, JobType, JobStatus, JobPriority, JobData, JobWorker,
+    Job, JobType, JobStatus, JobPriority, JobData, JobWorker, JobFailureType,
     create_job_with_defaults
 )
 
@@ -127,11 +127,19 @@ class JobQueueService:
             self._worker_threads.append(worker_thread)
     
     def _worker_loop(self):
-        """Основной цикл рабочего потока."""
+        """Основной цикл рабочего потока с zombie detection."""
         worker_name = threading.current_thread().name
+        last_zombie_check = time.time()
+        zombie_check_interval = 300  # Проверяем zombie каждые 5 минут
         
         while not self._stop_event.is_set():
             try:
+                # Периодическая проверка zombie задач
+                current_time = time.time()
+                if current_time - last_zombie_check > zombie_check_interval:
+                    self._cleanup_zombie_jobs()
+                    last_zombie_check = current_time
+                
                 # Получаем следующую задачу из очереди
                 job = self._get_next_job()
                 
@@ -154,16 +162,20 @@ class JobQueueService:
             with sqlite3.connect(self.db_path) as conn:
                 cursor = conn.cursor()
                 
-                # Ищем задачи готовые к выполнению, сортируем по приоритету
+                # Ищем задачи готовые к выполнению с учетом retry timing
+                current_time = datetime.utcnow().isoformat()
                 cursor.execute("""
                     SELECT id, job_type, job_data, status, priority, created_at,
                            log_file_path, error_message, retry_count, max_retries,
-                           timeout_seconds, parent_job_id
+                           timeout_seconds, parent_job_id, next_retry_at, failure_type
                     FROM job_queue 
-                    WHERE status IN ('pending', 'retrying')
+                    WHERE (
+                        status = 'pending' OR 
+                        (status = 'retrying' AND (next_retry_at IS NULL OR next_retry_at <= ?))
+                    )
                     ORDER BY priority DESC, created_at ASC
                     LIMIT 1
-                """)
+                """, (current_time,))
                 
                 row = cursor.fetchone()
                 if not row:
@@ -185,6 +197,12 @@ class JobQueueService:
                 job.max_retries = row[9]
                 job.timeout_seconds = row[10]
                 job.parent_job_id = row[11]
+                
+                # Новые поля для enhanced error handling
+                if row[12]:  # next_retry_at
+                    job.next_retry_at = datetime.fromisoformat(row[12])
+                if row[13]:  # failure_type
+                    job.failure_type = JobFailureType(row[13])
                 
                 # Помечаем задачу как выполняющуюся
                 cursor.execute("""
@@ -247,42 +265,88 @@ class JobQueueService:
         return None
     
     def _update_job_completion(self, job: Job, success: bool, error_message: Optional[str]):
-        """Обновляет статус завершенной задачи."""
+        """Обновляет статус завершенной задачи с enhanced retry logic."""
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
             
             if success:
                 new_status = JobStatus.COMPLETED
                 self._stats['completed_jobs'] += 1
-            else:
-                # Проверяем можно ли повторить
-                if job.can_retry():
-                    new_status = JobStatus.RETRYING
-                    job.retry_count += 1
-                    
-                    cursor.execute("""
-                        UPDATE job_queue 
-                        SET status = ?, retry_count = ?, error_message = ?
-                        WHERE id = ?
-                    """, (new_status.value, job.retry_count, error_message, job.id))
-                else:
-                    new_status = JobStatus.FAILED
-                    self._stats['failed_jobs'] += 1
-                    
-                    cursor.execute("""
-                        UPDATE job_queue 
-                        SET status = ?, completed_at = CURRENT_TIMESTAMP, 
-                            error_message = ?, log_file_path = ?
-                        WHERE id = ?
-                    """, (new_status.value, error_message, job.log_file_path, job.id))
-            
-            if success:
+                
                 cursor.execute("""
                     UPDATE job_queue 
                     SET status = ?, completed_at = CURRENT_TIMESTAMP, 
                         log_file_path = ?
                     WHERE id = ?
                 """, (new_status.value, job.log_file_path, job.id))
+                
+            else:
+                # Enhanced retry logic с exponential backoff
+                if job.can_retry():
+                    # Планируем retry с exponential backoff
+                    if job.schedule_retry():
+                        new_status = JobStatus.RETRYING
+                        
+                        cursor.execute("""
+                            UPDATE job_queue 
+                            SET status = ?, retry_count = ?, error_message = ?, 
+                                failure_type = ?, next_retry_at = ?, log_file_path = ?
+                            WHERE id = ?
+                        """, (
+                            new_status.value, 
+                            job.retry_count, 
+                            error_message,
+                            job.failure_type.value if job.failure_type else None,
+                            job.next_retry_at.isoformat() if job.next_retry_at else None,
+                            job.log_file_path,
+                            job.id
+                        ))
+                    else:
+                        # Если schedule_retry вернул False, перемещаем в dead letter
+                        job.move_to_dead_letter("Failed to schedule retry")
+                        new_status = JobStatus.DEAD_LETTER
+                        self._stats['failed_jobs'] += 1
+                        
+                        cursor.execute("""
+                            UPDATE job_queue 
+                            SET status = ?, completed_at = CURRENT_TIMESTAMP, 
+                                error_message = ?, failure_type = ?, log_file_path = ?,
+                                dead_letter_reason = ?, moved_to_dead_letter_at = ?
+                            WHERE id = ?
+                        """, (
+                            new_status.value, 
+                            error_message, 
+                            job.failure_type.value if job.failure_type else None,
+                            job.log_file_path,
+                            job.dead_letter_reason,
+                            job.moved_to_dead_letter_at.isoformat() if job.moved_to_dead_letter_at else None,
+                            job.id
+                        ))
+                else:
+                    # Максимальное количество попыток исчерпано
+                    if job.retry_count >= job.max_retries:
+                        job.move_to_dead_letter(f"Max retries ({job.max_retries}) exceeded")
+                        new_status = JobStatus.DEAD_LETTER
+                    else:
+                        new_status = JobStatus.FAILED
+                    
+                    self._stats['failed_jobs'] += 1
+                    
+                    cursor.execute("""
+                        UPDATE job_queue 
+                        SET status = ?, completed_at = CURRENT_TIMESTAMP, 
+                            error_message = ?, failure_type = ?, log_file_path = ?,
+                            dead_letter_reason = ?, moved_to_dead_letter_at = ?
+                        WHERE id = ?
+                    """, (
+                        new_status.value, 
+                        error_message, 
+                        job.failure_type.value if job.failure_type else None,
+                        job.log_file_path,
+                        job.dead_letter_reason,
+                        job.moved_to_dead_letter_at.isoformat() if job.moved_to_dead_letter_at else None,
+                        job.id
+                    ))
             
             conn.commit()
             job.status = new_status
@@ -300,6 +364,97 @@ class JobQueueService:
         # Очищаем callbacks после выполнения
         if job_id in self._job_callbacks:
             del self._job_callbacks[job_id]
+    
+    def _cleanup_zombie_jobs(self):
+        """Очищает zombie задачи."""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            
+            # Находим все running задачи
+            cursor.execute("""
+                SELECT id, job_type, job_data, status, priority, created_at,
+                       started_at, log_file_path, error_message, retry_count, 
+                       max_retries, timeout_seconds, parent_job_id,
+                       failure_type, next_retry_at, dead_letter_reason, moved_to_dead_letter_at
+                FROM job_queue 
+                WHERE status = 'running'
+            """)
+            
+            zombie_count = 0
+            for row in cursor.fetchall():
+                job = Job(
+                    job_type=JobType(row[1]),
+                    job_data=JobData.from_json(row[2]),
+                    priority=JobPriority(row[4])
+                )
+                
+                job.id = row[0]
+                job.status = JobStatus(row[3])
+                job.created_at = datetime.fromisoformat(row[5]) if row[5] else None
+                job.started_at = datetime.fromisoformat(row[6]) if row[6] else None
+                job.log_file_path = row[7]
+                job.error_message = row[8]
+                job.retry_count = row[9]
+                job.max_retries = row[10]
+                job.timeout_seconds = row[11]
+                job.parent_job_id = row[12]
+                
+                # Новые поля Phase 6
+                if row[13]:  # failure_type
+                    job.failure_type = JobFailureType(row[13])
+                if row[14]:  # next_retry_at
+                    job.next_retry_at = datetime.fromisoformat(row[14])
+                job.dead_letter_reason = row[15]  # dead_letter_reason
+                if row[16]:  # moved_to_dead_letter_at
+                    job.moved_to_dead_letter_at = datetime.fromisoformat(row[16])
+                
+                # Проверяем является ли задача zombie
+                if job.is_zombie():
+                    job.mark_as_zombie(f"Zombie detected during cleanup after {job.get_elapsed_time():.0f}s")
+                    
+                    # Обновляем в базе
+                    cursor.execute("""
+                        UPDATE job_queue 
+                        SET status = ?, error_message = ?, failure_type = ?
+                        WHERE id = ?
+                    """, (
+                        JobStatus.ZOMBIE.value,
+                        job.error_message,
+                        JobFailureType.TIMEOUT_ERROR.value,
+                        job.id
+                    ))
+                    
+                    zombie_count += 1
+            
+            if zombie_count > 0:
+                conn.commit()
+                print(f"Marked {zombie_count} zombie jobs during cleanup")
+    
+    def force_kill_zombie_jobs(self):
+        """Принудительно завершает все zombie задачи."""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            
+            # Находим все zombie задачи
+            cursor.execute("""
+                SELECT id FROM job_queue WHERE status = 'zombie'
+            """)
+            
+            zombie_ids = [row[0] for row in cursor.fetchall()]
+            
+            if zombie_ids:
+                cursor.execute("""
+                    UPDATE job_queue 
+                    SET status = 'failed', completed_at = CURRENT_TIMESTAMP,
+                        error_message = 'Zombie job forcefully terminated'
+                    WHERE status = 'zombie'
+                """)
+                
+                conn.commit()
+                print(f"Force killed {len(zombie_ids)} zombie jobs")
+                return len(zombie_ids)
+            
+            return 0
     
     # Public API методы
     
@@ -368,7 +523,8 @@ class JobQueueService:
             cursor.execute("""
                 SELECT id, job_type, job_data, status, priority, created_at,
                        started_at, completed_at, log_file_path, error_message,
-                       retry_count, max_retries, worker_id, timeout_seconds, parent_job_id
+                       retry_count, max_retries, worker_id, timeout_seconds, parent_job_id,
+                       failure_type, next_retry_at, dead_letter_reason, moved_to_dead_letter_at
                 FROM job_queue WHERE id = ?
             """, (job_id,))
             
@@ -395,6 +551,15 @@ class JobQueueService:
             job.timeout_seconds = row[13]
             job.parent_job_id = row[14]
             
+            # Новые поля Phase 6
+            if row[15]:  # failure_type
+                job.failure_type = JobFailureType(row[15])
+            if row[16]:  # next_retry_at
+                job.next_retry_at = datetime.fromisoformat(row[16])
+            job.dead_letter_reason = row[17]  # dead_letter_reason
+            if row[18]:  # moved_to_dead_letter_at
+                job.moved_to_dead_letter_at = datetime.fromisoformat(row[18])
+            
             return job
     
     def get_jobs(self, status: Optional[JobStatus] = None, job_type: Optional[JobType] = None, 
@@ -406,7 +571,8 @@ class JobQueueService:
             query = """
                 SELECT id, job_type, job_data, status, priority, created_at,
                        started_at, completed_at, log_file_path, error_message,
-                       retry_count, max_retries, worker_id, timeout_seconds, parent_job_id
+                       retry_count, max_retries, worker_id, timeout_seconds, parent_job_id,
+                       failure_type, next_retry_at, dead_letter_reason, moved_to_dead_letter_at
                 FROM job_queue
             """
             params = []
@@ -448,6 +614,15 @@ class JobQueueService:
                 job.worker_id = row[12]
                 job.timeout_seconds = row[13]
                 job.parent_job_id = row[14]
+                
+                # Новые поля Phase 6
+                if row[15]:  # failure_type
+                    job.failure_type = JobFailureType(row[15])
+                if row[16]:  # next_retry_at
+                    job.next_retry_at = datetime.fromisoformat(row[16])
+                job.dead_letter_reason = row[17]  # dead_letter_reason
+                if row[18]:  # moved_to_dead_letter_at
+                    job.moved_to_dead_letter_at = datetime.fromisoformat(row[18])
                 
                 jobs.append(job)
             
@@ -523,15 +698,66 @@ class JobQueueService:
             'uptime_seconds': uptime
         }
     
-    def shutdown(self):
-        """Корректное завершение работы сервиса."""
+    def shutdown(self, graceful_timeout: int = 30):
+        """Graceful shutdown сервиса с ожиданием завершения текущих задач."""
+        print("Initiating graceful shutdown of Job Queue Service...")
+        
+        # Проверяем текущие выполняющиеся задачи
+        running_jobs = list(self._running_jobs.values())
+        if running_jobs:
+            print(f"Waiting for {len(running_jobs)} running jobs to complete (timeout: {graceful_timeout}s)...")
+            
+            # Ждем завершения текущих задач с timeout
+            start_time = time.time()
+            while running_jobs and (time.time() - start_time) < graceful_timeout:
+                time.sleep(1)
+                # Обновляем список активных задач
+                with self._lock:
+                    running_jobs = list(self._running_jobs.values())
+            
+            # Если остались незавершенные задачи, помечаем их как cancelled
+            if running_jobs:
+                print(f"Force cancelling {len(running_jobs)} remaining jobs...")
+                for job in running_jobs:
+                    job.status = JobStatus.CANCELLED
+                    job.error_message = "Cancelled due to service shutdown"
+                    job.completed_at = datetime.utcnow()
+                    
+                    # Обновляем в базе
+                    try:
+                        with sqlite3.connect(self.db_path) as conn:
+                            cursor = conn.cursor()
+                            cursor.execute("""
+                                UPDATE job_queue 
+                                SET status = ?, completed_at = CURRENT_TIMESTAMP, 
+                                    error_message = ?
+                                WHERE id = ?
+                            """, (JobStatus.CANCELLED.value, job.error_message, job.id))
+                            conn.commit()
+                    except Exception as e:
+                        print(f"Error updating cancelled job {job.id}: {e}")
+        
+        # Финальная очистка zombie задач
+        print("Performing final zombie cleanup...")
+        self._cleanup_zombie_jobs()
+        
+        # Сигнализируем потокам о завершении
         self._stop_event.set()
         
-        # Ждем завершения всех worker threads
+        # Ждем завершения всех worker потоков
+        print("Stopping worker threads...")
         for thread in self._worker_threads:
-            thread.join(timeout=10)
+            thread.join(timeout=10)  # Увеличенный timeout для graceful shutdown
+            if thread.is_alive():
+                print(f"Warning: Worker thread {thread.name} did not shut down gracefully")
         
-        print("Job Queue Service shut down")
+        # Очищаем данные
+        with self._lock:
+            self._workers.clear()
+            self._running_jobs.clear()
+            self._job_callbacks.clear()
+        
+        print("Job Queue Service shut down gracefully")
 
 
 # Singleton instance

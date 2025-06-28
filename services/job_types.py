@@ -7,9 +7,11 @@ Job Types and Base Classes for Job Queue System
 
 from enum import Enum
 from typing import Dict, Any, Optional
-from datetime import datetime
+from datetime import datetime, timedelta
 from abc import ABC, abstractmethod
 import json
+import time
+import random
 
 
 # Delayed import to avoid circular dependencies
@@ -60,6 +62,8 @@ class JobStatus(Enum):
     CANCELLED = "cancelled"    # Отменена пользователем
     TIMEOUT = "timeout"        # Превышено время ожидания
     RETRYING = "retrying"      # Ожидает повторной попытки
+    DEAD_LETTER = "dead_letter"  # Перемещена в dead letter queue
+    ZOMBIE = "zombie"          # Зависшая задача (требует принудительного завершения)
 
 
 class JobPriority(Enum):
@@ -70,6 +74,61 @@ class JobPriority(Enum):
     HIGH = 10
     URGENT = 15
     CRITICAL = 20
+
+
+class JobFailureType(Enum):
+    """Типы ошибок задач для определения retry стратегии."""
+    
+    UNKNOWN = "unknown"                    # Неизвестная ошибка
+    NETWORK_ERROR = "network_error"        # Сетевая ошибка (retry с backoff)
+    TIMEOUT_ERROR = "timeout_error"        # Превышение времени выполнения
+    RESOURCE_ERROR = "resource_error"      # Недостаток ресурсов (память, диск)
+    PERMISSION_ERROR = "permission_error"  # Ошибки прав доступа
+    CONFIGURATION_ERROR = "config_error"   # Ошибки конфигурации (не retry)
+    VALIDATION_ERROR = "validation_error"  # Ошибки валидации данных (не retry)
+    SYSTEM_ERROR = "system_error"          # Системные ошибки
+    WORKER_ERROR = "worker_error"          # Ошибки в логике воркера
+
+
+class RetryConfig:
+    """Конфигурация retry механизма."""
+    
+    def __init__(
+        self,
+        initial_delay: float = 1.0,        # Начальная задержка в секундах
+        max_delay: float = 300.0,          # Максимальная задержка (5 минут)
+        backoff_multiplier: float = 2.0,   # Множитель для exponential backoff
+        jitter: bool = True,               # Добавлять случайную задержку
+        max_jitter: float = 0.1            # Максимальный jitter (10% от delay)
+    ):
+        self.initial_delay = initial_delay
+        self.max_delay = max_delay
+        self.backoff_multiplier = backoff_multiplier
+        self.jitter = jitter
+        self.max_jitter = max_jitter
+    
+    def calculate_delay(self, retry_count: int) -> float:
+        """Вычисляет задержку для retry с exponential backoff."""
+        if retry_count <= 0:
+            return self.initial_delay
+        
+        # Exponential backoff
+        delay = self.initial_delay * (self.backoff_multiplier ** (retry_count - 1))
+        
+        # Ограничиваем максимальной задержкой
+        delay = min(delay, self.max_delay)
+        
+        # Добавляем jitter для предотвращения thundering herd
+        if self.jitter and delay > 0:
+            jitter_amount = delay * self.max_jitter
+            delay += random.uniform(-jitter_amount, jitter_amount)
+        
+        return max(0, delay)
+    
+    def get_next_retry_time(self, retry_count: int) -> datetime:
+        """Возвращает время следующей попытки retry."""
+        delay = self.calculate_delay(retry_count)
+        return datetime.utcnow() + timedelta(seconds=delay)
 
 
 class JobData:
@@ -142,10 +201,18 @@ class Job:
         # Логирование и ошибки
         self.log_file_path: Optional[str] = None
         self.error_message: Optional[str] = None
+        self.failure_type: Optional[JobFailureType] = None
+        self.last_error_traceback: Optional[str] = None
         
         # Retry логика
         self.retry_count: int = 0
         self.max_retries = max_retries
+        self.next_retry_at: Optional[datetime] = None
+        self.retry_config = RetryConfig()
+        
+        # Dead letter queue
+        self.dead_letter_reason: Optional[str] = None
+        self.moved_to_dead_letter_at: Optional[datetime] = None
         
         # Выполнение
         self.worker_id: Optional[str] = None
@@ -225,10 +292,101 @@ class Job:
     
     def can_retry(self) -> bool:
         """Можно ли повторить задачу."""
-        return (
-            self.status in [JobStatus.FAILED, JobStatus.TIMEOUT] and
-            self.retry_count < self.max_retries
-        )
+        # Не retry задачи в dead letter queue или zombie
+        if self.status in [JobStatus.DEAD_LETTER, JobStatus.ZOMBIE, JobStatus.CANCELLED]:
+            return False
+        
+        # Проверяем базовые условия
+        if not (self.status in [JobStatus.FAILED, JobStatus.TIMEOUT] and 
+                self.retry_count < self.max_retries):
+            return False
+        
+        # Некоторые типы ошибок не должны retry
+        non_retryable_failures = [
+            JobFailureType.CONFIGURATION_ERROR,
+            JobFailureType.VALIDATION_ERROR,
+            JobFailureType.PERMISSION_ERROR
+        ]
+        
+        if self.failure_type in non_retryable_failures:
+            return False
+        
+        return True
+    
+    def is_ready_for_retry(self) -> bool:
+        """Готова ли задача для retry (с учетом времени)."""
+        if not self.can_retry():
+            return False
+        
+        if self.next_retry_at is None:
+            return True
+        
+        return datetime.utcnow() >= self.next_retry_at
+    
+    def schedule_retry(self) -> bool:
+        """Планирует следующую попытку retry."""
+        if not self.can_retry():
+            return False
+        
+        self.retry_count += 1
+        self.next_retry_at = self.retry_config.get_next_retry_time(self.retry_count)
+        self.status = JobStatus.RETRYING
+        
+        self.log_info(f"Retry #{self.retry_count} scheduled for {self.next_retry_at.isoformat()}")
+        return True
+    
+    def move_to_dead_letter(self, reason: str = None) -> bool:
+        """Перемещает задачу в dead letter queue."""
+        if self.status == JobStatus.DEAD_LETTER:
+            return False
+        
+        self.status = JobStatus.DEAD_LETTER
+        self.dead_letter_reason = reason or f"Max retries ({self.max_retries}) exceeded"
+        self.moved_to_dead_letter_at = datetime.utcnow()
+        self.completed_at = datetime.utcnow()
+        
+        self.log_error(f"Job moved to dead letter queue: {self.dead_letter_reason}")
+        return True
+    
+    def classify_failure(self, exception: Exception) -> JobFailureType:
+        """Классифицирует ошибку для определения retry стратегии."""
+        import traceback
+        
+        # Сохраняем полный traceback
+        self.last_error_traceback = traceback.format_exc()
+        
+        # Классификация по типу исключения
+        exc_type = type(exception).__name__.lower()
+        exc_message = str(exception).lower()
+        
+        # Сетевые ошибки
+        if any(keyword in exc_type for keyword in ['connection', 'network', 'timeout', 'socket']):
+            return JobFailureType.NETWORK_ERROR
+        
+        if any(keyword in exc_message for keyword in ['connection', 'network', 'timeout']):
+            return JobFailureType.NETWORK_ERROR
+        
+        # Ошибки ресурсов
+        if any(keyword in exc_type for keyword in ['memory', 'disk', 'space']):
+            return JobFailureType.RESOURCE_ERROR
+        
+        if any(keyword in exc_message for keyword in ['no space', 'memory', 'disk full']):
+            return JobFailureType.RESOURCE_ERROR
+        
+        # Ошибки прав доступа
+        if any(keyword in exc_type for keyword in ['permission', 'access', 'forbidden']):
+            return JobFailureType.PERMISSION_ERROR
+        
+        # Ошибки валидации
+        if any(keyword in exc_type for keyword in ['validation', 'value', 'assertion']):
+            return JobFailureType.VALIDATION_ERROR
+        
+        # Timeout ошибки - приоритет перед network errors
+        if exc_type == 'timeouterror' or ('timeout' in exc_type and 'error' in exc_type):
+            return JobFailureType.TIMEOUT_ERROR
+        
+        # По умолчанию - неизвестная ошибка
+        return JobFailureType.UNKNOWN
     
     def should_timeout(self) -> bool:
         """Превышено ли время выполнения."""
@@ -237,6 +395,44 @@ class Job:
         
         elapsed = (datetime.utcnow() - self.started_at).total_seconds()
         return elapsed > self.timeout_seconds
+    
+    def is_zombie(self, zombie_threshold_minutes: int = 60) -> bool:
+        """Проверяет является ли задача zombie (зависшая)."""
+        if self.status != JobStatus.RUNNING:
+            return False
+        
+        if not self.started_at:
+            return False
+        
+        # Задача считается zombie если выполняется слишком долго без обновлений
+        elapsed_minutes = (datetime.utcnow() - self.started_at).total_seconds() / 60
+        
+        # Если есть timeout, используем его как базу для zombie detection
+        if self.timeout_seconds:
+            timeout_minutes = self.timeout_seconds / 60
+            zombie_threshold = max(zombie_threshold_minutes, timeout_minutes * 2)
+        else:
+            zombie_threshold = zombie_threshold_minutes
+        
+        return elapsed_minutes > zombie_threshold
+    
+    def mark_as_zombie(self, reason: str = None):
+        """Помечает задачу как zombie."""
+        if self.status == JobStatus.RUNNING:
+            self.status = JobStatus.ZOMBIE
+            self.error_message = reason or f"Task became zombie after {self.get_elapsed_time():.0f} seconds"
+            self.failure_type = JobFailureType.TIMEOUT_ERROR
+            
+            self.log_error(f"Job marked as zombie: {self.error_message}")
+    
+    def force_kill(self, reason: str = None):
+        """Принудительно завершает zombie задачу."""
+        if self.status == JobStatus.ZOMBIE:
+            self.status = JobStatus.FAILED
+            self.completed_at = datetime.utcnow()
+            self.error_message = reason or "Zombie job forcefully terminated"
+            
+            self.log_error(f"Zombie job killed: {self.error_message}")
     
     def get_elapsed_time(self) -> Optional[float]:
         """Время выполнения в секундах."""
@@ -259,12 +455,19 @@ class Job:
             'completed_at': self.completed_at.isoformat() if self.completed_at else None,
             'log_file_path': self.log_file_path,
             'error_message': self.error_message,
+            'failure_type': self.failure_type.value if self.failure_type else None,
             'retry_count': self.retry_count,
             'max_retries': self.max_retries,
+            'next_retry_at': self.next_retry_at.isoformat() if self.next_retry_at else None,
             'worker_id': self.worker_id,
             'timeout_seconds': self.timeout_seconds,
             'parent_job_id': self.parent_job_id,
-            'elapsed_time': self.get_elapsed_time()
+            'elapsed_time': self.get_elapsed_time(),
+            'dead_letter_reason': self.dead_letter_reason,
+            'moved_to_dead_letter_at': self.moved_to_dead_letter_at.isoformat() if self.moved_to_dead_letter_at else None,
+            'can_retry': self.can_retry(),
+            'is_ready_for_retry': self.is_ready_for_retry(),
+            'is_zombie': self.is_zombie()
         }
     
     def __repr__(self):
@@ -285,7 +488,7 @@ class JobWorker(ABC):
     
     def execute_job_with_logging(self, job: Job) -> bool:
         """
-        Выполняет задачу с полным логированием.
+        Выполняет задачу с полным логированием и enhanced error handling.
         
         Args:
             job: Задача для выполнения
@@ -298,10 +501,19 @@ class JobWorker(ABC):
         
         success = False
         error_message = None
+        failure_type = None
+        
+        # Отмечаем начало выполнения
+        self.current_job = job
         
         try:
             job.log_info(f"Starting job execution with worker {self.worker_id}")
             job.log_info(f"Job data: {job.job_data._data}")
+            job.log_info(f"Retry attempt: {job.retry_count + 1}/{job.max_retries + 1}")
+            
+            # Проверяем timeout перед выполнением
+            if job.should_timeout():
+                raise TimeoutError(f"Job timeout ({job.timeout_seconds}s) exceeded before execution")
             
             # Используем захват вывода если логгер доступен
             if logger:
@@ -314,14 +526,43 @@ class JobWorker(ABC):
                 job.log_info("Job completed successfully")
             else:
                 error_message = "Job execution returned False"
+                failure_type = JobFailureType.WORKER_ERROR
                 job.log_error(error_message)
                 
+        except TimeoutError as e:
+            success = False
+            error_message = str(e)
+            failure_type = JobFailureType.TIMEOUT_ERROR
+            job.log_exception(e, f"timeout in {self.worker_id}")
+            
+        except PermissionError as e:
+            success = False
+            error_message = str(e)
+            failure_type = JobFailureType.PERMISSION_ERROR
+            job.log_exception(e, f"permission error in {self.worker_id}")
+            
+        except ValueError as e:
+            success = False
+            error_message = str(e)
+            failure_type = JobFailureType.VALIDATION_ERROR
+            job.log_exception(e, f"validation error in {self.worker_id}")
+            
         except Exception as e:
             success = False
             error_message = str(e)
+            # Автоматическая классификация ошибки
+            failure_type = job.classify_failure(e)
             job.log_exception(e, f"execute_job in {self.worker_id}")
             
         finally:
+            # Обновляем информацию об ошибке
+            if not success and error_message:
+                job.error_message = error_message
+                job.failure_type = failure_type
+            
+            # Очищаем current_job
+            self.current_job = None
+            
             # Завершаем логирование
             job.finalize_logging(success, error_message)
             
