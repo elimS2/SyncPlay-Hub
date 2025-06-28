@@ -183,7 +183,7 @@ class ChannelDownloadWorker(JobWorker):
                 f"""
 import sys
 sys.path.append('{Path(__file__).parent.parent.parent}')
-from controllers.api_controller import update_channel_sync
+from database import update_channel_sync
 update_channel_sync({channel_id})
 print('Channel stats updated successfully')
 """

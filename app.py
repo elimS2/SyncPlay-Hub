@@ -16,7 +16,7 @@ from utils.logging_utils import init_logging, setup_logging, log_message
 from services.playlist_service import list_playlists, set_root_dir
 from services.download_service import get_active_downloads
 from services.streaming_service import get_streams, get_stream
-from controllers.api_controller import api_bp, init_api_controller
+from controllers.api import api_bp, init_api_router
 
 # Import database functions
 from database import get_connection, iter_tracks_with_playlists, get_history_page
@@ -496,7 +496,7 @@ def main():
     
     # Initialize services
     set_root_dir(ROOT_DIR)
-    init_api_controller(ROOT_DIR)
+    init_api_router(ROOT_DIR)
     
     # Make LOGS_DIR available globally for API controller
     from utils.logging_utils import set_logs_dir

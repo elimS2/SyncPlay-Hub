@@ -581,6 +581,31 @@ User Request → Flask Route (app.py) → Controller (controllers/) → Service 
 
 ---
 
+**Commit #110:** `5caf9bc` - **Remove all emoji characters from scripts to resolve Windows Unicode encoding issues**
+- **Development Log:** Entry #072 - Unicode encoding fixes for Windows compatibility
+- **Impact:** Fixed Unicode encoding issues preventing Job Queue scripts from running on Windows
+- **Files:** scripts/extract_channel_metadata.py, scripts/channel_download_analyzer.py, scripts/list_channels.py
+
+**Commit #111:** `c3ad0c0` - **Add command line arguments support to metadata extraction script**
+- **Development Log:** Entry #073 - Command line arguments support implementation
+- **Impact:** Fixed Job Queue metadata extraction jobs failing with unrecognized arguments error
+- **Files:** scripts/extract_channel_metadata.py, enhanced CLI argument parsing
+
+**Commit #112:** `a010f14` - **Implement comprehensive track deletion system with trash functionality**
+- **Development Log:** Entry #074 (partial) - Track deletion system implementation
+- **Impact:** Complete track deletion system with proper trash folder organization
+- **Files:** controllers/api_controller.py, database.py, templates/, deletion management system
+
+**Commit #113:** `846a34f` - **Enhance trash organization with YouTube-style @channelname/videos structure**
+- **Development Log:** Entry #074 (partial) - YouTube-style trash organization enhancement
+- **Impact:** Improved trash folder structure following YouTube channel naming conventions
+- **Files:** controllers/api_controller.py, enhanced channel-based trash organization
+
+**Commit #114:** `9922936` - **Fix resolve trash folder organization and file path issues**
+- **Development Log:** Entry #074 (partial) - Trash folder path resolution fixes
+- **Impact:** Fixed file path handling and trash folder organization issues
+- **Files:** controllers/api_controller.py, file path resolution improvements
+
 ### **Recent Commits Added (2025-06-28):**
 - **`b1eaf4a`** - feat: Comprehensive Job Queue improvements and metadata automation (Entry #072)
 - **`e4f70ab`** - feat: Add auto-metadata-queueing and fix worker concurrency issues (Entry #070-#071) 
