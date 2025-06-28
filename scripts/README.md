@@ -25,6 +25,7 @@ This directory contains command-line interface (CLI) scripts and tools for the Y
   ```bash
   python scripts/list_channels.py                               # List all groups and channels
   python scripts/list_channels.py --groups-only                 # List only groups
+  python scripts/list_channels.py --db-path "D:/path/tracks.db" # Use specific database
   ```
 
 ## Script Categories
@@ -76,6 +77,27 @@ scripts/
     ├── check_laud_channel.py          # Specific utilities
     └── clear_kola_archive.py
 ```
+
+## Database Configuration
+
+Scripts need to know where your `tracks.db` file is located. By default, they look for `tracks.db` in the current directory, but you can specify a different location:
+
+### Option 1: .env file (Recommended)
+```bash
+# Create .env file in project root
+echo "DB_PATH=D:/music/Youtube/DB/tracks.db" > .env
+
+# Scripts automatically load it
+python scripts/list_channels.py  # Will show: 📄 Loaded .env file from: .env
+```
+
+### Option 2: Command Line Argument
+```bash
+python scripts/list_channels.py --db-path "D:/music/Youtube/DB/tracks.db"
+python scripts/channel_download_analyzer.py --db-path "D:/music/Youtube/DB/tracks.db"
+```
+
+See [`ENV_SETUP.md`](ENV_SETUP.md) for detailed configuration instructions.
 
 ## Usage Guidelines
 

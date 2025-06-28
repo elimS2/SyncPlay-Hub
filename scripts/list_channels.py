@@ -10,20 +10,46 @@ Usage:
 """
 
 import argparse
+import os
 import sys
 from pathlib import Path
 
 # Add parent directory to path for imports
 sys.path.append(str(Path(__file__).parent.parent))
 
-from database import get_connection
+from database import get_connection, set_db_path
+
+# Try to load .env file manually
+def load_env_file():
+    """Load .env file manually and return config dict."""
+    env_path = Path(__file__).parent.parent / '.env'
+    config = {}
+    
+    if env_path.exists():
+        try:
+            with open(env_path, 'r', encoding='utf-8') as f:
+                for line in f:
+                    line = line.strip()
+                    if line and not line.startswith('#') and '=' in line:
+                        key, value = line.split('=', 1)
+                        # Remove BOM if present
+                        key = key.strip().lstrip('\ufeff')
+                        config[key] = value.strip()
+            print(f"📄 Loaded .env file from: {env_path}")
+        except Exception as e:
+            print(f"⚠️  Error reading .env file: {e}")
+    
+    return config
+
+# Load .env configuration
+env_config = load_env_file()
 
 
 def list_channel_groups(conn):
     """List all channel groups."""
     cur = conn.cursor()
     cur.execute("""
-        SELECT id, name, behavior_type, 
+        SELECT cg.id, cg.name, cg.behavior_type, 
                COUNT(c.id) as channel_count,
                COALESCE(SUM(c.track_count), 0) as total_tracks
         FROM channel_groups cg
@@ -109,8 +135,12 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-    python scripts/list_channels.py            # List all groups and channels
-    python scripts/list_channels.py --groups-only  # List only groups
+    python scripts/list_channels.py                                    # List all groups and channels
+    python scripts/list_channels.py --groups-only                      # List only groups
+    python scripts/list_channels.py --db-path "D:/music/Youtube/DB/tracks.db"  # Use specific database
+    
+.env file variables:
+    DB_PATH         Path to the database file (e.g., D:/music/Youtube/DB/tracks.db)
         """
     )
     
@@ -120,7 +150,31 @@ Examples:
         help="Show only channel groups, not individual channels"
     )
     
+    parser.add_argument(
+        "--db-path",
+        type=str,
+        help="Path to the database file (overrides .env file)"
+    )
+    
     args = parser.parse_args()
+    
+    # Set database path from command line argument or .env file
+    db_path = args.db_path
+    if not db_path:
+        db_path = env_config.get('DB_PATH')
+    
+    if db_path:
+        # Check if path exists
+        db_file = Path(db_path)
+        if db_file.exists():
+            set_db_path(db_path)
+            print(f"🔗 Using database: {db_path}")
+        else:
+            print(f"⚠️  Database file not found: {db_path}")
+            print(f"🔗 Using default database: tracks.db (current directory)")
+    else:
+        print(f"🔗 Using default database: tracks.db (current directory)")
+        print(f"💡 Set DB_PATH in .env file or use --db-path to specify database location")
     
     try:
         conn = get_connection()

@@ -14,4 +14,7 @@ test_*.py
 
 # Runtime files
 *.pid
-syncplay_hub.pid 
+syncplay_hub.pid
+
+# Environment files (contain sensitive paths)
+.env 

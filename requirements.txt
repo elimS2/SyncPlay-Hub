@@ -1,3 +1,6 @@
 yt-dlp>=2024.4.9 
 Flask>=3.0 
-psutil>=5.9.0 
+psutil>=5.9.0
+
+# Optional dependencies
+# (none currently) 
