@@ -33,7 +33,7 @@ try:
     JOB_QUEUE_AVAILABLE = True
 except ImportError:
     JOB_QUEUE_AVAILABLE = False
-    print("⚠️  Job Queue system not available. --auto-queue-metadata option will be disabled.")
+    print("[WARNING] Job Queue system not available. --auto-queue-metadata option will be disabled.")
 
 # Try to load .env file manually
 def load_env_file():
@@ -51,9 +51,9 @@ def load_env_file():
                         # Remove BOM if present
                         key = key.strip().lstrip('\ufeff')
                         config[key] = value.strip()
-            print(f"📄 Loaded .env file from: {env_path}")
+            print(f"[INFO] Loaded .env file from: {env_path}")
         except Exception as e:
-            print(f"⚠️  Error reading .env file: {e}")
+            print(f"[WARNING] Error reading .env file: {e}")
     
     return config
 
@@ -378,44 +378,44 @@ def print_channel_summary(conn, channel: Dict, video_count: int, downloaded_coun
     global metadata_jobs_created
     
     print(f"\n{'='*80}")
-    print(f"📺 CHANNEL: {channel['name']}")
+    print(f"[CHANNEL] {channel['name']}")
     print(f"{'='*80}")
-    print(f"🔗 URL: {channel['url']}")
-    print(f"📁 Group: {channel['group_name']} ({channel['behavior_type']})")
-    print(f"📅 Download from: {channel['date_from'] or 'All time'}")
-    print(f"🔄 Last sync: {channel['last_sync_ts'] or 'Never'}")
-    print(f"📊 Database track count: {channel['track_count'] or 0}")
+    print(f"URL: {channel['url']}")
+    print(f"Group: {channel['group_name']} ({channel['behavior_type']})")
+    print(f"Download from: {channel['date_from'] or 'All time'}")
+    print(f"Last sync: {channel['last_sync_ts'] or 'Never'}")
+    print(f"Database track count: {channel['track_count'] or 0}")
     
     # Show folder information
     root_dir = env_config.get('ROOT_DIR', 'D:/music/Youtube')
     folder_info = get_channel_folder_info(channel, root_dir)
     
     print(f"")
-    print(f"📂 FOLDER INFORMATION:")
+    print(f"[FOLDER INFORMATION]")
     if folder_info['exists']:
-        print(f"   📁 Local folder: {folder_info['actual_path']}")
-        print(f"   📄 Files in folder: {folder_info['file_count']}")
+        print(f"   Local folder: {folder_info['actual_path']}")
+        print(f"   Files in folder: {folder_info['file_count']}")
     else:
-        print(f"   📁 Expected folder: {folder_info['expected_path']}")
-        print(f"   ❌ Folder does not exist")
+        print(f"   Expected folder: {folder_info['expected_path']}")
+        print(f"   [ERROR] Folder does not exist")
         if len(folder_info['possible_paths']) > 1:
-            print(f"   💡 Also checked: {', '.join(folder_info['possible_paths'][1:])}")
+            print(f"   [INFO] Also checked: {', '.join(folder_info['possible_paths'][1:])}")
     
     # Show metadata information
     metadata_info = get_metadata_info(conn, channel['url'])
     
     print(f"")
-    print(f"🎬 METADATA INFORMATION:")
+    print(f"[METADATA INFORMATION]")
     if metadata_info['has_metadata']:
-        print(f"   ✅ YouTube metadata: {metadata_info['total_count']} videos")
+        print(f"   [OK] YouTube metadata: {metadata_info['total_count']} videos")
         if metadata_info['earliest_video_date'] and metadata_info['latest_video_date']:
-            print(f"   📅 Video range: {metadata_info['earliest_video_date']} to {metadata_info['latest_video_date']}")
+            print(f"   Video range: {metadata_info['earliest_video_date']} to {metadata_info['latest_video_date']}")
         if metadata_info['last_updated']:
-            print(f"   🔄 Metadata updated: {metadata_info['last_updated']}")
+            print(f"   Metadata updated: {metadata_info['last_updated']}")
         else:
-            print(f"   🔄 Metadata updated: Unknown (update database schema)")
+            print(f"   Metadata updated: Unknown (update database schema)")
     else:
-        print(f"   ❌ No YouTube metadata found")
+        print(f"   [ERROR] No YouTube metadata found")
         
         # Auto-queue metadata extraction if enabled
         if auto_queue_metadata and JOB_QUEUE_AVAILABLE:
@@ -429,25 +429,25 @@ def print_channel_summary(conn, channel: Dict, video_count: int, downloaded_coun
                     force_update=False
                 )
                 metadata_jobs_created += 1
-                print(f"   🎯 Auto-queued metadata extraction job #{job_id}")
-                print(f"   ⏱️  Job will start automatically when workers are available")
+                print(f"   [QUEUED] Auto-queued metadata extraction job #{job_id}")
+                print(f"   [INFO] Job will start automatically when workers are available")
             except Exception as e:
-                print(f"   ⚠️  Failed to queue metadata extraction: {e}")
+                print(f"   [WARNING] Failed to queue metadata extraction: {e}")
         else:
-            print(f"   💡 Run: python scripts/extract_channel_metadata.py \"{channel['url']}\"")
+            print(f"   [HINT] Run: python scripts/extract_channel_metadata.py \"{channel['url']}\"")
             if auto_queue_metadata and not JOB_QUEUE_AVAILABLE:
-                print(f"   ⚠️  Auto-queueing disabled: Job Queue system not available")
+                print(f"   [WARNING] Auto-queueing disabled: Job Queue system not available")
     
     print(f"")
-    print(f"📈 ANALYSIS RESULTS:")
-    print(f"   📺 Total videos in metadata: {video_count}")
-    print(f"   ✅ Downloaded locally: {downloaded_count}")
-    print(f"   🗑️  Previously deleted: {deleted_count}")
-    print(f"   ❌ Not downloaded: {video_count - downloaded_count}")
+    print(f"[ANALYSIS RESULTS]")
+    print(f"   Total videos in metadata: {video_count}")
+    print(f"   Downloaded locally: {downloaded_count}")
+    print(f"   Previously deleted: {deleted_count}")
+    print(f"   Not downloaded: {video_count - downloaded_count}")
     
     if video_count > 0:
         download_rate = (downloaded_count / video_count) * 100
-        print(f"   📊 Download rate: {download_rate:.1f}%")
+        print(f"   Download rate: {download_rate:.1f}%")
     
     print(f"\n{'─'*80}")
 
@@ -464,16 +464,16 @@ def print_video_status(video: Dict, status: Dict, show_details: bool = True):
     # Status icon
     if status['downloaded']:
         if status['deleted']:
-            icon = "🔄"  # Downloaded but later deleted
+            icon = "[REDOWNLOAD]"  # Downloaded but later deleted
             status_text = "Downloaded → Deleted"
         else:
-            icon = "✅"  # Currently downloaded
+            icon = "[OK]"  # Currently downloaded
             status_text = "Downloaded"
     elif status['deleted']:
-        icon = "🗑️"   # Deleted (never downloaded or deleted without download)
+        icon = "[DELETED]"   # Deleted (never downloaded or deleted without download)
         status_text = "Deleted"
     else:
-        icon = "❌"   # Not downloaded
+        icon = "[MISSING]"   # Not downloaded
         status_text = "Not Downloaded"
     
     # Basic info line
@@ -482,7 +482,7 @@ def print_video_status(video: Dict, status: Dict, show_details: bool = True):
     views = video.get('view_count') or 0
     
     print(f"{icon} [{youtube_id}] {title}")
-    print(f"   📅 Published: {published} | ⏱️  Duration: {duration_str} | 👁️  Views: {views:,}")
+    print(f"   Published: {published} | Duration: {duration_str} | Views: {views:,}")
     
     if show_details:
         # Download details
@@ -490,23 +490,23 @@ def print_video_status(video: Dict, status: Dict, show_details: bool = True):
             track = status['track_info']
             file_size = format_file_size(track.get('size_bytes'))
             file_path = track.get('relpath', 'Unknown path')
-            print(f"   💾 File: {file_path} ({file_size})")
+            print(f"   File: {file_path} ({file_size})")
             
             # Play statistics
             stats = status['play_stats']
             if any(stats[k] > 0 for k in ['starts', 'finishes', 'nexts', 'prevs', 'likes']):
-                print(f"   🎵 Played: {stats['starts']} starts, {stats['finishes']} finishes, {stats['likes']} likes")
+                print(f"   Played: {stats['starts']} starts, {stats['finishes']} finishes, {stats['likes']} likes")
                 if stats['last_played']:
-                    print(f"   🕒 Last played: {stats['last_played']}")
+                    print(f"   Last played: {stats['last_played']}")
         
         # Deletion details
         if status['deleted']:
             deletion = status['deletion_info']
             deleted_at = deletion.get('deleted_at', 'Unknown')
             reason = deletion.get('deletion_reason', 'Unknown')
-            print(f"   🗑️  Deleted: {deleted_at} (reason: {reason})")
+            print(f"   Deleted: {deleted_at} (reason: {reason})")
             if deletion.get('can_restore'):
-                print(f"   ♻️  Can be restored from: {deletion.get('trash_path', 'Unknown')}")
+                print(f"   Can be restored from: {deletion.get('trash_path', 'Unknown')}")
     
     print()
 
@@ -622,13 +622,13 @@ Examples:
         db_file = Path(db_path)
         if db_file.exists():
             set_db_path(db_path)
-            print(f"🔗 Using database: {db_path}")
+            print(f"[INFO] Using database: {db_path}")
         else:
-            print(f"⚠️  Database file not found: {db_path}")
-            print(f"🔗 Using default database: tracks.db (current directory)")
+            print(f"[WARNING] Database file not found: {db_path}")
+            print(f"[INFO] Using default database: tracks.db (current directory)")
     else:
-        print(f"🔗 Using default database: tracks.db (current directory)")
-        print(f"💡 Set DB_PATH in .env file or use --db-path to specify database location")
+        print(f"[INFO] Using default database: tracks.db (current directory)")
+        print(f"[HINT] Set DB_PATH in .env file or use --db-path to specify database location")
     
     try:
         conn = get_connection()
@@ -637,32 +637,32 @@ Examples:
         channels = get_channels_to_analyze(conn, args.channel_id, args.group_id)
         
         if not channels:
-            print("❌ No active channels found matching the criteria.")
+            print("[ERROR] No active channels found matching the criteria.")
             return
         
-        print(f"🎯 ANALYZING {len(channels)} CHANNEL(S)")
+        print(f"[ANALYZING] {len(channels)} CHANNEL(S)")
         if args.days_back:
-            print(f"📅 Filtering videos from last {args.days_back} days")
+            print(f"Filtering videos from last {args.days_back} days")
         
         # Show brief channel overview with folder info
         if len(channels) > 1:
-            print(f"\n📋 CHANNELS OVERVIEW:")
+            print(f"\n[CHANNELS OVERVIEW]")
             root_dir = env_config.get('ROOT_DIR', 'D:/music/Youtube')
             
             for channel in channels:
                 folder_info = get_channel_folder_info(channel, root_dir)
-                folder_icon = "📁" if folder_info['exists'] else "❌"
+                folder_icon = "[FOLDER]" if folder_info['exists'] else "[NO_FOLDER]"
                 folder_text = f"({folder_info['file_count']} files)" if folder_info['exists'] else "(no folder)"
                 
-                print(f"   📺 {channel['name']:25} | Group: {channel['group_name']:15} | {folder_icon} {folder_text}")
+                print(f"   {channel['name']:25} | Group: {channel['group_name']:15} | {folder_icon} {folder_text}")
         
         # Show metadata auto-queueing status
         if args.auto_queue_metadata:
             if JOB_QUEUE_AVAILABLE:
-                print(f"🎯 Auto-queueing metadata extraction enabled")
-                print(f"⚡ Will create jobs for channels missing metadata")
+                print(f"[AUTO-QUEUE] Metadata extraction enabled")
+                print(f"[INFO] Will create jobs for channels missing metadata")
             else:
-                print(f"⚠️  Auto-queueing disabled: Job Queue system not available")
+                print(f"[WARNING] Auto-queueing disabled: Job Queue system not available")
         
         # Analyze each channel
         total_stats = {
@@ -690,19 +690,19 @@ Examples:
         # Print overall summary
         if len(channels) > 1:
             print(f"\n{'='*80}")
-            print(f"📊 OVERALL SUMMARY ({len(channels)} channels)")
+            print(f"[OVERALL SUMMARY] ({len(channels)} channels)")
             print(f"{'='*80}")
-            print(f"📺 Total videos in metadata: {total_stats['total_videos']}")
-            print(f"✅ Downloaded locally: {total_stats['downloaded']}")
-            print(f"🗑️  Previously deleted: {total_stats['deleted']}")
-            print(f"❌ Not downloaded: {total_stats['not_downloaded']}")
+            print(f"Total videos in metadata: {total_stats['total_videos']}")
+            print(f"Downloaded locally: {total_stats['downloaded']}")
+            print(f"Previously deleted: {total_stats['deleted']}")
+            print(f"Not downloaded: {total_stats['not_downloaded']}")
             
             if total_stats['total_videos'] > 0:
                 download_rate = (total_stats['downloaded'] / total_stats['total_videos']) * 100
-                print(f"📊 Overall download rate: {download_rate:.1f}%")
+                print(f"Overall download rate: {download_rate:.1f}%")
             
             # Folder summary
-            print(f"\n📂 FOLDER SUMMARY:")
+            print(f"\n[FOLDER SUMMARY]")
             root_dir = env_config.get('ROOT_DIR', 'D:/music/Youtube')
             folders_exist = 0
             total_files = 0
@@ -713,25 +713,25 @@ Examples:
                     folders_exist += 1
                     total_files += folder_info['file_count']
             
-            print(f"📁 Folders exist: {folders_exist}/{len(channels)}")
-            print(f"📄 Total files in folders: {total_files}")
-            print(f"📍 Root directory: {root_dir}")
+            print(f"Folders exist: {folders_exist}/{len(channels)}")
+            print(f"Total files in folders: {total_files}")
+            print(f"Root directory: {root_dir}")
         
         # Show metadata job creation summary
         if args.auto_queue_metadata and metadata_jobs_created > 0:
-            print(f"\n🎯 METADATA EXTRACTION JOBS CREATED:")
-            print(f"📋 Jobs queued: {metadata_jobs_created}")
-            print(f"⏱️  Jobs will be processed automatically by job queue workers")
-            print(f"💡 Monitor job progress at: /jobs (web interface)")
+            print(f"\n[METADATA EXTRACTION JOBS CREATED]")
+            print(f"Jobs queued: {metadata_jobs_created}")
+            print(f"Jobs will be processed automatically by job queue workers")
+            print(f"Monitor job progress at: /jobs (web interface)")
         elif args.auto_queue_metadata and metadata_jobs_created == 0:
-            print(f"\n✅ All channels already have metadata - no jobs needed")
+            print(f"\n[INFO] All channels already have metadata - no jobs needed")
         
         conn.close()
         
     except KeyboardInterrupt:
-        print("\n❌ Analysis cancelled by user")
+        print("\n[CANCELLED] Analysis cancelled by user")
     except Exception as e:
-        print(f"❌ Error during analysis: {e}")
+        print(f"[ERROR] Error during analysis: {e}")
         sys.exit(1)
 
 

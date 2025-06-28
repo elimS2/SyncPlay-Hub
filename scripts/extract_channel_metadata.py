@@ -43,9 +43,9 @@ def load_env_file():
                         # Remove BOM if present
                         key = key.strip().lstrip('\ufeff')
                         config[key] = value.strip()
-            print(f"📄 Loaded .env file from: {env_path}")
+            print(f"[INFO] Loaded .env file from: {env_path}")
         except Exception as e:
-            print(f"⚠️  Error reading .env file: {e}")
+            print(f"[WARNING] Error reading .env file: {e}")
     
     return config
 
@@ -318,12 +318,12 @@ Examples:
         db_file = Path(db_path)
         if db_file.exists():
             set_db_path(db_path)
-            print(f"🔗 Using database: {db_path}")
+            print(f"[INFO] Using database: {db_path}")
         else:
-            print(f"⚠️  Database file not found: {db_path}")
-            print(f"🔗 Using default database: tracks.db (current directory)")
+            print(f"[WARNING] Database file not found: {db_path}")
+            print(f"[INFO] Using default database: tracks.db (current directory)")
     else:
-        print(f"🔗 Using default database: tracks.db (current directory)")
+        print(f"[INFO] Using default database: tracks.db (current directory)")
     
     # Validate URL format
     if not any(domain in args.url.lower() for domain in ['youtube.com', 'youtu.be']):

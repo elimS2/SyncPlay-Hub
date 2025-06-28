@@ -35,9 +35,9 @@ def load_env_file():
                         # Remove BOM if present
                         key = key.strip().lstrip('\ufeff')
                         config[key] = value.strip()
-            print(f"📄 Loaded .env file from: {env_path}")
+            print(f"[INFO] Loaded .env file from: {env_path}")
         except Exception as e:
-            print(f"⚠️  Error reading .env file: {e}")
+            print(f"[WARNING] Error reading .env file: {e}")
     
     return config
 
@@ -60,7 +60,7 @@ def list_channel_groups(conn):
     
     groups = cur.fetchall()
     
-    print("📁 CHANNEL GROUPS:")
+    print("[CHANNEL GROUPS]")
     print("=" * 80)
     
     if not groups:
@@ -98,7 +98,7 @@ def list_channels(conn, group_id=None):
     
     channels = cur.fetchall()
     
-    print("\n📺 CHANNELS:")
+    print("\n[CHANNELS]")
     print("=" * 80)
     
     if not channels:
@@ -112,11 +112,11 @@ def list_channels(conn, group_id=None):
         # Print group header if changed
         if group_name != current_group:
             current_group = group_name
-            print(f"\n   📁 Group: {group_name}")
+            print(f"\n   Group: {group_name}")
             print("   " + "-" * 75)
         
         # Status icon
-        status_icon = "✅" if enabled else "❌"
+        status_icon = "[ACTIVE]" if enabled else "[DISABLED]"
         
         # Format track count
         tracks_str = f"{track_count or 0:4} tracks" if track_count else "   0 tracks"
@@ -168,13 +168,13 @@ Examples:
         db_file = Path(db_path)
         if db_file.exists():
             set_db_path(db_path)
-            print(f"🔗 Using database: {db_path}")
+            print(f"[INFO] Using database: {db_path}")
         else:
-            print(f"⚠️  Database file not found: {db_path}")
-            print(f"🔗 Using default database: tracks.db (current directory)")
+            print(f"[WARNING] Database file not found: {db_path}")
+            print(f"[INFO] Using default database: tracks.db (current directory)")
     else:
-        print(f"🔗 Using default database: tracks.db (current directory)")
-        print(f"💡 Set DB_PATH in .env file or use --db-path to specify database location")
+        print(f"[INFO] Using default database: tracks.db (current directory)")
+        print(f"[HINT] Set DB_PATH in .env file or use --db-path to specify database location")
     
     try:
         conn = get_connection()
@@ -187,14 +187,14 @@ Examples:
             list_channels(conn)
         
         print("\n" + "=" * 80)
-        print("💡 Usage tips:")
+        print("[USAGE TIPS]")
         print("   • Use channel IDs with: python scripts/channel_download_analyzer.py --channel-id ID")
         print("   • Use group IDs with: python scripts/channel_download_analyzer.py --group-id ID")
         
         conn.close()
         
     except Exception as e:
-        print(f"❌ Error: {e}")
+        print(f"[ERROR] Error: {e}")
         sys.exit(1)
 
 

@@ -678,6 +678,54 @@ class JobQueueService:
                 
                 return cursor.rowcount > 0
     
+    def retry_job(self, job_id: int) -> bool:
+        """Повторяет неудачную задачу."""
+        with self._lock:
+            # Проверяем не выполняется ли задача сейчас
+            if job_id in self._running_jobs:
+                return False
+            
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+                
+                # Проверяем статус задачи
+                cursor.execute("""
+                    SELECT status, retry_count, max_retries
+                    FROM job_queue 
+                    WHERE id = ?
+                """, (job_id,))
+                
+                row = cursor.fetchone()
+                if not row:
+                    return False
+                
+                status, retry_count, max_retries = row
+                
+                # Проверяем можно ли повторить задачу
+                if status not in ['failed', 'cancelled', 'timeout']:
+                    return False
+                
+                # Можно также проверить лимит попыток (опционально)
+                # if retry_count >= max_retries:
+                #     return False
+                
+                # Сбрасываем задачу для повторного выполнения
+                cursor.execute("""
+                    UPDATE job_queue 
+                    SET status = 'pending',
+                        started_at = NULL,
+                        completed_at = NULL,
+                        worker_id = NULL,
+                        error_message = NULL,
+                        failure_type = NULL,
+                        next_retry_at = NULL
+                    WHERE id = ?
+                """, (job_id,))
+                
+                conn.commit()
+                
+                return cursor.rowcount > 0
+    
     def get_queue_stats(self) -> Dict[str, Any]:
         """Получает статистику очереди."""
         with sqlite3.connect(self.db_path) as conn:
