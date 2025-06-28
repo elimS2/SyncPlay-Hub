@@ -49,16 +49,17 @@ Examples:
   python migrate.py status          # Show migration status
   python migrate.py migrate         # Apply all pending migrations
   python migrate.py rollback --migration 1  # Rollback specific migration
+  python migrate.py mark-applied --migration 1  # Mark migration as applied without running
         """
     )
     
     parser.add_argument('--db-path', help="Path to database file")
     parser.add_argument('--json', action='store_true', 
                        help="Output results in JSON format (for automation)")
-    parser.add_argument('command', choices=['migrate', 'status', 'rollback'], 
+    parser.add_argument('command', choices=['migrate', 'status', 'rollback', 'mark-applied'], 
                        help="Command to execute")
     parser.add_argument('--migration', type=int, 
-                       help="Specific migration number (for rollback)")
+                       help="Specific migration number (for rollback or mark-applied)")
     
     args = parser.parse_args()
     
@@ -166,6 +167,35 @@ Examples:
                 print(f"⚠️  Rolling back migration {args.migration}...")
                 if manager.rollback_migration(migration_to_rollback):
                     print(f"🎉 Rollback completed successfully!")
+                    
+        elif args.command == 'mark-applied':
+            if not args.migration:
+                if args.json:
+                    error_result = {
+                        'success': False,
+                        'error': 'Migration parameter required',
+                        'message': '--migration parameter required for mark-applied'
+                    }
+                    print(json.dumps(error_result, indent=2, ensure_ascii=False))
+                else:
+                    print("❌ --migration parameter required for mark-applied")
+                    print("Example: python migrate.py mark-applied --migration 1")
+                sys.exit(1)
+            
+            if args.json:
+                success = manager.mark_migration_as_applied(args.migration)
+                result = {
+                    'success': success,
+                    'command': 'mark-applied',
+                    'database_path': db_path,
+                    'migration_number': args.migration,
+                    'message': f'Migration {args.migration} marked as applied' if success else f'Failed to mark migration {args.migration} as applied'
+                }
+                print(json.dumps(result, indent=2, ensure_ascii=False))
+            else:
+                print(f"📝 Marking migration {args.migration} as applied...")
+                if manager.mark_migration_as_applied(args.migration):
+                    print(f"🎉 Migration {args.migration} marked as applied successfully!")
     
     except Exception as e:
         if args.json:

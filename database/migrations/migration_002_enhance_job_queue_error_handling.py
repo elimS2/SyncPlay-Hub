@@ -10,20 +10,15 @@ Migration 002: Enhanced Job Queue Error Handling
 - moved_to_dead_letter_at: Время перемещения в dead letter queue
 """
 
+from database.migration_manager import Migration
 import sqlite3
-from datetime import datetime
-from pathlib import Path
 
 
-MIGRATION_ID = "002_enhance_job_queue_error_handling"
-MIGRATION_DESCRIPTION = "Enhanced Job Queue Error Handling for Phase 6"
-
-
-def upgrade(db_path: str):
-    """Применяет миграцию - добавляет новые поля для error handling."""
-    print(f"🔄 Applying migration {MIGRATION_ID}...")
+class Migration002(Migration):
+    """Расширенная обработка ошибок для системы очереди задач."""
     
-    with sqlite3.connect(db_path) as conn:
+    def up(self, conn: sqlite3.Connection) -> None:
+        """Добавляет новые поля для error handling."""
         cursor = conn.cursor()
         
         # Добавляем новые поля для enhanced error handling
@@ -63,18 +58,41 @@ def upgrade(db_path: str):
                 except sqlite3.OperationalError as e:
                     print(f"  ⚠️  Index creation skipped: {index_name} - {e}")
         
-        conn.commit()
-        print(f"✅ Migration {MIGRATION_ID} applied successfully!")
+        print("✅ Enhanced error handling fields added to job_queue")
+    
+    def down(self, conn: sqlite3.Connection) -> None:
+        """Откатывает миграцию (SQLite не поддерживает DROP COLUMN до версии 3.35)."""
+        print("⚠️  Migration 002 downgrade not supported by SQLite")
+        print("   New columns will remain in the table but won't be used")
+    
+    def description(self) -> str:
+        """Описание миграции."""
+        return "Enhanced Job Queue Error Handling - adds failure_type, retry timing, and dead letter fields"
+
+
+# Legacy functions for backward compatibility (can be removed later)
+MIGRATION_ID = "002_enhance_job_queue_error_handling"
+MIGRATION_DESCRIPTION = "Enhanced Job Queue Error Handling for Phase 6"
+
+
+def upgrade(db_path: str):
+    """Legacy function - use Migration002 class instead."""
+    print(f"⚠️  Using legacy upgrade function. Please use Migration002 class instead.")
+    with sqlite3.connect(db_path) as conn:
+        migration = Migration002()
+        migration.up(conn)
 
 
 def downgrade(db_path: str):
-    """Откатывает миграцию (SQLite не поддерживает DROP COLUMN до версии 3.35)."""
-    print(f"⚠️  Migration {MIGRATION_ID} downgrade not supported by SQLite")
-    print("   New columns will remain in the table but won't be used")
+    """Legacy function - use Migration002 class instead."""
+    print(f"⚠️  Using legacy downgrade function. Please use Migration002 class instead.")
+    with sqlite3.connect(db_path) as conn:
+        migration = Migration002()
+        migration.down(conn)
 
 
 def get_migration_info():
-    """Возвращает информацию о миграции."""
+    """Legacy function - use Migration002 class instead."""
     return {
         "id": MIGRATION_ID,
         "description": MIGRATION_DESCRIPTION,
@@ -122,8 +140,11 @@ if __name__ == "__main__":
             conn.commit()
             print("  📋 Created base job_queue table")
         
-        # Применяем миграцию
-        upgrade(test_db_path)
+        # Применяем миграцию через новый класс
+        with sqlite3.connect(test_db_path) as conn:
+            migration = Migration002()
+            migration.up(conn)
+            conn.commit()
         
         # Проверяем результат
         with sqlite3.connect(test_db_path) as conn:

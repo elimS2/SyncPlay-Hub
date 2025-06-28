@@ -267,6 +267,42 @@ class MigrationManager:
         finally:
             conn.close()
     
+    def mark_migration_as_applied(self, migration_number: int, migration_name: str = None) -> bool:
+        """
+        Помечает миграцию как выполненную без фактического применения.
+        Полезно когда изменения уже применены вручную.
+        """
+        conn = sqlite3.connect(self.db_path)
+        try:
+            # Проверяем не применена ли уже
+            cursor = conn.cursor()
+            cursor.execute('''
+                SELECT COUNT(*) FROM schema_migrations 
+                WHERE migration_number = ? AND rollback_at IS NULL
+            ''', (migration_number,))
+            
+            if cursor.fetchone()[0] > 0:
+                print(f"⚠️  Migration {migration_number:03d} is already marked as applied")
+                return False
+            
+            # Помечаем как выполненную
+            migration_name = migration_name or f"Migration{migration_number:03d}"
+            cursor.execute('''
+                INSERT INTO schema_migrations (migration_number, migration_name, applied_at)
+                VALUES (?, ?, datetime('now'))
+            ''', (migration_number, migration_name))
+            
+            conn.commit()
+            print(f"✅ Migration {migration_number:03d} marked as applied")
+            return True
+            
+        except Exception as e:
+            print(f"❌ Failed to mark migration {migration_number:03d} as applied: {e}")
+            conn.rollback()
+            return False
+        finally:
+            conn.close()
+    
     def status(self) -> Dict[str, Any]:
         """Показывает статус миграций."""
         applied = self.get_applied_migrations()
