@@ -11,6 +11,22 @@ This directory contains command-line interface (CLI) scripts and tools for the Y
   python scripts/extract_channel_metadata.py "URL" --dry-run  # Test mode
   ```
 
+### 🔍 Analysis Tools
+- **`channel_download_analyzer.py`** - Analyze channel download status and compare with metadata
+  ```bash
+  python scripts/channel_download_analyzer.py                    # Analyze all channels
+  python scripts/channel_download_analyzer.py --channel-id 1     # Specific channel
+  python scripts/channel_download_analyzer.py --group-id 2       # All channels in group
+  python scripts/channel_download_analyzer.py --days-back 30     # Last 30 days only
+  python scripts/channel_download_analyzer.py --summary-only     # Just summaries
+  ```
+
+- **`list_channels.py`** - List all channels and groups with their IDs
+  ```bash
+  python scripts/list_channels.py                               # List all groups and channels
+  python scripts/list_channels.py --groups-only                 # List only groups
+  ```
+
 ## Script Categories
 
 ### 🎯 **CLI Tools** (Interactive/Standalone)
@@ -33,6 +49,10 @@ Scripts that can be run independently from command line for specific tasks.
 - `check_laud_channel.py` - Channel-specific operations
 - `clear_kola_archive.py` - Archive cleanup
 
+### 🔍 **Analysis Scripts**
+- `channel_download_analyzer.py` - Analyze download status vs metadata
+- `list_channels.py` - List channels and groups with IDs
+
 ## Recommended Organization
 
 ```
@@ -40,6 +60,9 @@ scripts/
 ├── README.md                           # This file
 ├── metadata/
 │   └── extract_channel_metadata.py    # Metadata extraction tools
+├── analysis/
+│   ├── channel_download_analyzer.py   # Download status analysis
+│   └── list_channels.py               # Channel listing utility
 ├── download/
 │   ├── download_playlist.py           # Download tools
 │   └── download_content.py
