@@ -217,6 +217,82 @@ def format_file_size(size_bytes: Optional[int]) -> str:
     return f"{size_bytes:.1f} TB"
 
 
+def get_channel_folder_info(channel: Dict, root_dir: str) -> Dict[str, Any]:
+    """Determine channel folder path and check if it exists."""
+    from pathlib import Path
+    
+    root_path = Path(root_dir)
+    group_name = channel['group_name']
+    channel_name = channel['name']
+    channel_url = channel['url']
+    
+    # Try multiple possible folder names (expanded logic for real-world folders)
+    possible_folders = []
+    
+    # 1. Full channel name
+    possible_folders.append(root_path / group_name / f"Channel-{channel_name}")
+    
+    # 2. Extract channel name from URL (@username)
+    if '@' in channel_url:
+        url_channel_name = channel_url.split('@')[1].split('/')[0]
+        possible_folders.append(root_path / group_name / f"Channel-{url_channel_name}")
+    
+    # 3. Short name (remove common suffixes)
+    short_name = channel_name.replace('enjoy', '').replace('music', '').replace('official', '').strip()
+    if short_name != channel_name:
+        possible_folders.append(root_path / group_name / f"Channel-{short_name}")
+    
+    # 4. Uppercase short name
+    possible_folders.append(root_path / group_name / f"Channel-{short_name.upper()}")
+    
+    # 5. Channel name with spaces (for names like "Ann in Black")
+    spaced_name = channel_name.replace('InBlack', ' in Black').replace('BAND', '').strip()
+    if spaced_name != channel_name:
+        possible_folders.append(root_path / group_name / f"Channel-{spaced_name}")
+    
+    # 6. Capitalized short names (Wellboy vs WELLBOYmusic)
+    capitalized_short = short_name.capitalize()
+    if capitalized_short != short_name:
+        possible_folders.append(root_path / group_name / f"Channel-{capitalized_short}")
+    
+    # 7. Try searching in group folder for any Channel-* folders (brute force)
+    group_folder = root_path / group_name
+    if group_folder.exists():
+        for item in group_folder.iterdir():
+            if item.is_dir() and item.name.startswith('Channel-'):
+                folder_channel_name = item.name[8:]  # Remove "Channel-" prefix
+                # Check if this could be our channel (contains part of our name)
+                if (folder_channel_name.upper() in channel_name.upper() or 
+                    channel_name.upper() in folder_channel_name.upper() or
+                    any(part in folder_channel_name.upper() for part in channel_name.upper().split()) or
+                    any(part in channel_name.upper() for part in folder_channel_name.upper().split())):
+                    possible_folders.append(item)
+    
+    # Check which folder exists and count files
+    result = {
+        'expected_path': str(possible_folders[0]),  # Primary expected path
+        'actual_path': None,
+        'exists': False,
+        'file_count': 0,
+        'possible_paths': [str(p) for p in possible_folders]
+    }
+    
+    # Find existing folder
+    for folder_path in possible_folders:
+        if folder_path.exists():
+            result['actual_path'] = str(folder_path)
+            result['exists'] = True
+            
+            # Count media files
+            video_extensions = ['.mp4', '.webm', '.mkv', '.avi', '.mp3', '.m4a']
+            media_files = [f for f in folder_path.iterdir() 
+                          if f.is_file() and f.suffix.lower() in video_extensions]
+            result['file_count'] = len(media_files)
+            break
+    
+    return result
+
+
 def print_channel_summary(channel: Dict, video_count: int, downloaded_count: int, deleted_count: int):
     """Print channel summary information."""
     print(f"\n{'='*80}")
@@ -227,6 +303,22 @@ def print_channel_summary(channel: Dict, video_count: int, downloaded_count: int
     print(f"📅 Download from: {channel['date_from'] or 'All time'}")
     print(f"🔄 Last sync: {channel['last_sync_ts'] or 'Never'}")
     print(f"📊 Database track count: {channel['track_count'] or 0}")
+    
+    # Show folder information
+    root_dir = env_config.get('ROOT_DIR', 'D:/music/Youtube')
+    folder_info = get_channel_folder_info(channel, root_dir)
+    
+    print(f"")
+    print(f"📂 FOLDER INFORMATION:")
+    if folder_info['exists']:
+        print(f"   📁 Local folder: {folder_info['actual_path']}")
+        print(f"   📄 Files in folder: {folder_info['file_count']}")
+    else:
+        print(f"   📁 Expected folder: {folder_info['expected_path']}")
+        print(f"   ❌ Folder does not exist")
+        if len(folder_info['possible_paths']) > 1:
+            print(f"   💡 Also checked: {', '.join(folder_info['possible_paths'][1:])}")
+    
     print(f"")
     print(f"📈 ANALYSIS RESULTS:")
     print(f"   📺 Total videos in metadata: {video_count}")
@@ -426,6 +518,18 @@ Examples:
         if args.days_back:
             print(f"📅 Filtering videos from last {args.days_back} days")
         
+        # Show brief channel overview with folder info
+        if len(channels) > 1:
+            print(f"\n📋 CHANNELS OVERVIEW:")
+            root_dir = env_config.get('ROOT_DIR', 'D:/music/Youtube')
+            
+            for channel in channels:
+                folder_info = get_channel_folder_info(channel, root_dir)
+                folder_icon = "📁" if folder_info['exists'] else "❌"
+                folder_text = f"({folder_info['file_count']} files)" if folder_info['exists'] else "(no folder)"
+                
+                print(f"   📺 {channel['name']:25} | Group: {channel['group_name']:15} | {folder_icon} {folder_text}")
+        
         # Analyze each channel
         total_stats = {
             'total_videos': 0,
@@ -461,6 +565,22 @@ Examples:
             if total_stats['total_videos'] > 0:
                 download_rate = (total_stats['downloaded'] / total_stats['total_videos']) * 100
                 print(f"📊 Overall download rate: {download_rate:.1f}%")
+            
+            # Folder summary
+            print(f"\n📂 FOLDER SUMMARY:")
+            root_dir = env_config.get('ROOT_DIR', 'D:/music/Youtube')
+            folders_exist = 0
+            total_files = 0
+            
+            for channel in channels:
+                folder_info = get_channel_folder_info(channel, root_dir)
+                if folder_info['exists']:
+                    folders_exist += 1
+                    total_files += folder_info['file_count']
+            
+            print(f"📁 Folders exist: {folders_exist}/{len(channels)}")
+            print(f"📄 Total files in folders: {total_files}")
+            print(f"📍 Root directory: {root_dir}")
         
         conn.close()
         
