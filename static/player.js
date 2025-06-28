@@ -206,6 +206,7 @@ function getGroupPlaybackInfo(tracks) {
   const nextBtn = document.getElementById('nextBtn');
   const prevBtn = document.getElementById('prevBtn');
   const playBtn = document.getElementById('playBtn');
+  const deleteCurrentBtn = document.getElementById('deleteCurrentBtn');
   const fullBtn = document.getElementById('fullBtn');
   const cLike = document.getElementById('cLike');
   const cYoutube = document.getElementById('cYoutube');
@@ -436,12 +437,58 @@ function getGroupPlaybackInfo(tracks) {
     listElem.innerHTML = '';
     queue.forEach((t, idx) => {
       const li = document.createElement('li');
-      // Remove trailing [hash] part from display
-      const displayName = t.name.replace(/\s*\[.*?\]$/, '');
-      li.textContent = `${idx + 1}. ${displayName}`;
       li.dataset.index = idx;
       if (idx === currentIndex) li.classList.add('playing');
-      li.onclick = () => playIndex(idx);
+      
+      // Create track content container
+      const trackContent = document.createElement('div');
+      trackContent.className = 'track-content';
+      trackContent.style.cssText = 'display: flex; justify-content: space-between; align-items: center; width: 100%;';
+      
+      // Track name and number
+      const trackInfo = document.createElement('div');
+      trackInfo.className = 'track-info';
+      trackInfo.style.cssText = 'flex: 1; cursor: pointer;';
+      const displayName = t.name.replace(/\s*\[.*?\]$/, '');
+      trackInfo.textContent = `${idx + 1}. ${displayName}`;
+      trackInfo.onclick = () => playIndex(idx);
+      
+      // Delete button
+      const deleteBtn = document.createElement('button');
+      deleteBtn.className = 'delete-btn';
+      deleteBtn.innerHTML = '🗑️';
+      deleteBtn.title = 'Удалить трек';
+      deleteBtn.style.cssText = `
+        background: none;
+        border: none;
+        color: #ff4444;
+        cursor: pointer;
+        font-size: 16px;
+        padding: 4px 8px;
+        border-radius: 4px;
+        margin-left: 8px;
+        opacity: 0.7;
+        transition: opacity 0.2s ease, background-color 0.2s ease;
+      `;
+      
+      // Hover effects for delete button
+      deleteBtn.onmouseenter = () => {
+        deleteBtn.style.opacity = '1';
+        deleteBtn.style.backgroundColor = 'rgba(255, 68, 68, 0.1)';
+      };
+      deleteBtn.onmouseleave = () => {
+        deleteBtn.style.opacity = '0.7';
+        deleteBtn.style.backgroundColor = 'transparent';
+      };
+      
+      deleteBtn.onclick = (e) => {
+        e.stopPropagation(); // Prevent track selection
+        deleteTrack(t, idx);
+      };
+      
+      trackContent.appendChild(trackInfo);
+      trackContent.appendChild(deleteBtn);
+      li.appendChild(trackContent);
       listElem.appendChild(li);
     });
   }
@@ -551,6 +598,79 @@ function getGroupPlaybackInfo(tracks) {
     } else {
       media.pause();
       sendStreamEvent({action:'pause', position: media.currentTime, paused:true});
+    }
+  };
+
+  deleteCurrentBtn.onclick = async () => {
+    // Check if there's a current track
+    if (currentIndex < 0 || currentIndex >= queue.length) {
+      showNotification('❌ Нет активного трека для удаления', 'error');
+      return;
+    }
+    
+    const currentTrack = queue[currentIndex];
+    
+    // Confirm deletion
+    const confirmMessage = `Удалить текущий трек "${currentTrack.name.replace(/\s*\[.*?\]$/, '')}" из плейлиста?\n\nТрек будет перемещен в корзину и может быть восстановен.`;
+    if (!confirm(confirmMessage)) {
+      return;
+    }
+    
+    console.log(`🗑️ Deleting current track: ${currentTrack.name} (${currentTrack.video_id})`);
+    
+    try {
+      // Send delete request to API
+      const response = await fetch('/api/delete_track', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          video_id: currentTrack.video_id
+        })
+      });
+      
+      const result = await response.json();
+      
+      if (result.status === 'ok') {
+        console.log(`✅ Current track deleted successfully: ${result.message}`);
+        
+        // Remove track from current queue
+        queue.splice(currentIndex, 1);
+        
+        // Also remove from original tracks array
+        const originalIndex = tracks.findIndex(t => t.video_id === currentTrack.video_id);
+        if (originalIndex !== -1) {
+          tracks.splice(originalIndex, 1);
+        }
+        
+        // Handle playback continuation
+        if (queue.length > 0) {
+          // Stay at the same index if possible, or go to first track
+          const nextIndex = currentIndex < queue.length ? currentIndex : 0;
+          playIndex(nextIndex);
+        } else {
+          // No tracks left
+          media.pause();
+          media.src = '';
+          currentIndex = -1;
+          showNotification('📭 Плейлист пуст - все треки удалены', 'info');
+        }
+        
+        // Update the list display
+        renderList();
+        
+        // Show success message
+        showNotification(`✅ Трек удален: ${result.message}`, 'success');
+        
+      } else {
+        console.error('❌ Failed to delete current track:', result.error);
+        showNotification(`❌ Ошибка удаления: ${result.error}`, 'error');
+      }
+      
+    } catch (error) {
+      console.error('❌ Error deleting current track:', error);
+      showNotification(`❌ Ошибка сети: ${error.message}`, 'error');
     }
   };
 
@@ -1166,5 +1286,125 @@ function getGroupPlaybackInfo(tracks) {
     console.log('✅ Data looks good, rendering playlist...');
     renderList();
     console.log('✅ Playlist rendered successfully');
+  }
+
+  // Function to delete a track
+  async function deleteTrack(track, trackIndex) {
+    try {
+      // Confirm deletion
+      const confirmMessage = `Удалить трек "${track.name.replace(/\s*\[.*?\]$/, '')}" из плейлиста?\n\nТрек будет перемещен в корзину и может быть восстановлен.`;
+      if (!confirm(confirmMessage)) {
+        return;
+      }
+      
+      console.log(`🗑️ Deleting track: ${track.name} (${track.video_id})`);
+      
+      // Send delete request to API
+      const response = await fetch('/api/delete_track', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          video_id: track.video_id
+        })
+      });
+      
+      const result = await response.json();
+      
+      if (result.status === 'ok') {
+        console.log(`✅ Track deleted successfully: ${result.message}`);
+        
+        // Remove track from current queue
+        queue.splice(trackIndex, 1);
+        
+        // Also remove from original tracks array
+        const originalIndex = tracks.findIndex(t => t.video_id === track.video_id);
+        if (originalIndex !== -1) {
+          tracks.splice(originalIndex, 1);
+        }
+        
+        // Adjust current index if needed
+        if (trackIndex < currentIndex) {
+          currentIndex--;
+        } else if (trackIndex === currentIndex) {
+          // If we deleted the currently playing track
+          if (queue.length > 0) {
+            // Play the next track or the first one if we were at the end
+            const nextIndex = trackIndex < queue.length ? trackIndex : 0;
+            playIndex(nextIndex);
+          } else {
+            // No tracks left
+            media.pause();
+            media.src = '';
+            currentIndex = -1;
+          }
+        }
+        
+        // Update the list display
+        renderList();
+        
+        // Show success message
+        showNotification(`✅ Трек удален: ${result.message}`, 'success');
+        
+      } else {
+        console.error('❌ Failed to delete track:', result.error);
+        showNotification(`❌ Ошибка удаления: ${result.error}`, 'error');
+      }
+      
+    } catch (error) {
+      console.error('❌ Error deleting track:', error);
+      showNotification(`❌ Ошибка сети: ${error.message}`, 'error');
+    }
+  }
+
+  // Function to show notifications
+  function showNotification(message, type = 'info') {
+    // Create notification element
+    const notification = document.createElement('div');
+    notification.className = `notification notification-${type}`;
+    notification.textContent = message;
+    notification.style.cssText = `
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      padding: 12px 20px;
+      border-radius: 6px;
+      color: white;
+      font-weight: 500;
+      z-index: 10000;
+      max-width: 400px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+      transition: opacity 0.3s ease, transform 0.3s ease;
+      transform: translateX(100%);
+    `;
+    
+    // Set background color based on type
+    if (type === 'success') {
+      notification.style.backgroundColor = '#4caf50';
+    } else if (type === 'error') {
+      notification.style.backgroundColor = '#f44336';
+    } else {
+      notification.style.backgroundColor = '#2196f3';
+    }
+    
+    // Add to document
+    document.body.appendChild(notification);
+    
+    // Animate in
+    setTimeout(() => {
+      notification.style.transform = 'translateX(0)';
+    }, 100);
+    
+    // Auto remove after 5 seconds
+    setTimeout(() => {
+      notification.style.opacity = '0';
+      notification.style.transform = 'translateX(100%)';
+      setTimeout(() => {
+        if (notification.parentNode) {
+          notification.parentNode.removeChild(notification);
+        }
+      }, 300);
+    }, 5000);
   }
 })(); 

@@ -1625,6 +1625,116 @@ def api_restore_track():
         log_message(f"[Restore] Error restoring track: {e}")
         return jsonify({"status": "error", "error": str(e)}), 500 
 
+@api_bp.route("/delete_track", methods=["POST"])
+def api_delete_track():
+    """Delete a track from playlist by moving it to trash."""
+    try:
+        data = request.get_json() or {}
+        video_id = data.get('video_id')
+        
+        # Validate required fields
+        if not video_id:
+            return jsonify({"status": "error", "error": "Video ID is required"}), 400
+        
+        conn = get_connection()
+        
+        # Get track information from database
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT id, name, relpath, video_id, channel_group
+            FROM tracks 
+            WHERE video_id = ?
+        """, (video_id,))
+        
+        track = cursor.fetchone()
+        if not track:
+            conn.close()
+            return jsonify({"status": "error", "error": "Track not found"}), 404
+        
+        track_id = track[0]
+        track_name = track[1]
+        track_relpath = track[2]
+        channel_group = track[4] if track[4] else 'Unknown'
+        
+        # Construct full file path
+        full_file_path = ROOT_DIR / track_relpath
+        
+        if not full_file_path.exists():
+            log_message(f"[Delete] File not found: {full_file_path}")
+            return jsonify({"status": "error", "error": "File not found on disk"}), 404
+        
+        # Extract channel name from file path for trash organization
+        # Based on user requirement: D:\music\Youtube\Playlists\Trash\имя_канала_автора_видео
+        channel_name = "Unknown"
+        if "Channel-" in track_relpath:
+            # Extract channel name from path like "Music/Channel-Artist/video.mp4"
+            channel_match = re.search(r'Channel-([^/\\]+)', track_relpath)
+            if channel_match:
+                channel_name = channel_match.group(1)
+        else:
+            # For regular playlists, use the playlist name as channel
+            path_parts = Path(track_relpath).parts
+            if len(path_parts) > 0:
+                channel_name = path_parts[0]
+        
+        # Create trash directory structure: Trash/channel_name/
+        trash_dir = ROOT_DIR / "Playlists" / "Trash" / channel_name
+        trash_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Generate unique filename in trash if file already exists
+        target_file = trash_dir / full_file_path.name
+        if target_file.exists():
+            # Add timestamp to avoid conflicts
+            import datetime
+            timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+            name_parts = full_file_path.name.rsplit('.', 1)
+            if len(name_parts) == 2:
+                new_name = f"{name_parts[0]}_{timestamp}.{name_parts[1]}"
+            else:
+                new_name = f"{full_file_path.name}_{timestamp}"
+            target_file = trash_dir / new_name
+        
+        # Move file to trash
+        import shutil
+        try:
+            shutil.move(str(full_file_path), str(target_file))
+            trash_path = str(target_file.relative_to(ROOT_DIR))
+            log_message(f"[Delete] Moved to trash: {track_name} → {trash_path}")
+        except Exception as e:
+            log_message(f"[Delete] Failed to move to trash: {e}")
+            return jsonify({"status": "error", "error": f"Failed to move file to trash: {e}"}), 500
+        
+        # Record deletion in database
+        db.record_track_deletion(
+            conn, 
+            video_id, 
+            track_name, 
+            track_relpath, 
+            deletion_reason='manual_delete',
+            channel_group=channel_name,
+            trash_path=trash_path,
+            additional_data=f"deleted_from_playlist_ui"
+        )
+        
+        # Record deletion event in play_history
+        record_event(conn, video_id, 'removed', additional_data=f'manual_delete_to_trash:{trash_path}')
+        
+        conn.close()
+        
+        log_message(f"[Delete] Successfully deleted track {video_id} ({track_name}) to trash")
+        return jsonify({
+            "status": "ok",
+            "message": f"Track moved to trash: {channel_name}/{target_file.name}",
+            "video_id": video_id,
+            "track_name": track_name,
+            "trash_path": trash_path
+        })
+        
+    except Exception as e:
+        log_message(f"[Delete] Error deleting track: {e}")
+        return jsonify({"status": "error", "error": str(e)}), 500
+
+
 @api_bp.route("/remove_channel/<int:channel_id>", methods=["POST"])
 def api_remove_channel(channel_id: int):
     """Remove channel from its group."""
