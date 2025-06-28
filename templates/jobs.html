@@ -1,0 +1,1101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Job Queue Management</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            color: white;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+
+        .card {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+            overflow: hidden;
+        }
+
+        .card-header {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            padding: 20px;
+            font-size: 1.2rem;
+            font-weight: 600;
+        }
+
+        .card-body {
+            padding: 20px;
+        }
+
+        /* Queue Status Dashboard */
+        .status-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .status-item {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+
+        .status-item h3 {
+            font-size: 2rem;
+            margin-bottom: 5px;
+        }
+
+        .status-item p {
+            opacity: 0.9;
+        }
+
+        /* Control Panel */
+        .controls {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.2s;
+        }
+
+        .btn-primary {
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+        }
+
+        .btn-success {
+            background: linear-gradient(45deg, #56ab2f, #a8e6cf);
+            color: white;
+        }
+
+        .btn-warning {
+            background: linear-gradient(45deg, #f093fb, #f5576c);
+            color: white;
+        }
+
+        .btn-danger {
+            background: linear-gradient(45deg, #fc466b, #3f5efb);
+            color: white;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+
+        /* Job Creation Form */
+        .job-form {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .form-group label {
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: #555;
+        }
+
+        .form-group input,
+        .form-group select,
+        .form-group textarea {
+            padding: 10px;
+            border: 2px solid #e1e5e9;
+            border-radius: 6px;
+            font-size: 14px;
+            transition: border-color 0.2s;
+        }
+
+        .form-group input:focus,
+        .form-group select:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        /* Jobs Table */
+        .jobs-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+
+        .jobs-table th,
+        .jobs-table td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #e1e5e9;
+        }
+
+        .jobs-table th {
+            background: #f8f9fa;
+            font-weight: 600;
+            color: #555;
+        }
+
+        .jobs-table tr:hover {
+            background: #f8f9fa;
+        }
+
+        /* Status badges */
+        .status-badge {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .status-pending { background: #ffeaa7; color: #2d3436; }
+        .status-running { background: #74b9ff; color: white; }
+        .status-completed { background: #00b894; color: white; }
+        .status-failed { background: #e17055; color: white; }
+        .status-cancelled { background: #636e72; color: white; }
+        .status-timeout { background: #e84393; color: white; }
+        .status-retrying { background: #a29bfe; color: white; }
+
+        /* Priority badges */
+        .priority-badge {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .priority-low { background: #ddd; color: #555; }
+        .priority-normal { background: #74b9ff; color: white; }
+        .priority-high { background: #fdcb6e; color: #2d3436; }
+        .priority-urgent { background: #e17055; color: white; }
+        .priority-critical { background: #d63031; color: white; }
+
+        /* Job actions */
+        .job-actions {
+            display: flex;
+            gap: 5px;
+        }
+
+        .job-actions .btn {
+            padding: 6px 12px;
+            font-size: 12px;
+        }
+
+        /* Filters */
+        .filters {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .filter-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .filter-group label {
+            font-weight: 600;
+            color: #555;
+        }
+
+        .filter-group select {
+            padding: 8px 12px;
+            border: 2px solid #e1e5e9;
+            border-radius: 6px;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .container {
+                padding: 10px;
+            }
+
+            .header h1 {
+                font-size: 2rem;
+            }
+
+            .controls {
+                flex-direction: column;
+            }
+
+            .jobs-table {
+                font-size: 14px;
+            }
+
+            .jobs-table th,
+            .jobs-table td {
+                padding: 8px;
+            }
+        }
+
+        /* Loading indicator */
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+        }
+
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Toast notifications */
+        .toast {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #00b894;
+            color: white;
+            padding: 15px 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            z-index: 1000;
+            opacity: 0;
+            transform: translateX(100%);
+            transition: all 0.3s;
+        }
+
+        .toast.show {
+            opacity: 1;
+            transform: translateX(0);
+        }
+
+        .toast.error {
+            background: #e17055;
+        }
+
+        /* Modal */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.5);
+        }
+
+        .modal-content {
+            background-color: white;
+            margin: 5% auto;
+            padding: 20px;
+            border-radius: 10px;
+            width: 90%;
+            max-width: 800px;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .modal-header h2 {
+            margin: 0;
+        }
+
+        .close {
+            background: none;
+            border: none;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+            margin-left: auto;
+        }
+
+        .close:hover {
+            color: #999;
+        }
+
+        /* Job logs display */
+        .log-content {
+            background: #2d3748;
+            color: #e2e8f0;
+            padding: 15px;
+            border-radius: 6px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            max-height: 400px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            margin-bottom: 15px;
+        }
+
+        .back-button {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            color: white;
+            text-decoration: none;
+            margin-bottom: 20px;
+            font-weight: 500;
+        }
+
+        .back-button:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="/" class="back-button">
+            ← Back to Home
+        </a>
+
+        <div class="header">
+            <h1>🔄 Job Queue Management</h1>
+            <p>Monitor and manage background tasks</p>
+        </div>
+
+        <!-- Queue Status -->
+        <div class="card">
+            <div class="card-header">
+                📊 Queue Status
+            </div>
+            <div class="card-body">
+                <div class="status-grid" id="statusGrid">
+                    <div class="loading">
+                        <div class="spinner"></div>
+                        Loading queue status...
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Job Creation -->
+        <div class="card">
+            <div class="card-header">
+                ➕ Create New Job
+            </div>
+            <div class="card-body">
+                <form id="jobForm" class="job-form">
+                    <div class="form-group">
+                        <label for="jobType">Job Type *</label>
+                        <select id="jobType" name="job_type" required>
+                            <option value="">Select job type...</option>
+                            <option value="channel_download">Channel Download</option>
+                            <option value="metadata_extraction">Metadata Extraction</option>
+                            <option value="playlist_download">Playlist Download</option>
+                            <option value="single_video_download">Single Video Download</option>
+                            <option value="file_cleanup">File Cleanup</option>
+                            <option value="database_cleanup">Database Cleanup</option>
+                            <option value="log_cleanup">Log Cleanup</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="priority">Priority</label>
+                        <select id="priority" name="priority">
+                            <option value="low">Low</option>
+                            <option value="normal" selected>Normal</option>
+                            <option value="high">High</option>
+                            <option value="urgent">Urgent</option>
+                            <option value="critical">Critical</option>
+                        </select>
+                    </div>
+
+                    <!-- Dynamic parameters based on job type -->
+                    <div id="jobParameters" style="grid-column: 1 / -1;">
+                        <p style="color: #666; font-style: italic;">Select a job type to see available parameters</p>
+                    </div>
+
+                    <div class="form-group" style="grid-column: 1 / -1;">
+                        <button type="submit" class="btn btn-primary">
+                            🚀 Create Job
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Job Filters -->
+        <div class="card">
+            <div class="card-header">
+                🔍 Job List
+            </div>
+            <div class="card-body">
+                <div class="filters">
+                    <div class="filter-group">
+                        <label for="statusFilter">Status:</label>
+                        <select id="statusFilter">
+                            <option value="">All</option>
+                            <option value="pending">Pending</option>
+                            <option value="running">Running</option>
+                            <option value="completed">Completed</option>
+                            <option value="failed">Failed</option>
+                            <option value="cancelled">Cancelled</option>
+                            <option value="timeout">Timeout</option>
+                            <option value="retrying">Retrying</option>
+                        </select>
+                    </div>
+
+                    <div class="filter-group">
+                        <label for="typeFilter">Type:</label>
+                        <select id="typeFilter">
+                            <option value="">All</option>
+                            <option value="channel_download">Channel Download</option>
+                            <option value="metadata_extraction">Metadata Extraction</option>
+                            <option value="playlist_download">Playlist Download</option>
+                            <option value="single_video_download">Single Video</option>
+                            <option value="file_cleanup">File Cleanup</option>
+                            <option value="database_cleanup">Database Cleanup</option>
+                            <option value="log_cleanup">Log Cleanup</option>
+                        </select>
+                    </div>
+
+                    <div class="filter-group">
+                        <label for="limitFilter">Limit:</label>
+                        <select id="limitFilter">
+                            <option value="10">10</option>
+                            <option value="25" selected>25</option>
+                            <option value="50">50</option>
+                            <option value="100">100</option>
+                        </select>
+                    </div>
+
+                    <button id="refreshJobs" class="btn btn-primary">
+                        🔄 Refresh
+                    </button>
+                </div>
+
+                <!-- Jobs Table -->
+                <div id="jobsContainer">
+                    <div class="loading">
+                        <div class="spinner"></div>
+                        Loading jobs...
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Job Details Modal -->
+    <div id="jobModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="modalTitle">Job Details</h2>
+                <button class="close" onclick="closeJobModal()">&times;</button>
+            </div>
+            <div id="modalBody">
+                <!-- Content will be loaded dynamically -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notifications -->
+    <div id="toast" class="toast"></div>
+
+    <script>
+        // Global state
+        let autoRefresh = true;
+        let refreshInterval;
+
+        // Initialize page
+        document.addEventListener('DOMContentLoaded', function() {
+            loadQueueStatus();
+            loadJobs();
+            setupEventListeners();
+            startAutoRefresh();
+        });
+
+        function setupEventListeners() {
+            // Job type change
+            document.getElementById('jobType').addEventListener('change', updateJobParameters);
+
+            // Job form submission
+            document.getElementById('jobForm').addEventListener('submit', createJob);
+
+            // Filter changes
+            document.getElementById('statusFilter').addEventListener('change', loadJobs);
+            document.getElementById('typeFilter').addEventListener('change', loadJobs);
+            document.getElementById('limitFilter').addEventListener('change', loadJobs);
+
+            // Refresh button
+            document.getElementById('refreshJobs').addEventListener('click', function() {
+                loadQueueStatus();
+                loadJobs();
+            });
+
+            // Modal click outside to close
+            document.getElementById('jobModal').addEventListener('click', function(e) {
+                if (e.target === this) {
+                    closeJobModal();
+                }
+            });
+        }
+
+        function updateJobParameters() {
+            const jobType = document.getElementById('jobType').value;
+            const container = document.getElementById('jobParameters');
+
+            if (!jobType) {
+                container.innerHTML = '<p style="color: #666; font-style: italic;">Select a job type to see available parameters</p>';
+                return;
+            }
+
+            let html = '';
+
+            switch (jobType) {
+                case 'channel_download':
+                    html = `
+                        <div class="form-group">
+                            <label for="channelUrl">Channel URL *</label>
+                            <input type="url" id="channelUrl" name="channel_url" placeholder="https://www.youtube.com/@channelname" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="channelId">Channel ID</label>
+                            <input type="number" id="channelId" name="channel_id" placeholder="Channel database ID">
+                        </div>
+                        <div class="form-group">
+                            <label for="groupName">Group Name</label>
+                            <input type="text" id="groupName" name="group_name" placeholder="Channel group name">
+                        </div>
+                        <div class="form-group">
+                            <label for="maxDownloads">Max Downloads</label>
+                            <input type="number" id="maxDownloads" name="max_downloads" placeholder="Limit number of downloads">
+                        </div>
+                    `;
+                    break;
+
+                case 'metadata_extraction':
+                    html = `
+                        <div class="form-group">
+                            <label for="metaChannelUrl">Channel URL *</label>
+                            <input type="url" id="metaChannelUrl" name="channel_url" placeholder="https://www.youtube.com/@channelname" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="metaChannelId">Channel ID</label>
+                            <input type="number" id="metaChannelId" name="channel_id" placeholder="Channel database ID">
+                        </div>
+                        <div class="form-group">
+                            <label for="maxEntries">Max Entries</label>
+                            <input type="number" id="maxEntries" name="max_entries" placeholder="Limit metadata entries">
+                        </div>
+                        <div class="form-group">
+                            <label for="forceUpdate">Force Update</label>
+                            <select id="forceUpdate" name="force_update">
+                                <option value="false">No</option>
+                                <option value="true">Yes</option>
+                            </select>
+                        </div>
+                    `;
+                    break;
+
+                case 'playlist_download':
+                case 'single_video_download':
+                    html = `
+                        <div class="form-group">
+                            <label for="playlistUrl">Playlist/Video URL *</label>
+                            <input type="url" id="playlistUrl" name="playlist_url" placeholder="https://www.youtube.com/playlist?list=..." required>
+                        </div>
+                        <div class="form-group">
+                            <label for="targetFolder">Target Folder</label>
+                            <input type="text" id="targetFolder" name="target_folder" placeholder="Folder name for downloads">
+                        </div>
+                        <div class="form-group">
+                            <label for="extractAudio">Extract Audio Only</label>
+                            <select id="extractAudio" name="extract_audio">
+                                <option value="false">No</option>
+                                <option value="true">Yes</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="formatSelector">Format</label>
+                            <input type="text" id="formatSelector" name="format_selector" placeholder="best" value="best">
+                        </div>
+                    `;
+                    break;
+
+                case 'file_cleanup':
+                case 'database_cleanup':
+                case 'log_cleanup':
+                    html = `
+                        <div class="form-group">
+                            <label for="cleanupType">Cleanup Type *</label>
+                            <select id="cleanupType" name="cleanup_type" required>
+                                ${jobType === 'file_cleanup' ? `
+                                    <option value="temp_files">Temporary Files</option>
+                                    <option value="old_downloads">Old Downloads</option>
+                                    <option value="orphaned_files">Orphaned Files</option>
+                                ` : ''}
+                                ${jobType === 'database_cleanup' ? `
+                                    <option value="old_history">Old History</option>
+                                    <option value="orphaned_records">Orphaned Records</option>
+                                    <option value="temp_data">Temporary Data</option>
+                                ` : ''}
+                                ${jobType === 'log_cleanup' ? `
+                                    <option value="old_logs">Old Logs</option>
+                                    <option value="job_logs">Job Logs</option>
+                                    <option value="archive_logs">Archive Logs</option>
+                                ` : ''}
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="daysOld">Days Old</label>
+                            <input type="number" id="daysOld" name="days_old" value="30" min="1">
+                        </div>
+                        <div class="form-group">
+                            <label for="dryRun">Dry Run</label>
+                            <select id="dryRun" name="dry_run">
+                                <option value="true">Yes (Safe)</option>
+                                <option value="false">No (Delete)</option>
+                            </select>
+                        </div>
+                    `;
+                    break;
+            }
+
+            container.innerHTML = html;
+        }
+
+        async function loadQueueStatus() {
+            try {
+                const response = await fetch('/api/jobs/queue/status');
+                const data = await response.json();
+
+                if (data.status === 'ok') {
+                    renderQueueStatus(data.queue_stats);
+                } else {
+                    showToast('Error loading queue status: ' + data.error, 'error');
+                }
+            } catch (error) {
+                showToast('Error loading queue status: ' + error.message, 'error');
+            }
+        }
+
+        function renderQueueStatus(stats) {
+            const container = document.getElementById('statusGrid');
+            
+            const html = `
+                <div class="status-item">
+                    <h3>${stats.total_jobs}</h3>
+                    <p>Total Jobs</p>
+                </div>
+                <div class="status-item">
+                    <h3>${stats.running_jobs}</h3>
+                    <p>Running</p>
+                </div>
+                <div class="status-item">
+                    <h3>${stats.completed_jobs}</h3>
+                    <p>Completed</p>
+                </div>
+                <div class="status-item">
+                    <h3>${stats.failed_jobs}</h3>
+                    <p>Failed</p>
+                </div>
+                <div class="status-item">
+                    <h3>${stats.workers.total}</h3>
+                    <p>Workers</p>
+                </div>
+                <div class="status-item">
+                    <h3>${Math.floor(stats.uptime_seconds / 60)}m</h3>
+                    <p>Uptime</p>
+                </div>
+            `;
+
+            container.innerHTML = html;
+        }
+
+        async function loadJobs() {
+            const statusFilter = document.getElementById('statusFilter').value;
+            const typeFilter = document.getElementById('typeFilter').value;
+            const limit = document.getElementById('limitFilter').value;
+
+            try {
+                let url = '/api/jobs?limit=' + limit;
+                if (statusFilter) url += '&status=' + statusFilter;
+                if (typeFilter) url += '&type=' + typeFilter;
+
+                const response = await fetch(url);
+                const data = await response.json();
+
+                if (data.status === 'ok') {
+                    renderJobsTable(data.jobs);
+                } else {
+                    showToast('Error loading jobs: ' + data.error, 'error');
+                }
+            } catch (error) {
+                showToast('Error loading jobs: ' + error.message, 'error');
+            }
+        }
+
+        function renderJobsTable(jobs) {
+            const container = document.getElementById('jobsContainer');
+
+            if (jobs.length === 0) {
+                container.innerHTML = '<p style="text-align: center; color: #666; padding: 40px;">No jobs found</p>';
+                return;
+            }
+
+            let html = `
+                <table class="jobs-table">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Type</th>
+                            <th>Status</th>
+                            <th>Priority</th>
+                            <th>Created</th>
+                            <th>Duration</th>
+                            <th>Worker</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+
+            jobs.forEach(job => {
+                const createdAt = job.created_at ? new Date(job.created_at).toLocaleString() : 'Unknown';
+                const duration = job.elapsed_time ? formatDuration(job.elapsed_time) : '-';
+                const worker = job.worker_id || '-';
+
+                html += `
+                    <tr>
+                        <td>#${job.id}</td>
+                        <td>${formatJobType(job.job_type)}</td>
+                        <td><span class="status-badge status-${job.status}">${job.status}</span></td>
+                        <td><span class="priority-badge priority-${getPriorityName(job.priority)}">${getPriorityName(job.priority)}</span></td>
+                        <td>${createdAt}</td>
+                        <td>${duration}</td>
+                        <td>${worker}</td>
+                        <td class="job-actions">
+                            <button class="btn btn-primary" onclick="showJobDetails(${job.id})">View</button>
+                            ${job.status === 'failed' || job.status === 'cancelled' || job.status === 'timeout' ? 
+                                `<button class="btn btn-warning" onclick="retryJob(${job.id})">Retry</button>` : ''}
+                            ${job.status === 'pending' || job.status === 'running' ? 
+                                `<button class="btn btn-danger" onclick="cancelJob(${job.id})">Cancel</button>` : ''}
+                        </td>
+                    </tr>
+                `;
+            });
+
+            html += '</tbody></table>';
+            container.innerHTML = html;
+        }
+
+        async function createJob(e) {
+            e.preventDefault();
+
+            const formData = new FormData(e.target);
+            const jobData = {
+                job_type: formData.get('job_type'),
+                priority: formData.get('priority'),
+                parameters: {}
+            };
+
+            // Collect job-specific parameters
+            const allInputs = e.target.querySelectorAll('input, select, textarea');
+            allInputs.forEach(input => {
+                if (input.name && input.name !== 'job_type' && input.name !== 'priority' && input.value) {
+                    let value = input.value;
+                    
+                    // Convert boolean strings
+                    if (value === 'true') value = true;
+                    else if (value === 'false') value = false;
+                    // Convert numbers
+                    else if (input.type === 'number' && value) value = parseInt(value);
+
+                    jobData.parameters[input.name] = value;
+                }
+            });
+
+            try {
+                const response = await fetch('/api/jobs', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(jobData)
+                });
+
+                const data = await response.json();
+
+                if (data.status === 'ok') {
+                    showToast(`Job #${data.job_id} created successfully!`);
+                    e.target.reset();
+                    updateJobParameters(); // Reset parameters
+                    loadQueueStatus();
+                    loadJobs();
+                } else {
+                    showToast('Error creating job: ' + data.error, 'error');
+                }
+            } catch (error) {
+                showToast('Error creating job: ' + error.message, 'error');
+            }
+        }
+
+        async function showJobDetails(jobId) {
+            try {
+                const response = await fetch(`/api/jobs/${jobId}`);
+                const data = await response.json();
+
+                if (data.status === 'ok') {
+                    const job = data.job;
+                    
+                    document.getElementById('modalTitle').textContent = `Job #${job.id} Details`;
+                    
+                    let html = `
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px; margin-bottom: 20px;">
+                            <div><strong>Type:</strong> ${formatJobType(job.job_type)}</div>
+                            <div><strong>Status:</strong> <span class="status-badge status-${job.status}">${job.status}</span></div>
+                            <div><strong>Priority:</strong> <span class="priority-badge priority-${getPriorityName(job.priority)}">${getPriorityName(job.priority)}</span></div>
+                            <div><strong>Retries:</strong> ${job.retry_count}/${job.max_retries}</div>
+                            <div><strong>Created:</strong> ${job.created_at ? new Date(job.created_at).toLocaleString() : 'Unknown'}</div>
+                            <div><strong>Started:</strong> ${job.started_at ? new Date(job.started_at).toLocaleString() : 'Not started'}</div>
+                            <div><strong>Duration:</strong> ${job.elapsed_time ? formatDuration(job.elapsed_time) : 'N/A'}</div>
+                            <div><strong>Worker:</strong> ${job.worker_id || 'Not assigned'}</div>
+                        </div>
+                    `;
+
+                    if (job.error_message) {
+                        html += `
+                            <div style="margin-bottom: 20px;">
+                                <strong>Error Message:</strong>
+                                <div class="log-content">${job.error_message}</div>
+                            </div>
+                        `;
+                    }
+
+                    if (Object.keys(job.job_data).length > 0) {
+                        html += `
+                            <div style="margin-bottom: 20px;">
+                                <strong>Job Parameters:</strong>
+                                <div class="log-content">${JSON.stringify(job.job_data, null, 2)}</div>
+                            </div>
+                        `;
+                    }
+
+                    html += `
+                        <div style="margin-bottom: 20px;">
+                            <button class="btn btn-primary" onclick="loadJobLogs(${job.id})">Load Logs</button>
+                            ${job.status === 'failed' || job.status === 'cancelled' || job.status === 'timeout' ? 
+                                `<button class="btn btn-warning" onclick="retryJob(${job.id}); closeJobModal();">Retry Job</button>` : ''}
+                            ${job.status === 'pending' || job.status === 'running' ? 
+                                `<button class="btn btn-danger" onclick="cancelJob(${job.id}); closeJobModal();">Cancel Job</button>` : ''}
+                        </div>
+                        <div id="jobLogsContainer"></div>
+                    `;
+
+                    document.getElementById('modalBody').innerHTML = html;
+                    document.getElementById('jobModal').style.display = 'block';
+                } else {
+                    showToast('Error loading job details: ' + data.error, 'error');
+                }
+            } catch (error) {
+                showToast('Error loading job details: ' + error.message, 'error');
+            }
+        }
+
+        async function loadJobLogs(jobId) {
+            const container = document.getElementById('jobLogsContainer');
+            container.innerHTML = '<div class="loading"><div class="spinner"></div>Loading logs...</div>';
+
+            try {
+                const response = await fetch(`/api/jobs/logs/${jobId}`);
+                const data = await response.json();
+
+                if (data.status === 'ok') {
+                    const logs = data.logs;
+                    let html = '';
+
+                    const logTypes = ['job', 'stdout', 'stderr', 'progress', 'summary'];
+                    logTypes.forEach(logType => {
+                        if (logs[logType] && logs[logType] !== 'Log file not found') {
+                            html += `
+                                <div style="margin-bottom: 20px;">
+                                    <strong>${logType.toUpperCase()} Log:</strong>
+                                    <div class="log-content">${logs[logType]}</div>
+                                </div>
+                            `;
+                        }
+                    });
+
+                    if (!html) {
+                        html = '<p>No log files available for this job.</p>';
+                    }
+
+                    container.innerHTML = html;
+                } else {
+                    container.innerHTML = '<p>Error loading logs: ' + data.error + '</p>';
+                }
+            } catch (error) {
+                container.innerHTML = '<p>Error loading logs: ' + error.message + '</p>';
+            }
+        }
+
+        async function retryJob(jobId) {
+            if (!confirm(`Are you sure you want to retry job #${jobId}?`)) return;
+
+            try {
+                const response = await fetch(`/api/jobs/${jobId}/retry`, {
+                    method: 'POST'
+                });
+
+                const data = await response.json();
+
+                if (data.status === 'ok') {
+                    showToast(`Job #${jobId} queued for retry`);
+                    loadQueueStatus();
+                    loadJobs();
+                } else {
+                    showToast('Error retrying job: ' + data.error, 'error');
+                }
+            } catch (error) {
+                showToast('Error retrying job: ' + error.message, 'error');
+            }
+        }
+
+        async function cancelJob(jobId) {
+            if (!confirm(`Are you sure you want to cancel job #${jobId}?`)) return;
+
+            try {
+                const response = await fetch(`/api/jobs/${jobId}`, {
+                    method: 'DELETE'
+                });
+
+                const data = await response.json();
+
+                if (data.status === 'ok') {
+                    showToast(`Job #${jobId} cancelled successfully`);
+                    loadQueueStatus();
+                    loadJobs();
+                } else {
+                    showToast('Error cancelling job: ' + data.error, 'error');
+                }
+            } catch (error) {
+                showToast('Error cancelling job: ' + error.message, 'error');
+            }
+        }
+
+        function closeJobModal() {
+            document.getElementById('jobModal').style.display = 'none';
+        }
+
+        function startAutoRefresh() {
+            if (refreshInterval) clearInterval(refreshInterval);
+            
+            refreshInterval = setInterval(() => {
+                if (autoRefresh) {
+                    loadQueueStatus();
+                    loadJobs();
+                }
+            }, 5000); // Refresh every 5 seconds
+        }
+
+        function showToast(message, type = 'success') {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.className = `toast ${type} show`;
+
+            setTimeout(() => {
+                toast.className = 'toast';
+            }, 4000);
+        }
+
+        // Utility functions
+        function formatJobType(jobType) {
+            return jobType.split('_').map(word => 
+                word.charAt(0).toUpperCase() + word.slice(1)
+            ).join(' ');
+        }
+
+        function getPriorityName(priorityValue) {
+            const priorities = {
+                0: 'low',
+                5: 'normal',
+                10: 'high',
+                15: 'urgent',
+                20: 'critical'
+            };
+            return priorities[priorityValue] || 'normal';
+        }
+
+        function formatDuration(seconds) {
+            if (seconds < 60) return `${Math.floor(seconds)}s`;
+            const minutes = Math.floor(seconds / 60);
+            const remainingSeconds = Math.floor(seconds % 60);
+            if (minutes < 60) return `${minutes}m ${remainingSeconds}s`;
+            const hours = Math.floor(minutes / 60);
+            const remainingMinutes = minutes % 60;
+            return `${hours}h ${remainingMinutes}m`;
+        }
+
+        // Cleanup on page unload
+        window.addEventListener('beforeunload', () => {
+            if (refreshInterval) clearInterval(refreshInterval);
+        });
+    </script>
+</body>
+</html> 

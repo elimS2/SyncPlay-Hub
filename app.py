@@ -443,6 +443,11 @@ def deleted_tracks_page():
     """Deleted tracks restoration page."""
     return render_template("deleted.html")
 
+@app.route("/jobs")
+def jobs_page():
+    """Job Queue management page."""
+    return render_template("jobs.html")
+
 # Register API blueprint
 app.register_blueprint(api_bp)
 
@@ -501,6 +506,26 @@ def main():
     from services.auto_delete_service import start_auto_delete_service
     start_auto_delete_service(ROOT_DIR)
     
+    # Initialize and start Job Queue Service
+    from services.job_queue_service import get_job_queue_service
+    from services.job_workers import ChannelDownloadWorker, MetadataExtractionWorker, CleanupWorker, PlaylistDownloadWorker
+    
+    try:
+        job_service = get_job_queue_service()
+        
+        # Register workers
+        job_service.register_worker(ChannelDownloadWorker())
+        job_service.register_worker(MetadataExtractionWorker())
+        job_service.register_worker(CleanupWorker())
+        job_service.register_worker(PlaylistDownloadWorker())
+        
+        # Start the service
+        job_service.start()
+        log_message("Job Queue Service started successfully")
+        
+    except Exception as e:
+        log_message(f"Warning: Failed to start Job Queue Service: {e}")
+    
     # Write PID file to track this server instance
     if not _write_pid_file():
         log_message("Warning: Could not create PID file")
@@ -525,6 +550,14 @@ def main():
         # Stop auto-delete service
         from services.auto_delete_service import stop_auto_delete_service
         stop_auto_delete_service()
+        
+        # Stop Job Queue Service
+        try:
+            job_service = get_job_queue_service()
+            job_service.stop()
+            log_message("Job Queue Service stopped successfully")
+        except Exception as e:
+            log_message(f"Warning: Error stopping Job Queue Service: {e}")
         
         # Clean up PID file on exit
         _remove_pid_file()
