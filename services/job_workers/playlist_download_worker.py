@@ -12,6 +12,7 @@ import sqlite3
 from pathlib import Path
 from typing import List
 from datetime import datetime
+import os
 
 # Добавляем корневую папку в путь для импортов
 sys.path.append(str(Path(__file__).parent.parent.parent))
@@ -87,7 +88,7 @@ class PlaylistDownloadWorker(JobWorker):
                     playlists_dir = root_dir / 'Playlists'
             else:
                 root_dir = project_root  # fallback
-                playlists_dir = root_dir / 'Playlists'
+            playlists_dir = root_dir / 'Playlists'
             
             # Создаем целевую папку если указана
             if target_folder:
@@ -101,7 +102,7 @@ class PlaylistDownloadWorker(JobWorker):
             if job.job_type == JobType.SINGLE_VIDEO_DOWNLOAD:
                 success = self._download_single_video(
                     playlist_url, config, project_root, target_folder,
-                    download_archive, format_selector, extract_audio
+                    download_archive, format_selector, extract_audio, job.job_data
                 )
             else:
                 success = self._download_playlist(
@@ -208,7 +209,7 @@ class PlaylistDownloadWorker(JobWorker):
     
     def _download_single_video(self, video_url: str, config: dict, project_root: Path,
                               target_folder: str, download_archive: bool, 
-                              format_selector: str, extract_audio: bool) -> bool:
+                              format_selector: str, extract_audio: bool, job_data: dict) -> bool:
         """Загружает отдельное видео."""
         try:
             # Используем yt-dlp напрямую для отдельных видео
@@ -236,37 +237,57 @@ class PlaylistDownloadWorker(JobWorker):
             output_template = str(output_dir / '%(title)s [%(id)s].%(ext)s')
             cmd.extend(['-o', output_template])
             
-            # Формат
+            # Формат с fallback для обхода HTTP 403
             if extract_audio:
                 cmd.extend(['-f', 'bestaudio', '--extract-audio', '--audio-format', 'mp3'])
             else:
-                cmd.extend(['-f', format_selector])
+                # Используем проверенное решение: f137+f251 вместо f616+f251 для обхода HTTP 403
+                if format_selector == 'bestvideo+bestaudio/best':
+                    cmd.extend(['-f', '137+251/best[height<=1080]/best'])
+                else:
+                    cmd.extend(['-f', format_selector])
             
             # Archive
             if download_archive:
                 archive_file = output_dir / 'archive.txt'
                 cmd.extend(['--download-archive', str(archive_file)])
             
-            # Дополнительные опции
+            # Основные опции + решение проблемы кодировки
             cmd.extend([
                 '--write-info-json',
-                '--write-thumbnail',
+                '--write-thumbnail', 
                 '--embed-thumbnail',
-                '--add-metadata'
+                '--add-metadata',
+                '--restrict-filenames',  # КЛЮЧЕВОЕ исправление для Unicode в Windows
+                '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+                '--extractor-retries', '3',
+                '--fragment-retries', '10'
             ])
+            
+            # Дополнительные параметры для исправления загрузки
+            if job_data.get('ignore_archive'):
+                cmd.append('--no-download-archive')
+            if job_data.get('force_overwrites'):
+                cmd.append('--force-overwrites')
             
             # URL видео
             cmd.append(video_url)
             
             print(f"Executing command: {' '.join(cmd)}")
             
-            # Запускаем загрузку с захватом вывода
+            # Запускаем загрузку с правильной кодировкой для Windows
+            env = os.environ.copy()
+            env['PYTHONIOENCODING'] = 'utf-8'
+            
             result = subprocess.run(
                 cmd,
                 cwd=str(project_root),
                 capture_output=True,
                 text=True,
-                timeout=3600  # 1 час timeout для отдельного видео
+                encoding='utf-8',
+                errors='replace',
+                timeout=3600,  # 1 час timeout для отдельного видео
+                env=env
             )
             
             # Выводим результат для логирования
