@@ -247,6 +247,10 @@
             <input type="checkbox" id="filter-playlist_added" {% if not filters.event_types_filter_applied or (filters.event_types and 'playlist_added' in filters.event_types) %}checked{% endif %}>
             <span>Playlist</span>
           </label>
+          <label class="event-type-checkbox" for="filter-removed">
+            <input type="checkbox" id="filter-removed" {% if not filters.event_types_filter_applied or (filters.event_types and 'removed' in filters.event_types) %}checked{% endif %}>
+            <span>Removed</span>
+          </label>
         </div>
       </div>
     </div>
@@ -386,6 +390,7 @@
       <div><span class="event-volume_change">🟡 volume_change</span> - Volume level adjusted</div>
       <div><span class="event-seek">🔵 seek</span> - Position changed (seek/scrub)</div>
       <div><span class="event-playlist_added">🟢 playlist_added</span> - Track added/discovered in playlist</div>
+      <div><span class="event-removed">🔴 removed</span> - Track deleted from library/playlist</div>
     </div>
     <div style="margin-top:10px;font-size:12px;color:#aaa;">
       <strong>Volume Sources:</strong> web (main player), remote (mobile control), gesture (swipe control)<br>
