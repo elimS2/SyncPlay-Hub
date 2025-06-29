@@ -90,7 +90,7 @@ def api_create_channel_group():
 
 @channels_bp.route("/add_channel", methods=["POST"])
 def api_add_channel():
-    """Add a YouTube channel to a group and start downloading."""
+    """Add a YouTube channel to a group and start optimized download process."""
     try:
         data = request.get_json() or {}
         group_id = data.get('group_id')
@@ -161,158 +161,191 @@ def api_add_channel():
         
         conn.close()
         
-        # Start background download
-        def _download_worker():
-            try:
-                # Import download_content from new module
-                from download_content import download_content
-                
-                # Set up progress callback for logging
-                def progress_callback(msg):
-                    log_message(f"[Channel Download] {msg}")
-                
-                # FIRST: Check if files for this channel already exist in other groups
-                existing_files_moved = False
-                root_dir = get_root_dir()
-                if not root_dir:
-                    log_message(f"[Channel Download] Error: ROOT_DIR not initialized")
+        # Use Job Queue System for optimized download process
+        try:
+            # Import job queue system
+            from services.job_queue_service import get_job_queue_service
+            from services.job_types import JobType, JobPriority
+            
+            # Get job service
+            job_service = get_job_queue_service(max_workers=1)
+            
+            # Create callback function to handle metadata completion and create download jobs
+            def metadata_completion_callback(job_id: int, success: bool, error_message: str = None):
+                """Callback function to create download jobs after metadata extraction."""
+                if not success:
+                    log_message(f"[Channel Add] Metadata extraction failed for {channel_url}: {error_message}")
                     return
-                    
-                target_folder = root_dir / group['name'] / f"Channel-{channel_name}"
                 
-                # Search for existing channel folders in all groups (including current)
-                for group_folder in root_dir.iterdir():
-                    if group_folder.is_dir():
-                        # Try multiple possible folder names (same logic as refresh_stats)
-                        possible_folders = []
-                        possible_folders.append(group_folder / f"Channel-{channel_name}")
-                        
-                        if '@' in channel_url:
-                            url_channel_name = channel_url.split('@')[1].split('/')[0]  
-                            possible_folders.append(group_folder / f"Channel-{url_channel_name}")
-                        
-                        short_name = channel_name.replace('enjoy', '').replace('music', '').replace('official', '').strip()
-                        if short_name != channel_name:
-                            possible_folders.append(group_folder / f"Channel-{short_name}")
-                        
-                        for existing_folder in possible_folders:
-                            if existing_folder.exists():
-                                try:
-                                    # Count files in existing folder
-                                    video_extensions = ['.mp4', '.webm', '.mkv', '.avi', '.mp3', '.m4a']
-                                    existing_files = [f for f in existing_folder.iterdir() 
-                                                    if f.is_file() and f.suffix.lower() in video_extensions]
-                                    
-                                    if existing_files:
-                                        if group_folder.name == group['name']:
-                                            # Files already in correct group - just use them
-                                            log_message(f"[Channel Download] Found {len(existing_files)} existing files in current group: {existing_folder}")
-                                            existing_files_moved = True
-                                            break
-                                        else:
-                                            # Files in different group - move them
-                                            log_message(f"[Channel Download] Found existing files for {channel_name} in {existing_folder}")
-                                            log_message(f"[Channel Download] Moving {len(existing_files)} files to new group: {group['name']}")
-                                            
-                                            # Create target folder
-                                            target_folder.mkdir(parents=True, exist_ok=True)
-                                            
-                                            # Move all files
-                                            moved_count = 0
-                                            for file in existing_files:
-                                                try:
-                                                    target_file = target_folder / file.name
-                                                    if not target_file.exists():
-                                                        shutil.move(str(file), str(target_file))
-                                                        moved_count += 1
-                                                except Exception as move_error:
-                                                    log_message(f"[Channel Download] Error moving file {file.name}: {move_error}")
-                                            
-                                            # Remove empty source folder if all files moved
-                                            if moved_count > 0:
-                                                try:
-                                                    remaining_files = [f for f in existing_folder.iterdir() if f.is_file()]
-                                                    if not remaining_files:
-                                                        existing_folder.rmdir()
-                                                        log_message(f"[Channel Download] Removed empty folder: {existing_folder}")
-                                                except Exception:
-                                                    pass  # Ignore errors when removing empty folder
-                                            
-                                            if moved_count > 0:
-                                                log_message(f"[Channel Download] Successfully moved {moved_count} files from {existing_folder} to {target_folder}")
-                                                existing_files_moved = True
-                                                break
-                                        
-                                except Exception as search_error:
-                                    log_message(f"[Channel Download] Error searching folder {existing_folder}: {search_error}")
-                            
-                            if existing_files_moved:
-                                break
-                    
-                    if existing_files_moved:
-                        break
+                log_message(f"[Channel Add] Metadata extraction completed for {channel_url}, creating download jobs...")
                 
-                # SECOND: Download new content (will skip existing files)
-                if existing_files_moved:
-                    log_message(f"[Channel Download] Files moved successfully, now syncing for any new content...")
-                else:
-                    log_message(f"[Channel Download] No existing files found, downloading fresh content...")
-                
-                download_content(
-                    url=channel_url,
-                    output_dir=root_dir,
-                    audio_only=False,  # Download video files for channels
-                    sync=True,
-                    channel_group=group['name'],
-                    date_from=date_from,
-                    exclude_shorts=True,  # Exclude Shorts from download
-                    progress_callback=progress_callback
-                )
-                
-                # Update channel sync timestamp - get actual track count
-                conn = get_connection()
-                
-                # Count actual files in the channel folder (both moved and downloaded)
-                final_folder = root_dir / group['name'] / f"Channel-{channel_name}"
-                actual_track_count = 0
-                if final_folder.exists():
-                    # Count all media files (video and audio)
-                    media_extensions = ['.mp4', '.webm', '.mkv', '.avi', '.mp3', '.m4a']
-                    actual_track_count = len([f for f in final_folder.iterdir() 
-                                            if f.is_file() and f.suffix.lower() in media_extensions])
-                
-                db.update_channel_sync(conn, channel_id, actual_track_count)
-                conn.close()
-                
-                if existing_files_moved:
-                    log_message(f"[Channels] Channel setup complete: {actual_track_count} tracks (existing files reused + new downloads)")
-                else:
-                    log_message(f"[Channels] Channel download complete: {actual_track_count} tracks downloaded")
-                
-                # Scan downloaded files into database
+                # Get metadata from database and create download jobs
                 try:
-                    from scan_to_db import scan as scan_library
-                    scan_library(root_dir)
-                    log_message(f"[Channels] Database scan completed for new downloads")
-                except Exception as scan_error:
-                    log_message(f"[Channels] Warning: Database scan failed: {scan_error}")
-                
-                log_message(f"[Channels] Successfully downloaded channel: {channel_url}")
-                
-            except Exception as e:
-                log_message(f"[Channels] Error downloading channel {channel_url}: {e}")
-        
-        # Start download in background
-        download_thread = threading.Thread(target=_download_worker, daemon=True)
-        download_thread.start()
-        
-        log_message(f"[Channels] Added channel to group '{group['name']}': {channel_url} (download started)")
-        return jsonify({
-            "status": "started", 
-            "channel_id": channel_id, 
-            "message": f"Channel added to group '{group['name']}' and download started in background"
-        })
-        
+                    conn = get_connection()
+                    
+                    # Get all videos from metadata for this channel
+                    cursor = conn.cursor()
+                    
+                    # Extract channel identifier from URL for metadata search
+                    if '@' in channel_url:
+                        channel_name_search = channel_url.split('@')[1].split('/')[0]
+                        search_pattern = f'%@{channel_name_search}%'
+                    elif '/channel/' in channel_url:
+                        channel_id_search = channel_url.split('/channel/')[1].split('/')[0]
+                        search_pattern = f'%{channel_id_search}%'
+                    elif '/c/' in channel_url:
+                        channel_name_search = channel_url.split('/c/')[1].split('/')[0]
+                        search_pattern = f'%{channel_name_search}%'
+                    else:
+                        search_pattern = f'%{channel_url}%'
+                    
+                    query = """
+                        SELECT youtube_id, title FROM youtube_video_metadata 
+                        WHERE (channel_url LIKE ? OR channel LIKE ?)
+                    """
+                    params = [search_pattern, search_pattern]
+                    
+                    # Add date filter if specified
+                    if date_from:
+                        try:
+                            from datetime import datetime
+                            date_obj = datetime.strptime(date_from, '%Y-%m-%d')
+                            timestamp = int(date_obj.timestamp())
+                            query += " AND (timestamp >= ? OR release_timestamp >= ?)"
+                            params.extend([timestamp, timestamp])
+                        except ValueError:
+                            log_message(f"[Channel Add] Invalid date format '{date_from}', ignoring date filter")
+                    
+                    query += " ORDER BY timestamp DESC, release_timestamp DESC"
+                    
+                    cursor.execute(query, params)
+                    videos = cursor.fetchall()
+                    conn.close()
+                    
+                    if not videos:
+                        log_message(f"[Channel Add] No videos found in metadata for {channel_url}")
+                        return
+                    
+                    # Create download jobs for each video
+                    created_jobs = 0
+                    failed_jobs = 0
+                    
+                    # Calculate target folder for downloads
+                    target_folder = f"{group['name']}/Channel-{channel_name}"
+                    
+                    for video in videos:
+                        video_id = video[0]
+                        video_title = video[1] or f"Video {video_id}"
+                        video_url = f"https://www.youtube.com/watch?v={video_id}"
+                        
+                        try:
+                            # Create single video download job
+                            job_id = job_service.create_and_add_job(
+                                JobType.SINGLE_VIDEO_DOWNLOAD,
+                                priority=JobPriority.NORMAL,
+                                playlist_url=video_url,
+                                target_folder=target_folder,
+                                format_selector='bestvideo+bestaudio/best',
+                                extract_audio=False,  # Download video files for channels
+                                download_archive=True,
+                                exclude_shorts=True  # Exclude YouTube Shorts
+                            )
+                            
+                            created_jobs += 1
+                            if created_jobs <= 5:  # Log first 5 jobs created
+                                log_message(f"[Channel Add] Queued download job #{job_id} for video: {video_title[:50]}...")
+                            elif created_jobs == 6:
+                                log_message(f"[Channel Add] ... (logging truncated, continuing to queue remaining videos)")
+                            
+                        except Exception as e:
+                            failed_jobs += 1
+                            log_message(f"[Channel Add] Failed to create download job for video {video_id}: {e}")
+                    
+                    log_message(f"[Channel Add] Channel download setup completed: {created_jobs} download jobs created, {failed_jobs} failed")
+                    
+                except Exception as e:
+                    log_message(f"[Channel Add] Error creating download jobs: {e}")
+            
+            # Step 1: Create metadata extraction job
+            metadata_job_id = job_service.create_and_add_job(
+                JobType.METADATA_EXTRACTION,
+                callback=metadata_completion_callback,
+                priority=JobPriority.HIGH,
+                channel_url=channel_url,
+                channel_id=channel_id,
+                force_update=False
+            )
+            
+            log_message(f"[Channels] Added channel to group '{group['name']}': {channel_url}")
+            log_message(f"[Channels] Created metadata extraction job #{metadata_job_id}")
+            log_message(f"[Channels] Download jobs will be created automatically after metadata extraction")
+            
+            return jsonify({
+                "status": "started", 
+                "channel_id": channel_id,
+                "metadata_job_id": metadata_job_id,
+                "message": f"Channel added to group '{group['name']}'. Optimized download process started - extracting metadata first, then downloading videos.",
+                "process": "optimized",
+                "steps": [
+                    "1. Extract channel metadata (in progress)",
+                    "2. Create individual video download jobs (pending)",
+                    "3. Download videos in queue (pending)"
+                ]
+            })
+            
+        except ImportError:
+            # Fallback to old system if job queue not available
+            log_message(f"[Channels] Job Queue System not available, falling back to direct download")
+            
+            # Start background download (original code as fallback)
+            def _download_worker():
+                try:
+                    # Import download_content from new module
+                    from download_content import download_content
+                    
+                    # Set up progress callback for logging
+                    def progress_callback(msg):
+                        log_message(f"[Channel Download] {msg}")
+                    
+                    # Get root directory
+                    root_dir = get_root_dir()
+                    if not root_dir:
+                        log_message(f"[Channel Download] Error: ROOT_DIR not initialized")
+                        return
+                    
+                    download_content(
+                        url=channel_url,
+                        output_dir=root_dir,
+                        audio_only=False,  # Download video files for channels
+                        sync=True,
+                        channel_group=group['name'],
+                        date_from=date_from,
+                        exclude_shorts=True,  # Exclude Shorts from download
+                        progress_callback=progress_callback
+                    )
+                    
+                    # Update channel sync timestamp
+                    conn = get_connection()
+                    actual_track_count = 0  # Will be updated by scan
+                    db.update_channel_sync(conn, channel_id, actual_track_count)
+                    conn.close()
+                    
+                    log_message(f"[Channels] Channel download complete via fallback method")
+                    
+                except Exception as e:
+                    log_message(f"[Channels] Error downloading channel {channel_url}: {e}")
+            
+            # Start download in background
+            import threading
+            download_thread = threading.Thread(target=_download_worker, daemon=True)
+            download_thread.start()
+            
+            return jsonify({
+                "status": "started", 
+                "channel_id": channel_id, 
+                "message": f"Channel added to group '{group['name']}' and download started in background (fallback mode)"
+            })
+            
     except Exception as e:
         log_message(f"[Channels] Error adding channel: {e}")
         return jsonify({"status": "error", "error": str(e)}), 500
