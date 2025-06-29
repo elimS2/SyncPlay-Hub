@@ -453,6 +453,9 @@ def build_ydl_opts(output_dir: pathlib.Path, audio_only: bool, *, cookies_path: 
         # Pretty progress output in the terminal
         "progress_hooks": [lambda d: print_progress(d)],
         "noprogress": True,
+        # Windows filename sanitization - prevents invalid characters like \/:*?"<>|
+        "restrictfilenames": True,
+        "windowsfilenames": True,
         **({"cookiefile": cookies_path} if cookies_path else {}),
         **({"cookiesfrombrowser": ("chrome",)} if use_browser and not cookies_path else {}),
     }

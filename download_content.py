@@ -536,6 +536,9 @@ def build_ydl_opts(output_dir: pathlib.Path, audio_only: bool, is_channel: bool 
         "concurrent_fragments": 4,
         # Progress hooks will be set dynamically in download_content()
         "noprogress": True,
+        # Windows filename sanitization - prevents invalid characters like \/:*?"<>|
+        "restrictfilenames": True,
+        "windowsfilenames": True,
         **({"cookiefile": cookies_path} if cookies_path else {}),
         **({"cookiesfrombrowser": ("chrome",)} if use_browser and not cookies_path else {}),
     }
