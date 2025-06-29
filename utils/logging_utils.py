@@ -29,6 +29,18 @@ def init_logging(logs_dir: Path, pid: int, start_time: datetime.datetime):
     # Ensure logs directory exists
     logs_dir.mkdir(parents=True, exist_ok=True)
 
+class NoSyncInternalFilter(logging.Filter):
+    """Filter to remove noisy remote control HTTP requests from logs."""
+    
+    def filter(self, record):
+        # Filter out frequent remote control requests as they are too noisy and not important
+        message = record.getMessage()
+        if 'POST /api/remote/sync_internal HTTP' in message:
+            return False
+        if 'GET /api/remote/commands HTTP' in message:
+            return False
+        return True
+
 class AnsiCleaningStream:
     """Stream wrapper that removes ANSI codes before writing to file."""
     
@@ -148,10 +160,14 @@ def setup_logging():
     dual_handler.setFormatter(logging.Formatter('%(message)s'))  # Simple format since timestamp is added by file_handler
     unified_logger.addHandler(dual_handler)
     
+    # Create filter to remove noisy sync_internal requests
+    sync_filter = NoSyncInternalFilter()
+    
     # Configure Flask's werkzeug logger to use our unified system
     werkzeug_logger = logging.getLogger('werkzeug')
     werkzeug_logger.handlers.clear()  # Remove default handlers
     werkzeug_logger.addHandler(dual_handler)
+    werkzeug_logger.addFilter(sync_filter)  # Add filter to remove sync_internal logs
     werkzeug_logger.propagate = False
     
     # Intercept stdout/stderr to catch any direct prints from Flask
