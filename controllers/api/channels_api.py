@@ -612,11 +612,34 @@ def api_get_deleted_tracks():
     """Get deleted tracks for restoration page."""
     try:
         conn = get_connection()
-        deleted_tracks = db.get_deleted_tracks(conn)
+        deleted_tracks_raw = db.get_deleted_tracks(conn)
+        
+        # Convert SQLite Row objects to dictionaries for JSON serialization
+        deleted_tracks = []
+        for row in deleted_tracks_raw:
+            track_dict = dict(row)
+            deleted_tracks.append(track_dict)
+        
+        # Get unique channel groups for the filter
+        channel_groups = []
+        unique_groups = set()
+        for track in deleted_tracks:
+            group_name = track.get('channel_group')
+            if group_name and group_name not in unique_groups:
+                unique_groups.add(group_name)
+                channel_groups.append({'name': group_name})
+        
+        # Sort channel groups alphabetically
+        channel_groups.sort(key=lambda x: x['name'])
+        
         conn.close()
         
-        log_message(f"[Restore] Retrieved {len(deleted_tracks)} deleted tracks")
-        return jsonify({"status": "ok", "tracks": deleted_tracks})
+        log_message(f"[Restore] Retrieved {len(deleted_tracks)} deleted tracks and {len(channel_groups)} channel groups")
+        return jsonify({
+            "status": "ok", 
+            "tracks": deleted_tracks,
+            "channel_groups": channel_groups
+        })
         
     except Exception as e:
         log_message(f"[Restore] Error retrieving deleted tracks: {e}")
