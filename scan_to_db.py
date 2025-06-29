@@ -61,38 +61,66 @@ def ffprobe_duration(path: Path) -> Optional[float]:
 
 
 def scan(playlists_dir: Path):
+    print(f"[SCAN] Starting scan of: {playlists_dir}")
+    
+    # Count total directories first for progress tracking
+    all_dirs = [d for d in playlists_dir.iterdir() if d.is_dir()]
+    print(f"[SCAN] Found {len(all_dirs)} directories to check")
+    
     conn = get_connection()
-    for playlist_dir in playlists_dir.iterdir():
-        if not playlist_dir.is_dir():
-            continue
+    total_playlists = 0
+    total_tracks = 0
+    
+    for i, playlist_dir in enumerate(all_dirs, 1):
+        print(f"\n[SCAN] [{i}/{len(all_dirs)}] Checking: {playlist_dir.name}")
+        
         # Check has media
-        has_media = any(p.suffix.lower() in MEDIA_EXTS for p in playlist_dir.rglob("*.*"))
-        if not has_media:
+        media_files = [p for p in playlist_dir.rglob("*.*") if p.suffix.lower() in MEDIA_EXTS and p.is_file()]
+        if not media_files:
+            print(f"[SCAN]   No media files found, skipping")
             continue
+            
+        print(f"[SCAN]   Found {len(media_files)} media files")
+        
         playlist_rel = str(playlist_dir.relative_to(playlists_dir))
         playlist_id = upsert_playlist(conn, playlist_dir.name, playlist_rel)
+        total_playlists += 1
 
         count = 0
+        new_tracks = 0
         processed_track_ids = set()
-        for file in playlist_dir.rglob("*.*"):
-            if file.suffix.lower() not in MEDIA_EXTS or not file.is_file():
-                continue
+        
+        for j, file in enumerate(media_files, 1):
+            if j % 50 == 0 or j == len(media_files):  # Progress every 50 files or at end
+                print(f"[SCAN]   Processing files: {j}/{len(media_files)}")
+                
             video_id = get_video_id(file.stem)
             if not video_id:
                 continue  # skip files without recognised ID
-            duration, bitrate, resolution = ffprobe_duration(file)
-            size_bytes = file.stat().st_size
-            track_id = upsert_track(
-                conn,
-                video_id=video_id,
-                name=file.stem,
-                relpath=str(file.relative_to(playlists_dir)),
-                duration=duration,
-                size_bytes=size_bytes,
-                bitrate=bitrate,
-                resolution=resolution,
-                filetype=file.suffix.lstrip(".").lower(),
-            )
+                
+            # Check if track already exists
+            cur = conn.cursor()
+            cur.execute("SELECT id FROM tracks WHERE video_id = ?", (video_id,))
+            existing = cur.fetchone()
+            
+            if existing:
+                track_id = existing[0]
+            else:
+                duration, bitrate, resolution = ffprobe_duration(file)
+                size_bytes = file.stat().st_size
+                track_id = upsert_track(
+                    conn,
+                    video_id=video_id,
+                    name=file.stem,
+                    relpath=str(file.relative_to(playlists_dir)),
+                    duration=duration,
+                    size_bytes=size_bytes,
+                    bitrate=bitrate,
+                    resolution=resolution,
+                    filetype=file.suffix.lstrip(".").lower(),
+                )
+                new_tracks += 1
+                
             link_track_playlist(conn, track_id, playlist_id)
             processed_track_ids.add(track_id)
             count += 1
@@ -103,6 +131,7 @@ def scan(playlists_dir: Path):
         existing_links = {row[0] for row in cur.fetchall()}
         to_remove = existing_links - processed_track_ids
         if to_remove:
+            print(f"[SCAN]   Removing {len(to_remove)} stale playlist links")
             cur.executemany(
                 "DELETE FROM track_playlists WHERE playlist_id=? AND track_id=?",
                 [(playlist_id, tid) for tid in to_remove],
@@ -111,7 +140,12 @@ def scan(playlists_dir: Path):
 
         # update stats
         update_playlist_stats(conn, playlist_id, count)
+        print(f"[SCAN]   Playlist '{playlist_dir.name}': {count} tracks total, {new_tracks} new")
+        total_tracks += count
+        
     conn.close()
+    print(f"\n[SCAN] Scan completed!")
+    print(f"[SCAN] Summary: {total_playlists} playlists processed, {total_tracks} total tracks")
 
 
 if __name__ == "__main__":
@@ -129,5 +163,4 @@ if __name__ == "__main__":
     db_dir.mkdir(parents=True, exist_ok=True)
     db.set_db_path(db_dir / "tracks.db")
 
-    scan(playlists_dir)
-    print("Scan completed.") 
+    scan(playlists_dir) 

@@ -762,7 +762,7 @@ def api_delete_track():
                 log_message(f"[Delete] DEBUG: video_id match: {extracted_video_id == video_id}")
             
             conn.close()
-            return jsonify({"status": "error", "error": "Track not found"}), 404
+            return jsonify({"status": "error", "error": "Track not found in database. Please rescan files first."}), 404
         
         track_id = track[0]
         track_name = track[1]
@@ -861,9 +861,9 @@ def api_delete_track():
         
         log_message(f"[Delete] Final channel folder for trash: {channel_folder}")
         
-        # Create trash directory structure: Trash/Playlists/channelname/videos/
+        # Create trash directory structure: Trash/channelname/videos/
         # ROOT_DIR points to D:\music\Youtube\Playlists, so we need to go up one level for Trash
-        trash_dir = root_dir.parent / "Trash" / "Playlists" / channel_folder / "videos"
+        trash_dir = root_dir.parent / "Trash" / channel_folder / "videos"
         trash_dir.mkdir(parents=True, exist_ok=True)
         
         # Sanitize filename for Windows filesystem compatibility
@@ -951,6 +951,141 @@ def api_delete_track():
         
     except Exception as e:
         log_message(f"[Delete] Error deleting track: {e}")
+        return jsonify({"status": "error", "error": str(e)}), 500
+
+@channels_bp.route("/rescan_files", methods=["POST"])
+def api_rescan_files():
+    """Rescan all files and add missing tracks to database."""
+    try:
+        root_dir = get_root_dir()
+        if not root_dir:
+            return jsonify({"status": "error", "error": "ROOT_DIR not initialized"}), 500
+        
+        log_message(f"[Rescan] Starting file rescan from: {root_dir}")
+        
+        # Import scan functionality
+        from pathlib import Path
+        import subprocess
+        
+        MEDIA_EXTS = {".mp3", ".m4a", ".opus", ".webm", ".flac", ".mp4", ".mkv", ".mov"}
+        VIDEO_ID_RE = re.compile(r"\[([A-Za-z0-9_-]{11})\]$")
+        
+        def get_video_id(stem: str):
+            m = VIDEO_ID_RE.search(stem)
+            return m.group(1) if m else None
+        
+        def ffprobe_duration(path: Path):
+            try:
+                res = subprocess.run([
+                    "ffprobe", "-v", "error",
+                    "-show_entries", "format=duration:stream=bit_rate,width,height",
+                    "-of", "default=noprint_wrappers=1:nokey=1",
+                    str(path)
+                ], capture_output=True, text=True, check=True, timeout=10)
+                lines = res.stdout.strip().split("\n")
+                duration = float(lines[0]) if lines else None
+                bitrate = None
+                resolution = None
+                for line in lines[1:]:
+                    if not bitrate and line.isdigit():
+                        bitrate = int(line)
+                    elif "x" in line and line.replace("x", "").replace("N/A", "").isdigit():
+                        resolution = line
+                return duration, bitrate, resolution
+            except Exception:
+                return None, None, None
+        
+        # Scan all directories
+        conn = get_connection()
+        total_added = 0
+        total_playlists = 0
+        
+        for playlist_dir in root_dir.iterdir():
+            if not playlist_dir.is_dir():
+                continue
+            
+            # Check if has media files
+            has_media = any(p.suffix.lower() in MEDIA_EXTS for p in playlist_dir.rglob("*.*"))
+            if not has_media:
+                continue
+            
+            playlist_rel = str(playlist_dir.relative_to(root_dir))
+            log_message(f"[Rescan] Processing playlist: {playlist_dir.name}")
+            
+            # Upsert playlist
+            playlist_id = db.upsert_playlist(conn, playlist_dir.name, playlist_rel)
+            total_playlists += 1
+            
+            count = 0
+            processed_track_ids = set()
+            
+            for file in playlist_dir.rglob("*.*"):
+                if file.suffix.lower() not in MEDIA_EXTS or not file.is_file():
+                    continue
+                
+                video_id = get_video_id(file.stem)
+                if not video_id:
+                    continue  # Skip files without recognized ID
+                
+                # Check if track already exists
+                cursor = conn.cursor()
+                cursor.execute("SELECT id FROM tracks WHERE video_id = ?", (video_id,))
+                existing = cursor.fetchone()
+                
+                if existing:
+                    track_id = existing[0]
+                    log_message(f"[Rescan] Track exists: {video_id}")
+                else:
+                    # Add new track
+                    duration, bitrate, resolution = ffprobe_duration(file)
+                    size_bytes = file.stat().st_size
+                    track_id = db.upsert_track(
+                        conn,
+                        video_id=video_id,
+                        name=file.stem,
+                        relpath=str(file.relative_to(root_dir)),
+                        duration=duration,
+                        size_bytes=size_bytes,
+                        bitrate=bitrate,
+                        resolution=resolution,
+                        filetype=file.suffix.lstrip(".").lower(),
+                    )
+                    total_added += 1
+                    log_message(f"[Rescan] Added track: {video_id} - {file.stem}")
+                
+                # Link to playlist
+                db.link_track_playlist(conn, track_id, playlist_id)
+                processed_track_ids.add(track_id)
+                count += 1
+            
+            # Remove stale links
+            cursor = conn.cursor()
+            cursor.execute("SELECT track_id FROM track_playlists WHERE playlist_id=?", (playlist_id,))
+            existing_links = {row[0] for row in cursor.fetchall()}
+            to_remove = existing_links - processed_track_ids
+            if to_remove:
+                cursor.executemany(
+                    "DELETE FROM track_playlists WHERE playlist_id=? AND track_id=?",
+                    [(playlist_id, tid) for tid in to_remove],
+                )
+                conn.commit()
+            
+            # Update playlist stats
+            db.update_playlist_stats(conn, playlist_id, count)
+            log_message(f"[Rescan] Playlist {playlist_dir.name}: {count} tracks")
+        
+        conn.close()
+        
+        log_message(f"[Rescan] Completed: {total_added} new tracks added to {total_playlists} playlists")
+        return jsonify({
+            "status": "ok", 
+            "message": f"Rescan completed: {total_added} new tracks added to {total_playlists} playlists",
+            "tracks_added": total_added,
+            "playlists_processed": total_playlists
+        })
+        
+    except Exception as e:
+        log_message(f"[Rescan] Error during file rescan: {e}")
         return jsonify({"status": "error", "error": str(e)}), 500
 
 @channels_bp.route("/remove_channel/<int:channel_id>", methods=["POST"])
