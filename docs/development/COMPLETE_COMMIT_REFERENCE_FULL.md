@@ -400,40 +400,40 @@ feat: Implement server duplicate prevention with PID-based process tracking: Add
 **#083** `fb657ab` 2025-06-22 01:35:06 +0300  
 feat: Implement server duplicate prevention with PID-based process tracking: Enhanced implementation of server duplicate prevention system with refined PID file tracking, improved process validation, and strengthened port conflict detection. Updated git history documentation to maintain accurate commit tracking and development timeline synchronization.
 
-**#084** `7c1c1ce` 2025-06-22 03:xx:xx +0300  
+**#084** `7c1c1ce` 2025-06-22 01:42:43 +0300  
 Update Cursor rules to enforce the use of `--no-pager` flag for all git commands to prevent terminal blocking issues. Added detailed instructions for using git commands without pager in PowerShell and terminal environments. Updated documentation to reflect the latest commit count and development period.
 
-**#085** `7d09496` 2025-06-22 03:xx:xx +0300  
+**#085** `7d09496` 2025-06-22 15:24:26 +0300  
 feat: Modernize remote control with Lucide icons and perfect like button styling: Complete remote control modernization with professional Lucide SVG icons, perfected like button functionality with red-filled heart icon on activation, clean track name display by removing video ID hash, minimalist transparency-based design, responsive behavior preservation, and consistent visual language across main player and remote control interfaces.
 
-**#086** `5fdebd6` 2025-06-22 XX:XX:XX +0300  
+**#086** `5fdebd6` 2025-06-22 15:46:25 +0300  
 feat: Clean track names in remote control by removing video ID hash: Enhanced remote control display by filtering out YouTube video ID hash suffixes from track names, providing cleaner and more readable track information in the mobile remote interface.
 
-**#087** `3b3fe0e` 2025-06-22 XX:XX:XX +0300  
+**#087** `3b3fe0e` 2025-06-22 23:38:36 +0300  
 feat: Implement YouTube channel management system with auto-delete functionality: Complete implementation of YouTube Channels System with full channel download functionality, WELLBOYmusic channel working (12+ tracks downloaded), database schema, API endpoints, templates, download system, smart playback, and auto-delete service integration.
 
-**#088** `52b6e93` 2025-06-22 XX:XX:XX +0300  
+**#088** `52b6e93` 2025-06-22 23:47:33 +0300  
 Created DEVELOPMENT_LOG_003.md to archive entries #020-#053, addressing file size and organization issues: Solved file management complexity with 148KB→2.9KB size reduction, eliminated duplicate entry numbering chaos, established clean numbering system for future entries starting with #054, and maintained all historical data with proper backup preservation.
 
-**#089** `11cf312` 2025-06-22 XX:XX:XX +0300  
+**#089** `11cf312` 2025-06-23 00:01:14 +0300  
 Documented root cause analysis for WELLBOYmusic channel database recording issue in DEVELOPMENT_LOG_CURRENT.md: Identified logic flaw in download_content.py affecting database sync despite successful file downloads, provided detailed impact analysis, and established next steps for resolution of recording inconsistencies.
 
-**#090** `1914f9e` 2025-06-22 XX:XX:XX +0300  
+**#090** `1914f9e` 2025-06-23 03:18:02 +0300  
 Implement YouTube Channel Metadata Extraction Script: Complete channel metadata extraction system with database integration, enhanced channel analysis tools, and comprehensive metadata tracking capabilities for YouTube channel management.
 
-**#091** `d385a4f` 2025-06-28 XX:XX:XX +0300  
+**#091** `d385a4f` 2025-06-23 22:44:00 +0300  
 feat: Organize CLI scripts structure with dedicated scripts directory: Better script organization and discoverability for command-line tools, created scripts/ directory structure, moved CLI tools, and added comprehensive documentation for improved developer experience.
 
-**#092** `d0352b7` 2025-06-28 XX:XX:XX +0300  
+**#092** `d0352b7` 2025-06-28 12:38:07 +0300  
 feat: Add comprehensive channel download analysis tools: Complete analysis tools for comparing YouTube metadata with local downloads, implemented channel_download_analyzer.py and list_channels.py with enhanced database analysis capabilities and cross-platform configuration support.
 
-**#093** `7f4c565` 2025-06-28 XX:XX:XX +0300  
+**#093** `7f4c565` 2025-06-28 13:27:08 +0300  
 refactor: replace python-dotenv with custom .env parser: Configuration system refactoring to remove external dependency, implemented custom .env parsing with BOM support, enhanced analysis scripts with custom environment loading, and improved cross-platform compatibility.
 
-**#094** `2102f32` 2025-06-28 XX:XX:XX +0300  
+**#094** `2102f32` 2025-06-28 13:37:53 +0300  
 feat: add channel folder path display and file counting to analyzer: Enhanced channel analysis with folder information, better visibility into channel folder structure and file organization, implemented smart folder detection with multiple naming patterns and fuzzy matching capabilities.
 
-**#095** `60c8ead` 2025-06-28 XX:XX:XX +0300  
+**#095** `60c8ead` 2025-06-28 13:59:41 +0300  
 feat: add comprehensive metadata tracking and display to channel analyzer: Complete metadata integration and tracking system, full metadata tracking with database fields, enhanced analyzer with metadata display, improved channel tracking with database schema updates for metadata_last_updated and folder_path fields.
 
 ---
@@ -532,25 +532,34 @@ fix: Remove all emoji characters from scripts to resolve Windows Unicode encodin
 **#111** `c3ad0c0` 2025-06-28 17:27:40 +0000  
 fix: Add command line arguments support to metadata extraction script: Enhanced metadata extraction script with proper command line argument handling, enabling flexible script execution with parameter support for improved automation capabilities.
 
-**#112** `a010f14` 2025-06-28 XX:XX:XX +0000  
+**#112** `a010f14` 2025-06-28 23:24:55 +0300  
 feat: Implement comprehensive track deletion system with trash functionality: Complete track deletion system implementation with enhanced trash management, smart file organization, and comprehensive deletion tracking for improved file management and recovery capabilities.
 
-**#113** `846a34f` 2025-06-28 XX:XX:XX +0000  
+**#113** `846a34f` 2025-06-28 23:46:59 +0300  
 feat: enhance trash organization with YouTube-style @channelname/videos structure: Enhanced trash organization system with YouTube-style naming convention using @channelname/videos structure for better file organization and channel-based trash management.
 
-**#114** `9922936` 2025-06-28 XX:XX:XX +0000  
+**#114** `9922936` 2025-06-29 00:10:34 +0300  
 fix: resolve trash folder organization and file path issues: Fixed critical trash folder organization issues, resolved file path handling problems, and improved trash system reliability for consistent file management operations.
 
-**#115** `5d9ac1a` 2025-06-28 XX:XX:XX +0000  
+**#115** `5d9ac1a` 2025-06-29 01:38:39 +0300  
 feat: complete API controller refactoring to modular architecture: Complete API controller refactoring to modular architecture with enhanced maintainability, separated concerns, and improved code organization for scalable application development.
 
-**#116** `79387d8` 2025-06-28 XX:XX:XX +0000  
+**#116** `79387d8` 2025-06-29 02:02:48 +0300  
 fix: resolve ROOT_DIR initialization issue in modular API architecture: Fixed critical ROOT_DIR initialization issue in modular API architecture, ensuring proper path handling and application startup in the refactored system structure.
 
 **#117** `39919dc` 2025-06-28 23:29:00 +0000  
 docs: complete migration to individual logging system: Complete migration to individual logging system with proper file organization, development log structuring, and comprehensive documentation system for enhanced development workflow.
 
+**#118** `98db203` 2025-06-29 02:36:32 +0300  
+feat: implement automatic incomplete download detection and repair system: Complete system for detecting .f251 audio-only files and automatically creating repair jobs, implemented duplicate prevention logic, enhanced channel analyzer with auto-queue functionality, and provided comprehensive monitoring capabilities for incomplete download repairs.
+
+**#119** `490a266` 2025-06-29 03:48:22 +0300  
+docs: add progress monitoring and fix configuration for incomplete download repair system: Enhanced documentation with progress monitoring data, fixed PLAYLISTS_DIR configuration issues, updated development logs with repair system progress, and provided comprehensive analysis of download completion rates across all channels.
+
+**#120** `0cef09c` 2025-06-29 11:29:42 +0300  
+Complete channel folder detection system rewrite with Russian support: Revolutionary rewrite of channel folder detection with 100% success rate, intelligent name matching with multiple strategies, complete Russian channel support, URL-based channel name extraction, and automatic repair system capable of fixing thousands of incomplete downloads across all channels.
+
 ---
 
-*Created: 2025-06-16 | Total: 117 commits | Period: 2025-06-16 to 2025-06-28*  
+*Created: 2025-06-16 | Total: 120 commits | Period: 2025-06-16 to 2025-06-29*  
 *Version: FULL ORIGINAL TITLES - Maximum Accuracy* 
