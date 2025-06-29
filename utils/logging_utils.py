@@ -34,10 +34,13 @@ class NoSyncInternalFilter(logging.Filter):
     
     def filter(self, record):
         # Filter out frequent remote control requests as they are too noisy and not important
+        # Only filter successful (200) requests - keep errors visible for debugging
         message = record.getMessage()
-        if 'POST /api/remote/sync_internal HTTP' in message:
+        if 'POST /api/remote/sync_internal HTTP/1.1" 200 -' in message:
             return False
-        if 'GET /api/remote/commands HTTP' in message:
+        if 'GET /api/remote/commands HTTP/1.1" 200 -' in message:
+            return False
+        if 'GET /api/remote/status HTTP/1.1" 200 -' in message:
             return False
         return True
 
