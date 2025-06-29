@@ -2,8 +2,8 @@
 """
 Cleanup Worker
 
-Воркер для очистки старых файлов, логов и базы данных через систему Job Queue.
-Выполняет различные типы очистки в зависимости от типа задачи.
+Worker for cleaning old files, logs and database through Job Queue system.
+Performs various types of cleanup depending on job type.
 """
 
 import os
@@ -15,51 +15,57 @@ from typing import List, Dict, Any
 from datetime import datetime, timedelta
 import glob
 
-# Добавляем корневую папку в путь для импортов
+# Add root folder to path for imports
 sys.path.append(str(Path(__file__).parent.parent.parent))
 
 from services.job_types import JobWorker, Job, JobType
 
 
 class CleanupWorker(JobWorker):
-    """Воркер для различных задач очистки."""
+    """Worker for various cleanup tasks."""
     
     def __init__(self):
         super().__init__("cleanup_worker")
         self.supported_types = [
             JobType.FILE_CLEANUP,
             JobType.DATABASE_CLEANUP,
-            JobType.LOG_CLEANUP
+            JobType.LOG_CLEANUP,
+            JobType.METADATA_CLEANUP
         ]
     
     def get_supported_job_types(self) -> List[JobType]:
-        """Возвращает поддерживаемые типы задач."""
+        """Return supported job types."""
         return self.supported_types
     
     def execute_job(self, job: Job) -> bool:
         """
-        Выполняет задачу очистки.
+        Execute cleanup task.
         
-        Ожидаемые параметры в job.job_data зависят от типа задачи:
+        Expected parameters in job.job_data depend on task type:
         
         FILE_CLEANUP:
         - cleanup_type: 'orphaned_files', 'old_downloads', 'temp_files'
-        - days_old: количество дней для определения старых файлов (default: 30)
-        - dry_run: только показать что будет удалено (default: False)
-        - target_directories: список директорий для очистки (optional)
+        - days_old: number of days to determine old files (default: 30)
+        - dry_run: only show what would be deleted (default: False)
+        - target_directories: list of directories to clean (optional)
         
         DATABASE_CLEANUP:
         - cleanup_type: 'old_history', 'orphaned_records', 'temp_data'
-        - days_old: количество дней для очистки истории (default: 90)
-        - dry_run: только показать что будет удалено (default: False)
+        - days_old: number of days for history cleanup (default: 90)
+        - dry_run: only show what would be deleted (default: False)
         
         LOG_CLEANUP:
         - cleanup_type: 'old_logs', 'job_logs', 'archive_logs'
-        - days_old: количество дней для сохранения логов (default: 30)
-        - dry_run: только показать что будет удалено (default: False)
+        - days_old: number of days to keep logs (default: 30)
+        - dry_run: only show what would be deleted (default: False)
+        
+        METADATA_CLEANUP:
+        - cleanup_type: 'channel_metadata', 'all_metadata'
+        - channels: list of channels to clean (optional, for channel_metadata)
+        - dry_run: only show what would be deleted (default: False)
         
         Returns:
-            True если очистка успешна, False если нет
+            True if cleanup successful, False otherwise
         """
         try:
             cleanup_type = job.job_data.get('cleanup_type')
@@ -73,19 +79,21 @@ class CleanupWorker(JobWorker):
             print(f"Cleanup type: {cleanup_type}")
             print(f"Days old: {days_old}, Dry run: {dry_run}")
             
-            # Определяем рабочую директорию (корень проекта)
+            # Determine working directory (project root)
             project_root = Path(__file__).parent.parent.parent
             
-            # Загружаем конфигурацию из .env
+            # Load configuration from .env
             config = self._load_config(project_root)
             
-            # Выполняем соответствующий тип очистки
+            # Execute appropriate cleanup type
             if job.job_type == JobType.FILE_CLEANUP:
                 success = self._cleanup_files(cleanup_type, days_old, dry_run, config, job.job_data)
             elif job.job_type == JobType.DATABASE_CLEANUP:
                 success = self._cleanup_database(cleanup_type, days_old, dry_run, config)
             elif job.job_type == JobType.LOG_CLEANUP:
                 success = self._cleanup_logs(cleanup_type, days_old, dry_run, config)
+            elif job.job_type == JobType.METADATA_CLEANUP:
+                success = self._cleanup_metadata(cleanup_type, days_old, dry_run, config, job.job_data)
             else:
                 raise ValueError(f"Unsupported job type: {job.job_type}")
             
@@ -104,27 +112,27 @@ class CleanupWorker(JobWorker):
     
     def _cleanup_files(self, cleanup_type: str, days_old: int, dry_run: bool, 
                       config: Dict[str, str], job_data: Dict[str, Any]) -> bool:
-        """Выполняет очистку файлов."""
+        """Execute file cleanup."""
         try:
             cutoff_time = datetime.now() - timedelta(days=days_old)
             removed_count = 0
             total_size = 0
             
             if cleanup_type == 'orphaned_files':
-                # Удаляем файлы которых нет в базе данных
+                # Remove files that are not in database
                 removed_count, total_size = self._cleanup_orphaned_files(
                     config, cutoff_time, dry_run
                 )
             
             elif cleanup_type == 'old_downloads':
-                # Удаляем старые загруженные файлы
+                # Remove old downloaded files
                 target_dirs = job_data.get('target_directories', [])
                 removed_count, total_size = self._cleanup_old_downloads(
                     config, cutoff_time, dry_run, target_dirs
                 )
             
             elif cleanup_type == 'temp_files':
-                # Удаляем временные файлы
+                # Remove temporary files
                 removed_count, total_size = self._cleanup_temp_files(
                     config, cutoff_time, dry_run
                 )
@@ -141,7 +149,7 @@ class CleanupWorker(JobWorker):
     
     def _cleanup_database(self, cleanup_type: str, days_old: int, dry_run: bool,
                          config: Dict[str, str]) -> bool:
-        """Выполняет очистку базы данных."""
+        """Execute database cleanup."""
         try:
             db_path = config.get('DB_PATH')
             if not db_path:
@@ -155,7 +163,7 @@ class CleanupWorker(JobWorker):
                 cursor = conn.cursor()
                 
                 if cleanup_type == 'old_history':
-                    # Удаляем старую историю воспроизведения
+                    # Remove old play history
                     if dry_run:
                         cursor.execute("""
                             SELECT COUNT(*) FROM play_history 
@@ -171,13 +179,13 @@ class CleanupWorker(JobWorker):
                         conn.commit()
                 
                 elif cleanup_type == 'orphaned_records':
-                    # Удаляем записи треков которых нет на диске
+                    # Remove track records that don't exist on disk
                     removed_count = self._cleanup_orphaned_db_records(cursor, config, dry_run)
                     if not dry_run:
                         conn.commit()
                 
                 elif cleanup_type == 'temp_data':
-                    # Удаляем временные данные и кэши
+                    # Remove temporary data and caches
                     removed_count = self._cleanup_temp_db_data(cursor, cutoff_date, dry_run)
                     if not dry_run:
                         conn.commit()
@@ -194,9 +202,9 @@ class CleanupWorker(JobWorker):
     
     def _cleanup_logs(self, cleanup_type: str, days_old: int, dry_run: bool,
                      config: Dict[str, str]) -> bool:
-        """Выполняет очистку логов."""
+        """Execute log cleanup."""
         try:
-            # Определяем директорию логов
+            # Determine log directory
             log_dir = config.get('LOG_DIR')
             if not log_dir:
                 project_root = Path(__file__).parent.parent.parent
@@ -208,23 +216,25 @@ class CleanupWorker(JobWorker):
             total_size = 0
             
             if cleanup_type == 'old_logs':
-                # Удаляем старые основные логи
+                # Remove old log files
+                log_patterns = ['*.log', '*.log.*', '*.out', '*.err']
                 removed_count, total_size = self._cleanup_old_log_files(
-                    log_path, cutoff_time, dry_run, ['*.log', '*.log.*']
+                    log_path, cutoff_time, dry_run, log_patterns
                 )
             
             elif cleanup_type == 'job_logs':
-                # Удаляем старые логи задач
-                job_logs_dir = log_path / 'jobs'
-                if job_logs_dir.exists():
+                # Remove old job log directories
+                jobs_dir = log_path / 'jobs'
+                if jobs_dir.exists():
                     removed_count, total_size = self._cleanup_job_log_dirs(
-                        job_logs_dir, cutoff_time, dry_run
+                        jobs_dir, cutoff_time, dry_run
                     )
             
             elif cleanup_type == 'archive_logs':
-                # Удаляем архивные логи
+                # Remove archived log files
+                archive_patterns = ['*.gz', '*.zip', '*.tar', '*.bz2']
                 removed_count, total_size = self._cleanup_old_log_files(
-                    log_path, cutoff_time, dry_run, ['*.log.gz', '*.log.bz2', 'archive_*']
+                    log_path, cutoff_time, dry_run, archive_patterns
                 )
             
             else:
@@ -237,27 +247,55 @@ class CleanupWorker(JobWorker):
             print(f"Log cleanup error: {e}")
             return False
     
+    def _cleanup_metadata(self, cleanup_type: str, days_old: int, dry_run: bool,
+                         config: Dict[str, str], job_data: Dict[str, Any]) -> bool:
+        """Execute YouTube channel metadata files cleanup."""
+        try:
+            removed_count = 0
+            total_size = 0
+            
+            if cleanup_type == 'channel_metadata':
+                # Clean metadata in channel folders
+                removed_count, total_size = self._cleanup_channel_metadata_files(
+                    config, job_data, dry_run
+                )
+            
+            elif cleanup_type == 'all_metadata':
+                # Clean all metadata files in project
+                removed_count, total_size = self._cleanup_all_metadata_files(
+                    config, dry_run
+                )
+            
+            else:
+                raise ValueError(f"Unknown metadata cleanup type: {cleanup_type}")
+            
+            print(f"Metadata cleanup results: {removed_count} files, {total_size / (1024*1024):.1f} MB")
+            return True
+            
+        except Exception as e:
+            print(f"Metadata cleanup error: {e}")
+            return False
+    
     def _cleanup_orphaned_files(self, config: Dict[str, str], cutoff_time: datetime, 
                                dry_run: bool) -> tuple[int, int]:
-        """Удаляет файлы медиа которых нет в базе данных."""
-        # TODO: Реализовать логику сравнения файлов с базой данных
-        # Пока возвращаем заглушку
+        """Remove files that exist locally but not in database."""
+        # TODO: Implement checking file existence for database records
         print("Orphaned files cleanup not yet implemented")
         return 0, 0
     
     def _cleanup_old_downloads(self, config: Dict[str, str], cutoff_time: datetime,
                               dry_run: bool, target_dirs: List[str]) -> tuple[int, int]:
-        """Удаляет старые загруженные файлы."""
+        """Remove old downloaded files from specified directories."""
         removed_count = 0
         total_size = 0
         
-        # Определяем директории для проверки
+        # Use provided directories or default download paths
         if not target_dirs:
-            root_dir = config.get('ROOT_DIR')
-            if root_dir:
-                playlists_dir = Path(root_dir) / 'Playlists'
-                if playlists_dir.exists():
-                    target_dirs = [str(playlists_dir)]
+            root_dir = config.get('ROOT_DIR', 'D:/music/Youtube')
+            target_dirs = [
+                f"{root_dir}/Playlists",
+                f"{root_dir}/Downloads"
+            ]
         
         for dir_path in target_dirs:
             dir_path = Path(dir_path)
@@ -287,11 +325,11 @@ class CleanupWorker(JobWorker):
     
     def _cleanup_temp_files(self, config: Dict[str, str], cutoff_time: datetime,
                            dry_run: bool) -> tuple[int, int]:
-        """Удаляет временные файлы."""
+        """Remove temporary files and YouTube metadata files."""
         removed_count = 0
         total_size = 0
         
-        # Обычные места для временных файлов
+        # Temporary files and YouTube metadata files
         temp_patterns = [
             '*.tmp',
             '*.temp',
@@ -299,10 +337,18 @@ class CleanupWorker(JobWorker):
             '*.download',
             '*.ytdl',
             '__pycache__',
-            '*.pyc'
+            '*.pyc',
+            # YouTube metadata files (yt-dlp creates these)
+            '*.json',           # Video metadata JSON files
+            '*.info.json',      # Detailed video information
+            '*.description',    # Video descriptions
+            '*.thumbnail',      # Video thumbnails
+            '*.webp',          # WebP images (thumbnails)
+            '*.jpg',           # JPEG images (thumbnails) 
+            '*.png',           # PNG images (thumbnails)
         ]
         
-        # Ищем во всех папках проекта
+        # Search in all project folders
         project_root = Path(__file__).parent.parent.parent
         
         for pattern in temp_patterns:
@@ -341,19 +387,19 @@ class CleanupWorker(JobWorker):
         return removed_count, total_size
     
     def _cleanup_orphaned_db_records(self, cursor, config: Dict[str, str], dry_run: bool) -> int:
-        """Удаляет записи треков которых нет на диске."""
-        # TODO: Реализовать проверку существования файлов для записей в tracks
+        """Remove track records that don't exist on disk."""
+        # TODO: Implement checking file existence for database records
         print("Orphaned database records cleanup not yet implemented")
         return 0
     
     def _cleanup_temp_db_data(self, cursor, cutoff_date: datetime, dry_run: bool) -> int:
-        """Удаляет временные данные из базы."""
+        """Remove temporary data from database."""
         removed_count = 0
         
-        # Примеры временных данных для очистки
-        # (здесь можно добавить специфичные для проекта таблицы)
+        # Examples of temporary data to clean
+        # (can add project-specific tables here)
         
-        # Очистка старых логов ошибок если есть такая таблица
+        # Clean old error logs if such table exists
         try:
             if dry_run:
                 cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='error_logs'")
@@ -365,13 +411,13 @@ class CleanupWorker(JobWorker):
                 cursor.execute("DELETE FROM error_logs WHERE timestamp < ?", (cutoff_date.isoformat(),))
                 removed_count += cursor.rowcount
         except sqlite3.OperationalError:
-            pass  # Таблица не существует
+            pass  # Table doesn't exist
         
         return removed_count
     
     def _cleanup_old_log_files(self, log_path: Path, cutoff_time: datetime,
                               dry_run: bool, patterns: List[str]) -> tuple[int, int]:
-        """Удаляет старые лог файлы по паттернам."""
+        """Remove old log files by patterns."""
         removed_count = 0
         total_size = 0
         
@@ -399,7 +445,7 @@ class CleanupWorker(JobWorker):
     
     def _cleanup_job_log_dirs(self, jobs_dir: Path, cutoff_time: datetime,
                              dry_run: bool) -> tuple[int, int]:
-        """Удаляет старые директории логов задач."""
+        """Remove old job log directories."""
         removed_count = 0
         total_size = 0
         
@@ -407,7 +453,7 @@ class CleanupWorker(JobWorker):
             if job_dir.is_dir() and job_dir.name.startswith('job_'):
                 dir_time = datetime.fromtimestamp(job_dir.stat().st_mtime)
                 if dir_time < cutoff_time:
-                    # Считаем размер директории
+                    # Calculate directory size
                     dir_size = sum(f.stat().st_size for f in job_dir.rglob('*') if f.is_file())
                     
                     if dry_run:
@@ -426,7 +472,7 @@ class CleanupWorker(JobWorker):
         return removed_count, total_size
     
     def _load_config(self, project_root: Path) -> Dict[str, str]:
-        """Загружает конфигурацию из .env файла."""
+        """Load configuration from .env file."""
         config = {}
         env_path = project_root / '.env'
         
@@ -443,17 +489,141 @@ class CleanupWorker(JobWorker):
         
         return config
     
+    def _cleanup_channel_metadata_files(self, config: Dict[str, str], 
+                                       job_data: Dict[str, Any], dry_run: bool) -> tuple[int, int]:
+        """Clean metadata files in channel folders."""
+        removed_count = 0
+        total_size = 0
+        
+        # Get directories for cleanup
+        root_dir = config.get('ROOT_DIR', 'D:/music/Youtube')
+        playlists_dir = config.get('PLAYLISTS_DIR', f'{root_dir}/Playlists')
+        base_path = Path(playlists_dir)
+        
+        # Get specific channels for cleanup (if specified)
+        target_channels = job_data.get('channels', [])
+        
+        # Metadata file patterns
+        metadata_patterns = [
+            '*.json',           # Video metadata JSON files
+            '*.info.json',      # Detailed video information
+            '*.description',    # Video descriptions
+            '*.thumbnail',      # Video thumbnails
+            '*.webp',          # WebP images (thumbnails)
+            '*.jpg',           # JPEG images (thumbnails) 
+            '*.png',           # PNG images (thumbnails)
+        ]
+        
+        if not base_path.exists():
+            print(f"Playlists directory not found: {base_path}")
+            return 0, 0
+        
+        # If specific channels are specified
+        if target_channels:
+            for channel_name in target_channels:
+                # Add Channel- prefix if missing
+                if not channel_name.startswith("Channel-"):
+                    channel_name = f"Channel-{channel_name}"
+                
+                # Search for channel folder in various groups
+                channel_folders = []
+                for group_folder in base_path.iterdir():
+                    if group_folder.is_dir():
+                        channel_folder = group_folder / channel_name
+                        if channel_folder.exists() and channel_folder.is_dir():
+                            channel_folders.append(channel_folder)
+                
+                # Also check root folder
+                channel_folder = base_path / channel_name
+                if channel_folder.exists() and channel_folder.is_dir():
+                    channel_folders.append(channel_folder)
+                
+                # Clean found channel folders
+                for folder in channel_folders:
+                    count, size = self._cleanup_metadata_in_folder(folder, metadata_patterns, dry_run)
+                    removed_count += count
+                    total_size += size
+        else:
+            # Clean all channel folders
+            for channel_folder in base_path.rglob("Channel-*"):
+                if channel_folder.is_dir():
+                    count, size = self._cleanup_metadata_in_folder(channel_folder, metadata_patterns, dry_run)
+                    removed_count += count
+                    total_size += size
+        
+        return removed_count, total_size
+    
+    def _cleanup_all_metadata_files(self, config: Dict[str, str], dry_run: bool) -> tuple[int, int]:
+        """Clean all metadata files in project."""
+        removed_count = 0
+        total_size = 0
+        
+        # Get root directory
+        root_dir = config.get('ROOT_DIR', 'D:/music/Youtube')
+        project_root = Path(root_dir)
+        
+        # Metadata file patterns (more conservative approach for whole project)
+        metadata_patterns = [
+            '*.info.json',      # Only specific yt-dlp files
+            '*.description',    # Video descriptions
+            '*.thumbnail',      # Video thumbnails
+            '*.webp',          # WebP images (thumbnails)
+        ]
+        
+        if not project_root.exists():
+            print(f"Root directory not found: {project_root}")
+            return 0, 0
+        
+        # Clean only in playlists folders for safety
+        playlists_dir = Path(config.get('PLAYLISTS_DIR', f'{root_dir}/Playlists'))
+        if playlists_dir.exists():
+            count, size = self._cleanup_metadata_in_folder(playlists_dir, metadata_patterns, dry_run)
+            removed_count += count
+            total_size += size
+        
+        return removed_count, total_size
+    
+    def _cleanup_metadata_in_folder(self, folder: Path, patterns: List[str], dry_run: bool) -> tuple[int, int]:
+        """Clean metadata files in specific folder."""
+        removed_count = 0
+        total_size = 0
+        
+        print(f"Cleaning metadata in: {folder}")
+        
+        for pattern in patterns:
+            for file_path in folder.rglob(pattern):
+                if file_path.is_file():
+                    file_size = file_path.stat().st_size
+                    
+                    if dry_run:
+                        print(f"  [Dry Run] Would remove: {file_path.relative_to(folder)} ({file_size:,} bytes)")
+                    else:
+                        try:
+                            file_path.unlink()
+                            print(f"  [Removed] {file_path.relative_to(folder)} ({file_size:,} bytes)")
+                        except Exception as e:
+                            print(f"  [Error] Failed to remove {file_path}: {e}")
+                            continue
+                    
+                    removed_count += 1
+                    total_size += file_size
+        
+        return removed_count, total_size
+    
     def get_worker_info(self) -> Dict[str, Any]:
-        """Информация о воркере для мониторинга."""
+        """Worker information for monitoring."""
         info = super().get_worker_info()
         info.update({
-            'description': 'Performs various cleanup tasks (files, database, logs)',
-            'max_concurrent_jobs': 1,  # Cleanup задачи выполняем последовательно
+            'description': 'Performs various cleanup tasks (files, database, logs, metadata)',
+            'max_concurrent_jobs': 1,  # Execute cleanup tasks sequentially
             'average_duration': '5-30 minutes',
             'supported_features': [
                 'file_cleanup',
                 'database_cleanup',
                 'log_cleanup',
+                'metadata_cleanup',
+                'channel_metadata_cleanup',
+                'youtube_metadata_files',
                 'dry_run_mode',
                 'orphaned_detection',
                 'size_reporting'

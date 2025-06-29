@@ -41,6 +41,7 @@ class JobType(Enum):
     FILE_CLEANUP = "file_cleanup"
     DATABASE_CLEANUP = "database_cleanup"
     LOG_CLEANUP = "log_cleanup"
+    METADATA_CLEANUP = "metadata_cleanup"
     
     # Задачи синхронизации
     CHANNEL_SYNC = "channel_sync"

@@ -2,8 +2,8 @@
 """
 Channel Download Worker
 
-Воркер для загрузки YouTube каналов через систему Job Queue.
-Интегрируется с существующим download_content.py.
+Worker for downloading YouTube channels through Job Queue system.
+Integrates with existing download_content.py.
 """
 
 import os
@@ -14,15 +14,15 @@ from pathlib import Path
 from typing import List
 from datetime import datetime
 
-# Добавляем корневую папку в путь для импортов
+# Add root folder to path for imports
 sys.path.append(str(Path(__file__).parent.parent.parent))
 
 from services.job_types import JobWorker, Job, JobType
-import download_content  # Используем существующую логику загрузки
+import download_content  # Use existing download logic
 
 
 class ChannelDownloadWorker(JobWorker):
-    """Воркер для загрузки YouTube каналов."""
+    """Worker for downloading YouTube channels."""
     
     def __init__(self):
         super().__init__("channel_download_worker")
@@ -32,25 +32,25 @@ class ChannelDownloadWorker(JobWorker):
         ]
     
     def get_supported_job_types(self) -> List[JobType]:
-        """Возвращает поддерживаемые типы задач."""
+        """Returns supported job types."""
         return self.supported_types
     
     def execute_job(self, job: Job) -> bool:
         """
-        Выполняет загрузку канала.
+        Executes channel download.
         
-        Ожидаемые параметры в job.job_data:
-        - channel_url: URL канала для загрузки
-        - channel_id: ID канала в базе данных
-        - group_name: Название группы каналов
-        - download_archive: использовать ли archive (default: True)
-        - max_downloads: максимальное количество загрузок (optional)
+        Expected parameters in job.job_data:
+        - channel_url: Channel URL for download
+        - channel_id: Channel ID in database
+        - group_name: Channel group name
+        - download_archive: Whether to use archive (default: True)
+        - max_downloads: Maximum number of downloads (optional)
         
         Returns:
-            True если загрузка успешна, False если нет
+            True if download successful, False otherwise
         """
         try:
-            # Извлекаем параметры из job data
+            # Extract parameters from job data
             channel_url = job.job_data.get('channel_url')
             channel_id = job.job_data.get('channel_id')
             group_name = job.job_data.get('group_name', 'Default')
@@ -67,13 +67,13 @@ class ChannelDownloadWorker(JobWorker):
             print(f"Channel ID: {channel_id}, Group: {group_name}")
             print(f"Download archive: {download_archive}, Max downloads: {max_downloads}")
             
-            # Определяем рабочую директорию (корень проекта)
+            # Determine working directory (project root)
             project_root = Path(__file__).parent.parent.parent
             
-            # Загружаем конфигурацию из .env
+            # Load configuration from .env
             config = self._load_config(project_root)
             
-            # Определяем пути
+            # Determine paths
             if 'ROOT_DIR' in config:
                 root_dir = Path(config['ROOT_DIR'])
             else:
@@ -81,15 +81,15 @@ class ChannelDownloadWorker(JobWorker):
             
             playlists_dir = root_dir / 'Playlists'
             
-            # Создаем папку для группы если нужно
+            # Create group folder if needed
             group_folder = playlists_dir / group_name
             group_folder.mkdir(parents=True, exist_ok=True)
             
             print(f"Using playlists directory: {playlists_dir}")
             print(f"Group folder: {group_folder}")
             
-            # Вызываем download_content.py через subprocess для изоляции
-            # Это позволяет захватить весь вывод и логи
+            # Call download_content.py via subprocess for isolation
+            # This allows capturing all output and logs
             cmd = [
                 sys.executable,
                 str(project_root / 'download_content.py'),
@@ -97,7 +97,7 @@ class ChannelDownloadWorker(JobWorker):
                 '--root', str(root_dir)
             ]
             
-            # Добавляем опциональные параметры
+            # Add optional parameters
             if not download_archive:
                 cmd.append('--no-archive')
             
@@ -106,16 +106,16 @@ class ChannelDownloadWorker(JobWorker):
             
             print(f"Executing command: {' '.join(cmd)}")
             
-            # Запускаем загрузку с захватом вывода
+            # Run download with output capture
             result = subprocess.run(
                 cmd,
                 cwd=str(project_root),
                 capture_output=True,
                 text=True,
-                timeout=7200  # 2 часа timeout для больших каналов
+                timeout=7200  # 2 hours timeout for large channels
             )
             
-            # Выводим результат для логирования
+            # Output result for logging
             if result.stdout:
                 print("=== STDOUT ===")
                 print(result.stdout)
@@ -126,12 +126,15 @@ class ChannelDownloadWorker(JobWorker):
             
             print(f"Process exit code: {result.returncode}")
             
-            # Проверяем результат
+            # Check result
             if result.returncode == 0:
                 print("Channel download completed successfully")
                 
-                # Обновляем статистику канала в базе данных
+                # Update channel statistics in database
                 self._update_channel_stats(channel_id, config.get('DB_PATH'))
+                
+                # AUTOMATIC METADATA CLEANUP after download
+                self._cleanup_metadata_after_download(channel_url, group_name, root_dir)
                 
                 return True
             else:
@@ -150,7 +153,7 @@ class ChannelDownloadWorker(JobWorker):
             return False
     
     def _load_config(self, project_root: Path) -> dict:
-        """Загружает конфигурацию из .env файла."""
+        """Loads configuration from .env file."""
         config = {}
         env_path = project_root / '.env'
         
@@ -168,15 +171,15 @@ class ChannelDownloadWorker(JobWorker):
         return config
     
     def _update_channel_stats(self, channel_id: int, db_path: str = None):
-        """Обновляет статистику канала после загрузки."""
+        """Updates channel statistics after download."""
         try:
             if not db_path:
-                # Fallback к default пути
+                # Fallback to default path
                 project_root = Path(__file__).parent.parent.parent
                 db_path = str(project_root / 'tracks.db')
             
-            # Вызываем update_channel_sync через subprocess
-            # Это обновит track_count и другую статистику
+            # Call update_channel_sync via subprocess
+            # This will update track_count and other statistics
             cmd = [
                 sys.executable,
                 '-c',
@@ -206,12 +209,92 @@ print('Channel stats updated successfully')
         except Exception as e:
             print(f"Warning: Failed to update channel stats: {e}")
     
+    def _cleanup_metadata_after_download(self, channel_url: str, group_name: str, root_dir: Path):
+        """
+        Automatic metadata cleanup after channel download.
+        
+        Args:
+            channel_url: Channel URL
+            group_name: Channel group name
+            root_dir: Root directory
+        """
+        try:
+            print("Starting automatic metadata cleanup after download...")
+            
+            # Determine cleanup script path
+            project_root = Path(__file__).parent.parent.parent
+            cleanup_script = project_root / 'scripts' / 'cleanup_channel_metadata.py'
+            
+            if not cleanup_script.exists():
+                print(f"Warning: Cleanup script not found at {cleanup_script}")
+                return
+            
+            # Extract channel name from URL for cleanup
+            # Example: https://www.youtube.com/@kalush.official -> kalush.official
+            channel_name = None
+            if '@' in channel_url:
+                channel_name = channel_url.split('@')[-1].split('/')[0]
+            elif '/c/' in channel_url:
+                channel_name = channel_url.split('/c/')[-1].split('/')[0]
+            elif '/channel/' in channel_url:
+                # For channel IDs, try to find folder in group
+                playlists_dir = root_dir / 'Playlists' / group_name
+                if playlists_dir.exists():
+                    # Find latest created channel folder
+                    channel_folders = [f for f in playlists_dir.iterdir() 
+                                     if f.is_dir() and f.name.startswith('Channel-')]
+                    if channel_folders:
+                        # Get most recent folder
+                        latest_folder = max(channel_folders, key=lambda x: x.stat().st_mtime)
+                        channel_name = latest_folder.name.replace('Channel-', '')
+            
+            if not channel_name:
+                print(f"Warning: Could not extract channel name from URL: {channel_url}")
+                return
+            
+            print(f"Cleaning up metadata for channel: {channel_name}")
+            
+            # Execute cleanup script
+            cmd = [
+                sys.executable,
+                str(cleanup_script),
+                '--channel', channel_name,
+                '--root', str(root_dir)
+            ]
+            
+            print(f"Executing cleanup command: {' '.join(cmd)}")
+            
+            result = subprocess.run(
+                cmd,
+                cwd=str(project_root),
+                capture_output=True,
+                text=True,
+                timeout=300  # 5 minutes timeout for cleanup
+            )
+            
+            if result.returncode == 0:
+                print("✅ Automatic metadata cleanup completed successfully")
+                if result.stdout:
+                    # Show cleanup statistics
+                    lines = result.stdout.strip().split('\n')
+                    for line in lines[-5:]:  # Last 5 lines with summary
+                        print(f"  {line}")
+            else:
+                print(f"⚠️ Metadata cleanup finished with warnings (exit code: {result.returncode})")
+                if result.stderr:
+                    print(f"Cleanup stderr: {result.stderr}")
+                    
+        except subprocess.TimeoutExpired:
+            print("⚠️ Metadata cleanup timed out (5 minutes)")
+        except Exception as e:
+            print(f"⚠️ Exception during automatic metadata cleanup: {e}")
+    
     def get_worker_info(self) -> dict:
-        """Информация о воркере для мониторинга."""
+        """Worker information for monitoring."""
         info = super().get_worker_info()
         info.update({
             'description': 'Downloads YouTube channels using yt-dlp',
-            'max_concurrent_jobs': 1,  # Каналы загружаем по одному
+            'max_concurrent_jobs': 1,  # Download channels one by one
             'average_duration': '30-60 minutes',
             'supported_features': [
                 'download_archive',
