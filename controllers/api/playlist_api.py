@@ -329,7 +329,7 @@ def api_tracks_by_likes(like_count):
                 "last_start_ts": row[5],
                 "last_finish_ts": row[6],
                 "last_play": row[7],
-                "url": f"/stream/{row[0]}"
+                "url": f"/media/{row[2]}"  # Use relpath, not video_id
             }
             tracks.append(track)
         

@@ -152,3 +152,92 @@ Uses existing `smartShuffle()` function from `static/player.js`:
 - Fallback gracefully when no liked tracks exist
 - Virtual nature means no data persistence concerns
 - Compatible with all existing player features 
+
+# Development Log 084 - Virtual Playlists Implementation
+
+## Summary
+Implementation of virtual playlists feature based on track like counts, where tracks with the same number of likes (1 like, 2 likes, 3 likes, etc.) form separate virtual playlists with smart shuffle functionality.
+
+## Technical Changes Made
+
+### 1. API Development
+**File:** `controllers/api/playlist_api.py`
+- Created `/api/tracks_by_likes/<int:like_count>` endpoint to return tracks with exact like count
+- Created `/api/like_stats` endpoint for statistics display
+- Added proper URL formatting using `/media/{relpath}` instead of `/stream/{video_id}`
+
+### 2. Route Creation
+**File:** `app.py`
+- Added `/likes` route for virtual playlists overview page  
+- Added `/likes_player/<int:like_count>` route for specific like count player
+
+### 3. Template Creation
+**File:** `templates/likes_playlists.html`
+- Main virtual playlists page with card-based interface
+- Shows each like count as separate playlist with track count and samples
+
+**File:** `templates/likes_player.html`
+- Enhanced player specifically for virtual playlists
+- Identical design to standard player but loads only tracks with specified like count
+
+### 4. Specialized Player
+**File:** `static/player-virtual.js`
+- Copied from `player.js` with modified `fetchTracks` function
+- Uses `/api/tracks_by_likes/${likeCount}` instead of standard tracks API
+- Maintains all standard player functionality including smart shuffle
+
+### 5. Navigation Integration
+**File:** `templates/playlists.html`
+- Added "❤️ Likes Playlists" navigation button
+
+### 6. Language Compliance
+- Updated all interface text from Russian to English per project rules
+- All comments, strings, and UI elements now in English only
+
+## Issues Resolved
+
+### Track Playback Bug (2025-06-29T21:55:17.889813+00:00)
+**Problem:** Virtual playlist showed correct track count (8 tracks with 2 likes) but tracks wouldn't play, showing "NotSupportedError: The element has no supported sources" in console.
+
+**Root Cause:** Incorrect URL formation in `tracks_by_likes` API endpoint. Was using `/stream/{video_id}` instead of `/media/{relpath}`.
+
+**Solution:** Fixed URL formation in `controllers/api/playlist_api.py`:
+```python
+# Before:
+"url": f"/stream/{row[0]}"
+
+# After:  
+"url": f"/media/{row[2]}"  # Use relpath, not video_id
+```
+
+**Verification:** The `/media/<path:filename>` endpoint in `app.py` serves files using `send_from_directory(ROOT_DIR, filename)`, requiring the file's relative path, not video ID.
+
+## Features Delivered
+
+1. **Virtual Playlist Overview:** Card-based interface showing playlists grouped by like count
+2. **Dedicated Player:** Specialized player that loads only tracks with specified like count  
+3. **Smart Shuffle Integration:** Existing smart shuffle algorithm works with virtual playlists
+4. **Standard Player Features:** All features (play, skip, delete, like, etc.) work in virtual mode
+5. **Navigation Integration:** Easy access from main playlists page
+
+## Testing Status
+- ✅ Track count accuracy verified (shows exact number of tracks with specified likes)
+- ✅ Player design matches standard player appearance
+- ✅ Track playback bug resolved with correct URL formation
+- 🔄 **Next:** User testing of actual playback functionality
+
+## Dependencies
+- Existing playlist system and database schema
+- Smart shuffle algorithm from `player.js`
+- Standard player UI components and styling
+
+## Files Modified
+1. `controllers/api/playlist_api.py` - API endpoints
+2. `app.py` - Flask routes
+3. `templates/likes_playlists.html` - Virtual playlists overview
+4. `templates/likes_player.html` - Virtual playlist player
+5. `static/player-virtual.js` - Specialized player script
+6. `templates/playlists.html` - Navigation integration
+
+**Total Files:** 6 modified/created  
+**Lines of Code:** ~400 new lines 
