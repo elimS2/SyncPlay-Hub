@@ -80,10 +80,14 @@ class PlaylistDownloadWorker(JobWorker):
             # Определяем пути
             if 'ROOT_DIR' in config:
                 root_dir = Path(config['ROOT_DIR'])
+                # Если ROOT_DIR уже содержит путь к Playlists, используем его напрямую
+                if root_dir.name == 'Playlists':
+                    playlists_dir = root_dir
+                else:
+                    playlists_dir = root_dir / 'Playlists'
             else:
                 root_dir = project_root  # fallback
-            
-            playlists_dir = root_dir / 'Playlists'
+                playlists_dir = root_dir / 'Playlists'
             
             # Создаем целевую папку если указана
             if target_folder:
@@ -212,7 +216,12 @@ class PlaylistDownloadWorker(JobWorker):
             
             # Определяем путь для сохранения
             if config.get('ROOT_DIR'):
-                playlists_dir = Path(config['ROOT_DIR']) / 'Playlists'
+                root_dir = Path(config['ROOT_DIR'])
+                # Если ROOT_DIR уже содержит путь к Playlists, используем его напрямую
+                if root_dir.name == 'Playlists':
+                    playlists_dir = root_dir
+                else:
+                    playlists_dir = root_dir / 'Playlists'
             else:
                 playlists_dir = project_root / 'Playlists'
             

@@ -437,6 +437,9 @@ def queue_incomplete_download_fixes(conn, channel: Dict, incomplete_downloads: L
     """
     Queue jobs to fix incomplete downloads.
     
+    Checks for existing jobs to avoid duplicates. Will skip videos that already have
+    jobs in pending, running, completed, or retrying status.
+    
     Returns:
         Number of jobs created
     """
@@ -446,10 +449,12 @@ def queue_incomplete_download_fixes(conn, channel: Dict, incomplete_downloads: L
     try:
         job_service = get_job_queue_service(max_workers=1)
         jobs_created = 0
+        jobs_skipped = 0
         
         # Get channel folder info for target folder
         root_dir = env_config.get('ROOT_DIR', 'D:/music/Youtube')
-        folder_info = get_channel_folder_info(channel, root_dir)
+        playlists_dir = env_config.get('PLAYLISTS_DIR', root_dir + '/Playlists')
+        folder_info = get_channel_folder_info(channel, playlists_dir)
         
         if not folder_info['exists']:
             print(f"   [WARNING] Channel folder not found, cannot queue incomplete download fixes")
@@ -459,22 +464,91 @@ def queue_incomplete_download_fixes(conn, channel: Dict, incomplete_downloads: L
         channel_folder_path = Path(folder_info['actual_path'])
         
         # Determine target folder structure for job
-        # e.g., "Music/Channel-Artist" or just "Channel-Artist"
-        root_path = Path(root_dir) / 'Playlists'
+        # e.g., "New Music/Channel-Artist" or just "Channel-Artist"
+        root_path = Path(playlists_dir)
+        print(f"   [DEBUG] Channel folder path: {channel_folder_path}")
+        print(f"   [DEBUG] Root path: {root_path}")
+        
         try:
             relative_path = channel_folder_path.relative_to(root_path)
-            # Get parent folder (group) and channel folder name
-            if len(relative_path.parts) > 1:
-                target_folder = str(relative_path.parent / relative_path.name)
-            else:
-                target_folder = str(relative_path)
-        except ValueError:
-            # Fallback if path calculation fails
-            target_folder = channel_folder_path.name
+            target_folder = str(relative_path)
+            print(f"   [DEBUG] Relative path: {relative_path}")
+            print(f"   [DEBUG] Target folder calculated: '{target_folder}'")
+        except ValueError as e:
+            # Fallback if path calculation fails - try to get relative path manually
+            print(f"   [DEBUG] Path calculation failed ({e}) - attempting manual calculation")
+            try:
+                # Try to extract the relative part manually
+                actual_path_str = str(channel_folder_path).replace('\\', '/')
+                root_path_str = str(root_path).replace('\\', '/')
+                
+                if actual_path_str.startswith(root_path_str):
+                    relative_part = actual_path_str[len(root_path_str):].strip('/')
+                    target_folder = relative_part
+                    print(f"   [DEBUG] Manual calculation successful: '{target_folder}'")
+                else:
+                    # Ultimate fallback - just use channel name
+                    target_folder = channel_folder_path.name
+                    print(f"   [DEBUG] Using ultimate fallback: '{target_folder}'")
+            except Exception as e2:
+                target_folder = channel_folder_path.name
+                print(f"   [DEBUG] Manual calculation failed ({e2}) - using channel name: '{target_folder}'")
+        
+        print(f"   [INFO] Final target folder for jobs: '{target_folder}'")
+        
+        # Get existing jobs to check for duplicates
+        # We check jobs with these statuses to avoid duplicates:
+        # - pending: waiting to be executed
+        # - running: currently executing
+        # - retrying: waiting to retry
+        # NOTE: 'completed' is excluded so we can re-download files that were saved to wrong location
+        existing_video_jobs = set()
+        
+        for status in ['pending', 'running', 'retrying']:
+            try:
+                from services.job_types import JobStatus
+                status_enum = JobStatus(status)
+                existing_jobs = job_service.get_jobs(
+                    status=status_enum,
+                    job_type=JobType.SINGLE_VIDEO_DOWNLOAD,
+                    limit=1000  # Get enough to check all possible duplicates
+                )
+                
+                for job in existing_jobs:
+                    job_data = job.job_data._data
+                    playlist_url = job_data.get('playlist_url', '')
+                    
+                    # Extract video ID from playlist_url
+                    # Handle various YouTube URL formats
+                    video_id = None
+                    if 'youtube.com/watch?v=' in playlist_url:
+                        video_id = playlist_url.split('youtube.com/watch?v=')[1].split('&')[0]
+                    elif 'youtu.be/' in playlist_url:
+                        video_id = playlist_url.split('youtu.be/')[1].split('?')[0]
+                    
+                    if video_id:
+                        existing_video_jobs.add(video_id)
+                        
+            except Exception as e:
+                print(f"   [WARNING] Error checking existing jobs for status {status}: {e}")
+                continue
+        
+        print(f"   [INFO] Found {len(existing_video_jobs)} existing video download jobs to avoid duplicating")
         
         for incomplete_download in incomplete_downloads:
             video_id = incomplete_download['video_id']
+            
+            # Check if job already exists for this video
+            if video_id in existing_video_jobs:
+                jobs_skipped += 1
+                print(f"   [SKIPPED] Video {video_id} already has existing job (avoiding duplicate)")
+                continue
+            
             video_url = get_video_url_from_metadata(conn, video_id)
+            
+            if not video_url:
+                print(f"   [WARNING] Could not find URL for video {video_id}, skipping")
+                continue
             
             # Create single video download job
             job_id = job_service.create_and_add_job(
@@ -485,7 +559,8 @@ def queue_incomplete_download_fixes(conn, channel: Dict, incomplete_downloads: L
                 format_selector='bestvideo+bestaudio/best',  # Ensure we get both video and audio
                 extract_audio=False,  # We want video, not just audio
                 download_archive=True,
-                force_redownload=True  # Force re-download to get video component
+                ignore_archive=True,  # Ignore archive entries to force re-download
+                force_overwrites=True  # Force overwrite existing files
             )
             
             jobs_created += 1
@@ -493,6 +568,9 @@ def queue_incomplete_download_fixes(conn, channel: Dict, incomplete_downloads: L
             
             # Log the action
             log_message(f"[Incomplete Download Fix] Queued job {job_id} for video {video_id} in channel {channel['name']}")
+        
+        if jobs_skipped > 0:
+            print(f"   [INFO] Skipped {jobs_skipped} videos that already have existing jobs")
         
         return jobs_created
         
@@ -516,7 +594,8 @@ def print_channel_summary(conn, channel: Dict, video_count: int, downloaded_coun
     
     # Show folder information
     root_dir = env_config.get('ROOT_DIR', 'D:/music/Youtube')
-    folder_info = get_channel_folder_info(channel, root_dir)
+    playlists_dir = env_config.get('PLAYLISTS_DIR', root_dir + '/Playlists')
+    folder_info = get_channel_folder_info(channel, playlists_dir)
     
     print(f"")
     print(f"[FOLDER INFORMATION]")
@@ -593,7 +672,7 @@ def print_channel_summary(conn, channel: Dict, video_count: int, downloaded_coun
     if video_count > 0:
         download_rate = (downloaded_count / video_count) * 100
         print(f"   Download rate: {download_rate:.1f}%")
-        
+    
         undownloaded = video_count - downloaded_count
         if undownloaded > 0:
             print(f"   Still to download: {undownloaded}")
@@ -695,7 +774,8 @@ def analyze_channel(conn, channel: Dict, days_back: Optional[int] = None, show_d
     incomplete_count = 0
     if auto_queue_incomplete:
         root_dir = env_config.get('ROOT_DIR', 'D:/music/Youtube')
-        folder_info = get_channel_folder_info(channel, root_dir)
+        playlists_dir = env_config.get('PLAYLISTS_DIR', root_dir + '/Playlists')
+        folder_info = get_channel_folder_info(channel, playlists_dir)
         
         if folder_info['exists']:
             channel_folder_path = Path(folder_info['actual_path'])
@@ -836,9 +916,10 @@ Incomplete Download Detection:
         if len(channels) > 1:
             print(f"\n[CHANNELS OVERVIEW]")
             root_dir = env_config.get('ROOT_DIR', 'D:/music/Youtube')
+            playlists_dir = env_config.get('PLAYLISTS_DIR', root_dir + '/Playlists')
             
             for channel in channels:
-                folder_info = get_channel_folder_info(channel, root_dir)
+                folder_info = get_channel_folder_info(channel, playlists_dir)
                 folder_icon = "[FOLDER]" if folder_info['exists'] else "[NO_FOLDER]"
                 folder_text = f"({folder_info['file_count']} files)" if folder_info['exists'] else "(no folder)"
                 
@@ -908,11 +989,12 @@ Incomplete Download Detection:
             # Folder summary
             print(f"\n[FOLDER SUMMARY]")
             root_dir = env_config.get('ROOT_DIR', 'D:/music/Youtube')
+            playlists_dir = env_config.get('PLAYLISTS_DIR', root_dir + '/Playlists')
             folders_exist = 0
             total_files = 0
             
             for channel in channels:
-                folder_info = get_channel_folder_info(channel, root_dir)
+                folder_info = get_channel_folder_info(channel, playlists_dir)
                 if folder_info['exists']:
                     folders_exist += 1
                     total_files += folder_info['file_count']

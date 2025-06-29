@@ -775,6 +775,19 @@ class JobQueueService:
             'uptime_seconds': uptime
         }
     
+    def start(self):
+        """Запуск сервиса (если он еще не запущен)."""
+        if not self._worker_threads or all(not t.is_alive() for t in self._worker_threads):
+            print("Starting Job Queue Service workers...")
+            self._stop_event.clear()
+            self._worker_threads.clear()
+            self._start_worker_threads()
+            print(f"Job Queue Service started with {len(self._worker_threads)} workers")
+    
+    def stop(self):
+        """Остановка сервиса (алиас для shutdown)."""
+        self.shutdown()
+    
     def shutdown(self, graceful_timeout: int = 30):
         """Graceful shutdown сервиса с ожиданием завершения текущих задач."""
         print("Initiating graceful shutdown of Job Queue Service...")

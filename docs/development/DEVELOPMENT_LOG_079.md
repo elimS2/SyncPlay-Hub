@@ -1,14 +1,12 @@
 # DEVELOPMENT LOG #079
-**Дата:** 2025-06-28  
-**Разработчик:** Assistant (Claude Sonnet 4)  
-**Сессия:** Реализация обнаружения и автоматического исправления недозагруженных треков
+**Date:** 2025-06-28  
+**Developer:** Assistant (Claude Sonnet 4)  
+**Session:** Implementation of automatic incomplete download detection and repair system
 
-## Описание Сессии
-Реализация функционала для обнаружения треков с неполной загрузкой (только аудио .f251 файлы без видео компонента) и автоматической постановки заданий на их дозагрузку через систему Job Queue.
+## Session Description
+Implementation of functionality to detect tracks with incomplete downloads (audio-only .f251 files without video component) and automatically queue repair jobs through the Job Queue system.
 
 ---
-
-## DEVELOPMENT LOG #079
 
 ### Log Entry #001 - 2025-06-28 23:29 UTC
 
@@ -56,10 +54,10 @@ Solves the problem reported by user about .f251 files (audio-only) missing video
 
 **Next Steps:**
 - Monitor job queue execution to verify downloads complete successfully
-- Consider expanding to analyze all channels for incomplete downloads
-- Potentially integrate this check into regular channel sync operations
+  - Consider expanding to analyze all channels for incomplete downloads
+  - Potentially integrate this check into regular channel sync operations
 
 ---
 
-## Заключение
-Функционал успешно реализован и протестирован. Система теперь может автоматически обнаруживать неполные загрузки и ставить задания на их исправление через существующую систему Job Queue. 
+## Conclusion
+Functionality successfully implemented and tested. The system can now automatically detect incomplete downloads and queue repair jobs through the existing Job Queue system. 
