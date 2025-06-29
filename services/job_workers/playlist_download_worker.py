@@ -2,8 +2,8 @@
 """
 Playlist Download Worker
 
-Воркер для загрузки отдельных плейлистов YouTube через систему Job Queue.
-Интегрируется с существующим download_content.py.
+Worker for downloading individual YouTube playlists through Job Queue system.
+Integrates with existing download_content.py.
 """
 
 import sys
@@ -14,14 +14,14 @@ from typing import List
 from datetime import datetime
 import os
 
-# Добавляем корневую папку в путь для импортов
+# Add root folder to path for imports
 sys.path.append(str(Path(__file__).parent.parent.parent))
 
 from services.job_types import JobWorker, Job, JobType
 
 
 class PlaylistDownloadWorker(JobWorker):
-    """Воркер для загрузки отдельных плейлистов YouTube."""
+    """Worker for downloading individual YouTube playlists."""
     
     def __init__(self):
         super().__init__("playlist_download_worker")
@@ -32,28 +32,28 @@ class PlaylistDownloadWorker(JobWorker):
         ]
     
     def get_supported_job_types(self) -> List[JobType]:
-        """Возвращает поддерживаемые типы задач."""
+        """Returns supported job types."""
         return self.supported_types
     
     def execute_job(self, job: Job) -> bool:
         """
-        Выполняет загрузку плейлиста или отдельного видео.
+        Executes playlist or single video download.
         
-        Ожидаемые параметры в job.job_data:
-        - playlist_url: URL плейлиста или видео для загрузки
-        - target_folder: название папки для сохранения (optional)
-        - download_archive: использовать ли archive (default: True)
-        - max_downloads: максимальное количество загрузок (optional)
-        - playlist_start: номер видео с которого начать (optional)
-        - playlist_end: номер видео на котором остановиться (optional)
-        - format_selector: формат для загрузки (optional, default: best)
-        - extract_audio: извлекать только аудио (default: False)
+        Expected parameters in job.job_data:
+        - playlist_url: Playlist or video URL to download
+        - target_folder: Target folder name for saving (optional)
+        - download_archive: Whether to use archive (default: True)
+        - max_downloads: Maximum number of downloads (optional)
+        - playlist_start: Video number to start from (optional)
+        - playlist_end: Video number to stop at (optional)
+        - format_selector: Format for download (optional, default: best)
+        - extract_audio: Extract audio only (default: False)
         
         Returns:
-            True если загрузка успешна, False если нет
+            True if download successful, False if not
         """
         try:
-            # Извлекаем параметры из job data
+            # Extract parameters from job data
             playlist_url = job.job_data.get('playlist_url')
             target_folder = job.job_data.get('target_folder')
             download_archive = job.job_data.get('download_archive', True)
@@ -72,16 +72,16 @@ class PlaylistDownloadWorker(JobWorker):
             print(f"Playlist range: {playlist_start}-{playlist_end}")
             print(f"Format: {format_selector}, Extract audio: {extract_audio}")
             
-            # Определяем рабочую директорию (корень проекта)
+            # Determine working directory (project root)
             project_root = Path(__file__).parent.parent.parent
             
-            # Загружаем конфигурацию из .env
+            # Load configuration from .env
             config = self._load_config(project_root)
             
-            # Определяем пути
+            # Determine paths
             if 'ROOT_DIR' in config:
                 root_dir = Path(config['ROOT_DIR'])
-                # Если ROOT_DIR уже содержит путь к Playlists, используем его напрямую
+                # If ROOT_DIR already contains path to Playlists, use it directly
                 if root_dir.name == 'Playlists':
                     playlists_dir = root_dir
                 else:
@@ -90,7 +90,7 @@ class PlaylistDownloadWorker(JobWorker):
                 root_dir = project_root  # fallback
             playlists_dir = root_dir / 'Playlists'
             
-            # Создаем целевую папку если указана
+            # Create target folder if specified
             if target_folder:
                 target_path = playlists_dir / target_folder
                 target_path.mkdir(parents=True, exist_ok=True)
@@ -98,7 +98,7 @@ class PlaylistDownloadWorker(JobWorker):
             
             print(f"Using playlists directory: {playlists_dir}")
             
-            # Определяем тип загрузки
+            # Determine download type
             if job.job_type == JobType.SINGLE_VIDEO_DOWNLOAD:
                 success = self._download_single_video(
                     playlist_url, config, project_root, target_folder,
@@ -123,12 +123,12 @@ class PlaylistDownloadWorker(JobWorker):
                           target_folder: str, download_archive: bool, max_downloads: int,
                           playlist_start: int, playlist_end: int, format_selector: str,
                           extract_audio: bool) -> bool:
-        """Загружает плейлист."""
+        """Downloads playlist."""
         try:
-            # Используем download_playlist.py для плейлистов
+            # Use download_playlist.py for playlists
             script_path = project_root / 'download_playlist.py'
             if not script_path.exists():
-                # Fallback к download_content.py
+                # Fallback to download_content.py
                 script_path = project_root / 'download_content.py'
             
             cmd = [
@@ -137,15 +137,20 @@ class PlaylistDownloadWorker(JobWorker):
                 playlist_url
             ]
             
-            # Добавляем root директорию
+            # Add root directory
             if config.get('ROOT_DIR'):
                 cmd.extend(['--root', config['ROOT_DIR']])
             
-            # Добавляем целевую папку
+            # Add proxy support
+            if config.get('PROXY_URL'):
+                cmd.extend(['--proxy', config['PROXY_URL']])
+                print(f"Using proxy for playlist: {config['PROXY_URL']}")
+            
+            # Add target folder
             if target_folder:
                 cmd.extend(['--folder', target_folder])
             
-            # Добавляем опциональные параметры
+            # Add optional parameters
             if not download_archive:
                 cmd.append('--no-archive')
             
@@ -166,16 +171,16 @@ class PlaylistDownloadWorker(JobWorker):
             
             print(f"Executing command: {' '.join(cmd)}")
             
-            # Запускаем загрузку с захватом вывода
+            # Run download with output capture
             result = subprocess.run(
                 cmd,
                 cwd=str(project_root),
                 capture_output=True,
                 text=True,
-                timeout=7200  # 2 часа timeout для больших плейлистов
+                timeout=7200  # 2 hours timeout for large playlists
             )
             
-            # Выводим результат для логирования
+            # Output result for logging
             if result.stdout:
                 print("=== STDOUT ===")
                 print(result.stdout)
@@ -186,11 +191,11 @@ class PlaylistDownloadWorker(JobWorker):
             
             print(f"Process exit code: {result.returncode}")
             
-            # Проверяем результат
+            # Check result
             if result.returncode == 0:
                 print("Playlist download completed successfully")
                 
-                # Обновляем базу данных сканированием
+                # Update database with scan
                 self._update_database_scan(config.get('DB_PATH'))
                 
                 return True
@@ -210,15 +215,15 @@ class PlaylistDownloadWorker(JobWorker):
     def _download_single_video(self, video_url: str, config: dict, project_root: Path,
                               target_folder: str, download_archive: bool, 
                               format_selector: str, extract_audio: bool, job_data: dict) -> bool:
-        """Загружает отдельное видео."""
+        """Downloads single video."""
         try:
-            # Используем yt-dlp напрямую для отдельных видео
+            # Use yt-dlp directly for single videos
             cmd = ['yt-dlp']
             
-            # Определяем путь для сохранения
+            # Determine save path
             if config.get('ROOT_DIR'):
                 root_dir = Path(config['ROOT_DIR'])
-                # Если ROOT_DIR уже содержит путь к Playlists, используем его напрямую
+                # If ROOT_DIR already contains path to Playlists, use it directly
                 if root_dir.name == 'Playlists':
                     playlists_dir = root_dir
                 else:
@@ -233,15 +238,15 @@ class PlaylistDownloadWorker(JobWorker):
             
             output_dir.mkdir(parents=True, exist_ok=True)
             
-            # Настройка вывода
+            # Output configuration
             output_template = str(output_dir / '%(title)s [%(id)s].%(ext)s')
             cmd.extend(['-o', output_template])
             
-            # Формат с fallback для обхода HTTP 403
+            # Format with fallback to bypass HTTP 403
             if extract_audio:
                 cmd.extend(['-f', 'bestaudio', '--extract-audio', '--audio-format', 'mp3'])
             else:
-                # Используем проверенное решение: f137+f251 вместо f616+f251 для обхода HTTP 403
+                # Use proven solution: f137+f251 instead of f616+f251 to bypass HTTP 403
                 if format_selector == 'bestvideo+bestaudio/best':
                     cmd.extend(['-f', '137+251/best[height<=1080]/best'])
                 else:
@@ -252,30 +257,35 @@ class PlaylistDownloadWorker(JobWorker):
                 archive_file = output_dir / 'archive.txt'
                 cmd.extend(['--download-archive', str(archive_file)])
             
-            # Основные опции + решение проблемы кодировки
+            # Main options + encoding fix
             cmd.extend([
                 '--write-info-json',
                 '--write-thumbnail', 
                 '--embed-thumbnail',
                 '--add-metadata',
-                '--restrict-filenames',  # КЛЮЧЕВОЕ исправление для Unicode в Windows
+                '--restrict-filenames',  # KEY fix for Unicode in Windows
                 '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
                 '--extractor-retries', '3',
                 '--fragment-retries', '10'
             ])
             
-            # Дополнительные параметры для исправления загрузки
+            # Proxy support for bypassing YouTube blocks
+            if config.get('PROXY_URL'):
+                cmd.extend(['--proxy', config['PROXY_URL']])
+                print(f"Using proxy: {config['PROXY_URL']}")
+            
+            # Additional parameters for download fixes
             if job_data.get('ignore_archive'):
                 cmd.append('--no-download-archive')
             if job_data.get('force_overwrites'):
                 cmd.append('--force-overwrites')
             
-            # URL видео
+            # Video URL
             cmd.append(video_url)
             
             print(f"Executing command: {' '.join(cmd)}")
             
-            # Запускаем загрузку с правильной кодировкой для Windows
+            # Run download with correct encoding for Windows
             env = os.environ.copy()
             env['PYTHONIOENCODING'] = 'utf-8'
             
@@ -286,11 +296,11 @@ class PlaylistDownloadWorker(JobWorker):
                 text=True,
                 encoding='utf-8',
                 errors='replace',
-                timeout=3600,  # 1 час timeout для отдельного видео
+                timeout=3600,  # 1 hour timeout for single video
                 env=env
             )
             
-            # Выводим результат для логирования
+            # Output result for logging
             if result.stdout:
                 print("=== STDOUT ===")
                 print(result.stdout)
@@ -301,11 +311,11 @@ class PlaylistDownloadWorker(JobWorker):
             
             print(f"Process exit code: {result.returncode}")
             
-            # Проверяем результат
+            # Check result
             if result.returncode == 0:
                 print("Single video download completed successfully")
                 
-                # Обновляем базу данных сканированием
+                # Update database with scan
                 self._update_database_scan(config.get('DB_PATH'))
                 
                 return True
@@ -323,14 +333,14 @@ class PlaylistDownloadWorker(JobWorker):
             return False
     
     def _update_database_scan(self, db_path: str = None):
-        """Обновляет базу данных сканированием новых файлов."""
+        """Updates database by scanning new files."""
         try:
             if not db_path:
-                # Fallback к default пути
+                # Fallback to default path
                 project_root = Path(__file__).parent.parent.parent
                 db_path = str(project_root / 'tracks.db')
             
-            # Вызываем scan_to_db.py для обновления базы
+            # Call scan_to_db.py to update database
             project_root = Path(__file__).parent.parent.parent
             scan_script = project_root / 'scan_to_db.py'
             
@@ -344,7 +354,7 @@ class PlaylistDownloadWorker(JobWorker):
                     cmd,
                     capture_output=True,
                     text=True,
-                    timeout=300  # 5 минут timeout для сканирования
+                    timeout=300  # 5 minutes timeout for scanning
                 )
                 
                 if result.returncode == 0:
@@ -360,7 +370,7 @@ class PlaylistDownloadWorker(JobWorker):
             print(f"Warning: Failed to update database: {e}")
     
     def _load_config(self, project_root: Path) -> dict:
-        """Загружает конфигурацию из .env файла."""
+        """Loads configuration from .env file."""
         config = {}
         env_path = project_root / '.env'
         
@@ -378,11 +388,11 @@ class PlaylistDownloadWorker(JobWorker):
         return config
     
     def get_worker_info(self) -> dict:
-        """Информация о воркере для мониторинга."""
+        """Worker information for monitoring."""
         info = super().get_worker_info()
         info.update({
             'description': 'Downloads YouTube playlists and single videos using yt-dlp',
-            'max_concurrent_jobs': 2,  # Можем загружать 2 плейлиста параллельно
+            'max_concurrent_jobs': 2,  # Can download 2 playlists in parallel
             'average_duration': '15-60 minutes',
             'supported_features': [
                 'playlist_download',

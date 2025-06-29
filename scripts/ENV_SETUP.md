@@ -17,6 +17,10 @@ DB_PATH=D:/music/Youtube/DB/tracks.db
 ROOT_DIR=D:/music/Youtube
 PLAYLISTS_DIR=D:/music/Youtube/Playlists
 LOGS_DIR=D:/music/Youtube/Logs
+
+# Proxy Configuration (optional - helps bypass YouTube blocking)
+# PROXY_URL=http://proxy.example.com:8080
+# PROXY_URL=socks5://127.0.0.1:1080
 EOF
 ```
 
@@ -26,6 +30,10 @@ DB_PATH=D:/music/Youtube/DB/tracks.db
 ROOT_DIR=D:/music/Youtube
 PLAYLISTS_DIR=D:/music/Youtube/Playlists
 LOGS_DIR=D:/music/Youtube/Logs
+
+# Proxy Configuration (optional - helps bypass YouTube blocking)
+# PROXY_URL=http://proxy.example.com:8080
+# PROXY_URL=socks5://127.0.0.1:1080
 ```
 
 **The scripts will automatically load this file if:**

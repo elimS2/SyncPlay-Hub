@@ -132,7 +132,7 @@ def _validate_cookies_file(path: str) -> None:
         raise ValueError("Provided cookies file does not appear to contain YouTube cookies")
 
 
-def fetch_playlist_metadata(url: str, *, cookies_path: str | None = None, use_browser: bool = False, debug: bool = False, progress_callback=None) -> Tuple[str, Set[str]]:
+def fetch_playlist_metadata(url: str, *, cookies_path: str | None = None, use_browser: bool = False, debug: bool = False, progress_callback=None, proxy_url: str | None = None) -> Tuple[str, Set[str]]:
     """Return (playlist_title, set_of_video_ids) without downloading files."""
     
     # Helper function to log both to console and callback
@@ -165,6 +165,7 @@ def fetch_playlist_metadata(url: str, *, cookies_path: str | None = None, use_br
         "playlist_items": "1-",
         "ignoreerrors": True,
         **common_cookies,
+        **({"proxy": proxy_url} if proxy_url else {}),
     }
     try:
         import time
@@ -252,14 +253,14 @@ def fetch_playlist_metadata(url: str, *, cookies_path: str | None = None, use_br
 
     # Always use logger to show progress, even in non-debug mode
     ydl_opts = {
-        "quiet": True,  # Always quiet to avoid spam, but use our custom logger
+        "quiet": True,
         "skip_download": True,
-        # Reliable but slower: fetch full metadata of every item
-        "extract_flat": False,  # get full info per video
+        "extract_flat": "discard_in_playlist",
         "playlist_items": "1-",  # all items
         "ignoreerrors": True,
         "logger": _ProgLogger(total_est, progress_callback),  # Pass callback to logger
         **common_cookies,
+        **({"proxy": proxy_url} if proxy_url else {}),
     }
     
     import time
@@ -280,12 +281,13 @@ def fetch_playlist_metadata(url: str, *, cookies_path: str | None = None, use_br
     return title, ids
 
 
-def _video_is_available(video_id: str) -> bool:
+def _video_is_available(video_id: str, proxy_url: str | None = None) -> bool:
     """Return True if video is still available on YouTube."""
     opts = {
         "quiet": True,
         "skip_download": True,
         "extract_flat": "in_playlist",
+        **({"proxy": proxy_url} if proxy_url else {}),
     }
     try:
         with YoutubeDL(opts) as ydl:
@@ -337,7 +339,7 @@ def move_to_trash(file_path: pathlib.Path, root_dir: pathlib.Path) -> bool:
         return False
 
 
-def cleanup_local_files(playlist_dir: pathlib.Path, current_ids: Set[str], root_dir: pathlib.Path = None) -> None:
+def cleanup_local_files(playlist_dir: pathlib.Path, current_ids: Set[str], root_dir: pathlib.Path = None, proxy_url: str | None = None) -> None:
     """Move local files to trash whose video ID is no longer present in the playlist,
     unless the video itself is no longer available on YouTube (archived)."""
     if not playlist_dir.exists():
@@ -366,7 +368,7 @@ def cleanup_local_files(playlist_dir: pathlib.Path, current_ids: Set[str], root_
 
         # If previously marked unavailable, check again in case it was restored
         if vid in remembered_unavailable:
-            if _video_is_available(vid):
+            if _video_is_available(vid, proxy_url):
                 # Video has returned online; treat as normal "available but not in playlist"
                 remembered_unavailable.remove(vid)
                 dirty = True  # need to update list on disk
@@ -375,7 +377,7 @@ def cleanup_local_files(playlist_dir: pathlib.Path, current_ids: Set[str], root_
                 continue
 
         # Check availability
-        if _video_is_available(vid):
+        if _video_is_available(vid, proxy_url):
             try:
                 # Try to move to trash first, fall back to deletion if trash fails
                 moved_to_trash = False
@@ -425,7 +427,7 @@ def cleanup_local_files(playlist_dir: pathlib.Path, current_ids: Set[str], root_
             print(f"[Warning] Could not update {UNAVAILABLE_FILE}: {exc}")
 
 
-def build_ydl_opts(output_dir: pathlib.Path, audio_only: bool, *, cookies_path: str | None = None, use_browser: bool = False) -> Dict[str, Any]:
+def build_ydl_opts(output_dir: pathlib.Path, audio_only: bool, *, cookies_path: str | None = None, use_browser: bool = False, proxy_url: str | None = None) -> Dict[str, Any]:
     """Build yt-dlp options dict."""
     # File name template: <playlist>/Title [VIDEO_ID].ext
     output_template = str(output_dir / "%(playlist_title)s" / "%(title)s [%(id)s].%(ext)s")
@@ -458,6 +460,7 @@ def build_ydl_opts(output_dir: pathlib.Path, audio_only: bool, *, cookies_path: 
         "windowsfilenames": True,
         **({"cookiefile": cookies_path} if cookies_path else {}),
         **({"cookiesfrombrowser": ("chrome",)} if use_browser and not cookies_path else {}),
+        **({"proxy": proxy_url} if proxy_url else {}),
     }
 
 
@@ -483,7 +486,7 @@ def _get_local_ids(playlist_dir: pathlib.Path) -> Set[str]:
 
 
 def download_playlist(playlist_url: str, output_dir: pathlib.Path, audio_only: bool = False, *, sync: bool = True,
-                     cookies_path: str | None = None, use_browser: bool = False, debug: bool = False, progress_callback=None) -> None:
+                     cookies_path: str | None = None, use_browser: bool = False, debug: bool = False, progress_callback=None, proxy_url: str | None = None) -> None:
     """Download the entire playlist and optionally sync (delete) removed tracks."""
     
     # Helper function to log both to console and callback
@@ -513,12 +516,13 @@ def download_playlist(playlist_url: str, output_dir: pathlib.Path, audio_only: b
         use_browser=use_browser,
         debug=debug,
         progress_callback=progress_callback,
+        proxy_url=proxy_url,
     )
     sanitized_title = sanitize_filename(playlist_title, restricted=True)
 
     playlist_dir = output_dir / sanitized_title
     if sync:
-        cleanup_local_files(playlist_dir, current_ids, output_dir)
+        cleanup_local_files(playlist_dir, current_ids, output_dir, proxy_url)
 
     # Show counts before downloading new content
     local_before = _get_local_ids(playlist_dir)
@@ -528,7 +532,7 @@ def download_playlist(playlist_url: str, output_dir: pathlib.Path, audio_only: b
     output_dir.mkdir(parents=True, exist_ok=True)
 
     # 2. Download/update files
-    ydl_opts = build_ydl_opts(output_dir, audio_only, cookies_path=cookies_path, use_browser=use_browser)
+    ydl_opts = build_ydl_opts(output_dir, audio_only, cookies_path=cookies_path, use_browser=use_browser, proxy_url=proxy_url)
     if debug:
         ydl_opts["quiet"] = False
     with YoutubeDL(ydl_opts) as ydl:
@@ -551,6 +555,7 @@ if __name__ == "__main__":
     parser.add_argument("--cookies", help="Path to YouTube cookies.txt export")
     parser.add_argument("--use-browser-cookies", action="store_true", help="Import cookies directly from installed browser (Chrome profile by default)")
     parser.add_argument("--debug", action="store_true", help="Verbose yt-dlp output for troubleshooting")
+    parser.add_argument("--proxy", help="HTTP/HTTPS/SOCKS proxy URL for YouTube requests (e.g., http://proxy:8080)")
     args = parser.parse_args()
 
     try:
@@ -562,6 +567,7 @@ if __name__ == "__main__":
             cookies_path=args.cookies,
             use_browser=args.use_browser_cookies,
             debug=args.debug,
+            proxy_url=args.proxy,
         )
     except KeyboardInterrupt:
         print("\n[Aborted by user]")
