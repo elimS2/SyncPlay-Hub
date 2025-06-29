@@ -448,6 +448,16 @@ def jobs_page():
     """Job Queue management page."""
     return render_template("jobs.html")
 
+@app.route("/likes")
+def likes_playlists_page():
+    """Virtual playlists by likes page."""
+    return render_template("likes_playlists.html")
+
+@app.route("/likes_player/<int:like_count>")
+def likes_player_page(like_count: int):
+    """Player page for virtual playlist by like count."""
+    return render_template("likes_player.html", like_count=like_count)
+
 # Register API blueprint
 app.register_blueprint(api_bp)
 

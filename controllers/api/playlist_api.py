@@ -291,4 +291,108 @@ def api_link_playlist():
     conn.execute("UPDATE playlists SET source_url=? WHERE relpath=?", (url, relpath))
     conn.commit()
     conn.close()
-    return jsonify({"status": "ok"}) 
+    return jsonify({"status": "ok"})
+
+@playlist_bp.route("/tracks_by_likes/<int:like_count>", methods=["GET"])
+def api_tracks_by_likes(like_count):
+    """Get all tracks that have exactly the specified number of likes."""
+    try:
+        conn = get_connection()
+        
+        # Get tracks with exactly like_count likes
+        query = """
+        SELECT 
+            t.video_id,
+            t.name,
+            t.relpath,
+            t.duration,
+            t.play_likes,
+            t.last_start_ts,
+            t.last_finish_ts,
+            COALESCE(t.last_finish_ts, t.last_start_ts) as last_play
+        FROM tracks t
+        WHERE t.play_likes = ?
+        ORDER BY t.name
+        """
+        
+        cursor = conn.execute(query, (like_count,))
+        tracks = []
+        
+        for row in cursor.fetchall():
+            # Convert to format expected by player.js
+            track = {
+                "video_id": row[0],
+                "name": row[1],
+                "relpath": row[2],
+                "duration": row[3] or 0,
+                "play_likes": row[4] or 0,
+                "last_start_ts": row[5],
+                "last_finish_ts": row[6],
+                "last_play": row[7],
+                "url": f"/stream/{row[0]}"
+            }
+            tracks.append(track)
+        
+        conn.close()
+        
+        log_message(f"[Virtual Playlist] Found {len(tracks)} tracks with {like_count} likes")
+        
+        return jsonify({
+            "status": "ok",
+            "tracks": tracks,
+            "like_count": like_count,
+            "total_tracks": len(tracks)
+        })
+        
+    except Exception as e:
+        log_message(f"[Virtual Playlist] Error getting tracks by likes: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@playlist_bp.route("/like_stats", methods=["GET"])
+def api_like_stats():
+    """Get statistics about tracks grouped by like count."""
+    try:
+        conn = get_connection()
+        
+        # Get distribution of likes
+        query = """
+        SELECT 
+            t.play_likes,
+            COUNT(*) as track_count,
+            GROUP_CONCAT(SUBSTR(t.name, 1, 30) || '...', ' • ') as sample_tracks
+        FROM tracks t
+        WHERE t.play_likes > 0
+        GROUP BY t.play_likes
+        ORDER BY t.play_likes
+        """
+        
+        cursor = conn.execute(query)
+        like_stats = []
+        
+        for row in cursor.fetchall():
+            likes = row[0] or 0
+            count = row[1]
+            sample = row[2] or ""
+            
+            # Limit sample to first 3 tracks
+            sample_parts = sample.split(" • ")[:3]
+            if len(sample_parts) == 3 and len(sample.split(" • ")) > 3:
+                sample_parts.append("...")
+            
+            like_stats.append({
+                "likes": likes,
+                "count": count,
+                "sample_tracks": " • ".join(sample_parts)
+            })
+        
+        conn.close()
+        
+        return jsonify({
+            "status": "ok",
+            "like_stats": like_stats,
+            "total_categories": len(like_stats)
+        })
+        
+    except Exception as e:
+        log_message(f"[Virtual Playlist] Error getting like stats: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500 
