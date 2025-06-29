@@ -301,35 +301,145 @@ def format_file_size(size_bytes: Optional[int]) -> str:
     return f"{size_bytes:.1f} TB"
 
 
+def get_channel_folder_name_from_url(channel_url: str) -> Optional[str]:
+    """
+    Extract @channelname from YouTube channel URL.
+    This uses the same logic as the delete functionality.
+    
+    Args:
+        channel_url: YouTube channel URL (e.g., https://www.youtube.com/@halsey)
+        
+    Returns:
+        Channel name (e.g., 'halsey') or None if not found
+    """
+    if not channel_url or '@' not in channel_url:
+        return None
+        
+    try:
+        # Extract @channelname from URLs like https://www.youtube.com/@halsey
+        url_parts = channel_url.split('@')
+        if len(url_parts) > 1:
+            channel_name = url_parts[1].split('/')[0]
+            return channel_name.replace(' ', '_')
+    except Exception:
+        pass
+    
+    return None
+
+
+def _is_channel_name_match(expected_name: str, folder_name: str) -> bool:
+    """
+    Check if channel name matches folder name using multiple strategies.
+    
+    Args:
+        expected_name: Expected channel name (from URL or database)
+        folder_name: Actual folder name (without "Channel-" prefix)
+        
+    Returns:
+        True if names match using any strategy
+    """
+    if not expected_name or not folder_name:
+        return False
+    
+    # Normalize for comparison
+    def normalize(name):
+        return name.lower().replace(' ', '').replace('_', '').replace('-', '')
+    
+    expected_norm = normalize(expected_name)
+    folder_norm = normalize(folder_name)
+    
+    # Strategy 1: Exact match (case-insensitive)
+    if expected_name.lower() == folder_name.lower():
+        return True
+    
+    # Strategy 2: Normalized match (ignore spaces, underscores, hyphens)
+    if expected_norm == folder_norm:
+        return True
+    
+    # Strategy 3: One contains the other (for partial matches)
+    if expected_norm in folder_norm or folder_norm in expected_norm:
+        # Additional check: similarity should be high enough
+        min_len = min(len(expected_norm), len(folder_norm))
+        max_len = max(len(expected_norm), len(folder_norm))
+        if min_len >= 3 and min_len / max_len >= 0.6:  # At least 60% similarity
+            return True
+    
+    # Strategy 4: Known mappings for common mismatches
+    mappings = {
+        'kolaofficial': 'kola',
+        'laudenjoy': 'laud', 
+        'shayriband': 'shayri',
+        'wellboymusic': 'wellboy',
+        'anninblack': 'anninblack',
+        'billieeilish': 'billieeilish',
+        # Fixed Russian channel mappings (normalized forms)
+        'khrystynasoloviy': 'христинасоловій',
+        'odynvkanoe': 'одинвканое'
+    }
+    
+    for expected_key, folder_key in mappings.items():
+        if (expected_norm == expected_key and folder_norm == folder_key) or \
+           (folder_norm == expected_key and expected_norm == folder_key):
+            return True
+    
+    return False
+
+
 def get_channel_folder_info(channel: Dict, root_dir: str) -> Dict[str, Any]:
-    """Get information about channel folder and files."""
+    """
+    Get information about channel folder and files.
+    Uses the same naming logic as the delete functionality.
+    """
     from pathlib import Path
     
-    channel_name = channel['name']
+    # Primary: Extract channel name from URL (same logic as delete functionality)
+    channel_url = channel.get('url', '')
+    url_channel_name = get_channel_folder_name_from_url(channel_url)
+    
+    # Fallback: Use channel name from database
+    db_channel_name = channel['name']
     group_name = channel.get('group_name', 'Unknown')
+    
+    # Determine which channel names to try (URL-based first, then DB-based)
+    channel_names_to_try = []
+    if url_channel_name:
+        channel_names_to_try.append(url_channel_name)
+    if db_channel_name and db_channel_name != url_channel_name:
+        channel_names_to_try.append(db_channel_name)
     
     # Try different possible folder structures
     possible_paths = []
     
-    # Standard structure: ROOT_DIR/GROUP/Channel-NAME/
+    for channel_name in channel_names_to_try:
+        # Standard structure: ROOT_DIR/GROUP/Channel-NAME/
+        if group_name and group_name != 'Unknown':
+            standard_path = Path(root_dir) / group_name / f"Channel-{channel_name}"
+            possible_paths.append(standard_path)
+        
+        # Legacy structure: ROOT_DIR/Channel-NAME/
+        legacy_path = Path(root_dir) / f"Channel-{channel_name}"
+        possible_paths.append(legacy_path)
+    
+    # Smart folder matching: scan existing folders for best match
+    # First try group-specific path, then root path
+    scan_paths = []
     if group_name and group_name != 'Unknown':
-        standard_path = Path(root_dir) / group_name / f"Channel-{channel_name}"
-        possible_paths.append(standard_path)
+        scan_paths.append(Path(root_dir) / group_name)
+    scan_paths.append(Path(root_dir))
     
-    # Legacy structure: ROOT_DIR/Channel-NAME/
-    legacy_path = Path(root_dir) / f"Channel-{channel_name}"
-    possible_paths.append(legacy_path)
-    
-    # Also try with spaces in channel name (fallback)
-    for base_path in [Path(root_dir) / group_name if group_name and group_name != 'Unknown' else None, Path(root_dir)]:
-        if base_path:
-            # Find folder that starts with "Channel-" and contains the channel name
-            if base_path.exists():
-                for folder in base_path.iterdir():
-                    if folder.is_dir() and folder.name.startswith("Channel-"):
-                        # Simple name matching (could be improved)
-                        if channel_name.lower() in folder.name.lower() or folder.name.lower() in channel_name.lower():
-                            possible_paths.append(folder)
+    for base_path in scan_paths:
+        if base_path and base_path.exists():
+            for folder in base_path.iterdir():
+                if folder.is_dir() and folder.name.startswith("Channel-"):
+                    # Extract folder channel name (remove "Channel-" prefix)
+                    folder_channel_name = folder.name[8:]  # "Channel-" is 8 chars
+                    
+                    # Try multiple matching strategies
+                    for channel_name in channel_names_to_try:
+                        if _is_channel_name_match(channel_name, folder_channel_name):
+                            if folder not in possible_paths:
+                                possible_paths.append(folder)
+                            break
     
     # Check which folder exists and has content
     for folder_path in possible_paths:
