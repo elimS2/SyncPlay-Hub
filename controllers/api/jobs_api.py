@@ -69,7 +69,7 @@ def api_get_jobs():
             }
             jobs_data.append(job_data)
         
-        log_message(f"[Jobs API] Retrieved {len(jobs_data)} jobs (status={status_filter}, type={job_type_filter})")
+        # Note: Removed noisy log_message for job retrieval - too frequent for debugging value
         
         return jsonify({
             "status": "ok",
@@ -249,7 +249,7 @@ def api_get_queue_status():
         # Get queue statistics
         stats = service.get_queue_stats()
         
-        log_message(f"[Jobs API] Queue status requested - {stats['total_jobs']} total jobs")
+        # Note: Removed noisy log_message for queue status - too frequent for debugging value
         
         return jsonify({
             "status": "ok",

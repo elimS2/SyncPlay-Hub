@@ -17,32 +17,51 @@ Implementation of logging filter to remove noisy remote control HTTP requests th
 Enhanced logging system by filtering out repetitive remote control HTTP requests that provided no debugging value.
 
 **Problem Analysis:**
-The application logs were being flooded with repetitive HTTP requests from remote control functionality:
+The application logs were being flooded with repetitive HTTP requests from frequent polling:
 - `POST /api/remote/sync_internal HTTP/1.1` - Internal player state synchronization  
 - `GET /api/remote/commands HTTP/1.1` - Polling for remote commands
 - `GET /api/remote/status HTTP/1.1` - Player status polling
+- `GET /api/jobs/queue/status HTTP/1.1` - Job queue status polling
+- `GET /api/jobs?limit=100 HTTP/1.1` - Jobs list retrieval
+- `[Jobs API] Queue status requested - X total jobs` - Verbose API logging
+- `[Jobs API] Retrieved X jobs (status=None, type=None)` - Verbose API logging
 
 These requests occur every few seconds and create noise, making it difficult to spot important log entries.
 
 **Solution Implemented:**
 1. **Extended NoSyncInternalFilter class**:
-   - Updated class documentation to reflect broader scope
-   - Added filtering for `GET /api/remote/commands HTTP` requests  
+   - Updated class documentation to reflect broader scope  
+   - Added filtering for `GET /api/remote/commands HTTP` requests
    - Added filtering for `GET /api/remote/status HTTP` requests
+   - Added filtering for `GET /api/jobs/queue/status HTTP` requests
+   - Added filtering for `GET /api/jobs` requests (with and without parameters)
    - Maintained existing filtering for `POST /api/remote/sync_internal HTTP` requests
    - **Smart filtering**: Only filters successful (200) responses, keeps errors visible
 
-2. **Filter Logic**:
+2. **Removed verbose Jobs API logging**:
+   - Removed `log_message` for job retrieval (too frequent for debugging value)
+   - Removed `log_message` for queue status requests (too frequent for debugging value)
+   - Kept important logs (job creation, errors, cancellation, retry)
+
+3. **Filter Logic**:
 ```python
 def filter(self, record):
-    # Filter out frequent remote control requests as they are too noisy and not important
+    # Filter out frequent polling requests as they are too noisy and not important
     # Only filter successful (200) requests - keep errors visible for debugging
     message = record.getMessage()
+    # Remote control requests
     if 'POST /api/remote/sync_internal HTTP/1.1" 200 -' in message:
         return False
     if 'GET /api/remote/commands HTTP/1.1" 200 -' in message:
         return False
     if 'GET /api/remote/status HTTP/1.1" 200 -' in message:
+        return False
+    # Jobs API polling requests
+    if 'GET /api/jobs/queue/status HTTP/1.1" 200 -' in message:
+        return False
+    if 'GET /api/jobs HTTP/1.1" 200 -' in message:
+        return False
+    if 'GET /api/jobs?' in message and 'HTTP/1.1" 200 -' in message:
         return False
     return True
 ```
@@ -82,6 +101,6 @@ def filter(self, record):
 ## Conclusion
 Successfully implemented logging filter to eliminate noisy remote control HTTP requests. This optimization significantly improves log readability and debugging experience without affecting application functionality.
 
-**Resolved Issue:** Noisy remote control HTTP request logging (only 200 responses filtered)  
-**Completion Time:** ~8 minutes  
-**Complexity:** Low-Medium 
+**Resolved Issue:** Noisy HTTP polling logs from remote control and Jobs API (only 200 responses filtered)  
+**Completion Time:** ~15 minutes  
+**Complexity:** Medium 
