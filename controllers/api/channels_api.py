@@ -635,8 +635,13 @@ def api_delete_track():
         data = request.get_json() or {}
         video_id = data.get('video_id')
         
+        log_message(f"[Delete] DEBUG: Received delete request")
+        log_message(f"[Delete] DEBUG: Request data: {data}")
+        log_message(f"[Delete] DEBUG: Video ID: {video_id}")
+        
         # Validate required fields
         if not video_id:
+            log_message(f"[Delete] ERROR: No video_id provided in request")
             return jsonify({"status": "error", "error": "Video ID is required"}), 400
         
         conn = get_connection()
@@ -651,6 +656,111 @@ def api_delete_track():
         
         track = cursor.fetchone()
         if not track:
+            log_message(f"[Delete] ERROR: Track not found in database for video_id: {video_id}")
+            
+            # Let's try to find this track by searching for similar patterns
+            log_message(f"[Delete] DEBUG: Searching for tracks with similar video_id patterns...")
+            cursor.execute("""
+                SELECT id, name, relpath, video_id, channel_group
+                FROM tracks 
+                WHERE video_id LIKE ?
+                ORDER BY id DESC
+                LIMIT 5
+            """, (f"%{video_id}%",))
+            
+            similar_tracks = cursor.fetchall()
+            if similar_tracks:
+                log_message(f"[Delete] DEBUG: Found {len(similar_tracks)} tracks with similar video_id:")
+                for i, sim_track in enumerate(similar_tracks):
+                    log_message(f"[Delete] DEBUG:   {i+1}. ID:{sim_track[0]} video_id:'{sim_track[3]}' name:'{sim_track[1]}'")
+            else:
+                log_message(f"[Delete] DEBUG: No tracks found with similar video_id patterns")
+            
+            # Try to find by filename pattern
+            filename_pattern = f"%{video_id}%"
+            cursor.execute("""
+                SELECT id, name, relpath, video_id, channel_group
+                FROM tracks 
+                WHERE name LIKE ? OR relpath LIKE ?
+                ORDER BY id DESC
+                LIMIT 5
+            """, (filename_pattern, filename_pattern))
+            
+            filename_matches = cursor.fetchall()
+            if filename_matches:
+                log_message(f"[Delete] DEBUG: Found {len(filename_matches)} tracks with filename pattern:")
+                for i, match_track in enumerate(filename_matches):
+                    log_message(f"[Delete] DEBUG:   {i+1}. ID:{match_track[0]} video_id:'{match_track[3]}' name:'{match_track[1]}'")
+            else:
+                log_message(f"[Delete] DEBUG: No tracks found with filename pattern")
+            
+            # Check if there are ANY tracks from the same channel/folder
+            log_message(f"[Delete] DEBUG: Checking for tracks in Channel-Halsey folder...")
+            cursor.execute("""
+                SELECT id, name, relpath, video_id, channel_group
+                FROM tracks 
+                WHERE relpath LIKE '%Channel-Halsey%'
+                ORDER BY id DESC
+                LIMIT 5
+            """)
+            
+            halsey_tracks = cursor.fetchall()
+            if halsey_tracks:
+                log_message(f"[Delete] DEBUG: Found {len(halsey_tracks)} tracks in Channel-Halsey:")
+                for i, halsey_track in enumerate(halsey_tracks):
+                    log_message(f"[Delete] DEBUG:   {i+1}. ID:{halsey_track[0]} video_id:'{halsey_track[3]}' path:'{halsey_track[2]}'")
+            else:
+                log_message(f"[Delete] DEBUG: No tracks found in Channel-Halsey folder in database!")
+            
+            # Show some recent tracks for context
+            cursor.execute("""
+                SELECT id, name, relpath, video_id, channel_group
+                FROM tracks 
+                ORDER BY id DESC
+                LIMIT 3
+            """)
+            
+            recent_tracks = cursor.fetchall()
+            if recent_tracks:
+                log_message(f"[Delete] DEBUG: Last 3 tracks in database for reference:")
+                for i, rec_track in enumerate(recent_tracks):
+                    log_message(f"[Delete] DEBUG:   {i+1}. ID:{rec_track[0]} video_id:'{rec_track[3]}' name:'{rec_track[1]}'")
+            
+            # Check total track count
+            cursor.execute("SELECT COUNT(*) FROM tracks")
+            total_count = cursor.fetchone()[0]
+            log_message(f"[Delete] DEBUG: Total tracks in database: {total_count}")
+            
+            # Try to scan this specific file and see what video_id it would extract
+            log_message(f"[Delete] DEBUG: Attempting to simulate file scan for debugging...")
+            
+            # Get the file path that was being played
+            media_path = data.get('file_path', '')  # We need to add this to the request
+            if not media_path:
+                log_message(f"[Delete] DEBUG: No file_path provided, cannot simulate scan")
+            else:
+                import re
+                from pathlib import Path
+                
+                # Decode URL encoding if present
+                from urllib.parse import unquote
+                decoded_path = unquote(media_path)
+                log_message(f"[Delete] DEBUG: Media path from request: {decoded_path}")
+                
+                # Extract filename
+                file_path = Path(decoded_path)
+                file_stem = file_path.stem
+                log_message(f"[Delete] DEBUG: File stem for regex: '{file_stem}'")
+                
+                # Apply same regex as scan_tracks
+                video_id_match = re.search(r"\[([A-Za-z0-9_-]{11})\]$", file_stem)
+                extracted_video_id = video_id_match.group(1) if video_id_match else None
+                
+                log_message(f"[Delete] DEBUG: Regex match result: {video_id_match}")
+                log_message(f"[Delete] DEBUG: Extracted video_id from filename: '{extracted_video_id}'")
+                log_message(f"[Delete] DEBUG: Requested video_id: '{video_id}'")
+                log_message(f"[Delete] DEBUG: video_id match: {extracted_video_id == video_id}")
+            
             conn.close()
             return jsonify({"status": "error", "error": "Track not found"}), 404
         
@@ -659,16 +769,29 @@ def api_delete_track():
         track_relpath = track[2]
         channel_group = track[4] if track[4] else 'Unknown'
         
+        log_message(f"[Delete] DEBUG: Found track in database:")
+        log_message(f"[Delete] DEBUG: - Track ID: {track_id}")
+        log_message(f"[Delete] DEBUG: - Track Name: {track_name}")
+        log_message(f"[Delete] DEBUG: - Relative Path: {track_relpath}")
+        log_message(f"[Delete] DEBUG: - Video ID: {video_id}")
+        log_message(f"[Delete] DEBUG: - Channel Group: {channel_group}")
+        
         # Construct full file path
         root_dir = get_root_dir()
         if not root_dir:
-            log_message(f"[Delete] Error: ROOT_DIR not initialized")
+            log_message(f"[Delete] ERROR: ROOT_DIR not initialized")
             return jsonify({"status": "error", "error": "Server configuration error"}), 500
             
+        log_message(f"[Delete] DEBUG: ROOT_DIR: {root_dir}")
+        
         full_file_path = root_dir / track_relpath
+        log_message(f"[Delete] DEBUG: Full file path to delete: {full_file_path}")
+        log_message(f"[Delete] DEBUG: Full file path absolute: {full_file_path.resolve()}")
+        log_message(f"[Delete] DEBUG: File exists check: {full_file_path.exists()}")
         
         if not full_file_path.exists():
-            log_message(f"[Delete] File not found: {full_file_path}")
+            log_message(f"[Delete] ERROR: File not found on disk: {full_file_path}")
+            log_message(f"[Delete] ERROR: Attempted to access: {full_file_path.resolve()}")
             return jsonify({"status": "error", "error": "File not found on disk"}), 404
         
         # Extract channel name from YouTube metadata for trash organization
@@ -777,14 +900,25 @@ def api_delete_track():
             source_path = str(full_file_path.resolve())
             target_path = str(target_file.resolve())
             
+            log_message(f"[Delete] DEBUG: Preparing to move file:")
+            log_message(f"[Delete] DEBUG: - Source path: {source_path}")
+            log_message(f"[Delete] DEBUG: - Target path: {target_path}")
+            log_message(f"[Delete] DEBUG: - Target directory exists: {target_file.parent.exists()}")
+            log_message(f"[Delete] DEBUG: - Source file exists: {full_file_path.exists()}")
+            log_message(f"[Delete] DEBUG: - Source file readable: {full_file_path.is_file()}")
+            
             log_message(f"[Delete] Moving file: {source_path} → {target_path}")
             shutil.move(source_path, target_path)
             
             # Calculate trash_path relative to ROOT_DIR parent (D:\music\Youtube)
             trash_path = str(target_file.relative_to(root_dir.parent))
-            log_message(f"[Delete] Moved to trash: {track_name} → {trash_path}")
+            log_message(f"[Delete] SUCCESS: Moved to trash: {track_name} → {trash_path}")
+            log_message(f"[Delete] DEBUG: Target file created successfully: {target_file.exists()}")
         except Exception as e:
-            log_message(f"[Delete] Failed to move to trash: {e}")
+            log_message(f"[Delete] ERROR: Failed to move to trash: {e}")
+            log_message(f"[Delete] ERROR: Exception type: {type(e).__name__}")
+            log_message(f"[Delete] ERROR: Source path: {source_path}")
+            log_message(f"[Delete] ERROR: Target path: {target_path}")
             return jsonify({"status": "error", "error": f"Failed to move file to trash: {e}"}), 500
         
         # Record deletion in database
