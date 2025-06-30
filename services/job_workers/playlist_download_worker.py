@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import List
 from datetime import datetime
 import os
+import shutil
 
 # Add root folder to path for imports
 sys.path.append(str(Path(__file__).parent.parent.parent))
@@ -199,6 +200,13 @@ class PlaylistDownloadWorker(JobWorker):
                 # Update database with scan
                 self._update_database_scan(config.get('DB_PATH'))
                 
+                # Cleanup temporary files in playlists directory  
+                if target_folder and config.get('ROOT_DIR'):
+                    root_dir = Path(config['ROOT_DIR'])
+                    playlists_dir = root_dir / 'Playlists' if root_dir.name != 'Playlists' else root_dir
+                    target_path = playlists_dir / target_folder
+                    self._cleanup_folder_temp_files(target_path)
+                
                 return True
             else:
                 print(f"Playlist download failed with exit code {result.returncode}")
@@ -327,6 +335,9 @@ class PlaylistDownloadWorker(JobWorker):
                 # Update database with scan
                 self._update_database_scan(config.get('DB_PATH'))
                 
+                # Cleanup temporary files in the download folder
+                self._cleanup_folder_temp_files(output_dir)
+                
                 return True
             else:
                 print(f"Single video download failed with exit code {result.returncode}")
@@ -414,3 +425,67 @@ class PlaylistDownloadWorker(JobWorker):
             ]
         })
         return info 
+    
+    def _cleanup_folder_temp_files(self, folder_path: Path):
+        """
+        Clean up temporary files in the specified folder after download.
+        
+        Args:
+            folder_path: Path to folder to clean up
+        """
+        try:
+            if not folder_path.exists():
+                return
+                
+            print(f"Cleaning up temporary files in: {folder_path}")
+            
+            # Temporary files and YouTube metadata files patterns
+            temp_patterns = [
+                '*.tmp',
+                '*.temp',
+                '*.part',
+                '*.download',
+                '*.ytdl',
+                '*.pyc',
+                # YouTube metadata files (yt-dlp creates these)
+                '*.info.json',      # Detailed video information
+                '*.description',    # Video descriptions
+                '*.thumbnail',      # Video thumbnails
+                '*.webp',          # WebP images (thumbnails)
+                '*.jpg',           # JPEG images (thumbnails) 
+                '*.png',           # PNG images (thumbnails)
+            ]
+            
+            removed_count = 0
+            total_size = 0
+            
+            for pattern in temp_patterns:
+                for file_path in folder_path.glob(pattern):
+                    if file_path.is_file():
+                        try:
+                            file_size = file_path.stat().st_size
+                            file_path.unlink()
+                            print(f"  [Cleanup] Removed: {file_path.name} ({file_size:,} bytes)")
+                            removed_count += 1
+                            total_size += file_size
+                        except Exception as e:
+                            print(f"  [Cleanup] Failed to remove {file_path.name}: {e}")
+                
+                # Handle __pycache__ directories
+                if pattern == '__pycache__':
+                    for cache_dir in folder_path.glob('__pycache__'):
+                        if cache_dir.is_dir():
+                            try:
+                                shutil.rmtree(cache_dir)
+                                print(f"  [Cleanup] Removed directory: {cache_dir.name}")
+                                removed_count += 1
+                            except Exception as e:
+                                print(f"  [Cleanup] Failed to remove directory {cache_dir.name}: {e}")
+            
+            if removed_count > 0:
+                print(f"[Cleanup] Completed: {removed_count} files removed, {total_size / (1024*1024):.1f} MB freed")
+            else:
+                print("[Cleanup] No temporary files found to remove")
+                
+        except Exception as e:
+            print(f"[Cleanup] Warning: Failed to cleanup temporary files: {e}") 

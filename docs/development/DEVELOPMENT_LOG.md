@@ -7,6 +7,7 @@ This file serves as the main development log index. Individual log entries are m
 ## 🗂️ Log Entry Files
 
 Latest entries are maintained in separate files:
+- `DEVELOPMENT_LOG_110.md` - Automatic Folder Cleanup After Track Downloads
 - `DEVELOPMENT_LOG_095.md` - Removed Retry Button Confirmation Dialog  
 - `DEVELOPMENT_LOG_094.md` - Implemented Automatic Random Cookie Selection System
 - `DEVELOPMENT_LOG_091.md` - Fix Incorrect Menu Link in Deleted Page
@@ -29,3 +30,21 @@ For current active development tracking, see the latest numbered log file or cre
 
 
 *For detailed development history, see individual log entry files and PROJECT_HISTORY.md* 
+
+---
+
+## 🚨 CRITICAL INSTRUCTION FOR AI ASSISTANTS
+
+**NEVER ADD ENTRIES DIRECTLY TO THIS FILE!**
+
+Instead:
+1. **Create a separate file** `DEVELOPMENT_LOG_XXX.md` with the next number
+2. **Update the list** in the "🗂️ Log Entry Files" section above
+3. **DO NOT EDIT** the main DEVELOPMENT_LOG.md file to add entries
+
+**Correct process:**
+- ✅ Create `DEVELOPMENT_LOG_111.md` for the next entry
+- ✅ Update the file list at the beginning of DEVELOPMENT_LOG.md  
+- ❌ DO NOT add entries to the end of this file
+
+**This is important for maintaining project structure and version control!**
