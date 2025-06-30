@@ -2,17 +2,19 @@
 """
 Job Workers Package
 
-Коллекция конкретных воркеров для выполнения различных типов задач.
+Collection of concrete workers for executing various job types.
 """
 
 from .channel_download_worker import ChannelDownloadWorker
 from .metadata_extraction_worker import MetadataExtractionWorker
 from .cleanup_worker import CleanupWorker
 from .playlist_download_worker import PlaylistDownloadWorker
+from .backup_worker import BackupWorker
 
 __all__ = [
     'ChannelDownloadWorker',
     'MetadataExtractionWorker', 
     'CleanupWorker',
-    'PlaylistDownloadWorker'
+    'PlaylistDownloadWorker',
+    'BackupWorker'
 ] 

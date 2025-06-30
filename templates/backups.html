@@ -57,6 +57,62 @@
     </div>
   </div>
 
+  <!-- Auto Backup Configuration -->
+  <div class="backup-info" style="margin-top:20px;">
+    <h3>🤖 Automatic Backups</h3>
+    <div id="autoBackupStatus" style="margin:8px 0;">
+      <div style="color:#888;">Loading auto backup status...</div>
+    </div>
+    <div class="backup-actions">
+      <button id="configAutoBackupBtn" style="padding:6px 12px;font-size:14px;cursor:pointer;">⚙️ Configure</button>
+      <button id="forceBackupBtn" style="padding:6px 12px;font-size:14px;cursor:pointer;background:#ff9800;color:#fff;border:1px solid #f57c00;">🚀 Force Backup Now</button>
+      <button id="viewJobsBtn" style="padding:6px 12px;font-size:14px;cursor:pointer;background:#9c27b0;color:#fff;border:1px solid #7b1fa2;">📋 View Jobs</button>
+    </div>
+  </div>
+
+  <!-- Auto Backup Configuration Modal -->
+  <div id="configModal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.8);z-index:1000;">
+    <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:#1a1a1a;padding:20px;border-radius:8px;min-width:400px;max-width:90%;">
+      <h3 style="margin:0 0 15px 0;color:#4caf50;">Auto Backup Configuration</h3>
+      
+      <div style="margin-bottom:15px;">
+        <label style="display:block;margin-bottom:5px;color:#ccc;">
+          <input type="checkbox" id="enabledCheckbox"> Enable automatic backups
+        </label>
+      </div>
+      
+      <div style="margin-bottom:15px;">
+        <label style="display:block;margin-bottom:5px;color:#ccc;">Schedule time (UTC):</label>
+        <input type="time" id="scheduleTimeInput" style="padding:5px;background:#333;border:1px solid #555;color:#fff;border-radius:3px;">
+      </div>
+      
+      <!-- Retention field removed - automatic cleanup is disabled by default -->
+      
+      <div style="margin-bottom:15px;">
+        <label style="display:block;margin-bottom:5px;color:#ccc;">Check interval (minutes):</label>
+        <input type="number" id="checkIntervalInput" min="1" max="1440" style="padding:5px;background:#333;border:1px solid #555;color:#fff;border-radius:3px;width:80px;">
+      </div>
+      
+      <div style="display:flex;gap:10px;margin-top:20px;">
+        <button id="saveConfigBtn" style="padding:8px 15px;background:#4caf50;color:#fff;border:1px solid #388e3c;border-radius:4px;cursor:pointer;">💾 Save</button>
+        <button id="cancelConfigBtn" style="padding:8px 15px;background:#666;color:#fff;border:1px solid #555;border-radius:4px;cursor:pointer;">❌ Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Jobs Modal -->
+  <div id="jobsModal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.8);z-index:1000;">
+    <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:#1a1a1a;padding:20px;border-radius:8px;min-width:600px;max-width:90%;max-height:80%;">
+      <h3 style="margin:0 0 15px 0;color:#4caf50;">Recent Backup Jobs</h3>
+      <div id="jobsList" style="max-height:400px;overflow-y:auto;">
+        Loading jobs...
+      </div>
+      <div style="margin-top:15px;">
+        <button id="closeJobsBtn" style="padding:8px 15px;background:#666;color:#fff;border:1px solid #555;border-radius:4px;cursor:pointer;">❌ Close</button>
+      </div>
+    </div>
+  </div>
+
   <div id="backupsList">
     <!-- Backups will be loaded here -->
     <div style="text-align:center;color:#888;padding:40px;">
@@ -214,6 +270,195 @@
 
     // Load backups on page load
     loadBackups();
+    loadAutoBackupStatus();
+
+    // Auto backup functionality
+    let autoBackupConfig = {};
+
+    async function loadAutoBackupStatus() {
+      const statusDiv = document.getElementById('autoBackupStatus');
+      
+      try {
+        const res = await fetch('/api/backup_status');
+        const data = await res.json();
+        
+        if (data.status === 'ok') {
+          const status = data.auto_backup_status;
+          autoBackupConfig = status;
+          
+          const enabledText = status.enabled ? '✅ Enabled' : '❌ Disabled';
+          const runningText = status.running ? '🟢 Running' : '🔴 Stopped';
+          
+          statusDiv.innerHTML = `
+            <div style="display:flex;gap:20px;flex-wrap:wrap;font-size:13px;">
+              <div><strong>Status:</strong> ${enabledText}</div>
+              <div><strong>Service:</strong> ${runningText}</div>
+              <div><strong>Schedule:</strong> Daily at ${status.schedule_time} UTC</div>
+              <div><strong>Auto-cleanup:</strong> ❌ Disabled</div>
+              <div><strong>Next backup:</strong> ${status.next_scheduled_backup}</div>
+            </div>
+          `;
+        } else {
+          statusDiv.innerHTML = `<div style="color:#f44336;">Error loading status: ${data.message}</div>`;
+        }
+      } catch (err) {
+        statusDiv.innerHTML = `<div style="color:#f44336;">Failed to load status: ${err.message}</div>`;
+      }
+    }
+
+    // Configuration modal
+    document.getElementById('configAutoBackupBtn')?.addEventListener('click', async () => {
+      try {
+        const res = await fetch('/api/backup_config');
+        const data = await res.json();
+        
+        if (data.status === 'ok') {
+          const config = data.config;
+          
+          document.getElementById('enabledCheckbox').checked = config.enabled;
+          document.getElementById('scheduleTimeInput').value = config.schedule_time;
+          // retentionDaysInput removed - automatic cleanup disabled
+          document.getElementById('checkIntervalInput').value = config.check_interval;
+          
+          document.getElementById('configModal').style.display = 'block';
+        } else {
+          alert('Error loading configuration: ' + data.message);
+        }
+      } catch (err) {
+        alert('Failed to load configuration: ' + err.message);
+      }
+    });
+
+    // Save configuration
+    document.getElementById('saveConfigBtn')?.addEventListener('click', async () => {
+      const config = {
+        enabled: document.getElementById('enabledCheckbox').checked,
+        schedule_time: document.getElementById('scheduleTimeInput').value,
+        retention_days: 30, // Fixed value - automatic cleanup disabled
+        check_interval: parseInt(document.getElementById('checkIntervalInput').value)
+      };
+      
+      try {
+        const res = await fetch('/api/backup_config', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify(config)
+        });
+        const data = await res.json();
+        
+        if (data.status === 'ok') {
+          alert('Configuration saved successfully!');
+          document.getElementById('configModal').style.display = 'none';
+          loadAutoBackupStatus();
+        } else {
+          alert('Error saving configuration: ' + data.message);
+        }
+      } catch (err) {
+        alert('Failed to save configuration: ' + err.message);
+      }
+    });
+
+    // Cancel configuration
+    document.getElementById('cancelConfigBtn')?.addEventListener('click', () => {
+      document.getElementById('configModal').style.display = 'none';
+    });
+
+    // Force backup
+    document.getElementById('forceBackupBtn')?.addEventListener('click', async () => {
+      const btn = document.getElementById('forceBackupBtn');
+      btn.disabled = true;
+      btn.textContent = '🚀 Creating...';
+      
+      try {
+        const res = await fetch('/api/backup_force', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'}
+        });
+        const data = await res.json();
+        
+        if (data.status === 'ok') {
+          alert(`Backup job scheduled successfully!\nJob ID: ${data.job_id}`);
+          loadAutoBackupStatus();
+        } else {
+          alert('Error scheduling backup: ' + data.message);
+        }
+      } catch (err) {
+        alert('Failed to schedule backup: ' + err.message);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = '🚀 Force Backup Now';
+      }
+    });
+
+    // View jobs
+    document.getElementById('viewJobsBtn')?.addEventListener('click', async () => {
+      const jobsList = document.getElementById('jobsList');
+      jobsList.innerHTML = 'Loading jobs...';
+      
+      try {
+        const res = await fetch('/api/backup_jobs');
+        const data = await res.json();
+        
+        if (data.status === 'ok') {
+          const jobs = data.jobs;
+          
+          if (jobs.length === 0) {
+            jobsList.innerHTML = '<div style="color:#888;text-align:center;padding:20px;">No backup jobs found</div>';
+          } else {
+            let html = '<table style="width:100%;border-collapse:collapse;font-size:12px;">';
+            html += '<tr style="background:#333;"><th style="padding:6px;text-align:left;">ID</th><th style="padding:6px;text-align:left;">Status</th><th style="padding:6px;text-align:left;">Created</th><th style="padding:6px;text-align:left;">Duration</th><th style="padding:6px;text-align:left;">Source</th></tr>';
+            
+            jobs.forEach(job => {
+              const statusColor = job.status === 'completed' ? '#4caf50' : 
+                                 job.status === 'failed' ? '#f44336' : 
+                                 job.status === 'running' ? '#ff9800' : '#666';
+              
+              const duration = job.duration_seconds ? 
+                `${Math.round(job.duration_seconds)}s` : 
+                (job.status === 'running' ? 'Running...' : '-');
+              
+              const createdDate = job.created_at ? 
+                new Date(job.created_at).toLocaleString() : '-';
+              
+              html += `<tr style="border-bottom:1px solid #333;">
+                <td style="padding:6px;">${job.id}</td>
+                <td style="padding:6px;color:${statusColor};">${job.status}</td>
+                <td style="padding:6px;">${createdDate}</td>
+                <td style="padding:6px;">${duration}</td>
+                <td style="padding:6px;">${job.source}</td>
+              </tr>`;
+            });
+            
+            html += '</table>';
+            jobsList.innerHTML = html;
+          }
+          
+          document.getElementById('jobsModal').style.display = 'block';
+        } else {
+          alert('Error loading jobs: ' + data.message);
+        }
+      } catch (err) {
+        alert('Failed to load jobs: ' + err.message);
+      }
+    });
+
+    // Close jobs modal
+    document.getElementById('closeJobsBtn')?.addEventListener('click', () => {
+      document.getElementById('jobsModal').style.display = 'none';
+    });
+
+    // Close modals on background click
+    document.getElementById('configModal')?.addEventListener('click', (e) => {
+      if (e.target.id === 'configModal') {
+        document.getElementById('configModal').style.display = 'none';
+      }
+    });
+
+    document.getElementById('jobsModal')?.addEventListener('click', (e) => {
+      if (e.target.id === 'jobsModal') {
+        document.getElementById('jobsModal').style.display = 'none';
+      }
+    });
   </script>
 </body>
 </html> 

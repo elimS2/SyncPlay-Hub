@@ -517,9 +517,19 @@ def main():
     from services.auto_delete_service import start_auto_delete_service
     start_auto_delete_service(ROOT_DIR)
     
+    # Start auto backup service for daily database backups
+    from services.auto_backup_service import start_auto_backup_service
+    backup_config = {
+        'enabled': True,
+        'schedule_time': "02:00",  # 2 AM UTC
+        'retention_days': 30,
+        'check_interval': 60  # Check every hour
+    }
+    start_auto_backup_service(backup_config)
+    
     # Initialize and start Job Queue Service
     from services.job_queue_service import get_job_queue_service
-    from services.job_workers import ChannelDownloadWorker, MetadataExtractionWorker, CleanupWorker, PlaylistDownloadWorker
+    from services.job_workers import ChannelDownloadWorker, MetadataExtractionWorker, CleanupWorker, PlaylistDownloadWorker, BackupWorker
     
     try:
         # Use only 1 worker to prevent parallel execution issues
@@ -530,6 +540,7 @@ def main():
         job_service.register_worker(MetadataExtractionWorker())
         job_service.register_worker(CleanupWorker())
         job_service.register_worker(PlaylistDownloadWorker())
+        job_service.register_worker(BackupWorker())
         
         # Start the service
         job_service.start()
@@ -562,6 +573,10 @@ def main():
         # Stop auto-delete service
         from services.auto_delete_service import stop_auto_delete_service
         stop_auto_delete_service()
+        
+        # Stop auto backup service
+        from services.auto_backup_service import stop_auto_backup_service
+        stop_auto_backup_service()
         
         # Stop Job Queue Service
         try:

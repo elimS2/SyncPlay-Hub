@@ -2,8 +2,8 @@
 """
 Metadata Extraction Worker
 
-Воркер для извлечения метаданных YouTube каналов через систему Job Queue.
-Интегрируется с существующим extract_channel_metadata.py.
+Worker for extracting YouTube channel metadata through Job Queue system.
+Integrates with existing extract_channel_metadata.py.
 """
 
 import sys
@@ -13,14 +13,14 @@ from pathlib import Path
 from typing import List
 from datetime import datetime
 
-# Добавляем корневую папку в путь для импортов
+# Add root folder to path for imports
 sys.path.append(str(Path(__file__).parent.parent.parent))
 
 from services.job_types import JobWorker, Job, JobType
 
 
 class MetadataExtractionWorker(JobWorker):
-    """Воркер для извлечения метаданных YouTube каналов."""
+    """Worker for extracting YouTube channel metadata."""
     
     def __init__(self):
         super().__init__("metadata_extraction_worker")
@@ -31,25 +31,25 @@ class MetadataExtractionWorker(JobWorker):
         ]
     
     def get_supported_job_types(self) -> List[JobType]:
-        """Возвращает поддерживаемые типы задач."""
+        """Returns supported job types."""
         return self.supported_types
     
     def execute_job(self, job: Job) -> bool:
         """
-        Выполняет извлечение метаданных.
+        Execute metadata extraction.
         
-        Ожидаемые параметры в job.job_data:
-        - channel_url: URL канала для анализа
-        - channel_id: ID канала в базе данных (optional, для обновления)
-        - extract_type: 'channel' или 'playlist' (default: 'channel')
-        - force_update: принудительное обновление существующих метаданных
-        - max_entries: максимальное количество видео для анализа (optional)
+        Expected parameters in job.job_data:
+        - channel_url: Channel URL for analysis
+        - channel_id: Database channel ID (optional, for updates)
+        - extract_type: 'channel' or 'playlist' (default: 'channel')
+        - force_update: Force update of existing metadata
+        - max_entries: Maximum number of videos to analyze (optional)
         
         Returns:
-            True если извлечение успешно, False если нет
+            True if extraction successful, False otherwise
         """
         try:
-            # Извлекаем параметры из job data
+            # Extract parameters from job data
             channel_url = job.job_data.get('channel_url')
             channel_id = job.job_data.get('channel_id')
             extract_type = job.job_data.get('extract_type', 'channel')
@@ -63,29 +63,29 @@ class MetadataExtractionWorker(JobWorker):
             print(f"Channel ID: {channel_id}, Type: {extract_type}")
             print(f"Force update: {force_update}, Max entries: {max_entries}")
             
-            # Определяем рабочую директорию (корень проекта)
+            # Determine working directory (project root)
             project_root = Path(__file__).parent.parent.parent
             
-            # Загружаем конфигурацию из .env
+            # Load configuration from .env
             config = self._load_config(project_root)
             
-            # Определяем путь к скрипту
+            # Determine script path
             script_path = project_root / 'scripts' / 'extract_channel_metadata.py'
             if not script_path.exists():
-                # Fallback к корневой папке
+                # Fallback to root folder
                 script_path = project_root / 'extract_channel_metadata.py'
             
             if not script_path.exists():
                 raise FileNotFoundError("extract_channel_metadata.py not found")
             
-            # Строим команду
+            # Build command
             cmd = [
                 sys.executable,
                 str(script_path),
                 channel_url
             ]
             
-            # Добавляем опциональные параметры
+            # Add optional parameters
             if config.get('DB_PATH'):
                 cmd.extend(['--db-path', config['DB_PATH']])
             
@@ -95,21 +95,21 @@ class MetadataExtractionWorker(JobWorker):
             if max_entries:
                 cmd.extend(['--max-entries', str(max_entries)])
             
-            # Добавляем verbose для детального логирования
+            # Add verbose for detailed logging
             cmd.append('--verbose')
             
             print(f"Executing command: {' '.join(cmd)}")
             
-            # Запускаем извлечение метаданных с захватом вывода
+            # Run metadata extraction with output capture
             result = subprocess.run(
                 cmd,
                 cwd=str(project_root),
                 capture_output=True,
                 text=True,
-                timeout=1800  # 30 минут timeout для метаданных
+                timeout=1800  # 30 minutes timeout for metadata
             )
             
-            # Выводим результат для логирования
+            # Output result for logging
             if result.stdout:
                 print("=== STDOUT ===")
                 print(result.stdout)
@@ -120,15 +120,15 @@ class MetadataExtractionWorker(JobWorker):
             
             print(f"Process exit code: {result.returncode}")
             
-            # Проверяем результат
+            # Check result
             if result.returncode == 0:
                 print("Metadata extraction completed successfully")
                 
-                # Обновляем timestamp последнего обновления метаданных
+                # Update metadata last updated timestamp
                 if channel_id:
                     self._update_metadata_timestamp(channel_id, config.get('DB_PATH'))
                 
-                # Парсим количество обработанных видео из вывода
+                # Parse number of processed videos from output
                 videos_processed = self._parse_videos_count(result.stdout)
                 if videos_processed:
                     print(f"Processed {videos_processed} videos")
@@ -150,7 +150,7 @@ class MetadataExtractionWorker(JobWorker):
             return False
     
     def _load_config(self, project_root: Path) -> dict:
-        """Загружает конфигурацию из .env файла."""
+        """Load configuration from .env file."""
         config = {}
         env_path = project_root / '.env'
         
@@ -168,17 +168,17 @@ class MetadataExtractionWorker(JobWorker):
         return config
     
     def _update_metadata_timestamp(self, channel_id: int, db_path: str = None):
-        """Обновляет timestamp последнего обновления метаданных канала."""
+        """Update channel metadata last updated timestamp."""
         try:
             if not db_path:
-                # Fallback к default пути
+                # Fallback to default path
                 project_root = Path(__file__).parent.parent.parent
                 db_path = str(project_root / 'tracks.db')
             
             with sqlite3.connect(db_path) as conn:
                 cursor = conn.cursor()
                 
-                # Обновляем metadata_last_updated поле
+                # Update metadata_last_updated field
                 cursor.execute("""
                     UPDATE channels 
                     SET metadata_last_updated = CURRENT_TIMESTAMP
@@ -196,10 +196,10 @@ class MetadataExtractionWorker(JobWorker):
             print(f"Warning: Failed to update metadata timestamp: {e}")
     
     def _parse_videos_count(self, output: str) -> int:
-        """Парсит количество обработанных видео из вывода скрипта."""
+        """Parse number of processed videos from script output."""
         try:
             for line in output.split('\n'):
-                # Ищем строки типа "Loaded X videos metadata for channel"
+                # Look for lines like "Loaded X videos metadata for channel"
                 if 'videos metadata for channel' in line:
                     words = line.split()
                     for i, word in enumerate(words):
@@ -209,7 +209,7 @@ class MetadataExtractionWorker(JobWorker):
                             except ValueError:
                                 continue
                 
-                # Или "Processing X entries"
+                # Or "Processing X entries"
                 if 'Processing' in line and 'entries' in line:
                     words = line.split()
                     for i, word in enumerate(words):
@@ -225,11 +225,11 @@ class MetadataExtractionWorker(JobWorker):
             return 0
     
     def get_worker_info(self) -> dict:
-        """Информация о воркере для мониторинга."""
+        """Worker information for monitoring."""
         info = super().get_worker_info()
         info.update({
             'description': 'Extracts YouTube channel/playlist metadata using yt-dlp',
-            'max_concurrent_jobs': 2,  # Метаданные можем извлекать параллельно
+            'max_concurrent_jobs': 2,  # Metadata can be extracted in parallel
             'average_duration': '5-15 minutes',
             'supported_features': [
                 'channel_metadata',
