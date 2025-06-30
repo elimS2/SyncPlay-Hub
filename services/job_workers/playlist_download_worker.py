@@ -18,6 +18,7 @@ import os
 sys.path.append(str(Path(__file__).parent.parent.parent))
 
 from services.job_types import JobWorker, Job, JobType
+from utils.cookies_manager import get_random_cookie_file
 
 
 class PlaylistDownloadWorker(JobWorker):
@@ -273,6 +274,14 @@ class PlaylistDownloadWorker(JobWorker):
             if config.get('PROXY_URL'):
                 cmd.extend(['--proxy', config['PROXY_URL']])
                 print(f"Using proxy: {config['PROXY_URL']}")
+            
+            # Cookies support for bypassing YouTube age restrictions and bot detection
+            random_cookie = get_random_cookie_file()
+            if random_cookie:
+                cmd.extend(['--cookies', random_cookie])
+                print(f"Using cookies file: {Path(random_cookie).name}")
+            else:
+                print("No cookies available - download may fail for age-restricted content")
             
             # Additional parameters for download fixes
             if job_data.get('ignore_archive'):

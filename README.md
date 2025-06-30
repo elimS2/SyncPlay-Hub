@@ -167,7 +167,44 @@ python download_playlist.py <URL> --use-browser-cookies
 python download_playlist.py <URL> --cookies C:\path\youtube_cookies.txt
 ```
 
-If both flags are provided, `--cookies` has priority.
+### 3) Automatic random cookie selection (NEW)
+
+Configure a folder with multiple cookie files for automatic random selection:
+
+```bash
+# Set environment variable for cookies directory
+export YOUTUBE_COOKIES_DIR="D:/music/Youtube/Cookies"
+
+# Or add to .env file in project root:
+echo "YOUTUBE_COOKIES_DIR=D:/music/Youtube/Cookies" >> .env
+
+# Place your cookie files in the directory
+# Supported formats: *.txt, *.cookies, youtube*.txt, *.json
+# Example files:
+#   D:/music/Youtube/Cookies/
+#   ├── account1_cookies.txt
+#   ├── account2_cookies.txt
+#   ├── youtube_main.txt
+#   └── backup_cookies.txt
+
+# Now downloads will automatically use random cookies
+python download_playlist.py <URL>
+python download_content.py <URL>
+```
+
+**Priority order for cookie selection:**
+1. Explicitly provided `--cookies` path
+2. Browser cookies if `--use-browser-cookies` is specified
+3. Random cookie file from `YOUTUBE_COOKIES_DIR`
+4. No cookies (may fail for age-restricted content)
+
+**Features:**
+- Automatic validation of cookie files (checks for YouTube-specific content)
+- Random selection to distribute load across different accounts
+- Seamless integration with job queue system
+- Fallback to browser cookies if no valid files found
+
+If both `--cookies` and `--use-browser-cookies` are provided, `--cookies` has priority.
 
 ---
 

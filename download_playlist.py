@@ -23,6 +23,7 @@ import textwrap
 import shutil
 import datetime
 from utils.logging_utils import log_message  # Unified logging system
+from utils.cookies_manager import get_cookies_for_download, log_cookies_status
 
 try:
     from yt_dlp import YoutubeDL
@@ -498,22 +499,34 @@ def download_playlist(playlist_url: str, output_dir: pathlib.Path, audio_only: b
             except Exception:
                 pass  # Don't let callback errors break the download
     
-    # Cookies info
-    if cookies_path:
+    # Cookies configuration with automatic random selection
+    actual_cookies_path, actual_use_browser = get_cookies_for_download(cookies_path, use_browser)
+    
+    # Show cookies status
+    if debug:
+        log_cookies_status()
+    
+    # Validate explicitly provided cookies
+    if actual_cookies_path:
         try:
-            _validate_cookies_file(cookies_path)
-            print(f"[Info] Using cookies file: {cookies_path}")
+            _validate_cookies_file(actual_cookies_path)
+            if actual_cookies_path != cookies_path:
+                log_progress(f"[Info] Auto-selected random cookies file: {pathlib.Path(actual_cookies_path).name}")
+            else:
+                log_progress(f"[Info] Using explicitly provided cookies file: {actual_cookies_path}")
         except Exception as exc:
-            print(f"[Error] Cookies validation failed: {exc}")
+            log_progress(f"[Error] Cookies validation failed: {exc}")
             sys.exit(1)
-    elif use_browser:
-        print("[Info] Importing cookies from local browser profile…")
+    elif actual_use_browser:
+        log_progress("[Info] Using browser cookies (Chrome profile by default)")
+    else:
+        log_progress("[Info] No cookies configured - downloads may fail for age-restricted content")
 
     # 1. Fetch metadata first to know current IDs and sanitized playlist title
     playlist_title, current_ids = fetch_playlist_metadata(
         playlist_url,
-        cookies_path=cookies_path,
-        use_browser=use_browser,
+        cookies_path=actual_cookies_path,
+        use_browser=actual_use_browser,
         debug=debug,
         progress_callback=progress_callback,
         proxy_url=proxy_url,
@@ -532,7 +545,7 @@ def download_playlist(playlist_url: str, output_dir: pathlib.Path, audio_only: b
     output_dir.mkdir(parents=True, exist_ok=True)
 
     # 2. Download/update files
-    ydl_opts = build_ydl_opts(output_dir, audio_only, cookies_path=cookies_path, use_browser=use_browser, proxy_url=proxy_url)
+    ydl_opts = build_ydl_opts(output_dir, audio_only, cookies_path=actual_cookies_path, use_browser=actual_use_browser, proxy_url=proxy_url)
     if debug:
         ydl_opts["quiet"] = False
     with YoutubeDL(ydl_opts) as ydl:
