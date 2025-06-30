@@ -7,6 +7,7 @@ This file serves as the main development log index. Individual log entries are m
 ## 🗂️ Log Entry Files
 
 Latest entries are maintained in separate files:
+- `DEVELOPMENT_LOG_111.md` - Fixed Database Scan Path Configuration Issue
 - `DEVELOPMENT_LOG_110.md` - Automatic Folder Cleanup After Track Downloads
 - `DEVELOPMENT_LOG_095.md` - Removed Retry Button Confirmation Dialog  
 - `DEVELOPMENT_LOG_094.md` - Implemented Automatic Random Cookie Selection System

@@ -355,20 +355,29 @@ class PlaylistDownloadWorker(JobWorker):
     def _update_database_scan(self, db_path: str = None):
         """Updates database by scanning new files."""
         try:
+            # Load configuration to get direct paths  
+            project_root = Path(__file__).parent.parent.parent
+            config = self._load_config(project_root)
+            playlists_dir = config.get('PLAYLISTS_DIR', 'D:/music/Youtube/Playlists')
+            config_db_path = config.get('DB_PATH', 'D:/music/Youtube/DB/tracks.db')
+            
+            # Use provided db_path or fall back to config or default
             if not db_path:
-                # Fallback to default path
-                project_root = Path(__file__).parent.parent.parent
-                db_path = str(project_root / 'tracks.db')
+                db_path = config_db_path
             
             # Call scan_to_db.py to update database
-            project_root = Path(__file__).parent.parent.parent
             scan_script = project_root / 'scan_to_db.py'
             
             if scan_script.exists():
                 cmd = [
                     sys.executable,
-                    str(scan_script)
+                    str(scan_script),
+                    '--playlists-dir', playlists_dir,
+                    '--db-path', db_path
                 ]
+                
+                print(f"Running database scan with playlists: {playlists_dir}")
+                print(f"Running database scan with database: {db_path}")
                 
                 result = subprocess.run(
                     cmd,

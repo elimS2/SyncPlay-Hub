@@ -150,17 +150,40 @@ def scan(playlists_dir: Path):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Scan media folder into SQLite database")
-    parser.add_argument("--root", default="downloads", help="Base folder containing Playlists/ and DB/")
+    parser.add_argument("--root", default="downloads", help="Base folder containing Playlists/ and DB/ (legacy mode)")
+    parser.add_argument("--playlists-dir", help="Direct path to Playlists folder")
+    parser.add_argument("--db-path", help="Direct path to database file")
     args = parser.parse_args()
 
-    base = Path(args.root).resolve()
-    playlists_dir = base / "Playlists"
-    db_dir = base / "DB"
+    # New flexible mode: use direct paths if provided
+    if args.playlists_dir and args.db_path:
+        playlists_dir = Path(args.playlists_dir).resolve()
+        db_path = Path(args.db_path).resolve()
+        
+        if not playlists_dir.exists():
+            raise SystemExit("Playlists folder not found: " + str(playlists_dir))
+        
+        # Ensure database directory exists
+        db_dir = db_path.parent
+        db_dir.mkdir(parents=True, exist_ok=True)
+        db.set_db_path(str(db_path))
+        
+        print(f"[CONFIG] Using direct paths:")
+        print(f"[CONFIG] Playlists: {playlists_dir}")
+        print(f"[CONFIG] Database: {db_path}")
+        
+    # Legacy mode: use --root parameter
+    else:
+        base = Path(args.root).resolve()
+        playlists_dir = base / "Playlists"
+        db_dir = base / "DB"
 
-    if not playlists_dir.exists():
-        raise SystemExit("Playlists folder not found: " + str(playlists_dir))
+        if not playlists_dir.exists():
+            raise SystemExit("Playlists folder not found: " + str(playlists_dir))
 
-    db_dir.mkdir(parents=True, exist_ok=True)
-    db.set_db_path(db_dir / "tracks.db")
+        db_dir.mkdir(parents=True, exist_ok=True)
+        db.set_db_path(db_dir / "tracks.db")
+        
+        print(f"[CONFIG] Using legacy mode with root: {base}")
 
     scan(playlists_dir) 
