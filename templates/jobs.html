@@ -996,8 +996,6 @@
         }
 
         async function retryJob(jobId) {
-            if (!confirm(`Are you sure you want to retry job #${jobId}?`)) return;
-
             try {
                 const response = await fetch(`/api/jobs/${jobId}/retry`, {
                     method: 'POST'
