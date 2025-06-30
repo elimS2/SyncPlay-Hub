@@ -1,69 +1,28 @@
-### Log Entry #089 - 2025-06-29 23:42 UTC
+# Development Log
 
-**Feature**: ✅ Added Missing "Removed" Event Type Filter + Database Analysis
+## 📋 Overview
 
-**Issue Reported by User:**
-- Missing filter option for "removed" event type on `/events` page  
-- Discrepancy in counts: 49 tracks on `/deleted` vs 124 events on `/events?event_types=removed`
+This file serves as the main development log index. Individual log entries are maintained in separate files for better organization and version control.
 
-**Changes Made:**
+## 🗂️ Log Entry Files
 
-**1. Added Missing Removed Filter to Events Page**
-```html
-<!-- Added to templates/history.html -->
-<label class="event-type-checkbox" for="filter-removed">
-  <input type="checkbox" id="filter-removed" {% if not filters.event_types_filter_applied or (filters.event_types and 'removed' in filters.event_types) %}checked{% endif %}>
-  <span>Removed</span>
-</label>
-```
+Latest entries are maintained in separate files:
+- `DEVELOPMENT_LOG_090.md` - Fixed Duplicate Heart Icons in "Likes Playlists" Button
+- `DEVELOPMENT_LOG_089.md` - Added Missing "Removed" Event Type Filter + Database Analysis  
+- `DEVELOPMENT_LOG_088.md` - Previous entry
+- ...
 
-**2. Added Removed Event Type to Reference Guide**
-```html
-<div><span class="event-removed">🔴 removed</span> - Track deleted from library/playlist</div>
-```
+## 📖 How to Use
 
-**Database Analysis Performed:**
-- Investigated structure: `tracks.db` contains `deleted_tracks` table and `play_history` events
-- Found event type "removed" is supported in code (`database.py:359`)
-- Used in deletion workflows (`download_content.py`, `controllers/api/channels_api.py`)
+1. **New Entries**: Create new `DEVELOPMENT_LOG_XXX.md` files for each log entry
+2. **Numbering**: Use sequential numbering starting from the latest entry
+3. **Format**: Follow the established template format in existing log files
+4. **Index Updates**: Update this file and `DEVELOPMENT_LOG_INDEX.md` when adding new entries
 
-**Key Findings:**
+## 📝 Current Active Development
 
-**Different Data Sources:**
-- **Page `/deleted`**: Shows records from `deleted_tracks` table (physical deletions)
-- **Page `/events?event_types=removed`**: Shows "removed" events from `play_history` (event log)
-
-**Legitimate Reasons for Count Differences:**
-1. **Multiple Deletions**: Same track deleted/restored/deleted again = multiple events, one deleted_tracks record
-2. **Historical Events**: `play_history` keeps all events, `deleted_tracks` only current state
-3. **Time Filtering**: `/deleted` page filters by last 30 days (default), `/events` shows all history
-4. **Restored Tracks**: Events remain in history even after tracks are restored from trash
-
-**User Experience Improvements:**
-- ✅ **Complete Filter Set**: All event types now available for filtering
-- ✅ **Visual Consistency**: Removed events styled with red color (🔴)
-- ✅ **Proper Documentation**: Added to event types reference guide
-- ✅ **Functional Parity**: Events page now covers all logged event types
-
-**Technical Implementation:**
-- **CSS Styling**: `.event-removed{color:#f44336;}` - red color for removed events
-- **Template Logic**: Standard checkbox pattern with filter state preservation
-- **JavaScript Integration**: Automatic inclusion in existing filter system
-- **State Management**: Works with existing URL-based filtering and Toggle All functionality
-
-**Impact:**
-- **Enhanced Visibility**: Users can now filter and analyze track deletion patterns
-- **Better Debugging**: Full access to deletion events helps identify sync issues
-- **Data Completeness**: Events page now shows complete picture of all logged activities
-- **User Understanding**: Clear explanation of count differences reduces confusion
-
-**Files Modified:**
-- `templates/history.html` - Added removed filter checkbox and reference entry
-
-**Cleanup:**
-- Created temporary analysis scripts: `analyze_removed_difference.py`, `check_db_path.py`
-- These should be removed after issue resolution
+For current active development tracking, see the latest numbered log file or create a new one following the established pattern.
 
 ---
 
-*End of Log Entry #089* 
+*For detailed development history, see individual log entry files and PROJECT_HISTORY.md* 
