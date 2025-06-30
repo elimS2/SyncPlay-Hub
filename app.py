@@ -192,6 +192,7 @@ def _check_server_already_running(port=8000):
 # -------- PAGE ROUTES --------
 
 @app.route("/")
+@app.route("/playlists")
 def playlists_page():
     """Homepage – list all playlists (sub-folders)."""
     playlists = list_playlists(ROOT_DIR)
