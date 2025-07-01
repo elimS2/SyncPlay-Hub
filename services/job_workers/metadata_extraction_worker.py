@@ -10,13 +10,14 @@ import sys
 import subprocess
 import sqlite3
 from pathlib import Path
-from typing import List
+from typing import List, Dict, Any
 from datetime import datetime
 
 # Add root folder to path for imports
 sys.path.append(str(Path(__file__).parent.parent.parent))
 
 from services.job_types import JobWorker, Job, JobType
+from utils.cookies_manager import get_random_cookie_file
 
 
 class MetadataExtractionWorker(JobWorker):
@@ -36,14 +37,15 @@ class MetadataExtractionWorker(JobWorker):
     
     def execute_job(self, job: Job) -> bool:
         """
-        Execute metadata extraction.
+        Executes metadata extraction.
         
         Expected parameters in job.job_data:
-        - channel_url: Channel URL for analysis
-        - channel_id: Database channel ID (optional, for updates)
-        - extract_type: 'channel' or 'playlist' (default: 'channel')
-        - force_update: Force update of existing metadata
-        - max_entries: Maximum number of videos to analyze (optional)
+        - channel_url: Channel URL for metadata extraction
+        - channel_id: Channel ID in database (optional)
+        - extract_type: Type of extraction ('channel', 'playlist', 'video')
+        - force_update: Whether to force update existing metadata
+        - max_entries: Maximum number of entries to extract (optional)
+        - playlist_items: Specific video indices to process (optional)
         
         Returns:
             True if extraction successful, False otherwise
@@ -55,6 +57,7 @@ class MetadataExtractionWorker(JobWorker):
             extract_type = job.job_data.get('extract_type', 'channel')
             force_update = job.job_data.get('force_update', False)
             max_entries = job.job_data.get('max_entries')
+            playlist_items = job.job_data.get('playlist_items')  # New: specify video indices
             
             if not channel_url:
                 raise ValueError("channel_url is required")
@@ -62,54 +65,61 @@ class MetadataExtractionWorker(JobWorker):
             print(f"Starting metadata extraction for: {channel_url}")
             print(f"Channel ID: {channel_id}, Type: {extract_type}")
             print(f"Force update: {force_update}, Max entries: {max_entries}")
+            if playlist_items:
+                print(f"Playlist items filter: {playlist_items}")
+            
+            # Get cookies for the extraction
+            cookies_path = get_random_cookie_file()
+            if not cookies_path:
+                print("Warning: No cookies available - extraction may fail for age-restricted content")
+            else:
+                print(f"Using cookies file: {cookies_path}")
             
             # Determine working directory (project root)
             project_root = Path(__file__).parent.parent.parent
             
-            # Load configuration from .env
-            config = self._load_config(project_root)
-            
-            # Determine script path
-            script_path = project_root / 'scripts' / 'extract_channel_metadata.py'
-            if not script_path.exists():
-                # Fallback to root folder
-                script_path = project_root / 'extract_channel_metadata.py'
-            
-            if not script_path.exists():
-                raise FileNotFoundError("extract_channel_metadata.py not found")
-            
-            # Build command
+            # Build command to run extract_channel_metadata.py
             cmd = [
                 sys.executable,
-                str(script_path),
+                str(project_root / "scripts" / "extract_channel_metadata.py"),
                 channel_url
             ]
             
             # Add optional parameters
-            if config.get('DB_PATH'):
-                cmd.extend(['--db-path', config['DB_PATH']])
-            
             if force_update:
-                cmd.append('--force-update')
+                cmd.append("--force-update")
             
             if max_entries:
-                cmd.extend(['--max-entries', str(max_entries)])
+                cmd.extend(["--max-entries", str(max_entries)])
             
-            # Add verbose for detailed logging
-            cmd.append('--verbose')
+            if cookies_path:
+                cmd.extend(["--cookies", cookies_path])
+            
+            # Add playlist items parameter
+            if playlist_items:
+                cmd.extend(['--playlist-items', playlist_items])
+            
+            # Add database path from configuration
+            config = self._load_config(project_root)
+            db_path = config.get('DB_PATH')
+            if db_path:
+                cmd.extend(['--db-path', db_path])
+                print(f"Using database path: {db_path}")
+            else:
+                print("Warning: No DB_PATH in .env file, using default database")
             
             print(f"Executing command: {' '.join(cmd)}")
             
-            # Run metadata extraction with output capture
+            # Execute the script
             result = subprocess.run(
                 cmd,
-                cwd=str(project_root),
+                cwd=project_root,
                 capture_output=True,
                 text=True,
-                timeout=1800  # 30 minutes timeout for metadata
+                timeout=1800  # 30 minute timeout for metadata extraction
             )
             
-            # Output result for logging
+            # Output the results
             if result.stdout:
                 print("=== STDOUT ===")
                 print(result.stdout)
@@ -118,26 +128,12 @@ class MetadataExtractionWorker(JobWorker):
                 print("=== STDERR ===")
                 print(result.stderr)
             
-            print(f"Process exit code: {result.returncode}")
-            
             # Check result
             if result.returncode == 0:
                 print("Metadata extraction completed successfully")
-                
-                # Update metadata last updated timestamp
-                if channel_id:
-                    self._update_metadata_timestamp(channel_id, config.get('DB_PATH'))
-                
-                # Parse number of processed videos from output
-                videos_processed = self._parse_videos_count(result.stdout)
-                if videos_processed:
-                    print(f"Processed {videos_processed} videos")
-                
                 return True
             else:
                 print(f"Metadata extraction failed with exit code {result.returncode}")
-                if result.stderr:
-                    print(f"Error output: {result.stderr}")
                 return False
                 
         except subprocess.TimeoutExpired:
@@ -228,15 +224,16 @@ class MetadataExtractionWorker(JobWorker):
         """Worker information for monitoring."""
         info = super().get_worker_info()
         info.update({
-            'description': 'Extracts YouTube channel/playlist metadata using yt-dlp',
-            'max_concurrent_jobs': 2,  # Metadata can be extracted in parallel
+            'description': 'Extracts YouTube metadata using yt-dlp with smart batching and date filtering',
+            'max_concurrent_jobs': 2,  # Can run multiple metadata extractions
             'average_duration': '5-15 minutes',
             'supported_features': [
-                'channel_metadata',
-                'playlist_metadata',
+                'smart_batching',
+                'date_filtering',
+                'cookies_support',
+                'playlist_items_filtering',
                 'force_update',
-                'max_entries_limit',
-                'database_timestamp_update'
+                'max_entries_limit'
             ]
         })
         return info 

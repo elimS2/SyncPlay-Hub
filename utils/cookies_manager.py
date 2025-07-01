@@ -16,6 +16,39 @@ import logging
 logger = logging.getLogger(__name__)
 
 
+def _load_env_config() -> dict:
+    """Load configuration from .env file."""
+    config = {}
+    
+    # Try to find .env file in current directory or parent directories
+    current_dir = Path(__file__).parent
+    env_paths = [
+        current_dir / '.env',
+        current_dir.parent / '.env',  # Project root
+        Path.cwd() / '.env'
+    ]
+    
+    for env_path in env_paths:
+        if env_path.exists():
+            try:
+                with open(env_path, 'r', encoding='utf-8') as f:
+                    for line in f:
+                        line = line.strip()
+                        if line and not line.startswith('#') and '=' in line:
+                            key, value = line.split('=', 1)
+                            # Remove BOM if present and strip whitespace
+                            key = key.strip().lstrip('\ufeff')
+                            value = value.strip()  # This handles trailing spaces
+                            config[key] = value
+                logger.debug(f"Loaded .env config from: {env_path}")
+                break
+            except Exception as e:
+                logger.warning(f"Error reading .env file {env_path}: {e}")
+                continue
+    
+    return config
+
+
 def get_cookies_directory() -> Optional[Path]:
     """
     Get cookies directory from environment variable or default location.
@@ -23,15 +56,22 @@ def get_cookies_directory() -> Optional[Path]:
     Returns:
         Path to cookies directory or None if not configured/found
     """
-    # Check environment variable first
-    cookies_env = os.environ.get('YOUTUBE_COOKIES_DIR')
+    # Load .env configuration
+    env_config = _load_env_config()
+    
+    # Check .env file first
+    cookies_env = env_config.get('YOUTUBE_COOKIES_DIR')
+    if not cookies_env:
+        # Fallback to os.environ if not in .env
+        cookies_env = os.environ.get('YOUTUBE_COOKIES_DIR')
+    
     if cookies_env:
         cookies_path = Path(cookies_env)
         if cookies_path.exists() and cookies_path.is_dir():
-            logger.info(f"Using cookies directory from environment: {cookies_path}")
+            logger.info(f"Using cookies directory from configuration: {cookies_path}")
             return cookies_path
         else:
-            logger.warning(f"Cookies directory from environment not found: {cookies_path}")
+            logger.warning(f"Cookies directory from configuration not found: {cookies_path}")
     
     # Check default location (same as provided in the query)
     default_path = Path("D:/music/Youtube/Cookies")

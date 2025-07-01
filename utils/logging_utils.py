@@ -94,7 +94,13 @@ class DualStreamHandler(logging.Handler):
             clean_msg = self._remove_flask_timestamp(clean_msg)
             
             # For console: use cleaned message (log_message will add timestamp+PID)
-            print(clean_msg, flush=True)
+            # Safely handle encoding for Windows console
+            try:
+                print(clean_msg, flush=True)
+            except UnicodeEncodeError:
+                # Handle Windows console encoding issues
+                safe_msg = clean_msg.encode('ascii', 'replace').decode('ascii')
+                print(safe_msg, flush=True)
             
             # Create a copy of the record with cleaned message for file handler
             file_record = logging.LogRecord(
@@ -142,8 +148,13 @@ def log_message(message):
     if unified_logger:
         unified_logger.info(message)
     else:
-        # Fallback if logger not initialized
-        print(message, flush=True)
+        # Fallback if logger not initialized - safely handle encoding
+        try:
+            print(message, flush=True)
+        except UnicodeEncodeError:
+            # Handle Windows console encoding issues
+            safe_message = message.encode('ascii', 'replace').decode('ascii')
+            print(safe_message, flush=True)
 
 def setup_logging():
     """Set up the unified logging system like original."""
