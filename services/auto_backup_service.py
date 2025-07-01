@@ -67,7 +67,7 @@ class AutoBackupService:
         self.logger.info(f"Check interval: {self.check_interval} minutes")
         
         # Get job queue service
-        self._job_queue_service = get_job_queue_service()
+        self._job_queue_service = get_job_queue_service(max_workers=1)
         
         # Start scheduler thread
         self._stop_event.clear()
@@ -208,7 +208,7 @@ class AutoBackupService:
             self.logger.info("Forcing immediate database backup")
             
             if not self._job_queue_service:
-                self._job_queue_service = get_job_queue_service()
+                self._job_queue_service = get_job_queue_service(max_workers=1)
             
             # Create job data with force_backup=True
             job_data = JobData(
