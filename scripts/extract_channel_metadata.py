@@ -662,7 +662,7 @@ def process_channel_metadata(url: str, force_update: bool = False, max_entries: 
                     # Always set channel_url to the original human-readable URL passed to function
                     # This fixes URL mismatch issue where smart extraction returns technical URLs
                     # but callback searches for human-readable URLs  
-                        metadata['channel_url'] = url
+                    metadata['channel_url'] = url
                     
                     # Check if record already exists
                     existing = get_youtube_metadata_by_id(conn, video_id)
