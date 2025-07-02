@@ -281,6 +281,8 @@
         <th>#</th>
         <th>Video ID</th>
         <th>Track Name</th>
+        <th>Channel</th>
+        <th>Duration</th>
         <th>Event Type</th>
         <th>Timestamp</th>
         <th>Position</th>
@@ -302,6 +304,16 @@
             {% endif %}
           </td>
           <td>{{ h['name'] or '-' }}</td>
+          <td style="color:#8bc34a;font-size:12px;">{{ h['youtube_channel'] or '-' }}</td>
+          <td style="color:#61dafb;font-size:12px;font-family:monospace;">
+            {% if h['youtube_duration_string'] %}
+              {{ h['youtube_duration_string'] }}
+            {% elif h['youtube_duration'] %}
+              {{ (h['youtube_duration'] // 60) }}:{{ '%02d' % (h['youtube_duration'] % 60) }}
+            {% else %}
+              -
+            {% endif %}
+          </td>
           <td><span class="event-{{ h['event'] }}">{{ h['event'] }}</span></td>
           <td>{{ h['ts'] }}</td>
           <td class="position-time">
@@ -360,7 +372,7 @@
           </td>
         </tr>
       {% else %}
-        <tr><td colspan="10" style="text-align:center;padding:40px;color:#666;font-style:italic;">
+        <tr><td colspan="12" style="text-align:center;padding:40px;color:#666;font-style:italic;">
           {% if filters.event_types_filter_applied or filters.track_filter or filters.video_id_filter %}
             🔍 No events match your filters. Try adjusting or clearing them.
           {% else %}

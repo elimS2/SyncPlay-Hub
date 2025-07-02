@@ -685,20 +685,35 @@
         // Update track info
         if (status.current_track) {
           const track = status.current_track;
-          const displayName = track.name ? track.name.replace(/\s*\[.*?\]$/, '') : 'Unknown Track';
-          this.trackTitle.textContent = displayName;
-          this.trackStatus.textContent = status.playing ? 'Playing' : 'Paused';
           
-          // Update progress
-          if (status.progress !== undefined && track.duration) {
-            const percent = Math.min(100, Math.max(0, (status.progress / track.duration) * 100));
+          // Use YouTube title if available, otherwise clean up filename
+          const displayName = track.youtube_title || (track.name ? track.name.replace(/\s*\[.*?\]$/, '') : 'Unknown Track');
+          this.trackTitle.textContent = displayName;
+          
+          // Show channel info if available
+          let statusText = status.playing ? 'Playing' : 'Paused';
+          if (track.youtube_channel) {
+            statusText += ` • ${track.youtube_channel}`;
+          }
+          this.trackStatus.textContent = statusText;
+          
+          // Update progress - use YouTube duration if available
+          const duration = track.youtube_duration || track.duration;
+          if (status.progress !== undefined && duration) {
+            const percent = Math.min(100, Math.max(0, (status.progress / duration) * 100));
             this.progressBar.style.width = percent + '%';
             this.currentTime.textContent = this.formatTime(status.progress);
-            this.totalTime.textContent = this.formatTime(track.duration);
+            
+            // Use YouTube duration string if available, otherwise format seconds
+            if (track.youtube_duration_string) {
+              this.totalTime.textContent = track.youtube_duration_string;
+            } else {
+              this.totalTime.textContent = this.formatTime(duration);
+            }
           } else {
             this.progressBar.style.width = '0%';
             this.currentTime.textContent = this.formatTime(status.progress || 0);
-            this.totalTime.textContent = track.duration ? this.formatTime(track.duration) : '0:00';
+            this.totalTime.textContent = track.youtube_duration_string || (duration ? this.formatTime(duration) : '0:00');
           }
         } else {
           this.trackTitle.textContent = 'No track playing';

@@ -36,15 +36,17 @@ def _get_last_play_ts(video_id: str) -> Optional[str]:
         return None
 
 def scan_tracks(scan_root: Path) -> List[dict]:
-    """Scan a directory for media files and return track information."""
-    from database import get_connection
+    """Scan a directory for media files and return track information, using YouTube metadata if available."""
+    from database import get_connection, get_youtube_metadata_by_id
     
     # Get ROOT_DIR from global scope (set by init function)
     root_dir = globals().get('ROOT_DIR')
     if not root_dir:
         raise RuntimeError("ROOT_DIR not set. Call set_root_dir() first.")
     
+    conn = get_connection()
     tracks = []
+    
     for file in scan_root.rglob("*.*"):
         if file.suffix.lower() in {".mp3", ".m4a", ".opus", ".webm", ".flac", ".mp4", ".mkv", ".mov"} and file.is_file():
             # Extract video ID from filename pattern: Title [VIDEO_ID].ext (must be at end)
@@ -54,13 +56,52 @@ def scan_tracks(scan_root: Path) -> List[dict]:
             # Calculate path relative to ROOT_DIR (not scan_root)
             rel_to_root = file.relative_to(root_dir)
             
-            tracks.append({
-                "name": file.stem,
+            # Try to get YouTube metadata if video_id exists
+            display_name = file.stem  # Default to filename
+            youtube_metadata = None
+            if video_id:
+                try:
+                    metadata_row = get_youtube_metadata_by_id(conn, video_id)
+                    if metadata_row:
+                        title = metadata_row['title'] if 'title' in metadata_row.keys() else None
+                        if title:
+                            display_name = title
+                            youtube_metadata = metadata_row
+                except Exception as e:
+                    # If metadata lookup fails, keep using filename
+                    print(f"Warning: Failed to get YouTube metadata for {video_id}: {e}")
+                    pass
+            
+            track_data = {
+                "name": display_name,
                 "relpath": str(rel_to_root).replace("\\", "/"),
                 "url": url_for("media", filename=str(rel_to_root).replace("\\", "/")),
                 "video_id": video_id,
                 "last_play": _get_last_play_ts(video_id) if video_id else None,
-            })
+            }
+            
+            # Add YouTube metadata if available
+            if youtube_metadata:
+                try:
+                    keys = youtube_metadata.keys()
+                    if 'title' in keys:
+                        track_data["youtube_title"] = youtube_metadata['title']
+                    if 'channel' in keys:
+                        track_data["youtube_channel"] = youtube_metadata['channel']
+                    if 'duration' in keys:
+                        track_data["youtube_duration"] = youtube_metadata['duration']
+                    if 'duration_string' in keys:
+                        track_data["youtube_duration_string"] = youtube_metadata['duration_string']
+                    if 'view_count' in keys:
+                        track_data["youtube_view_count"] = youtube_metadata['view_count']
+                    if 'uploader' in keys:
+                        track_data["youtube_uploader"] = youtube_metadata['uploader']
+                except Exception as e:
+                    print(f"Warning: Failed to extract metadata fields for {video_id}: {e}")
+            
+            tracks.append(track_data)
+    
+    conn.close()
     return tracks
 
 def _ensure_subdir(requested: Path) -> Path:

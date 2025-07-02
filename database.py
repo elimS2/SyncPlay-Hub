@@ -326,15 +326,18 @@ def link_track_playlist(conn: sqlite3.Connection, track_id: int, playlist_id: in
 
 
 def iter_tracks_with_playlists(conn: sqlite3.Connection) -> Iterator[sqlite3.Row]:
-    """Yield tracks with aggregated playlist names."""
+    """Yield tracks with aggregated playlist names, using YouTube metadata title if available."""
     for row in conn.execute(
         """
-        SELECT t.*, GROUP_CONCAT(p.name, ', ') AS playlists
+        SELECT t.*, 
+               GROUP_CONCAT(p.name, ', ') AS playlists,
+               COALESCE(ym.title, t.name) AS display_name
         FROM tracks t
         LEFT JOIN track_playlists tp ON tp.track_id = t.id
         LEFT JOIN playlists p ON p.id = tp.playlist_id
+        LEFT JOIN youtube_video_metadata ym ON ym.youtube_id = t.video_id
         GROUP BY t.id
-        ORDER BY t.name COLLATE NOCASE
+        ORDER BY COALESCE(ym.title, t.name) COLLATE NOCASE
         """
     ):
         yield row 
@@ -496,8 +499,16 @@ def get_history_page(conn: sqlite3.Connection, page: int = 1, per_page: int = 10
         where_conditions.append("ph.video_id LIKE ?")
         params.append(f"%{video_id_filter}%")
     
-    # Construct SQL query
-    base_query = "SELECT ph.*, t.name FROM play_history ph LEFT JOIN tracks t ON t.video_id = ph.video_id"
+    # Construct SQL query with YouTube metadata
+    base_query = """SELECT ph.*, 
+                           COALESCE(ym.title, t.name) as name,
+                           ym.duration as youtube_duration,
+                           ym.duration_string as youtube_duration_string,
+                           ym.channel as youtube_channel,
+                           ym.view_count as youtube_view_count
+                    FROM play_history ph 
+                    LEFT JOIN tracks t ON t.video_id = ph.video_id
+                    LEFT JOIN youtube_video_metadata ym ON ym.youtube_id = ph.video_id"""
     
     if where_conditions:
         base_query += " WHERE " + " AND ".join(where_conditions)

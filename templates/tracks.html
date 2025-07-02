@@ -42,7 +42,7 @@
       {% for t in tracks %}
         <tr>
           <td>{{ loop.index }}</td>
-          <td>{{ t['name'] }}</td>
+          <td>{{ t['display_name'] }}</td>
           <td><a href="https://youtu.be/{{ t['video_id'] }}" target="_blank">{{ t['video_id'] }}</a></td>
           <td>{{ t['playlists'] or '-' }}</td>
           <td>{% if t['duration'] %}{{ (t['duration'] // 60)|int }}:{{ ('%02d' % (t['duration'] % 60)) }}{% else %}-{% endif %}</td>

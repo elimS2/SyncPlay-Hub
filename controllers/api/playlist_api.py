@@ -299,11 +299,11 @@ def api_tracks_by_likes(like_count):
     try:
         conn = get_connection()
         
-        # Get tracks with exactly like_count likes
+        # Get tracks with exactly like_count likes, using YouTube metadata title if available
         query = """
         SELECT 
             t.video_id,
-            t.name,
+            COALESCE(ym.title, t.name) as name,
             t.relpath,
             t.duration,
             t.play_likes,
@@ -311,8 +311,9 @@ def api_tracks_by_likes(like_count):
             t.last_finish_ts,
             COALESCE(t.last_finish_ts, t.last_start_ts) as last_play
         FROM tracks t
+        LEFT JOIN youtube_video_metadata ym ON ym.youtube_id = t.video_id
         WHERE t.play_likes = ?
-        ORDER BY t.name
+        ORDER BY COALESCE(ym.title, t.name)
         """
         
         cursor = conn.execute(query, (like_count,))
