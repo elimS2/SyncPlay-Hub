@@ -942,6 +942,42 @@ def get_channel_group_by_id(conn: sqlite3.Connection, group_id: int):
     return cur.fetchone()
 
 
+def delete_channel_group(conn: sqlite3.Connection, group_id: int) -> bool:
+    """Delete a channel group (only if it has no channels).
+    
+    Args:
+        conn: Database connection
+        group_id: ID of the group to delete
+        
+    Returns:
+        True if group was deleted, False if it has channels or doesn't exist
+    """
+    cur = conn.cursor()
+    
+    # Check if group exists and has no channels
+    cur.execute("""
+        SELECT cg.id, COUNT(c.id) as channel_count
+        FROM channel_groups cg
+        LEFT JOIN channels c ON c.channel_group_id = cg.id AND c.enabled = 1
+        WHERE cg.id = ?
+        GROUP BY cg.id
+    """, (group_id,))
+    
+    result = cur.fetchone()
+    if not result:
+        return False  # Group doesn't exist
+    
+    _, channel_count = result
+    if channel_count > 0:
+        return False  # Group has channels, cannot delete
+    
+    # Delete the group
+    cur.execute("DELETE FROM channel_groups WHERE id = ?", (group_id,))
+    conn.commit()
+    
+    return cur.rowcount > 0
+
+
 def create_channel(conn: sqlite3.Connection, name: str, url: str, channel_group_id: int,
                   date_from: str = None, enabled: bool = True) -> int:
     """Create a new channel.

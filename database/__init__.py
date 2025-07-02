@@ -60,6 +60,7 @@ set_user_volume = database_core.set_user_volume
 create_channel_group = database_core.create_channel_group
 get_channel_groups = database_core.get_channel_groups
 get_channel_group_by_id = database_core.get_channel_group_by_id
+delete_channel_group = database_core.delete_channel_group
 create_channel = database_core.create_channel
 get_channels_by_group = database_core.get_channels_by_group
 get_channel_by_url = database_core.get_channel_by_url

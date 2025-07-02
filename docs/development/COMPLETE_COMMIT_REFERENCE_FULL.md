@@ -2,9 +2,9 @@
 
 ## Project Overview
 - **Start:** 2025-06-16 03:29:20 +0300 (Initial import)
-- **End:** 2025-07-01 --:--:-- +0000 (fix extraspace)
+- **End:** 2025-07-01 18:19:32 +0300 (fix: resolve job queue singleton initialization causing unintended parallel downloads)
 - **Duration:** 15 days intensive development
-- **Total:** 146 commits
+- **Total:** 147 commits
 
 ---
 
@@ -562,28 +562,31 @@ Complete channel folder detection system rewrite with Russian support: Revolutio
 **#121** `bf2153b` 2025-06-30 00:04:00 +0000  
 fix: Resolve broken navigation menu link on deleted tracks page: Fixed navigation menu consistency by correcting broken link on deleted tracks page and ensuring consistent "← Back to Home" navigation across all template pages.
 
-**#122** `c585f68` 2025-06-30 --:--:-- +0000  
+**#122** `c585f68` 2025-06-30 03:36:22 +0300  
 fix: Disable automatic backup cleanup and fix language compliance: Disabled automatic backup cleanup functionality and enforced English-only code language compliance across all project files for consistency and maintainability.
 
 **#123-#140** `[Multiple commits]` 2025-06-30  
 [Additional commits from #123 to #140 - details to be filled]
 
-**#141** `be724e8` 2025-06-30 --:--:-- +0000  
+**#141** `be724e8` 2025-06-30 19:30:56 +0300  
 feat: Implement automatic random cookie selection system for YouTube downloads: Complete implementation of automatic random cookie selection system for YouTube downloads with enhanced bypass capabilities, random cookie file selection, and improved download success rates for age-restricted and region-blocked content.
 
-**#142** `f86c80c` 2025-06-30 --:--:-- +0000  
+**#142** `f86c80c` 2025-06-30 19:39:21 +0300  
 fix: Remove unnecessary confirmation dialog for job retry button: Improved user experience by removing unnecessary confirmation dialog for job retry button, providing immediate retry functionality and streamlined job management workflow.
 
-**#143** `cad5ba4` 2025-06-30 --:--:-- +0000  
+**#143** `cad5ba4` 2025-06-30 20:15:21 +0300  
 feat: Implement automatic folder cleanup after track downloads with enhanced documentation: Complete implementation of automatic folder cleanup system after track downloads with comprehensive documentation, enhanced tracking capabilities, and improved file management for maintained organized directory structure.
 
-**#145** `09b2581` 2025-07-01 --:--:-- +0000  
+**#145** `09b2581` 2025-07-01 03:47:21 +0300  
 fix extraspace: Code cleanup to fix extra spacing issues and improve code formatting consistency across the project.
 
-**#144** `ef55ba8` 2025-06-30 --:--:-- +0000  
+**#144** `ef55ba8` 2025-06-30 20:38:39 +0300  
 Fix database scan path configuration for flexible deployment: Fixed database scan path configuration to support flexible deployment scenarios, improved path handling for different deployment environments, and enhanced database connectivity for robust application operation.
+
+**#147** `0f4d833` 2025-07-01 18:19:32 +0300  
+fix: resolve job queue singleton initialization causing unintended parallel downloads: Fixed critical job queue singleton initialization issue that was causing unintended parallel downloads, improved job queue system reliability, and ensured proper singleton pattern implementation for stable job processing.
 
 ---
 
-*Created: 2025-06-16 | Total: 146 commits | Period: 2025-06-16 to 2025-07-01*  
+*Created: 2025-06-16 | Total: 147 commits | Period: 2025-06-16 to 2025-07-01*  
 *Version: FULL ORIGINAL TITLES - Maximum Accuracy* 

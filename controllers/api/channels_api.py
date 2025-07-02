@@ -88,6 +88,40 @@ def api_create_channel_group():
         log_message(f"[Channels] Error creating channel group: {e}")
         return jsonify({"status": "error", "error": str(e)}), 500
 
+@channels_bp.route("/delete_channel_group/<int:group_id>", methods=["POST"])
+def api_delete_channel_group(group_id: int):
+    """Delete an empty channel group."""
+    try:
+        conn = get_connection()
+        
+        # Get group info before deletion
+        group = db.get_channel_group_by_id(conn, group_id)
+        if not group:
+            conn.close()
+            return jsonify({"status": "error", "error": "Channel group not found"}), 404
+        
+        group_name = group['name']
+        
+        # Attempt to delete the group (will fail if it has channels)
+        deleted = db.delete_channel_group(conn, group_id)
+        conn.close()
+        
+        if deleted:
+            log_message(f"[Channels] Deleted empty channel group: {group_name} (ID: {group_id})")
+            return jsonify({
+                "status": "success",
+                "message": f"Empty channel group '{group_name}' deleted successfully"
+            })
+        else:
+            return jsonify({
+                "status": "error", 
+                "error": "Cannot delete channel group - it still contains channels"
+            }), 400
+            
+    except Exception as e:
+        log_message(f"[Channels] Error deleting channel group: {e}")
+        return jsonify({"status": "error", "error": str(e)}), 500
+
 @channels_bp.route("/add_channel", methods=["POST"])
 def api_add_channel():
     """Add a YouTube channel to a group and start optimized download process."""

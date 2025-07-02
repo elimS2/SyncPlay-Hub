@@ -836,12 +836,22 @@
                                 </svg>
                                 Add Channel
                             </button>
-                            <button class="btn btn-success" onclick="syncChannelGroup(${group.id})">
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                    <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 15.64-8.13M22 12.5a10 10 0 0 1-15.64 8.13"/>
-                                </svg>
-                                Sync All
-                            </button>
+                            ${group.channel_count > 0 ? `
+                                <button class="btn btn-success" onclick="syncChannelGroup(${group.id})">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 15.64-8.13M22 12.5a10 10 0 0 1-15.64 8.13"/>
+                                    </svg>
+                                    Sync All
+                                </button>
+                            ` : `
+                                <button class="btn btn-danger" onclick="deleteEmptyChannelGroup(${group.id}, '${group.name}')">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <polyline points="3,6 5,6 21,6"></polyline>
+                                        <path d="m19,6v14a2,2 0 0,1-2,2H7a2,2 0 0,1-2-2V6m3,0V4a2,2 0 0,1,2-2h4a2,2 0 0,1,2,2v2"></path>
+                                    </svg>
+                                    Delete Empty Group
+                                </button>
+                            `}
                         </div>
                     </div>
                     <div class="channels-list" id="channels-${group.id}">
@@ -919,11 +929,11 @@
         async function removeChannel(channelId, channelName) {
             // Confirm deletion with user
             const confirmed = confirm(
-                `Вы уверены, что хотите удалить канал "${channelName}" из группы?\n\n` +
-                `Варианты:\n` +
-                `- Нажмите OK чтобы удалить канал из группы, НО СОХРАНИТЬ файлы на диске\n` +
-                `- Нажмите Cancel чтобы отменить\n\n` +
-                `Примечание: Вы сможете потом добавить этот канал в другую группу.`
+                `Are you sure you want to remove channel "${channelName}" from the group?\n\n` +
+                `Options:\n` +
+                `- Click OK to remove channel from group, BUT KEEP files on disk\n` +
+                `- Click Cancel to abort\n\n` +
+                `Note: You can later add this channel to another group.`
             );
             
             if (!confirmed) return;
@@ -943,18 +953,49 @@
                     await loadChannelGroups();
                     renderChannelGroups();
                     
-                    alert(`✅ Канал "${channelName}" удален из группы.\n\nФайлы сохранены на диске - теперь вы можете добавить этот канал в другую группу.`);
+                    alert(`✅ Channel "${channelName}" removed from group.\n\nFiles saved on disk - you can now add this channel to another group.`);
                 } else {
-                    alert('Ошибка при удалении канала: ' + (result.error || 'Unknown error'));
+                    alert('Error removing channel: ' + (result.error || 'Unknown error'));
                 }
             } catch (error) {
-                alert('Ошибка запроса: ' + error.message);
+                alert('Request failed: ' + error.message);
             }
         }
 
         function editChannel(channelId) {
             // TODO: Implement channel editing
             alert('Channel editing will be implemented in the next update!');
+        }
+
+        async function deleteEmptyChannelGroup(groupId, groupName) {
+            // Confirm deletion with user
+            const confirmed = confirm(
+                `Are you sure you want to delete the empty channel group "${groupName}"?\n\n` +
+                `This group contains no channels, so it can be safely deleted.\n\n` +
+                `This action cannot be undone.`
+            );
+            
+            if (!confirmed) return;
+            
+            try {
+                const response = await fetch(`/api/delete_channel_group/${groupId}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                
+                const result = await response.json();
+                if (result.status === 'success') {
+                    // Reload and refresh the display
+                    await loadChannelGroups();
+                    renderChannelGroups();
+                    
+                    alert(`✅ Empty channel group "${groupName}" successfully deleted.`);
+                } else {
+                    alert('Error deleting group: ' + (result.error || 'Unknown error'));
+                }
+            } catch (error) {
+                alert('Request failed: ' + error.message);
+            }
         }
 
         // Initialize page

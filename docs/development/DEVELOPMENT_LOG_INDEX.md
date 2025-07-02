@@ -23,6 +23,7 @@
 Each development session gets its own dedicated file in format `DEVELOPMENT_LOG_###.md`:
 
 **Recent Individual Logs:**
+- **[DEVELOPMENT_LOG_114.md](DEVELOPMENT_LOG_114.md)** - Empty Channel Group Deletion Functionality
 - **[DEVELOPMENT_LOG_095.md](DEVELOPMENT_LOG_095.md)** - Removed Retry Button Confirmation Dialog
 - **[DEVELOPMENT_LOG_094.md](DEVELOPMENT_LOG_094.md)** - Implemented Automatic Random Cookie Selection System
 - **[DEVELOPMENT_LOG_078.md](DEVELOPMENT_LOG_078.md)** - Documentation System Completion - Individual Logging System Migration Complete
@@ -54,7 +55,16 @@ Each development session gets its own dedicated file in format `DEVELOPMENT_LOG_
 
 ## Recent Development Sessions (Last 10 Entries)
 
-### #095 - Removed Retry Button Confirmation Dialog ⭐ LATEST
+### #114 - Empty Channel Group Deletion Functionality ⭐ LATEST
+**Feature Implementation:** Complete empty channel group deletion system with safety checks
+- **Backend:** Added `delete_channel_group()` function with SQL validation
+- **API Endpoint:** `/api/delete_channel_group/<int:group_id>` with safety checks
+- **Frontend:** Conditional button rendering (empty groups show delete button)
+- **Safety:** Multiple layers - database validation, API checks, user confirmation
+- **Language Compliance:** Fixed Russian text to English in JavaScript functions
+- **UX Enhancement:** Clear visual distinction between empty and active groups
+
+### #095 - Removed Retry Button Confirmation Dialog
 **UI/UX Improvement:** Streamlined job retry workflow by eliminating unnecessary confirmation
 - **User Experience:** Removed confirmation popup "Are you sure you want to retry job #XXX?"
 - **Workflow Enhancement:** Retry button now executes immediately without extra confirmation
