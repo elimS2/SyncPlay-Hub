@@ -17,6 +17,7 @@ from services.playlist_service import list_playlists, set_root_dir
 from services.download_service import get_active_downloads
 from services.streaming_service import get_streams, get_stream
 from controllers.api import api_bp, init_api_router
+from controllers.api.trash_api import trash_bp
 
 # Import database functions
 from database import get_connection, iter_tracks_with_playlists, get_history_page, get_user_setting, set_user_setting
@@ -501,8 +502,9 @@ def likes_player_page(like_count: int):
     """Player page for virtual playlist by like count."""
     return render_template("likes_player.html", like_count=like_count)
 
-# Register API blueprint
+# Register API blueprints
 app.register_blueprint(api_bp)
+app.register_blueprint(trash_bp)
 
 def _load_env_config():
     """Load configuration from .env file."""
