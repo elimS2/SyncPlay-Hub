@@ -230,7 +230,17 @@ def tracks_page():
     tracks = list(iter_tracks_with_playlists(conn, search_query if search_query else None))
     conn.close()
     
-    return render_template("tracks.html", tracks=tracks, search_query=search_query)
+    # Calculate uptime for server info
+    uptime = datetime.datetime.now() - SERVER_START_TIME
+    uptime_str = str(uptime).split('.')[0]  # Remove microseconds
+    
+    server_info = {
+        "pid": os.getpid(),
+        "start_time": SERVER_START_TIME.strftime("%Y-%m-%d %H:%M:%S"),
+        "uptime": uptime_str
+    }
+    
+    return render_template("tracks.html", tracks=tracks, search_query=search_query, server_info=server_info)
 
 @app.route("/history")
 @app.route("/events")

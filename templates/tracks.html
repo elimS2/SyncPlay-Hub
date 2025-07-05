@@ -2,102 +2,352 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>All Tracks</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Track Library - YouTube Player</title>
+  <!-- Favicon using emoji -->
+  <link rel="icon" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='0.9em' font-size='90'>🎵</text></svg>">
+  
+  <!-- Include Sidebar Styles -->
+  {% include 'sidebar_styles.html' %}
+  
   <style>
-    body{font-family:Arial, sans-serif;background:#111;color:#eee;margin:20px;}
-    h1{margin-bottom:20px;}
-    table{width:100%;border-collapse:collapse;}
-    th,td{padding:6px 8px;border:1px solid #444;font-size:14px;}
-    th{background:#222;}
-    tr:nth-child(even){background:#1a1a1a;}
-    a{color:#61dafb;text-decoration:none;}
-    .arrow{margin-left:4px;font-size:10px;}
+    /* Existing track library specific styles */
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      margin: 0;
+      padding: 0;
+      line-height: 1.6;
+    }
+    
+    /* Override body styles for better integration */
+    body {
+      background: var(--bg-primary);
+      color: var(--text-primary);
+    }
+    
+    /* Track Library Content Styles */
+    .page-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+      padding-bottom: 15px;
+      border-bottom: 1px solid var(--border);
+    }
+    
+    .page-title {
+      font-size: 24px;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin: 0;
+    }
+    
+    .search-section {
+      background: var(--bg-secondary);
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+    
+    .search-form {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    
+    .search-input {
+      padding: 10px 15px;
+      background: var(--bg-card);
+      color: var(--text-primary);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      flex: 1;
+      max-width: 400px;
+      font-size: 14px;
+    }
+    
+    .search-input:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 2px rgba(97, 218, 251, 0.2);
+    }
+    
+    .btn {
+      padding: 10px 16px;
+      border: none;
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s ease;
+      font-family: inherit;
+    }
+    
+    .btn-primary {
+      background: var(--accent);
+      color: white;
+    }
+    
+    .btn-primary:hover {
+      background: var(--accent-hover);
+      transform: translateY(-1px);
+    }
+    
+    .btn-secondary {
+      background: var(--bg-card);
+      color: var(--text-primary);
+      border: 1px solid var(--border);
+    }
+    
+    .btn-secondary:hover {
+      background: var(--bg-hover);
+    }
+    
+    .search-results {
+      margin-top: 15px;
+      color: var(--text-secondary);
+      font-size: 14px;
+    }
+    
+    .search-query {
+      color: var(--accent);
+      font-weight: 600;
+    }
+    
+    /* Table Styles */
+    .table-container {
+      background: var(--bg-secondary);
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      overflow: hidden;
+      overflow-x: auto;
+    }
+    
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+      min-width: 1200px;
+    }
+    
+    th, td {
+      padding: 12px 8px;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+    }
+    
+    th {
+      background: var(--bg-card);
+      color: var(--text-primary);
+      font-weight: 600;
+      cursor: pointer;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      transition: background 0.2s ease;
+    }
+    
+    th:hover {
+      background: var(--bg-hover);
+    }
+    
+    tbody tr {
+      transition: background 0.2s ease;
+    }
+    
+    tbody tr:hover {
+      background: var(--bg-hover);
+    }
+    
+    tbody tr:nth-child(even) {
+      background: rgba(255, 255, 255, 0.02);
+    }
+    
+    tbody tr:nth-child(even):hover {
+      background: var(--bg-hover);
+    }
+    
+    .track-link {
+      color: var(--accent);
+      text-decoration: none;
+      font-weight: 500;
+    }
+    
+    .track-link:hover {
+      text-decoration: underline;
+    }
+    
+    .arrow {
+      margin-left: 4px;
+      font-size: 10px;
+      opacity: 0.7;
+    }
+    
+    .empty-state {
+      text-align: center;
+      padding: 40px;
+      color: var(--text-muted);
+      font-style: italic;
+    }
+    
+    /* Mobile responsive */
+    @media (max-width: 768px) {
+      .search-form {
+        flex-direction: column;
+        align-items: stretch;
+      }
+      
+      .search-input {
+        max-width: none;
+      }
+      
+      .table-container {
+        margin: 0 -10px;
+        border-radius: 0;
+        border-left: none;
+        border-right: none;
+      }
+      
+      th, td {
+        padding: 8px 6px;
+        font-size: 12px;
+      }
+    }
   </style>
 </head>
 <body>
-  <h1>Track Library</h1>
-  <p><a href="/">← Back to Home</a></p>
+  <!-- Mobile Menu Button -->
+  <button class="mobile-menu-btn" onclick="toggleSidebar()">☰</button>
   
-  <!-- Search Form -->
-  <div style="margin-bottom: 20px;">
-    <form method="GET" action="/tracks" style="display: flex; align-items: center; gap: 10px;">
-      <input 
-        type="text" 
-        name="search" 
-        value="{{ search_query or '' }}" 
-        placeholder="Search tracks by title..." 
-        style="padding: 8px 12px; background: #333; color: #eee; border: 1px solid #555; border-radius: 4px; flex: 1; max-width: 400px;"
-      />
-      <button 
-        type="submit" 
-        style="padding: 8px 16px; background: #61dafb; color: #111; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;"
-      >
-        Search
-      </button>
-      {% if search_query %}
-      <a 
-        href="/tracks" 
-        style="padding: 8px 16px; background: #666; color: #eee; text-decoration: none; border-radius: 4px; display: inline-block;"
-      >
-        Clear
-      </a>
-      {% endif %}
-    </form>
-    {% if search_query %}
-    <p style="margin-top: 10px; color: #ccc; font-size: 14px;">
-      Search results for: <strong>"{{ search_query }}"</strong>
-    </p>
-    {% endif %}
+  <div class="layout">
+    <!-- Include Sidebar -->
+    {% include 'sidebar.html' %}
+
+    <!-- Main Content -->
+    <div class="main-content">
+      <!-- Page Header -->
+      <div class="page-header">
+        <h1 class="page-title">Track Library</h1>
+      </div>
+      
+      <!-- Search Section -->
+      <div class="search-section">
+        <form method="GET" action="/tracks" class="search-form">
+          <input 
+            type="text" 
+            name="search" 
+            value="{{ search_query or '' }}" 
+            placeholder="Search tracks by title..." 
+            class="search-input"
+          />
+          <button type="submit" class="btn btn-primary">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="11" cy="11" r="8"></circle>
+              <path d="M21 21l-4.35-4.35"></path>
+            </svg>
+            Search
+          </button>
+          {% if search_query %}
+          <a href="/tracks" class="btn btn-secondary">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+            Clear
+          </a>
+          {% endif %}
+        </form>
+        
+        {% if search_query %}
+        <div class="search-results">
+          Search results for: <span class="search-query">"{{ search_query }}"</span>
+        </div>
+        {% endif %}
+      </div>
+      
+      <!-- Tracks Table -->
+      <div class="table-container">
+        <table id="trackTable">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Title</th>
+              <th>Video ID</th>
+              <th>Playlists</th>
+              <th>Duration</th>
+              <th>Size</th>
+              <th>Bitrate</th>
+              <th>Resolution</th>
+              <th>Type</th>
+              <th>Starts</th>
+              <th>Finishes</th>
+              <th>Nexts</th>
+              <th>Prevs</th>
+              <th>Likes</th>
+              <th>Last Start</th>
+              <th>Last Finish</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for t in tracks %}
+              <tr>
+                <td>{{ loop.index }}</td>
+                <td>{{ t['display_name'] }}</td>
+                <td><a href="https://youtu.be/{{ t['video_id'] }}" target="_blank" class="track-link">{{ t['video_id'] }}</a></td>
+                <td>{{ t['playlists'] or '-' }}</td>
+                <td>{% if t['duration'] %}{{ (t['duration'] // 60)|int }}:{{ ('%02d' % (t['duration'] % 60)) }}{% else %}-{% endif %}</td>
+                <td>{{ '%.1f' % (t['size_bytes']/1048576) }} MB</td>
+                <td>{% if t['bitrate'] %}{{ (t['bitrate']/1000)|int }} kbps{% else %}-{% endif %}</td>
+                <td>{{ t['resolution'] or '-' }}</td>
+                <td>{{ t['filetype'] }}</td>
+                <td>{{ t['play_starts'] }}</td>
+                <td>{{ t['play_finishes'] }}</td>
+                <td>{{ t['play_nexts'] }}</td>
+                <td>{{ t['play_prevs'] }}</td>
+                <td>{{ t['play_likes'] }}</td>
+                <td>{{ t['last_start_ts'] or '-' }}</td>
+                <td>{{ t['last_finish_ts'] or '-' }}</td>
+              </tr>
+            {% else %}
+              <tr>
+                <td colspan="16" class="empty-state">
+                  Database is empty. Run <code>python scan_to_db.py</code> first.
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
   </div>
-  
-  <table id="trackTable">
-    <thead>
-      <tr>
-        <th>#</th>
-        <th>Title</th>
-        <th>Video ID</th>
-        <th>Playlists</th>
-        <th>Duration</th>
-        <th>Size</th>
-        <th>Bitrate</th>
-        <th>Resolution</th>
-        <th>Type</th>
-        <th>Starts</th>
-        <th>Finishes</th>
-        <th>Nexts</th>
-        <th>Prevs</th>
-        <th>Likes</th>
-        <th>Last Start</th>
-        <th>Finishes</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for t in tracks %}
-        <tr>
-          <td>{{ loop.index }}</td>
-          <td>{{ t['display_name'] }}</td>
-          <td><a href="https://youtu.be/{{ t['video_id'] }}" target="_blank">{{ t['video_id'] }}</a></td>
-          <td>{{ t['playlists'] or '-' }}</td>
-          <td>{% if t['duration'] %}{{ (t['duration'] // 60)|int }}:{{ ('%02d' % (t['duration'] % 60)) }}{% else %}-{% endif %}</td>
-          <td>{{ '%.1f' % (t['size_bytes']/1048576) }} MB</td>
-          <td>{% if t['bitrate'] %}{{ (t['bitrate']/1000)|int }} kbps{% else %}-{% endif %}</td>
-          <td>{{ t['resolution'] or '-' }}</td>
-          <td>{{ t['filetype'] }}</td>
-          <td>{{ t['play_starts'] }}</td>
-          <td>{{ t['play_finishes'] }}</td>
-          <td>{{ t['play_nexts'] }}</td>
-          <td>{{ t['play_prevs'] }}</td>
-          <td>{{ t['play_likes'] }}</td>
-          <td>{{ t['last_start_ts'] or '-' }}</td>
-          <td>{{ t['last_finish_ts'] or '-' }}</td>
-        </tr>
-      {% else %}
-        <tr><td colspan="16">Database is empty. Run <code>python scan_to_db.py</code> first.</td></tr>
-      {% endfor %}
-    </tbody>
-  </table>
 
   <script>
+    // Mobile sidebar toggle
+    function toggleSidebar() {
+      const sidebar = document.querySelector('.sidebar');
+      sidebar.classList.toggle('open');
+    }
+    
+    // Close sidebar when clicking outside on mobile
+    document.addEventListener('click', function(event) {
+      const sidebar = document.querySelector('.sidebar');
+      const menuBtn = document.querySelector('.mobile-menu-btn');
+      
+      if (window.innerWidth <= 768 && 
+          !sidebar.contains(event.target) && 
+          !menuBtn.contains(event.target) && 
+          sidebar.classList.contains('open')) {
+        sidebar.classList.remove('open');
+      }
+    });
+
+    // Table sorting functionality (preserved from original)
     (function(){
       const table = document.getElementById('trackTable');
       if(!table) return;

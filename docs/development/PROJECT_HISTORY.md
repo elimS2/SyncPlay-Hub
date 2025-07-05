@@ -14,13 +14,16 @@ This file provides structured information about the project's evolution, key arc
 ## 📈 **Complete Development Timeline**
 
 ### **Project Statistics**
-- **Total Commits:** 167
+- **Total Commits:** 170
 - **Development Period:** 2025-06-16 to 2025-07-05 (active development)
-- **Latest Commit:** b8a3518 - feat: Add track tooltips to likes_player page and fix like button functionality
+- **Latest Commit:** 6352fef - Fix case-insensitive search by moving filtering to Python
 - **Recent Major Features:** Virtual Playlists System + Complete Job Queue System (Phases 1-7) + Performance Optimization & Monitoring + Database Migration System Enhancement + Channel Analyzer Automation + Job Queue UI Improvements + Trash Management System
 - **Initial Import:** e299d24 - SyncPlay-Hub project inception
 
 ### **Virtual Playlists & Latest Features (2025-06-29 to 2025-07-05)**
+- `6352fef` - **Search Enhancement** - Fix case-insensitive search by moving filtering to Python
+- `159646e` - **Track Search Feature** - Add track search functionality to tracks page
+- `5b83c59` - **Windows File Lock Fix** - fix: Resolve Windows file lock deletion error (WinError 32) during playback
 - `b8a3518` - **Track Tooltips Enhancement** - feat: Add track tooltips to likes_player page and fix like button functionality
 - `7954b3c` - **Enhanced Tooltips** - feat: Add enhanced track tooltips with YouTube metadata and playback statistics
 - `bd3291e` - **Virtual Playlists Bug Fix** - fix: Exclude deleted tracks from virtual playlists by likes - prevents playback errors from deleted tracks
