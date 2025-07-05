@@ -683,6 +683,73 @@ Visit /jobs page to track extraction progress
 Now any call to `get_job_queue_service()` will create service with max_workers=1, 
 ensuring sequential job processing and preventing thousands of tasks from running simultaneously.
 
+### Log Entry #126 - 2025-07-05 11:11 UTC
+
+**Type:** Feature Implementation  
+**Priority:** Medium  
+**Status:** Completed  
+
+**What Changed:**
+- Added trash statistics section to deleted tracks page (`/deleted`)
+- Implemented trash size and file count display
+- Added clear trash functionality with confirmation
+- Created new API endpoints: `/api/trash_stats` and `/api/clear_trash`
+- Enhanced UI with modern statistics display and danger button styling
+
+**Files Modified:**
+- `controllers/api/channels_api.py`: Added trash_stats and clear_trash endpoints
+- `templates/deleted.html`: Added trash statistics section and JavaScript functions
+- Enhanced UI with responsive grid layout and proper styling
+
+**Technical Details:**
+- **Trash Statistics API (`/api/trash_stats`):**
+  - Recursively calculates total size and file count in `D:\music\Youtube\Trash\`
+  - Returns formatted file sizes (B, KB, MB, GB)
+  - Handles permission errors gracefully
+  - Provides trash path information
+
+- **Clear Trash API (`/api/clear_trash`):**
+  - Requires explicit confirmation via POST request
+  - Permanently deletes all files from trash folder
+  - Removes empty directories after file deletion
+  - Updates database: sets `can_restore = 0` for affected records
+  - Preserves database records for history tracking
+  - Returns detailed statistics on deletion results
+
+**UI Enhancements:**
+- **Statistics Grid:** Displays total size and file count in modern card layout
+- **Smart Button States:** Clear button disabled when trash is empty
+- **Confirmation Dialog:** Multi-step confirmation with detailed file count and size information
+- **Loading States:** Visual feedback during trash clearing operation
+- **Error Handling:** Graceful error display for network issues
+
+**Database Impact:**
+- Records in `deleted_tracks` table are preserved for history
+- Only `can_restore` flag is updated to prevent file restoration attempts
+- No data deletion from database - only physical files are removed
+
+**Security & Safety:**
+- Explicit confirmation required for destructive operations
+- Clear warning messages about permanent deletion
+- Fallback error handling for permission issues
+- Graceful handling of missing directories
+
+**Benefits:**
+1. **Disk Space Management:** Users can see trash size and reclaim disk space
+2. **Data Safety:** Database records preserved for audit trail
+3. **User Experience:** Clear feedback on trash state and clearing progress
+4. **System Maintenance:** Prevents unlimited trash growth
+5. **Transparency:** Detailed statistics on what was deleted
+
+**Impact Analysis:**
+- ✅ **Positive:** Better disk space management and user control
+- ✅ **Positive:** Maintains data integrity in database
+- ✅ **Positive:** Improves page functionality and user experience
+- ⚠️ **Consideration:** Users need to understand permanent deletion consequences
+- ⚠️ **Consideration:** No automatic trash cleanup - manual management required
+
+---
+
 
 
 

@@ -4,11 +4,20 @@
 - **Start:** 2025-06-16 03:29:20 +0300 (Initial import)
 - **End:** 2025-07-05 03:40:00 +0300 (feat: Add environment configuration display to settings page)
 - **Duration:** 19 days intensive development
-- **Total:** 155 commits
+- **Total:** 158 commits
 
 ---
 
 ## All Commits (Chronological Order - ORIGINAL FULL TITLES)
+
+**#155** `bcf2ba9` 2025-07-05 05:10:00 +0300  
+fix: resolve jobs pagination limit and improve performance
+
+**#156** `91384d0` 2025-07-05 06:30:00 +0300  
+fix: resolve job queue statistics displaying zeros in web interface
+
+**#157** `36d0bcf` 2025-07-05 07:45:00 +0300  
+fix: resolve job queue statistics displaying zeros in web interface
 
 **#149** `88db2e2` 2025-07-02 22:41:00 +0300  
 feat: Implement empty channel group deletion functionality with safety checks

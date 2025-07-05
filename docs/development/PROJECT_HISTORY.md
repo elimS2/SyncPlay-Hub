@@ -14,13 +14,15 @@ This file provides structured information about the project's evolution, key arc
 ## 📈 **Complete Development Timeline**
 
 ### **Project Statistics**
-- **Total Commits:** 156
+- **Total Commits:** 158
 - **Development Period:** 2025-06-16 to 2025-07-05 (active development)
-- **Latest Commit:** bcf2ba9 - fix: resolve jobs pagination limit and improve performance
-- **Recent Major Features:** Virtual Playlists System + Complete Job Queue System (Phases 1-7) + Performance Optimization & Monitoring + Database Migration System Enhancement + Channel Analyzer Automation + Job Queue UI Improvements
+- **Latest Commit:** 36d0bcf - fix: resolve job queue statistics displaying zeros in web interface
+- **Recent Major Features:** Virtual Playlists System + Complete Job Queue System (Phases 1-7) + Performance Optimization & Monitoring + Database Migration System Enhancement + Channel Analyzer Automation + Job Queue UI Improvements + Trash Management System
 - **Initial Import:** e299d24 - SyncPlay-Hub project inception
 
 ### **Virtual Playlists & Latest Features (2025-06-29 to 2025-07-05)**
+- `36d0bcf` - **Job Queue Statistics Fix** - fix: resolve job queue statistics displaying zeros in web interface  
+- `91384d0` - **Job Queue Statistics Fix** - fix: resolve job queue statistics displaying zeros in web interface
 - `bcf2ba9` - **Job Queue Pagination Fix** - fix: resolve jobs pagination limit and improve performance
 - `23c2741` - **Environment Config Display** - feat: Add environment configuration display to settings page
 - `d1faa42` - **Jobs Page Pagination** - feat: Add pagination to jobs page for better navigation and performance
