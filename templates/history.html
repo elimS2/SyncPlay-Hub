@@ -2,412 +2,537 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Events</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Events - YouTube Player</title>
+  <link rel="icon" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='0.9em' font-size='90'>🎵</text></svg>">
+  
+  <!-- Include Sidebar Styles -->
+  {% include 'sidebar_styles.html' %}
+  
   <style>
-    body{font-family:Arial, sans-serif;background:#111;color:#eee;margin:20px;}
-    h1{margin-bottom:20px;}
+    /* Override body styles for sidebar integration */
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      margin: 0;
+      padding: 0;
+      display: flex;
+      min-height: 100vh;
+    }
+    
+    /* Main content area */
+    .main-content {
+      flex: 1;
+      padding: 20px;
+      margin-left: var(--sidebar-width);
+      min-height: 100vh;
+    }
+    
+    h1 {
+      margin-bottom: 20px;
+      color: var(--text-primary);
+    }
     
     /* Filters section */
-    .filters{
-      background:#222;
-      padding:20px;
-      border-radius:8px;
-      margin-bottom:20px;
+    .filters {
+      background: var(--bg-card);
+      padding: 20px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+      border: 1px solid var(--border);
     }
-    .filters-title{
-      font-size:16px;
-      font-weight:600;
-      margin:0 0 15px 0;
-      color:#61dafb;
+    
+    .filters-title {
+      font-size: 16px;
+      font-weight: 600;
+      margin: 0 0 15px 0;
+      color: var(--accent);
     }
-    .filter-row{
-      display:flex;
-      flex-wrap:wrap;
-      gap:20px;
-      margin-bottom:15px;
-      align-items:flex-end;
+    
+    .filter-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 20px;
+      margin-bottom: 15px;
+      align-items: flex-end;
     }
-    .filter-group{
-      display:flex;
-      flex-direction:column;
-      gap:5px;
+    
+    .filter-group {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
     }
-    .filter-group label{
-      font-size:12px;
-      color:#aaa;
-      text-transform:uppercase;
-      font-weight:500;
+    
+    .filter-group label {
+      font-size: 12px;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      font-weight: 500;
     }
-    .filter-group input{
-      background:#333;
-      color:#eee;
-      border:1px solid #555;
-      border-radius:4px;
-      padding:8px 12px;
+    
+    .filter-group input {
+      background: var(--bg-secondary);
+      color: var(--text-primary);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 8px 12px;
     }
-    .filter-group input:focus{
-      outline:none;
-      border-color:#61dafb;
+    
+    .filter-group input:focus {
+      outline: none;
+      border-color: var(--accent);
     }
     
     /* Event type filter checkboxes */
-    .event-types{
-      display:flex;
-      flex-wrap:wrap;
-      gap:10px;
-      max-width:100%;
-      justify-content:flex-start;
-    }
-    .event-type-checkbox{
-      display:flex;
-      align-items:center;
-      justify-content:flex-start;
-      gap:8px;
-      font-size:13px;
-      background:#333;
-      padding:8px 12px;
-      border-radius:4px;
-      border:1px solid #555;
-      transition:all 0.2s;
-      cursor:pointer;
-      white-space:nowrap;
-    }
-    .event-type-checkbox:hover{
-      background:#444;
-      border-color:#666;
-    }
-    .event-type-checkbox input[type="checkbox"]{
-      accent-color:#61dafb;
-      margin:0;
-    }
-    .event-type-checkbox span{
-      cursor:pointer;
-      margin:0;
-      font-size:13px;
-      color:#eee;
-      text-transform:none;
-    }
-    .event-type-checkbox.checked{
-      background:#1a3a3a;
-      border-color:#4caf50;
+    .event-types {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      max-width: 100%;
+      justify-content: flex-start;
     }
     
-    .clear-filters{
-      background:#444;
-      color:#eee;
-      border:1px solid #666;
-      border-radius:4px;
-      padding:8px 16px;
-      cursor:pointer;
-      transition:background 0.2s;
-      font-size:13px;
+    .event-type-checkbox {
+      display: flex;
+      align-items: center;
+      justify-content: flex-start;
+      gap: 8px;
+      font-size: 13px;
+      background: var(--bg-secondary);
+      padding: 8px 12px;
+      border-radius: 4px;
+      border: 1px solid var(--border);
+      transition: all 0.2s;
+      cursor: pointer;
+      white-space: nowrap;
     }
-    .clear-filters:hover{
-      background:#555;
+    
+    .event-type-checkbox:hover {
+      background: var(--bg-hover);
+      border-color: var(--accent);
+    }
+    
+    .event-type-checkbox input[type="checkbox"] {
+      accent-color: var(--accent);
+      margin: 0;
+    }
+    
+    .event-type-checkbox span {
+      cursor: pointer;
+      margin: 0;
+      font-size: 13px;
+      color: var(--text-primary);
+      text-transform: none;
+    }
+    
+    .event-type-checkbox.checked {
+      background: rgba(97, 218, 251, 0.2);
+      border-color: var(--success);
+    }
+    
+    .clear-filters {
+      background: var(--bg-hover);
+      color: var(--text-primary);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 8px 16px;
+      cursor: pointer;
+      transition: background 0.2s;
+      font-size: 13px;
+    }
+    
+    .clear-filters:hover {
+      background: var(--bg-secondary);
+      border-color: var(--accent);
     }
     
     /* Results info */
-    .results-info{
-      margin:10px 0;
-      font-size:14px;
-      color:#aaa;
+    .results-info {
+      margin: 10px 0;
+      font-size: 14px;
+      color: var(--text-secondary);
     }
     
-    table{width:100%;border-collapse:collapse;}
-    th,td{padding:6px 8px;border:1px solid #444;font-size:14px;}
-    th{background:#222;cursor:pointer;user-select:none;position:relative;}
-    th:hover{background:#333;}
-    th.sortable::after{
-      content:' ↕️';
-      font-size:10px;
-      color:#666;
+    /* Navigation links */
+    .nav-section {
+      margin-bottom: 20px;
+      color: var(--text-secondary);
     }
-    th.sort-asc::after{
-      content:' ↑';
-      color:#61dafb;
+    
+    .nav-section a {
+      color: var(--accent);
+      text-decoration: none;
     }
-    th.sort-desc::after{
-      content:' ↓';
-      color:#61dafb;
+    
+    .nav-section a:hover {
+      text-decoration: underline;
     }
-    tr:nth-child(even){background:#1a1a1a;}
-    a{color:#61dafb;text-decoration:none;}
+    
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: var(--bg-card);
+      border-radius: 8px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+    }
+    
+    th, td {
+      padding: 6px 8px;
+      border: 1px solid var(--border);
+      font-size: 14px;
+    }
+    
+    th {
+      background: var(--bg-secondary);
+      cursor: pointer;
+      user-select: none;
+      position: relative;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+    
+    th:hover {
+      background: var(--bg-hover);
+    }
+    
+    th.sortable::after {
+      content: ' ↕️';
+      font-size: 10px;
+      color: var(--text-muted);
+    }
+    
+    th.sort-asc::after {
+      content: ' ↑';
+      color: var(--accent);
+    }
+    
+    th.sort-desc::after {
+      content: ' ↓';
+      color: var(--accent);
+    }
+    
+    tr:nth-child(even) {
+      background: rgba(255, 255, 255, 0.02);
+    }
+    
+    tbody tr:hover {
+      background: var(--bg-hover);
+    }
+    
+    a {
+      color: var(--accent);
+      text-decoration: none;
+    }
     
     /* Event type styling */
-    .event-start{color:#4caf50;font-weight:bold;} /* Green for start */
-    .event-finish{color:#2196f3;font-weight:bold;} /* Blue for finish */
-    .event-play{color:#8bc34a;} /* Light green for play/resume */
-    .event-pause{color:#ff9800;} /* Orange for pause */
-    .event-next{color:#9c27b0;} /* Purple for next */
-    .event-prev{color:#9c27b0;} /* Purple for prev */
-    .event-like{color:#e91e63;} /* Pink for like */
-    .event-volume_change{color:#ffeb3b;font-weight:bold;} /* Yellow for volume changes */
-    .event-seek{color:#00bcd4;font-weight:bold;} /* Cyan for seek events */
-    .event-playlist_added{color:#8bc34a;font-weight:bold;} /* Light green for playlist additions */
-    .event-removed{color:#f44336;} /* Red for removed */
-    .event-backup_created{color:#607d8b;} /* Gray for backup */
+    .event-start { color: var(--success); font-weight: bold; }
+    .event-finish { color: #2196f3; font-weight: bold; }
+    .event-play { color: #8bc34a; }
+    .event-pause { color: var(--warning); }
+    .event-next { color: #9c27b0; }
+    .event-prev { color: #9c27b0; }
+    .event-like { color: #e91e63; }
+    .event-volume_change { color: #ffeb3b; font-weight: bold; }
+    .event-seek { color: #00bcd4; font-weight: bold; }
+    .event-playlist_added { color: #8bc34a; font-weight: bold; }
+    .event-removed { color: var(--error); }
+    .event-backup_created { color: #607d8b; }
     
-    .position-time{font-family:monospace;color:#aaa;font-size:12px;}
-    .volume-info{font-family:monospace;color:#ffeb3b;font-size:12px;}
-    .volume-change{background:#333;border-radius:3px;padding:2px 4px;}
-    .volume-source{color:#999;font-style:italic;font-size:11px;}
+    .position-time { font-family: monospace; color: var(--text-secondary); font-size: 12px; }
+    .volume-info { font-family: monospace; color: #ffeb3b; font-size: 12px; }
+    .volume-change { background: var(--bg-secondary); border-radius: 3px; padding: 2px 4px; }
+    .volume-source { color: var(--text-muted); font-style: italic; font-size: 11px; }
     
-    .seek-info{font-family:monospace;color:#00bcd4;font-size:12px;}
-    .seek-change{background:#1a3a3a;border-radius:3px;padding:2px 4px;}
-    .seek-forward{color:#4caf50;} /* Green for forward seeks */
-    .seek-backward{color:#ff9800;} /* Orange for backward seeks */
+    .seek-info { font-family: monospace; color: #00bcd4; font-size: 12px; }
+    .seek-change { background: rgba(26, 58, 58, 0.5); border-radius: 3px; padding: 2px 4px; }
+    .seek-forward { color: var(--success); }
+    .seek-backward { color: var(--warning); }
     
-    .playlist-info{font-family:monospace;color:#8bc34a;font-size:12px;}
-    .playlist-addition{background:#1a3a1a;border-radius:3px;padding:2px 4px;}
-    .playlist-name{color:#a5d6a7;font-weight:bold;}
+    .playlist-info { font-family: monospace; color: #8bc34a; font-size: 12px; }
+    .playlist-addition { background: rgba(26, 58, 26, 0.5); border-radius: 3px; padding: 2px 4px; }
+    .playlist-name { color: #a5d6a7; font-weight: bold; }
     
     /* Special highlighting for volume changes */
-    tr.volume-event{background:#1a1a0a !important;}
-    tr.volume-event:nth-child(even){background:#2a2a1a !important;}
+    tr.volume-event { background: rgba(255, 235, 59, 0.1) !important; }
+    tr.volume-event:nth-child(even) { background: rgba(255, 235, 59, 0.15) !important; }
     
     /* Special highlighting for seek events */
-    tr.seek-event{background:#0a1a1a !important;}
-    tr.seek-event:nth-child(even){background:#1a2a2a !important;}
+    tr.seek-event { background: rgba(0, 188, 212, 0.1) !important; }
+    tr.seek-event:nth-child(even) { background: rgba(0, 188, 212, 0.15) !important; }
     
     /* Special highlighting for playlist events */
-    tr.playlist-event{background:#0a1a0a !important;}
-    tr.playlist-event:nth-child(even){background:#1a2a1a !important;}
+    tr.playlist-event { background: rgba(139, 195, 74, 0.1) !important; }
+    tr.playlist-event:nth-child(even) { background: rgba(139, 195, 74, 0.15) !important; }
     
     /* Hidden rows for filtering */
-    .hidden-row{display:none !important;}
+    .hidden-row { display: none !important; }
     
     /* No results message */
-    .no-results{
-      text-align:center;
-      padding:40px;
-      color:#666;
-      font-style:italic;
+    .no-results {
+      text-align: center;
+      padding: 40px;
+      color: var(--text-muted);
+      font-style: italic;
+      background: var(--bg-card);
+      border-radius: 8px;
+      border: 1px solid var(--border);
+    }
+    
+    /* Responsive design */
+    @media (max-width: 768px) {
+      .main-content {
+        margin-left: 0;
+        padding: 10px;
+      }
+      
+      .filter-row {
+        flex-direction: column;
+        gap: 10px;
+      }
+      
+      .event-types {
+        grid-template-columns: 1fr 1fr;
+      }
+      
+      table {
+        font-size: 12px;
+      }
+      
+      th, td {
+        padding: 4px 6px;
+      }
     }
   </style>
 </head>
 <body>
-  <h1>📊 Events</h1>
-  
-  <!-- Navigation -->
-  <p>
-    <a href="/">← Back to Home</a>
-    {% if page > 1 %}
-      | <a href="/events?{{ request.query_string.decode() }}&page={{ page - 1 }}">« Previous</a>
-    {% endif %}
-    {% if has_next %}
-      | <a href="/events?{{ request.query_string.decode() }}&page={{ page + 1 }}">Next »</a>
-    {% endif %}
-  </p>
-  
-  <!-- Filters -->
-  <div class="filters">
-    <h3 class="filters-title">Filter Events</h3>
+  <!-- Include Universal Sidebar -->
+  {% include 'sidebar.html' %}
+
+  <div class="main-content">
+    <h1>📊 Events</h1>
     
-    <div class="filter-row">
-      <div class="filter-group">
-        <label>Event Types</label>
-        <div class="event-types">
-          <label class="event-type-checkbox" for="filter-start">
-            <input type="checkbox" id="filter-start" {% if not filters.event_types_filter_applied or (filters.event_types and 'start' in filters.event_types) %}checked{% endif %}>
-            <span>Start</span>
-          </label>
-          <label class="event-type-checkbox" for="filter-finish">
-            <input type="checkbox" id="filter-finish" {% if not filters.event_types_filter_applied or (filters.event_types and 'finish' in filters.event_types) %}checked{% endif %}>
-            <span>Finish</span>
-          </label>
-          <label class="event-type-checkbox" for="filter-play">
-            <input type="checkbox" id="filter-play" {% if not filters.event_types_filter_applied or (filters.event_types and 'play' in filters.event_types) %}checked{% endif %}>
-            <span>Play</span>
-          </label>
-          <label class="event-type-checkbox" for="filter-pause">
-            <input type="checkbox" id="filter-pause" {% if not filters.event_types_filter_applied or (filters.event_types and 'pause' in filters.event_types) %}checked{% endif %}>
-            <span>Pause</span>
-          </label>
-          <label class="event-type-checkbox" for="filter-next">
-            <input type="checkbox" id="filter-next" {% if not filters.event_types_filter_applied or (filters.event_types and 'next' in filters.event_types) %}checked{% endif %}>
-            <span>Next</span>
-          </label>
-          <label class="event-type-checkbox" for="filter-prev">
-            <input type="checkbox" id="filter-prev" {% if not filters.event_types_filter_applied or (filters.event_types and 'prev' in filters.event_types) %}checked{% endif %}>
-            <span>Previous</span>
-          </label>
-          <label class="event-type-checkbox" for="filter-like">
-            <input type="checkbox" id="filter-like" {% if not filters.event_types_filter_applied or (filters.event_types and 'like' in filters.event_types) %}checked{% endif %}>
-            <span>Like</span>
-          </label>
-          <label class="event-type-checkbox" for="filter-volume_change">
-            <input type="checkbox" id="filter-volume_change" {% if not filters.event_types_filter_applied or (filters.event_types and 'volume_change' in filters.event_types) %}checked{% endif %}>
-            <span>Volume</span>
-          </label>
-          <label class="event-type-checkbox" for="filter-seek">
-            <input type="checkbox" id="filter-seek" {% if not filters.event_types_filter_applied or (filters.event_types and 'seek' in filters.event_types) %}checked{% endif %}>
-            <span>Seek</span>
-          </label>
-          <label class="event-type-checkbox" for="filter-playlist_added">
-            <input type="checkbox" id="filter-playlist_added" {% if not filters.event_types_filter_applied or (filters.event_types and 'playlist_added' in filters.event_types) %}checked{% endif %}>
-            <span>Playlist</span>
-          </label>
-          <label class="event-type-checkbox" for="filter-removed">
-            <input type="checkbox" id="filter-removed" {% if not filters.event_types_filter_applied or (filters.event_types and 'removed' in filters.event_types) %}checked{% endif %}>
-            <span>Removed</span>
-          </label>
+    <!-- Navigation -->
+    <div class="nav-section">
+      {% if page > 1 %}
+        <a href="/events?{{ request.query_string.decode() }}&page={{ page - 1 }}">« Previous</a>
+      {% endif %}
+      {% if has_next %}
+        {% if page > 1 %} | {% endif %}<a href="/events?{{ request.query_string.decode() }}&page={{ page + 1 }}">Next »</a>
+      {% endif %}
+    </div>
+  
+    <!-- Filters -->
+    <div class="filters">
+      <h3 class="filters-title">Filter Events</h3>
+      
+      <div class="filter-row">
+        <div class="filter-group">
+          <label>Event Types</label>
+          <div class="event-types">
+            <label class="event-type-checkbox" for="filter-start">
+              <input type="checkbox" id="filter-start" {% if not filters.event_types_filter_applied or (filters.event_types and 'start' in filters.event_types) %}checked{% endif %}>
+              <span>Start</span>
+            </label>
+            <label class="event-type-checkbox" for="filter-finish">
+              <input type="checkbox" id="filter-finish" {% if not filters.event_types_filter_applied or (filters.event_types and 'finish' in filters.event_types) %}checked{% endif %}>
+              <span>Finish</span>
+            </label>
+            <label class="event-type-checkbox" for="filter-play">
+              <input type="checkbox" id="filter-play" {% if not filters.event_types_filter_applied or (filters.event_types and 'play' in filters.event_types) %}checked{% endif %}>
+              <span>Play</span>
+            </label>
+            <label class="event-type-checkbox" for="filter-pause">
+              <input type="checkbox" id="filter-pause" {% if not filters.event_types_filter_applied or (filters.event_types and 'pause' in filters.event_types) %}checked{% endif %}>
+              <span>Pause</span>
+            </label>
+            <label class="event-type-checkbox" for="filter-next">
+              <input type="checkbox" id="filter-next" {% if not filters.event_types_filter_applied or (filters.event_types and 'next' in filters.event_types) %}checked{% endif %}>
+              <span>Next</span>
+            </label>
+            <label class="event-type-checkbox" for="filter-prev">
+              <input type="checkbox" id="filter-prev" {% if not filters.event_types_filter_applied or (filters.event_types and 'prev' in filters.event_types) %}checked{% endif %}>
+              <span>Previous</span>
+            </label>
+            <label class="event-type-checkbox" for="filter-like">
+              <input type="checkbox" id="filter-like" {% if not filters.event_types_filter_applied or (filters.event_types and 'like' in filters.event_types) %}checked{% endif %}>
+              <span>Like</span>
+            </label>
+            <label class="event-type-checkbox" for="filter-volume_change">
+              <input type="checkbox" id="filter-volume_change" {% if not filters.event_types_filter_applied or (filters.event_types and 'volume_change' in filters.event_types) %}checked{% endif %}>
+              <span>Volume</span>
+            </label>
+            <label class="event-type-checkbox" for="filter-seek">
+              <input type="checkbox" id="filter-seek" {% if not filters.event_types_filter_applied or (filters.event_types and 'seek' in filters.event_types) %}checked{% endif %}>
+              <span>Seek</span>
+            </label>
+            <label class="event-type-checkbox" for="filter-playlist_added">
+              <input type="checkbox" id="filter-playlist_added" {% if not filters.event_types_filter_applied or (filters.event_types and 'playlist_added' in filters.event_types) %}checked{% endif %}>
+              <span>Playlist</span>
+            </label>
+            <label class="event-type-checkbox" for="filter-removed">
+              <input type="checkbox" id="filter-removed" {% if not filters.event_types_filter_applied or (filters.event_types and 'removed' in filters.event_types) %}checked{% endif %}>
+              <span>Removed</span>
+            </label>
+          </div>
         </div>
       </div>
+      
+      <div class="filter-row">
+        <div class="filter-group">
+          <label>Search Track</label>
+          <input type="text" id="filter-track" placeholder="Search by track name..." value="{{ filters.track_filter }}">
+        </div>
+        
+        <div class="filter-group">
+          <label>Video ID</label>
+          <input type="text" id="filter-video-id" placeholder="Search by video ID..." value="{{ filters.video_id_filter }}">
+        </div>
+        
+        <button class="clear-filters" onclick="clearAllFilters()">Toggle All</button>
+      </div>
     </div>
     
-    <div class="filter-row">
-      <div class="filter-group">
-        <label>Search Track</label>
-        <input type="text" id="filter-track" placeholder="Search by track name..." value="{{ filters.track_filter }}">
-      </div>
-      
-      <div class="filter-group">
-        <label>Video ID</label>
-        <input type="text" id="filter-video-id" placeholder="Search by video ID..." value="{{ filters.video_id_filter }}">
-      </div>
-      
-              <button class="clear-filters" onclick="clearAllFilters()">Toggle All</button>
+    <!-- Results info -->
+    <div class="results-info">
+      Showing: {{ history|length }} events {% if filters.event_types_filter_applied or filters.track_filter or filters.video_id_filter %}(filtered){% endif %}
     </div>
-  </div>
-  
-  <!-- Results info -->
-  <div class="results-info">
-    Showing: {{ history|length }} events {% if filters.event_types_filter_applied or filters.track_filter or filters.video_id_filter %}(filtered){% endif %}
-  </div>
-  
-  <table id="events-table">
-    <thead>
-      <tr>
-        <th>#</th>
-        <th>Video ID</th>
-        <th>Track Name</th>
-        <th>Channel</th>
-        <th>Duration</th>
-        <th>Event Type</th>
-        <th>Timestamp</th>
-        <th>Position</th>
-        <th>Volume Change</th>
-        <th>Seek Change</th>
-        <th>Playlist Added</th>
-        <th>Source</th>
-      </tr>
-    </thead>
-    <tbody id="events-tbody">
-      {% for h in history %}
-        <tr{% if h['event'] == 'volume_change' %} class="volume-event"{% elif h['event'] == 'seek' %} class="seek-event"{% elif h['event'] == 'playlist_added' %} class="playlist-event"{% endif %}>
-          <td>{{ loop.index }}</td>
-          <td>
-            {% if h['video_id'] == 'system' %}
-              <span style="color:#999;">system</span>
-            {% else %}
-              <a href="https://youtu.be/{{ h['video_id'] }}" target="_blank">{{ h['video_id'] }}</a>
-            {% endif %}
-          </td>
-          <td>{{ h['name'] or '-' }}</td>
-          <td style="color:#8bc34a;font-size:12px;">{{ h['youtube_channel'] or '-' }}</td>
-          <td style="color:#61dafb;font-size:12px;font-family:monospace;">
-            {% if h['youtube_duration_string'] %}
-              {{ h['youtube_duration_string'] }}
-            {% elif h['youtube_duration'] %}
-              {{ (h['youtube_duration'] // 60) }}:{{ '%02d' % (h['youtube_duration'] % 60) }}
-            {% else %}
-              -
-            {% endif %}
-          </td>
-          <td><span class="event-{{ h['event'] }}">{{ h['event'] }}</span></td>
-          <td>{{ h['ts'] }}</td>
-          <td class="position-time">
-            {% if h.get('position') is not none %}{{ '%.1f' % h.get('position') }}s{% else %}-{% endif %}
-          </td>
-          <td class="volume-info">
-            {% if h['event'] == 'volume_change' and h.get('volume_from') is not none and h.get('volume_to') is not none %}
-              <span class="volume-change">
-                🔊 {{ '%d' % (h['volume_from'] * 100) }}% → {{ '%d' % (h['volume_to'] * 100) }}%
-                {% set volume_diff = (h['volume_to'] - h['volume_from']) * 100 %}
-                {% if volume_diff > 0 %}
-                  <span style="color:#4caf50;">(+{{ '%d' % volume_diff }}%)</span>
-                {% elif volume_diff < 0 %}
-                  <span style="color:#f44336;">({{ '%d' % volume_diff }}%)</span>
-                {% endif %}
-              </span>
-            {% else %}
-              -
-            {% endif %}
-          </td>
-          <td class="seek-info">
-            {% if h['event'] == 'seek' and h.get('seek_from') is not none and h.get('seek_to') is not none %}
-              <span class="seek-change">
-                {% set seek_diff = h['seek_to'] - h['seek_from'] %}
-                {% if seek_diff > 0 %}
-                  <span class="seek-forward">⏩ {{ '%d' % h['seek_from'] }}s → {{ '%d' % h['seek_to'] }}s (+{{ '%d' % seek_diff }}s)</span>
-                {% else %}
-                  <span class="seek-backward">⏪ {{ '%d' % h['seek_from'] }}s → {{ '%d' % h['seek_to'] }}s ({{ '%d' % seek_diff }}s)</span>
-                {% endif %}
-              </span>
-            {% else %}
-              -
-            {% endif %}
-          </td>
-          <td class="playlist-info">
-            {% if h['event'] == 'playlist_added' and h.get('additional_data') %}
-              {% set playlist_data = h['additional_data'] %}
-              {% if 'playlist_name:' in playlist_data %}
-                {% set playlist_name = playlist_data.split('playlist_name:')[1].split(',')[0] %}
-                <span class="playlist-addition">
-                  📂 <span class="playlist-name">{{ playlist_name }}</span>
+    
+    <table id="events-table">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Video ID</th>
+          <th>Track Name</th>
+          <th>Channel</th>
+          <th>Duration</th>
+          <th>Event Type</th>
+          <th>Timestamp</th>
+          <th>Position</th>
+          <th>Volume Change</th>
+          <th>Seek Change</th>
+          <th>Playlist Added</th>
+          <th>Source</th>
+        </tr>
+      </thead>
+      <tbody id="events-tbody">
+        {% for h in history %}
+          <tr{% if h['event'] == 'volume_change' %} class="volume-event"{% elif h['event'] == 'seek' %} class="seek-event"{% elif h['event'] == 'playlist_added' %} class="playlist-event"{% endif %}>
+            <td>{{ loop.index }}</td>
+            <td>
+              {% if h['video_id'] == 'system' %}
+                <span style="color:#999;">system</span>
+              {% else %}
+                <a href="https://youtu.be/{{ h['video_id'] }}" target="_blank">{{ h['video_id'] }}</a>
+              {% endif %}
+            </td>
+            <td>{{ h['name'] or '-' }}</td>
+            <td style="color:#8bc34a;font-size:12px;">{{ h['youtube_channel'] or '-' }}</td>
+            <td style="color:#61dafb;font-size:12px;font-family:monospace;">
+              {% if h['youtube_duration_string'] %}
+                {{ h['youtube_duration_string'] }}
+              {% elif h['youtube_duration'] %}
+                {{ (h['youtube_duration'] // 60) }}:{{ '%02d' % (h['youtube_duration'] % 60) }}
+              {% else %}
+                -
+              {% endif %}
+            </td>
+            <td><span class="event-{{ h['event'] }}">{{ h['event'] }}</span></td>
+            <td>{{ h['ts'] }}</td>
+            <td class="position-time">
+              {% if h.get('position') is not none %}{{ '%.1f' % h.get('position') }}s{% else %}-{% endif %}
+            </td>
+            <td class="volume-info">
+              {% if h['event'] == 'volume_change' and h.get('volume_from') is not none and h.get('volume_to') is not none %}
+                <span class="volume-change">
+                  🔊 {{ '%d' % (h['volume_from'] * 100) }}% → {{ '%d' % (h['volume_to'] * 100) }}%
+                  {% set volume_diff = (h['volume_to'] - h['volume_from']) * 100 %}
+                  {% if volume_diff > 0 %}
+                    <span style="color:#4caf50;">(+{{ '%d' % volume_diff }}%)</span>
+                  {% elif volume_diff < 0 %}
+                    <span style="color:#f44336;">({{ '%d' % volume_diff }}%)</span>
+                  {% endif %}
                 </span>
               {% else %}
-                <span class="playlist-addition">📂 Playlist</span>
+                -
               {% endif %}
+            </td>
+            <td class="seek-info">
+              {% if h['event'] == 'seek' and h.get('seek_from') is not none and h.get('seek_to') is not none %}
+                <span class="seek-change">
+                  {% set seek_diff = h['seek_to'] - h['seek_from'] %}
+                  {% if seek_diff > 0 %}
+                    <span class="seek-forward">⏩ {{ '%d' % h['seek_from'] }}s → {{ '%d' % h['seek_to'] }}s (+{{ '%d' % seek_diff }}s)</span>
+                  {% else %}
+                    <span class="seek-backward">⏪ {{ '%d' % h['seek_from'] }}s → {{ '%d' % h['seek_to'] }}s ({{ '%d' % seek_diff }}s)</span>
+                  {% endif %}
+                </span>
+              {% else %}
+                -
+              {% endif %}
+            </td>
+            <td class="playlist-info">
+              {% if h['event'] == 'playlist_added' and h.get('additional_data') %}
+                {% set playlist_data = h['additional_data'] %}
+                {% if 'playlist_name:' in playlist_data %}
+                  {% set playlist_name = playlist_data.split('playlist_name:')[1].split(',')[0] %}
+                  <span class="playlist-addition">
+                    📂 <span class="playlist-name">{{ playlist_name }}</span>
+                  </span>
+                {% else %}
+                  <span class="playlist-addition">📂 Playlist</span>
+                {% endif %}
+              {% else %}
+                -
+              {% endif %}
+            </td>
+            <td class="volume-source">
+              {% if h.get('additional_data') %}
+                {{ h['additional_data'] }}
+              {% else %}
+                -
+              {% endif %}
+            </td>
+          </tr>
+        {% else %}
+          <tr><td colspan="12" style="text-align:center;padding:40px;color:#666;font-style:italic;">
+            {% if filters.event_types_filter_applied or filters.track_filter or filters.video_id_filter %}
+              🔍 No events match your filters. Try adjusting or clearing them.
             {% else %}
-              -
+              No events yet.
             {% endif %}
-          </td>
-          <td class="volume-source">
-            {% if h.get('additional_data') %}
-              {{ h['additional_data'] }}
-            {% else %}
-              -
-            {% endif %}
-          </td>
-        </tr>
-      {% else %}
-        <tr><td colspan="12" style="text-align:center;padding:40px;color:#666;font-style:italic;">
-          {% if filters.event_types_filter_applied or filters.track_filter or filters.video_id_filter %}
-            🔍 No events match your filters. Try adjusting or clearing them.
-          {% else %}
-            No events yet.
-          {% endif %}
-        </td></tr>
-      {% endfor %}
-    </tbody>
-  </table>
-  
-  <!-- No results message (hidden by default) -->
-  <div id="no-results" class="no-results" style="display:none;">
-    <h3>🔍 No Events Found</h3>
-    <p>Try adjusting your filters or clear them to see all events.</p>
-  </div>
-  
-  <div style="margin-top:20px;padding:15px;background:#222;border-radius:5px;">
-    <h3 style="margin-top:0;">📋 Event Types Reference:</h3>
-    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;font-size:13px;">
-      <div><span class="event-start">🟢 start</span> - Track begins playing from beginning</div>
-      <div><span class="event-play">🟢 play</span> - Resume playback after pause</div>
-      <div><span class="event-pause">🟠 pause</span> - Playback paused by user</div>
-      <div><span class="event-finish">🔵 finish</span> - Track completed successfully</div>
-      <div><span class="event-next">🟣 next</span> - Manual skip to next track</div>
-      <div><span class="event-prev">🟣 prev</span> - Manual skip to previous track</div>
-      <div><span class="event-like">🩷 like</span> - Track marked as favorite</div>
-      <div><span class="event-volume_change">🟡 volume_change</span> - Volume level adjusted</div>
-      <div><span class="event-seek">🔵 seek</span> - Position changed (seek/scrub)</div>
-      <div><span class="event-playlist_added">🟢 playlist_added</span> - Track added/discovered in playlist</div>
-      <div><span class="event-removed">🔴 removed</span> - Track deleted from library/playlist</div>
+          </td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    
+    <!-- No results message (hidden by default) -->
+    <div id="no-results" class="no-results" style="display:none;">
+      <h3>🔍 No Events Found</h3>
+      <p>Try adjusting your filters or clear them to see all events.</p>
     </div>
-    <div style="margin-top:10px;font-size:12px;color:#aaa;">
-      <strong>Volume Sources:</strong> web (main player), remote (mobile control), gesture (swipe control)<br>
-      <strong>Seek Sources:</strong> progress_bar (click), keyboard (Shift+arrows, Up/Down), remote (future)<br>
-      <strong>Playlist Sources:</strong> scan (library scan), download (new download), manual (user action)
+    
+    <div style="margin-top:20px;padding:15px;background:#222;border-radius:5px;">
+      <h3 style="margin-top:0;">📋 Event Types Reference:</h3>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;font-size:13px;">
+        <div><span class="event-start">🟢 start</span> - Track begins playing from beginning</div>
+        <div><span class="event-play">🟢 play</span> - Resume playback after pause</div>
+        <div><span class="event-pause">🟠 pause</span> - Playback paused by user</div>
+        <div><span class="event-finish">🔵 finish</span> - Track completed successfully</div>
+        <div><span class="event-next">🟣 next</span> - Manual skip to next track</div>
+        <div><span class="event-prev">🟣 prev</span> - Manual skip to previous track</div>
+        <div><span class="event-like">🩷 like</span> - Track marked as favorite</div>
+        <div><span class="event-volume_change">🟡 volume_change</span> - Volume level adjusted</div>
+        <div><span class="event-seek">🔵 seek</span> - Position changed (seek/scrub)</div>
+        <div><span class="event-playlist_added">🟢 playlist_added</span> - Track added/discovered in playlist</div>
+        <div><span class="event-removed">🔴 removed</span> - Track deleted from library/playlist</div>
+      </div>
+      <div style="margin-top:10px;font-size:12px;color:#aaa;">
+        <strong>Volume Sources:</strong> web (main player), remote (mobile control), gesture (swipe control)<br>
+        <strong>Seek Sources:</strong> progress_bar (click), keyboard (Shift+arrows, Up/Down), remote (future)<br>
+        <strong>Playlist Sources:</strong> scan (library scan), download (new download), manual (user action)
+      </div>
     </div>
   </div>
 

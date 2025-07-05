@@ -5,6 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Deleted Tracks - SyncPlay Hub</title>
     <link rel="icon" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='0.9em' font-size='90'>🎵</text></svg>">
+    
+    <!-- Include Sidebar Styles -->
+    {% include 'sidebar_styles.html' %}
+    
     <style>
         :root {
             --bg-primary: #0a0a0a;
@@ -47,11 +51,11 @@
         }
 
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            display: flex;
             background: var(--bg-primary);
             color: var(--text-primary);
             margin: 0;
-            padding: 20px;
+            padding: 0;
             line-height: 1.6;
             min-height: 100vh;
         }
@@ -59,6 +63,13 @@
         .container {
             max-width: 1200px;
             margin: 0 auto;
+        }
+
+        .main-content {
+            flex: 1;
+            padding: 20px;
+            margin-left: var(--sidebar-width);
+            min-height: 100vh;
         }
 
         .header {
@@ -151,6 +162,28 @@
             letter-spacing: 0.5px;
         }
 
+        .btn {
+            padding: 8px 16px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-weight: 500;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            text-decoration: none;
+            font-size: 14px;
+        }
+
+        .btn:hover {
+            background: var(--bg-hover);
+            border-color: var(--accent);
+            transform: translateY(-1px);
+        }
+
         .btn-danger {
             background: var(--error);
             color: white;
@@ -158,6 +191,39 @@
         }
 
         .btn-danger:hover {
+            background: #d32f2f;
+            border-color: #d32f2f;
+        }
+
+        .btn-success {
+            background: var(--success);
+            color: white;
+            border-color: var(--success);
+        }
+
+        .btn-success:hover {
+            background: #388e3c;
+            border-color: #388e3c;
+        }
+
+        .btn-primary {
+            background: var(--accent);
+            color: white;
+            border-color: var(--accent);
+        }
+
+        .btn-primary:hover {
+            background: var(--accent-hover);
+            border-color: var(--accent-hover);
+        }
+
+        .btn-error {
+            background: var(--error);
+            color: white;
+            border-color: var(--error);
+        }
+
+        .btn-error:hover {
             background: #d32f2f;
             border-color: #d32f2f;
         }
@@ -201,76 +267,30 @@
             border: 1px solid var(--border);
             border-radius: 4px;
             color: var(--text-primary);
-            font-size: 0.9rem;
+            font-size: 14px;
         }
 
         .form-input:focus, .form-select:focus {
             outline: none;
-            border-color: var(--accent-color);
-            box-shadow: 0 0 0 2px rgba(97, 218, 251, 0.2);
+            border-color: var(--accent);
         }
 
         .bulk-actions {
             display: flex;
-            gap: 10px;
             flex-wrap: wrap;
+            gap: 10px;
             align-items: center;
-        }
-
-        .btn {
-            padding: 8px 16px;
-            border: none;
-            border-radius: 4px;
-            font-size: 0.9rem;
-            font-weight: 500;
-            cursor: pointer;
-            text-decoration: none;
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            transition: all 0.2s ease;
-            background: var(--bg-secondary);
-            color: var(--text-primary);
+            margin-bottom: 20px;
+            padding: 15px;
+            background: var(--bg-card);
+            border-radius: 8px;
             border: 1px solid var(--border);
         }
 
-        .btn:hover {
-            transform: translateY(-1px);
-            box-shadow: var(--shadow);
-        }
-
-        .btn-primary {
-            background: var(--accent-color);
-            color: white;
-            border-color: var(--accent-color);
-        }
-
-        .btn-primary:hover {
-            background: var(--accent-hover);
-        }
-
-        .btn-success {
-            background: var(--success);
-            color: white;
-            border-color: var(--success);
-        }
-
-        .btn-warning {
-            background: var(--warning);
-            color: white;
-            border-color: var(--warning);
-        }
-
-        .btn-error {
-            background: var(--error);
-            color: white;
-            border-color: var(--error);
-        }
-
         .results-info {
-            color: var(--text-secondary);
-            font-size: 0.9rem;
             margin-left: auto;
+            color: var(--text-secondary);
+            font-size: 14px;
         }
 
         .tracks-table {
@@ -285,7 +305,8 @@
             border-collapse: collapse;
         }
 
-        .table th, .table td {
+        .table th,
+        .table td {
             padding: 12px;
             text-align: left;
             border-bottom: 1px solid var(--border);
@@ -295,9 +316,6 @@
             background: var(--bg-secondary);
             font-weight: 600;
             color: var(--text-primary);
-            position: sticky;
-            top: 0;
-            z-index: 10;
         }
 
         .table tbody tr:hover {
@@ -305,7 +323,7 @@
         }
 
         .track-checkbox {
-            margin: 0;
+            accent-color: var(--accent);
         }
 
         .track-name {
@@ -358,8 +376,10 @@
 
         .empty-state {
             text-align: center;
-            padding: 40px 20px;
-            color: var(--text-secondary);
+            padding: 60px 20px;
+            background: var(--bg-card);
+            border-radius: 8px;
+            border: 1px solid var(--border);
         }
 
         .empty-state-icon {
@@ -367,232 +387,209 @@
             margin-bottom: 16px;
         }
 
+        .empty-state h3 {
+            margin: 0 0 8px 0;
+            color: var(--text-primary);
+        }
+
+        .empty-state p {
+            color: var(--text-secondary);
+            margin: 0;
+        }
+
         .loading {
             text-align: center;
-            padding: 20px;
             color: var(--text-secondary);
+            padding: 40px;
         }
 
         @media (max-width: 768px) {
+            .main-content {
+                margin-left: 0;
+                padding: 10px;
+            }
+            
             .filters-grid {
                 grid-template-columns: 1fr;
             }
             
             .bulk-actions {
-                justify-content: center;
-            }
-            
-            .nav-links {
                 flex-direction: column;
-                align-items: center;
+                align-items: stretch;
             }
             
-            .table {
-                font-size: 0.9rem;
-            }
-            
-            .table th, .table td {
-                padding: 8px;
+            .results-info {
+                margin-left: 0;
+                text-align: center;
             }
         }
     </style>
 </head>
 
 <body>
-    <div class="container">
-        <div class="header">
-                    <h1>
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <polyline points="3,6 5,6 21,6"></polyline>
-                <path d="m19,6v14a2,2 0 0,1-2,2H7a2,2 0 0,1-2-2V6m3,0V4a2,2 0 0,1,2-2h4a2,2 0 0,1,2,2v2"></path>
-                <line x1="10" y1="11" x2="10" y2="17"></line>
-                <line x1="14" y1="11" x2="14" y2="17"></line>
-            </svg>
-            Deleted Tracks
-        </h1>
-            <div class="subtitle">Restore your accidentally deleted music</div>
-                    <nav class="nav-links">
-            <a href="/" class="nav-link">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
-                  <polyline points="9,22 9,12 15,12 15,22"/>
-                </svg>
-                Home
-            </a>
-            <a href="/playlists" class="nav-link">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"></path>
-                </svg>
-                Playlists
-            </a>
-            <a href="/channels" class="nav-link">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <rect width="20" height="15" x="2" y="3" rx="2" ry="2"></rect>
-                  <circle cx="8" cy="21" r="1"></circle>
-                  <circle cx="16" cy="21" r="1"></circle>
-                </svg>
-                Channels
-            </a>
-            <a href="/events" class="nav-link">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M22 12h-4l-3 9L9 3l-3 9H2"></path>
-                </svg>
-                Events
-            </a>
-            <a href="/remote" class="nav-link">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <rect width="14" height="20" x="5" y="2" rx="2" ry="2"></rect>
-                  <path d="M12 18h.01"></path>
-                </svg>
-                Remote
-            </a>
-        </nav>
-        </div>
+    <!-- Include Universal Sidebar -->
+    {% include 'sidebar.html' %}
 
-        <!-- Trash Statistics Section -->
-        <div class="trash-stats-section">
-            <h3 class="section-title">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display: inline; vertical-align: text-top;">
-                  <polyline points="3,6 5,6 21,6"></polyline>
-                  <path d="m19,6v14a2,2 0 0,1-2,2H7a2,2 0 0,1-2-2V6m3,0V4a2,2 0 0,1,2-2h4a2,2 0 0,1,2,2v2"></path>
-                </svg>
-                Trash Statistics
-            </h3>
-            <div class="trash-stats-grid">
-                <div class="stat-item">
-                    <div class="stat-value" id="trashSize">Loading...</div>
-                    <div class="stat-label">Total Size</div>
-                </div>
-                <div class="stat-item">
-                    <div class="stat-value" id="trashFiles">Loading...</div>
-                    <div class="stat-label">Files Count</div>
-                </div>
-                <div class="stat-item">
-                    <button id="clearTrashBtn" class="btn btn-danger">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                          <polyline points="3,6 5,6 21,6"></polyline>
-                          <path d="m19,6v14a2,2 0 0,1-2,2H7a2,2 0 0,1-2-2V6m3,0V4a2,2 0 0,1,2-2h4a2,2 0 0,1,2,2v2"></path>
-                          <line x1="10" y1="11" x2="10" y2="17"></line>
-                          <line x1="14" y1="11" x2="14" y2="17"></line>
-                        </svg>
-                        Clear Trash
-                    </button>
+    <div class="main-content">
+        <div class="container">
+            <div class="header">
+                <h1>
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="3,6 5,6 21,6"></polyline>
+                        <path d="m19,6v14a2,2 0 0,1-2,2H7a2,2 0 0,1-2-2V6m3,0V4a2,2 0 0,1,2-2h4a2,2 0 0,1,2,2v2"></path>
+                        <line x1="10" y1="11" x2="10" y2="17"></line>
+                        <line x1="14" y1="11" x2="14" y2="17"></line>
+                    </svg>
+                    Deleted Tracks
+                </h1>
+                <div class="subtitle">Restore your accidentally deleted music</div>
+            </div>
+
+            <!-- Trash Statistics Section -->
+            <div class="trash-stats-section">
+                <h3 class="section-title">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display: inline; vertical-align: text-top;">
+                      <polyline points="3,6 5,6 21,6"></polyline>
+                      <path d="m19,6v14a2,2 0 0,1-2,2H7a2,2 0 0,1-2-2V6m3,0V4a2,2 0 0,1,2-2h4a2,2 0 0,1,2,2v2"></path>
+                    </svg>
+                    Trash Statistics
+                </h3>
+                <div class="trash-stats-grid">
+                    <div class="stat-item">
+                        <div class="stat-value" id="trashSize">Loading...</div>
+                        <div class="stat-label">Total Size</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="trashFiles">Loading...</div>
+                        <div class="stat-label">Files Count</div>
+                    </div>
+                    <div class="stat-item">
+                        <button id="clearTrashBtn" class="btn btn-danger">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                              <polyline points="3,6 5,6 21,6"></polyline>
+                              <path d="m19,6v14a2,2 0 0,1-2,2H7a2,2 0 0,1-2-2V6m3,0V4a2,2 0 0,1,2-2h4a2,2 0 0,1,2,2v2"></path>
+                              <line x1="10" y1="11" x2="10" y2="17"></line>
+                              <line x1="14" y1="11" x2="14" y2="17"></line>
+                            </svg>
+                            Clear Trash
+                        </button>
+                    </div>
                 </div>
             </div>
-        </div>
 
-        <!-- Filters Section -->
-        <div class="filters-section">
-            <h3 class="filters-title">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display: inline; vertical-align: text-top;">
-                  <circle cx="11" cy="11" r="8"></circle>
-                  <path d="M21 21l-4.35-4.35"></path>
-                </svg>
-                Filter Deleted Tracks
-            </h3>
-            <div class="filters-grid">
-                <div class="filter-group">
-                    <label class="filter-label">Channel Group</label>
-                    <select id="channelGroupFilter" class="form-select">
-                        <option value="">All Groups</option>
-                        <!-- Populated by JavaScript -->
-                    </select>
-                </div>
-                <div class="filter-group">
-                    <label class="filter-label">Deletion Reason</label>
-                    <select id="deletionReasonFilter" class="form-select">
-                        <option value="">All Reasons</option>
-                        <option value="auto_delete">Auto-delete</option>
-                        <option value="manual">Manual</option>
-                    </select>
-                </div>
-                <div class="filter-group">
-                    <label class="filter-label">Time Period</label>
-                    <select id="timePeriodFilter" class="form-select">
-                        <option value="">All Time</option>
-                        <option value="1day">Last 24 hours</option>
-                        <option value="1week">Last week</option>
-                        <option value="1month">Last month</option>
-                    </select>
-                </div>
-                <div class="filter-group">
-                    <label class="filter-label">Search Track Name</label>
-                    <input type="text" id="trackSearchFilter" class="form-input" placeholder="Search by track name...">
+            <!-- Filters Section -->
+            <div class="filters-section">
+                <h3 class="filters-title">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display: inline; vertical-align: text-top;">
+                      <circle cx="11" cy="11" r="8"></circle>
+                      <path d="M21 21l-4.35-4.35"></path>
+                    </svg>
+                    Filter Deleted Tracks
+                </h3>
+                <div class="filters-grid">
+                    <div class="filter-group">
+                        <label class="filter-label">Channel Group</label>
+                        <select id="channelGroupFilter" class="form-select">
+                            <option value="">All Groups</option>
+                            <!-- Populated by JavaScript -->
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label class="filter-label">Deletion Reason</label>
+                        <select id="deletionReasonFilter" class="form-select">
+                            <option value="">All Reasons</option>
+                            <option value="auto_delete">Auto-delete</option>
+                            <option value="manual">Manual</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label class="filter-label">Time Period</label>
+                        <select id="timePeriodFilter" class="form-select">
+                            <option value="">All Time</option>
+                            <option value="1day">Last 24 hours</option>
+                            <option value="1week">Last week</option>
+                            <option value="1month">Last month</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label class="filter-label">Search Track Name</label>
+                        <input type="text" id="trackSearchFilter" class="form-input" placeholder="Search by track name...">
+                    </div>
                 </div>
             </div>
-        </div>
 
-        <!-- Bulk Actions -->
-        <div class="bulk-actions">
-            <button id="selectAllBtn" class="btn">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M9 11H4a2 2 0 0 0-2 2v3a2 2 0 0 0 2 2h5l2-3h9a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2H11l-2 3Z"></path>
-                </svg>
-                Select All
-            </button>
-            <button id="selectNoneBtn" class="btn">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M18 6 6 18"></path>
-                  <path d="m6 6 12 12"></path>
-                </svg>
-                Clear Selection
-            </button>
-            <button id="bulkRestoreFileBtn" class="btn btn-success">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"></path>
-                </svg>
-                Restore Selected (File)
-            </button>
-            <button id="bulkRestoreRedownloadBtn" class="btn btn-primary">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                  <polyline points="7,10 12,15 17,10"></polyline>
-                  <line x1="12" y1="15" x2="12" y2="3"></line>
-                </svg>
-                Restore Selected (Re-download)
-            </button>
-            <button id="bulkDeletePermanentBtn" class="btn btn-error">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <polyline points="3,6 5,6 21,6"></polyline>
-                  <path d="m19,6v14a2,2 0 0,1-2,2H7a2,2 0 0,1-2-2V6m3,0V4a2,2 0 0,1,2-2h4a2,2 0 0,1,2,2v2"></path>
-                </svg>
-                Delete Permanently
-            </button>
-            <div class="results-info">
-                <span id="resultsCount">Loading...</span>
+            <!-- Bulk Actions -->
+            <div class="bulk-actions">
+                <button id="selectAllBtn" class="btn">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M9 11H4a2 2 0 0 0-2 2v3a2 2 0 0 0 2 2h5l2-3h9a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2H11l-2 3Z"></path>
+                    </svg>
+                    Select All
+                </button>
+                <button id="selectNoneBtn" class="btn">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M18 6 6 18"></path>
+                      <path d="m6 6 12 12"></path>
+                    </svg>
+                    Clear Selection
+                </button>
+                <button id="bulkRestoreFileBtn" class="btn btn-success">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"></path>
+                    </svg>
+                    Restore Selected (File)
+                </button>
+                <button id="bulkRestoreRedownloadBtn" class="btn btn-primary">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                      <polyline points="7,10 12,15 17,10"></polyline>
+                      <line x1="12" y1="15" x2="12" y2="3"></line>
+                    </svg>
+                    Restore Selected (Re-download)
+                </button>
+                <button id="bulkDeletePermanentBtn" class="btn btn-error">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <polyline points="3,6 5,6 21,6"></polyline>
+                      <path d="m19,6v14a2,2 0 0,1-2,2H7a2,2 0 0,1-2-2V6m3,0V4a2,2 0 0,1,2-2h4a2,2 0 0,1,2,2v2"></path>
+                    </svg>
+                    Delete Permanently
+                </button>
+                <div class="results-info">
+                    <span id="resultsCount">Loading...</span>
+                </div>
             </div>
-        </div>
 
-        <!-- Tracks Table -->
-        <div class="tracks-table">
-            <table class="table">
-                <thead>
-                    <tr>
-                        <th width="40">
-                            <input type="checkbox" id="masterCheckbox" class="track-checkbox">
-                        </th>
-                        <th>Track</th>
-                        <th>Channel Group</th>
-                        <th>Deleted</th>
-                        <th>Reason</th>
-                        <th>Actions</th>
-                    </tr>
-                </thead>
-                <tbody id="tracksTableBody">
-                    <tr>
-                        <td colspan="6" class="loading">
-                            🔄 Loading deleted tracks...
-                        </td>
-                    </tr>
-                </tbody>
-            </table>
-        </div>
+            <!-- Tracks Table -->
+            <div class="tracks-table">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th width="40">
+                                <input type="checkbox" id="masterCheckbox" class="track-checkbox">
+                            </th>
+                            <th>Track</th>
+                            <th>Channel Group</th>
+                            <th>Deleted</th>
+                            <th>Reason</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tracksTableBody">
+                        <tr>
+                            <td colspan="6" class="loading">
+                                🔄 Loading deleted tracks...
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
 
-        <!-- Empty State -->
-        <div id="emptyState" class="empty-state" style="display: none;">
-            <div class="empty-state-icon">🎉</div>
-            <h3>No Deleted Tracks</h3>
-            <p>Great! You haven't accidentally deleted any tracks yet.</p>
+            <!-- Empty State -->
+            <div id="emptyState" class="empty-state" style="display: none;">
+                <div class="empty-state-icon">🎉</div>
+                <h3>No Deleted Tracks</h3>
+                <p>Great! You haven't accidentally deleted any tracks yet.</p>
+            </div>
         </div>
     </div>
 

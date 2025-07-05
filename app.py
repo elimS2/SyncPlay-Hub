@@ -286,12 +286,30 @@ def events_page():
         'video_id_filter': video_id_filter or ''
     }
     
-    return render_template("history.html", history=rows, page=page, has_next=has_next, filters=filter_params, request=request)
+    # Calculate uptime for server info
+    uptime = datetime.datetime.now() - SERVER_START_TIME
+    uptime_str = str(uptime).split('.')[0]  # Remove microseconds
+    server_info = {
+        'pid': os.getpid(),
+        'start_time': SERVER_START_TIME.strftime('%Y-%m-%d %H:%M:%S'),
+        'uptime': uptime_str
+    }
+    
+    return render_template("history.html", history=rows, page=page, has_next=has_next, filters=filter_params, request=request, server_info=server_info)
 
 @app.route("/backups")
 def backups_page():
     """Database Backups Page."""
-    return render_template("backups.html")
+    # Calculate uptime for server info
+    uptime = datetime.datetime.now() - SERVER_START_TIME
+    uptime_str = str(uptime).split('.')[0]  # Remove microseconds
+    server_info = {
+        'pid': os.getpid(),
+        'start_time': SERVER_START_TIME.strftime('%Y-%m-%d %H:%M:%S'),
+        'uptime': uptime_str
+    }
+    
+    return render_template("backups.html", server_info=server_info)
 
 @app.route("/favicon.ico")
 def favicon():
@@ -457,7 +475,16 @@ def channels_page():
 @app.route("/deleted")
 def deleted_tracks_page():
     """Deleted tracks restoration page."""
-    return render_template("deleted.html")
+    # Calculate uptime for server info
+    uptime = datetime.datetime.now() - SERVER_START_TIME
+    uptime_str = str(uptime).split('.')[0]  # Remove microseconds
+    server_info = {
+        'pid': os.getpid(),
+        'start_time': SERVER_START_TIME.strftime('%Y-%m-%d %H:%M:%S'),
+        'uptime': uptime_str
+    }
+    
+    return render_template("deleted.html", server_info=server_info)
 
 @app.route("/jobs")
 def jobs_page():
@@ -471,6 +498,15 @@ def settings_page():
     
     # Load environment config
     env_config = _load_env_config()
+    
+    # Calculate uptime for server info
+    uptime = datetime.datetime.now() - SERVER_START_TIME
+    uptime_str = str(uptime).split('.')[0]  # Remove microseconds
+    server_info = {
+        'pid': os.getpid(),
+        'start_time': SERVER_START_TIME.strftime('%Y-%m-%d %H:%M:%S'),
+        'uptime': uptime_str
+    }
     
     if request.method == 'POST':
         try:
@@ -491,20 +527,20 @@ def settings_page():
             
         except ValueError as e:
             log_message(f"Settings validation error: {e}")
-            return render_template("settings.html", error=str(e), delay_seconds=request.form.get('job_execution_delay_seconds', 0), env_config=env_config)
+            return render_template("settings.html", error=str(e), delay_seconds=request.form.get('job_execution_delay_seconds', 0), env_config=env_config, server_info=server_info)
         except Exception as e:
             log_message(f"Settings save error: {e}")
-            return render_template("settings.html", error="Failed to save settings", delay_seconds=request.form.get('job_execution_delay_seconds', 0), env_config=env_config)
+            return render_template("settings.html", error="Failed to save settings", delay_seconds=request.form.get('job_execution_delay_seconds', 0), env_config=env_config, server_info=server_info)
     
     # GET request - load current settings
     try:
         conn = get_connection()
         delay_seconds = get_user_setting(conn, 'job_execution_delay_seconds', '0')
         conn.close()
-        return render_template("settings.html", delay_seconds=int(delay_seconds), env_config=env_config)
+        return render_template("settings.html", delay_seconds=int(delay_seconds), env_config=env_config, server_info=server_info)
     except Exception as e:
         log_message(f"Settings load error: {e}")
-        return render_template("settings.html", delay_seconds=0, error="Failed to load settings", env_config=env_config)
+        return render_template("settings.html", delay_seconds=0, error="Failed to load settings", env_config=env_config, server_info=server_info)
 
 @app.route("/likes")
 def likes_playlists_page():

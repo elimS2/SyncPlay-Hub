@@ -3,55 +3,69 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Settings</title>
+    <title>Settings - YouTube Player</title>
+    <link rel="icon" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='0.9em' font-size='90'>🎵</text></svg>">
+    
+    <!-- Include Sidebar Styles -->
+    {% include 'sidebar_styles.html' %}
+    
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
+        /* Override body styles for sidebar integration */
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
             line-height: 1.6;
-            color: #333;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: var(--text-primary);
+            background: var(--bg-primary);
+            margin: 0;
+            padding: 0;
+            display: flex;
+            min-height: 100vh;
+        }
+
+        /* Main content area */
+        .main-content {
+            flex: 1;
+            padding: 20px;
+            margin-left: var(--sidebar-width);
             min-height: 100vh;
         }
 
         .container {
             max-width: 800px;
             margin: 0 auto;
-            padding: 20px;
         }
 
         .header {
             text-align: center;
             margin-bottom: 30px;
-            color: white;
+            color: var(--text-primary);
         }
 
         .header h1 {
             font-size: 2.5rem;
             margin-bottom: 10px;
-            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
         }
 
         .header p {
             font-size: 1.1rem;
-            opacity: 0.9;
+            color: var(--text-secondary);
         }
 
         .card {
-            background: white;
+            background: var(--bg-card);
             border-radius: 12px;
-            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+            border: 1px solid var(--border);
             margin-bottom: 20px;
             overflow: hidden;
         }
 
         .card-header {
-            background: linear-gradient(45deg, #667eea, #764ba2);
+            background: var(--accent);
             color: white;
             padding: 20px;
             font-size: 1.2rem;
@@ -62,25 +76,6 @@
             padding: 20px;
         }
 
-        .back-button {
-            display: inline-block;
-            padding: 10px 20px;
-            background: rgba(255,255,255,0.1);
-            color: white;
-            text-decoration: none;
-            margin-bottom: 20px;
-            font-weight: 500;
-            border-radius: 8px;
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255,255,255,0.2);
-            transition: all 0.2s;
-        }
-
-        .back-button:hover {
-            background: rgba(255,255,255,0.2);
-            transform: translateY(-1px);
-        }
-
         .form-group {
             margin-bottom: 20px;
         }
@@ -89,26 +84,28 @@
             display: block;
             margin-bottom: 8px;
             font-weight: 600;
-            color: #555;
+            color: var(--text-primary);
         }
 
         .form-group input[type="number"] {
             width: 100%;
             padding: 12px;
-            border: 2px solid #e1e5e9;
+            border: 2px solid var(--border);
             border-radius: 8px;
             font-size: 16px;
             transition: border-color 0.2s;
+            background: var(--bg-secondary);
+            color: var(--text-primary);
         }
 
         .form-group input[type="number"]:focus {
             outline: none;
-            border-color: #667eea;
+            border-color: var(--accent);
         }
 
         .form-description {
             font-size: 14px;
-            color: #666;
+            color: var(--text-secondary);
             margin-top: 5px;
             line-height: 1.4;
         }
@@ -128,13 +125,13 @@
         }
 
         .btn-primary {
-            background: linear-gradient(45deg, #667eea, #764ba2);
+            background: var(--accent);
             color: white;
         }
 
         .btn:hover {
             transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+            box-shadow: var(--shadow);
         }
 
         .alert {
@@ -145,27 +142,28 @@
         }
 
         .alert-success {
-            background-color: #d4edda;
-            border: 1px solid #c3e6cb;
-            color: #155724;
+            background-color: rgba(76, 175, 80, 0.1);
+            border: 1px solid var(--success);
+            color: var(--success);
         }
 
         .alert-error {
-            background-color: #f8d7da;
-            border: 1px solid #f5c6cb;
-            color: #721c24;
+            background-color: rgba(244, 67, 54, 0.1);
+            border: 1px solid var(--error);
+            color: var(--error);
         }
 
         .examples {
-            background: #f8f9fa;
+            background: var(--bg-secondary);
             border-radius: 8px;
             padding: 15px;
             margin-top: 15px;
+            border: 1px solid var(--border);
         }
 
         .examples h4 {
             margin-bottom: 10px;
-            color: #495057;
+            color: var(--text-primary);
         }
 
         .examples ul {
@@ -175,11 +173,11 @@
 
         .examples li {
             margin-bottom: 5px;
-            color: #6c757d;
+            color: var(--text-secondary);
         }
 
         .current-value {
-            background: linear-gradient(45deg, #28a745, #20c997);
+            background: var(--accent);
             color: white;
             padding: 10px 15px;
             border-radius: 8px;
@@ -187,119 +185,146 @@
             margin-bottom: 20px;
             font-weight: 600;
         }
+
+        /* Responsive design */
+        @media (max-width: 768px) {
+            .main-content {
+                margin-left: 0;
+                padding: 10px;
+            }
+
+            .header h1 {
+                font-size: 2rem;
+            }
+
+            .card-body {
+                padding: 15px;
+            }
+
+            .btn {
+                width: 100%;
+                justify-content: center;
+            }
+        }
     </style>
 </head>
 <body>
-    <div class="container">
-        <a href="/" class="back-button">
-            ← Back to Home
-        </a>
+    <!-- Include Universal Sidebar -->
+    {% include 'sidebar.html' %}
 
-        <div class="header">
-            <h1>⚙️ Settings</h1>
-            <p>Configure system behavior and preferences</p>
-        </div>
-
-        <!-- Job Queue Settings -->
-        <div class="card">
-            <div class="card-header">
-                🔄 Job Queue Configuration
+    <div class="main-content">
+        <div class="container">
+            <div class="header">
+                <h1>
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="3"></circle>
+                        <path d="M12 1v6m0 6v6m-6-6h6m6 0h6M21 12c0 4.97-4.03 9-9 9s-9-4.03-9-9 4.03-9 9-9 9 4.03 9 9z"></path>
+                    </svg>
+                    Settings
+                </h1>
+                <p>Configure system behavior and preferences</p>
             </div>
-            <div class="card-body">
-                {% if error %}
-                <div class="alert alert-error">
-                    Error: {{ error }}
-                </div>
-                {% endif %}
 
-                <div class="current-value">
-                    Current Delay: {{ delay_seconds }} seconds
-                    {% if delay_seconds > 0 %}
-                        ({{ delay_seconds // 60 }} minutes {{ delay_seconds % 60 }} seconds)
-                    {% else %}
-                        (No delay - jobs run immediately)
+            <!-- Job Queue Settings -->
+            <div class="card">
+                <div class="card-header">
+                    🔄 Job Queue Configuration
+                </div>
+                <div class="card-body">
+                    {% if error %}
+                    <div class="alert alert-error">
+                        Error: {{ error }}
+                    </div>
                     {% endif %}
-                </div>
 
-                <form method="POST">
-                    <div class="form-group">
-                        <label for="job_execution_delay_seconds">
-                            Job Execution Delay (seconds)
-                        </label>
-                        <input 
-                            type="number" 
-                            id="job_execution_delay_seconds" 
-                            name="job_execution_delay_seconds" 
-                            value="{{ delay_seconds }}" 
-                            min="0" 
-                            max="86400"
-                            step="1"
-                        >
-                        <div class="form-description">
-                            Delay between job executions to prevent rate limiting. Set to 0 for no delay.
-                            <br>Maximum: 86400 seconds (24 hours)
-                        </div>
+                    <div class="current-value">
+                        Current Delay: {{ delay_seconds }} seconds
+                        {% if delay_seconds > 0 %}
+                            ({{ delay_seconds // 60 }} minutes {{ delay_seconds % 60 }} seconds)
+                        {% else %}
+                            (No delay - jobs run immediately)
+                        {% endif %}
                     </div>
 
-                    <button type="submit" class="btn btn-primary">
-                        💾 Save Settings
-                    </button>
-                </form>
-
-                <div class="examples">
-                    <h4>Common Values:</h4>
-                    <ul>
-                        <li><strong>0 seconds</strong> - No delay (default, fastest)</li>
-                        <li><strong>6 seconds</strong> - ~10 jobs per minute</li>
-                        <li><strong>30 seconds</strong> - 2 jobs per minute</li>
-                        <li><strong>60 seconds</strong> - 1 job per minute</li>
-                        <li><strong>300 seconds</strong> - 1 job per 5 minutes</li>
-                    </ul>
-                </div>
-            </div>
-        </div>
-
-        <!-- Environment Configuration -->
-        <div class="card">
-            <div class="card-header">
-                🌐 Environment Configuration
-            </div>
-            <div class="card-body">
-                {% if env_config %}
-                <div style="margin-bottom: 20px;">
-                    <p><strong>Current .env settings:</strong></p>
-                    <div style="background: #f8f9fa; border-radius: 8px; padding: 15px; font-family: monospace; font-size: 14px; line-height: 1.5;">
-                        {% for key, value in env_config.items() %}
-                        <div style="margin-bottom: 8px;">
-                            <span style="color: #0066cc; font-weight: bold;">{{ key }}</span>=<span style="color: #006600;">{{ value }}</span>
+                    <form method="POST">
+                        <div class="form-group">
+                            <label for="job_execution_delay_seconds">
+                                Job Execution Delay (seconds)
+                            </label>
+                            <input 
+                                type="number" 
+                                id="job_execution_delay_seconds" 
+                                name="job_execution_delay_seconds" 
+                                value="{{ delay_seconds }}" 
+                                min="0" 
+                                max="86400"
+                                step="1"
+                            >
+                            <div class="form-description">
+                                Delay between job executions to prevent rate limiting. Set to 0 for no delay.
+                                <br>Maximum: 86400 seconds (24 hours)
+                            </div>
                         </div>
-                        {% endfor %}
+
+                        <button type="submit" class="btn btn-primary">
+                            💾 Save Settings
+                        </button>
+                    </form>
+
+                    <div class="examples">
+                        <h4>Common Values:</h4>
+                        <ul>
+                            <li><strong>0 seconds</strong> - No delay (default, fastest)</li>
+                            <li><strong>6 seconds</strong> - ~10 jobs per minute</li>
+                            <li><strong>30 seconds</strong> - 2 jobs per minute</li>
+                            <li><strong>60 seconds</strong> - 1 job per minute</li>
+                            <li><strong>300 seconds</strong> - 1 job per 5 minutes</li>
+                        </ul>
                     </div>
                 </div>
-                {% else %}
-                <div class="alert alert-error">
-                    No .env file found. Create a .env file in the project root to configure environment variables.
+            </div>
+
+            <!-- Environment Configuration -->
+            <div class="card">
+                <div class="card-header">
+                    🌐 Environment Configuration
                 </div>
-                {% endif %}
-                
-                <div class="examples">
-                    <h4>Available Environment Variables:</h4>
-                    <ul>
-                        <li><strong>DB_PATH</strong> - Path to the database file</li>
-                        <li><strong>ROOT_DIR</strong> - Root directory for the application</li>
-                        <li><strong>PLAYLISTS_DIR</strong> - Directory containing playlists</li>
-                        <li><strong>LOGS_DIR</strong> - Directory for log files</li>
-                        <li><strong>YOUTUBE_COOKIES_DIR</strong> - Directory for YouTube cookies (optional)</li>
-                        <li><strong>PROXY_URL</strong> - Proxy server URL (optional)</li>
-                        <li><strong>HOST</strong> - Server host address (optional)</li>
-                        <li><strong>PORT</strong> - Server port number (optional)</li>
-                    </ul>
-                </div>
-                
-                <div style="margin-top: 20px; background: #e8f4f8; border-radius: 8px; padding: 15px;">
-                    <h4 style="margin-bottom: 10px; color: #0066cc;">📝 How to Configure:</h4>
-                    <p>Create a <code>.env</code> file in the project root directory with your settings:</p>
-                    <pre style="background: #f8f9fa; border-radius: 4px; padding: 10px; margin: 10px 0; font-size: 13px; overflow-x: auto;">
+                <div class="card-body">
+                    {% if env_config %}
+                    <div style="margin-bottom: 20px;">
+                        <p><strong>Current .env settings:</strong></p>
+                        <div style="background: #f8f9fa; border-radius: 8px; padding: 15px; font-family: monospace; font-size: 14px; line-height: 1.5;">
+                            {% for key, value in env_config.items() %}
+                            <div style="margin-bottom: 8px;">
+                                <span style="color: #0066cc; font-weight: bold;">{{ key }}</span>=<span style="color: #006600;">{{ value }}</span>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% else %}
+                    <div class="alert alert-error">
+                        No .env file found. Create a .env file in the project root to configure environment variables.
+                    </div>
+                    {% endif %}
+                    
+                    <div class="examples">
+                        <h4>Available Environment Variables:</h4>
+                        <ul>
+                            <li><strong>DB_PATH</strong> - Path to the database file</li>
+                            <li><strong>ROOT_DIR</strong> - Root directory for the application</li>
+                            <li><strong>PLAYLISTS_DIR</strong> - Directory containing playlists</li>
+                            <li><strong>LOGS_DIR</strong> - Directory for log files</li>
+                            <li><strong>YOUTUBE_COOKIES_DIR</strong> - Directory for YouTube cookies (optional)</li>
+                            <li><strong>PROXY_URL</strong> - Proxy server URL (optional)</li>
+                            <li><strong>HOST</strong> - Server host address (optional)</li>
+                            <li><strong>PORT</strong> - Server port number (optional)</li>
+                        </ul>
+                    </div>
+                    
+                    <div style="margin-top: 20px; background: #e8f4f8; border-radius: 8px; padding: 15px;">
+                        <h4 style="margin-bottom: 10px; color: #0066cc;">📝 How to Configure:</h4>
+                        <p>Create a <code>.env</code> file in the project root directory with your settings:</p>
+                        <pre style="background: #f8f9fa; border-radius: 4px; padding: 10px; margin: 10px 0; font-size: 13px; overflow-x: auto;">
 # YouTube Playlist Downloader Configuration
 DB_PATH=./tracks.db
 ROOT_DIR=./downloads
@@ -311,25 +336,26 @@ YOUTUBE_COOKIES_DIR=./cookies
 PROXY_URL=http://proxy.example.com:8080
 HOST=0.0.0.0
 PORT=8000</pre>
+                    </div>
                 </div>
             </div>
-        </div>
 
-        <!-- Information Card -->
-        <div class="card">
-            <div class="card-header">
-                ℹ️ Information
-            </div>
-            <div class="card-body">
-                <p>
-                    The job execution delay helps prevent rate limiting when processing YouTube metadata.
-                    This delay is applied <strong>before</strong> each job execution, regardless of job type.
-                </p>
-                <br>
-                <p>
-                    <strong>Note:</strong> Changes take effect immediately for new jobs. 
-                    Currently running jobs are not affected.
-                </p>
+            <!-- Information Card -->
+            <div class="card">
+                <div class="card-header">
+                    ℹ️ Information
+                </div>
+                <div class="card-body">
+                    <p>
+                        The job execution delay helps prevent rate limiting when processing YouTube metadata.
+                        This delay is applied <strong>before</strong> each job execution, regardless of job type.
+                    </p>
+                    <br>
+                    <p>
+                        <strong>Note:</strong> Changes take effect immediately for new jobs. 
+                        Currently running jobs are not affected.
+                    </p>
+                </div>
             </div>
         </div>
     </div>
