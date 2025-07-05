@@ -454,6 +454,9 @@ def settings_page():
     """Settings management page."""
     from flask import request, redirect, url_for, flash
     
+    # Load environment config
+    env_config = _load_env_config()
+    
     if request.method == 'POST':
         try:
             # Get delay value from form
@@ -473,20 +476,20 @@ def settings_page():
             
         except ValueError as e:
             log_message(f"Settings validation error: {e}")
-            return render_template("settings.html", error=str(e), delay_seconds=request.form.get('job_execution_delay_seconds', 0))
+            return render_template("settings.html", error=str(e), delay_seconds=request.form.get('job_execution_delay_seconds', 0), env_config=env_config)
         except Exception as e:
             log_message(f"Settings save error: {e}")
-            return render_template("settings.html", error="Failed to save settings", delay_seconds=request.form.get('job_execution_delay_seconds', 0))
+            return render_template("settings.html", error="Failed to save settings", delay_seconds=request.form.get('job_execution_delay_seconds', 0), env_config=env_config)
     
     # GET request - load current settings
     try:
         conn = get_connection()
         delay_seconds = get_user_setting(conn, 'job_execution_delay_seconds', '0')
         conn.close()
-        return render_template("settings.html", delay_seconds=int(delay_seconds))
+        return render_template("settings.html", delay_seconds=int(delay_seconds), env_config=env_config)
     except Exception as e:
         log_message(f"Settings load error: {e}")
-        return render_template("settings.html", delay_seconds=0, error="Failed to load settings")
+        return render_template("settings.html", delay_seconds=0, error="Failed to load settings", env_config=env_config)
 
 @app.route("/likes")
 def likes_playlists_page():

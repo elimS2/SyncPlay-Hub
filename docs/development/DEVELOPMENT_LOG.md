@@ -567,6 +567,44 @@ Visit /jobs page to track extraction progress
 
 ---
 
+### Log Entry #118 - 2025-07-05 02:20 UTC
+
+**Summary:** Added environment settings display to settings page
+**Impact:** Enhanced settings page to show .env file configuration variables
+
+**Changes Made:**
+1. **app.py Modifications:**
+   - Modified `settings_page()` function to load and pass env_config to template
+   - Added `env_config = _load_env_config()` to load environment variables
+   - Updated all render_template calls to include env_config parameter
+
+2. **templates/settings.html Modifications:**
+   - Added new "Environment Configuration" section
+   - Displays current .env file settings if available
+   - Shows available environment variables with descriptions
+   - Provides example .env file configuration
+   - Added helpful documentation for users
+
+**Technical Details:**
+- Leveraged existing `_load_env_config()` function in app.py
+- Added conditional display based on env_config presence
+- Maintains backward compatibility when no .env file exists
+- Provides clear instructions for .env file creation
+
+**Files Modified:**
+- `app.py` - Enhanced settings_page function
+- `templates/settings.html` - Added environment configuration section
+
+**Testing Needed:**
+- Verify settings page displays correctly with and without .env file
+- Test .env file loading and display functionality
+- Check responsive design on different screen sizes
+
+**Notes:**
+- Settings page now shows both job queue settings and environment variables
+- Users can easily see their current configuration
+- Provides helpful setup instructions for new users
+
 
 
 
