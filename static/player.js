@@ -440,6 +440,65 @@ function getGroupPlaybackInfo(tracks) {
       li.dataset.index = idx;
       if (idx === currentIndex) li.classList.add('playing');
       
+      // Create custom tooltip with SVG icons
+      let tooltipHTML = '';
+      
+      // Add YouTube publish date info
+      if (t.youtube_timestamp || t.youtube_release_timestamp || t.youtube_release_year) {
+        let publishDate = 'Unknown';
+        
+        if (t.youtube_timestamp) {
+          const date = new Date(t.youtube_timestamp * 1000);
+          publishDate = date.toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric'
+          });
+        } else if (t.youtube_release_timestamp) {
+          const date = new Date(t.youtube_release_timestamp * 1000);
+          publishDate = date.toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric'
+          });
+        } else if (t.youtube_release_year) {
+          publishDate = t.youtube_release_year;
+        }
+        
+        tooltipHTML += `<div class="tooltip-row"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg><strong>Publish Date:</strong> ${publishDate}</div>`;
+      } else {
+        tooltipHTML += `<div class="tooltip-row"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg><strong>Publish Date:</strong> Unknown</div>`;
+      }
+      
+      // Add last play date info
+      if (t.last_play) {
+        try {
+          const lastPlayDate = new Date(t.last_play.replace(' ', 'T') + 'Z');
+          const lastPlayFormatted = lastPlayDate.toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+          });
+          tooltipHTML += `<div class="tooltip-row"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12,6 12,12 16,14"></polyline></svg><strong>Last Played:</strong> ${lastPlayFormatted}</div>`;
+        } catch (e) {
+          tooltipHTML += `<div class="tooltip-row"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12,6 12,12 16,14"></polyline></svg><strong>Last Played:</strong> Never</div>`;
+        }
+      } else {
+        tooltipHTML += `<div class="tooltip-row"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12,6 12,12 16,14"></polyline></svg><strong>Last Played:</strong> Never</div>`;
+      }
+      
+      // Add playback statistics
+      tooltipHTML += `<div class="tooltip-section"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="20" x2="12" y2="10"></line><line x1="18" y1="20" x2="18" y2="4"></line><line x1="6" y1="20" x2="6" y2="16"></line></svg><strong>Playback Statistics:</strong></div>`;
+      tooltipHTML += `<div class="tooltip-row"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5,3 19,12 5,21"></polygon></svg>Total Plays: ${t.play_starts || 0}</div>`;
+      tooltipHTML += `<div class="tooltip-row"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20,6 9,17 4,12"></polyline></svg>Completed Plays: ${t.play_finishes || 0}</div>`;
+      tooltipHTML += `<div class="tooltip-row"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5,4 15,12 5,20"></polygon><line x1="19" y1="5" x2="19" y2="19"></line></svg>Next Button Clicks: ${t.play_nexts || 0}</div>`;
+      tooltipHTML += `<div class="tooltip-row"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>Likes: ${t.play_likes || 0}</div>`;
+      
+      // Store tooltip content in data attribute
+      li.setAttribute('data-tooltip-html', tooltipHTML);
+      
       // Create track content container
       const trackContent = document.createElement('div');
       trackContent.className = 'track-content';
@@ -490,6 +549,75 @@ function getGroupPlaybackInfo(tracks) {
       trackContent.appendChild(deleteBtn);
       li.appendChild(trackContent);
       listElem.appendChild(li);
+    });
+    
+    // Create global tooltip system
+    setupGlobalTooltip();
+  }
+  
+  function setupGlobalTooltip() {
+    // Remove existing tooltip if any
+    const existingTooltip = document.getElementById('global-tooltip');
+    if (existingTooltip) {
+      existingTooltip.remove();
+    }
+    
+    // Create global tooltip element
+    const tooltip = document.createElement('div');
+    tooltip.id = 'global-tooltip';
+    tooltip.className = 'custom-tooltip';
+    tooltip.style.display = 'none';
+    document.body.appendChild(tooltip);
+    
+    // Add event listeners to all tracks with tooltip data
+    const trackItems = listElem.querySelectorAll('li[data-tooltip-html]');
+    
+    trackItems.forEach(item => {
+      item.addEventListener('mouseenter', (e) => {
+        const tooltipHTML = item.getAttribute('data-tooltip-html');
+        tooltip.innerHTML = tooltipHTML;
+        tooltip.style.display = 'block';
+        
+        // Position tooltip intelligently
+        const rect = item.getBoundingClientRect();
+        const tooltipRect = tooltip.getBoundingClientRect();
+        const windowWidth = window.innerWidth;
+        const windowHeight = window.innerHeight;
+        
+        let left, top;
+        
+        // Check if there's enough space on the right
+        if (rect.right + tooltipRect.width + 20 <= windowWidth) {
+          // Show on the right
+          left = rect.right + 10;
+        } else {
+          // Show on the left
+          left = rect.left - tooltipRect.width - 10;
+        }
+        
+        // Ensure tooltip doesn't go off screen horizontally
+        if (left < 10) left = 10;
+        if (left + tooltipRect.width > windowWidth - 10) {
+          left = windowWidth - tooltipRect.width - 10;
+        }
+        
+        // Position vertically
+        top = rect.top;
+        
+        // Ensure tooltip doesn't go off screen vertically
+        if (top + tooltipRect.height > windowHeight - 10) {
+          top = windowHeight - tooltipRect.height - 10;
+        }
+        if (top < 10) top = 10;
+        
+        tooltip.style.position = 'fixed';
+        tooltip.style.left = left + 'px';
+        tooltip.style.top = top + 'px';
+      });
+      
+      item.addEventListener('mouseleave', () => {
+        tooltip.style.display = 'none';
+      });
     });
   }
 

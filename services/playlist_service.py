@@ -35,6 +35,30 @@ def _get_last_play_ts(video_id: str) -> Optional[str]:
     except Exception:
         return None
 
+def _get_track_stats(video_id: str) -> dict:
+    """Get track statistics for a video."""
+    if not video_id:
+        return {}
+    from database import get_connection
+    try:
+        conn = get_connection()
+        row = conn.execute(
+            "SELECT play_starts, play_finishes, play_nexts, play_prevs, play_likes FROM tracks WHERE video_id=?", 
+            (video_id,)
+        ).fetchone()
+        conn.close()
+        if not row:
+            return {}
+        return {
+            "play_starts": row["play_starts"] or 0,
+            "play_finishes": row["play_finishes"] or 0,
+            "play_nexts": row["play_nexts"] or 0,
+            "play_prevs": row["play_prevs"] or 0,
+            "play_likes": row["play_likes"] or 0
+        }
+    except Exception:
+        return {}
+
 def scan_tracks(scan_root: Path) -> List[dict]:
     """Scan a directory for media files and return track information, using YouTube metadata if available."""
     from database import get_connection, get_youtube_metadata_by_id
@@ -80,6 +104,11 @@ def scan_tracks(scan_root: Path) -> List[dict]:
                 "last_play": _get_last_play_ts(video_id) if video_id else None,
             }
             
+            # Add track statistics if video_id exists
+            if video_id:
+                track_stats = _get_track_stats(video_id)
+                track_data.update(track_stats)
+            
             # Add YouTube metadata if available
             if youtube_metadata:
                 try:
@@ -96,6 +125,13 @@ def scan_tracks(scan_root: Path) -> List[dict]:
                         track_data["youtube_view_count"] = youtube_metadata['view_count']
                     if 'uploader' in keys:
                         track_data["youtube_uploader"] = youtube_metadata['uploader']
+                    # Add date fields for tooltip
+                    if 'timestamp' in keys:
+                        track_data["youtube_timestamp"] = youtube_metadata['timestamp']
+                    if 'release_timestamp' in keys:
+                        track_data["youtube_release_timestamp"] = youtube_metadata['release_timestamp']
+                    if 'release_year' in keys:
+                        track_data["youtube_release_year"] = youtube_metadata['release_year']
                 except Exception as e:
                     print(f"Warning: Failed to extract metadata fields for {video_id}: {e}")
             

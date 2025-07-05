@@ -303,6 +303,71 @@
       background: rgba(255,255,255,0.4);
       border-color: rgba(255,255,255,0.7);
     }
+
+    /* Enhanced tooltip styles */
+    #tracklist li {
+      position: relative;
+      white-space: pre-line;
+    }
+    
+    /* Custom tooltip with SVG icons */
+    .custom-tooltip {
+      position: fixed;
+      padding: 12px;
+      background: rgba(0, 0, 0, 0.9);
+      color: white;
+      border-radius: 8px;
+      font-size: 12px;
+      line-height: 1.4;
+      z-index: 1000;
+      max-width: 300px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      pointer-events: none;
+      display: none;
+      white-space: nowrap;
+    }
+    
+    .tooltip-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 4px;
+    }
+    
+    .tooltip-section {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 8px;
+      margin-bottom: 6px;
+      border-top: 1px solid rgba(255, 255, 255, 0.1);
+      padding-top: 8px;
+    }
+    
+    .tooltip-row svg, .tooltip-section svg {
+      flex-shrink: 0;
+      opacity: 0.8;
+    }
+    
+    .tooltip-row strong, .tooltip-section strong {
+      font-weight: 600;
+      margin-right: 4px;
+    }
+    
+    /* Light mode tooltip */
+    @media (prefers-color-scheme: light) {
+      .custom-tooltip {
+        background: rgba(255, 255, 255, 0.95);
+        color: #333;
+        border: 1px solid rgba(0, 0, 0, 0.1);
+      }
+      
+      .tooltip-section {
+        border-top: 1px solid rgba(0, 0, 0, 0.1);
+      }
+    }
   </style>
   <script>
     // Local server IP injected by Flask for proper Cast functionality
