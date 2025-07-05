@@ -222,11 +222,15 @@ def playlist_page(playlist_path: str):
 
 @app.route("/tracks")
 def tracks_page():
-    """DB Tracks Page."""
+    """DB Tracks Page with optional search functionality."""
+    from flask import request
+    search_query = request.args.get("search", "").strip()
+    
     conn = get_connection()
-    tracks = list(iter_tracks_with_playlists(conn))
+    tracks = list(iter_tracks_with_playlists(conn, search_query if search_query else None))
     conn.close()
-    return render_template("tracks.html", tracks=tracks)
+    
+    return render_template("tracks.html", tracks=tracks, search_query=search_query)
 
 @app.route("/history")
 @app.route("/events")

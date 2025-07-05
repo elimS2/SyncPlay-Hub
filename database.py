@@ -325,10 +325,14 @@ def link_track_playlist(conn: sqlite3.Connection, track_id: int, playlist_id: in
         conn.commit()
 
 
-def iter_tracks_with_playlists(conn: sqlite3.Connection) -> Iterator[sqlite3.Row]:
-    """Yield tracks with aggregated playlist names, using YouTube metadata title if available."""
-    for row in conn.execute(
-        """
+def iter_tracks_with_playlists(conn: sqlite3.Connection, search_query: str = None) -> Iterator[sqlite3.Row]:
+    """Yield tracks with aggregated playlist names, using YouTube metadata title if available.
+    
+    Args:
+        conn: Database connection
+        search_query: Optional search query to filter tracks by title (case-insensitive)
+    """
+    base_query = """
         SELECT t.*, 
                GROUP_CONCAT(p.name, ', ') AS playlists,
                COALESCE(ym.title, t.name) AS display_name
@@ -336,10 +340,19 @@ def iter_tracks_with_playlists(conn: sqlite3.Connection) -> Iterator[sqlite3.Row
         LEFT JOIN track_playlists tp ON tp.track_id = t.id
         LEFT JOIN playlists p ON p.id = tp.playlist_id
         LEFT JOIN youtube_video_metadata ym ON ym.youtube_id = t.video_id
+    """
+    
+    params = []
+    if search_query:
+        base_query += " WHERE COALESCE(ym.title, t.name) LIKE ? COLLATE NOCASE"
+        params.append(f"%{search_query}%")
+    
+    base_query += """
         GROUP BY t.id
         ORDER BY COALESCE(ym.title, t.name) COLLATE NOCASE
-        """
-    ):
+    """
+    
+    for row in conn.execute(base_query, params):
         yield row 
 
 

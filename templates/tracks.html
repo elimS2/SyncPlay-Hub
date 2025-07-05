@@ -17,6 +17,39 @@
 <body>
   <h1>Track Library</h1>
   <p><a href="/">← Back to Home</a></p>
+  
+  <!-- Search Form -->
+  <div style="margin-bottom: 20px;">
+    <form method="GET" action="/tracks" style="display: flex; align-items: center; gap: 10px;">
+      <input 
+        type="text" 
+        name="search" 
+        value="{{ search_query or '' }}" 
+        placeholder="Search tracks by title..." 
+        style="padding: 8px 12px; background: #333; color: #eee; border: 1px solid #555; border-radius: 4px; flex: 1; max-width: 400px;"
+      />
+      <button 
+        type="submit" 
+        style="padding: 8px 16px; background: #61dafb; color: #111; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;"
+      >
+        Search
+      </button>
+      {% if search_query %}
+      <a 
+        href="/tracks" 
+        style="padding: 8px 16px; background: #666; color: #eee; text-decoration: none; border-radius: 4px; display: inline-block;"
+      >
+        Clear
+      </a>
+      {% endif %}
+    </form>
+    {% if search_query %}
+    <p style="margin-top: 10px; color: #ccc; font-size: 14px;">
+      Search results for: <strong>"{{ search_query }}"</strong>
+    </p>
+    {% endif %}
+  </div>
+  
   <table id="trackTable">
     <thead>
       <tr>
