@@ -755,52 +755,83 @@ class JobQueueService:
     
     def get_queue_stats(self) -> Dict[str, Any]:
         """Получает статистику очереди."""
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.cursor()
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+                
+                # Считаем задачи по статусам
+                cursor.execute("""
+                    SELECT status, COUNT(*) 
+                    FROM job_queue 
+                    GROUP BY status
+                """)
+                
+                status_counts = dict(cursor.fetchall())
+                
+                # Считаем задачи по типам
+                cursor.execute("""
+                    SELECT job_type, COUNT(*) 
+                    FROM job_queue 
+                    GROUP BY job_type
+                """)
+                
+                type_counts = dict(cursor.fetchall())
+                
+                # Общее количество задач
+                cursor.execute("SELECT COUNT(*) FROM job_queue")
+                total_jobs = cursor.fetchone()[0]
+                
+                # Информация о воркерах
+                with self._lock:
+                    worker_info = [
+                        worker.get_worker_info() 
+                        for worker in self._workers.values()
+                    ]
+                    running_jobs_count = len(self._running_jobs)
             
-            # Считаем задачи по статусам
-            cursor.execute("""
-                SELECT status, COUNT(*) 
-                FROM job_queue 
-                GROUP BY status
-            """)
+            # Извлекаем статистику из status_counts
+            completed_jobs = status_counts.get('completed', 0)
+            failed_jobs = status_counts.get('failed', 0)
+            pending_jobs = status_counts.get('pending', 0)
             
-            status_counts = dict(cursor.fetchall())
+            # Время работы сервиса
+            uptime = (datetime.utcnow() - self._stats['start_time']).total_seconds()
             
-            # Считаем задачи по типам
-            cursor.execute("""
-                SELECT job_type, COUNT(*) 
-                FROM job_queue 
-                GROUP BY job_type
-            """)
+            return {
+                'status_counts': status_counts,
+                'type_counts': type_counts,
+                'workers': {
+                    'total': len(self._workers),
+                    'busy': sum(1 for w in worker_info if w['status'] == 'busy'),
+                    'idle': sum(1 for w in worker_info if w['status'] == 'idle'),
+                    'info': worker_info
+                },
+                'running_jobs': running_jobs_count,
+                'total_jobs': total_jobs,
+                'completed_jobs': completed_jobs,
+                'failed_jobs': failed_jobs,
+                'pending_jobs': pending_jobs,
+                'uptime_seconds': uptime
+            }
             
-            type_counts = dict(cursor.fetchall())
-            
-            # Информация о воркерах
-            with self._lock:
-                worker_info = [
-                    worker.get_worker_info() 
-                    for worker in self._workers.values()
-                ]
-                running_jobs_count = len(self._running_jobs)
-        
-        uptime = (datetime.utcnow() - self._stats['start_time']).total_seconds()
-        
-        return {
-            'status_counts': status_counts,
-            'type_counts': type_counts,
-            'workers': {
-                'total': len(self._workers),
-                'busy': sum(1 for w in worker_info if w['status'] == 'busy'),
-                'idle': sum(1 for w in worker_info if w['status'] == 'idle'),
-                'info': worker_info
-            },
-            'running_jobs': running_jobs_count,
-            'total_jobs': self._stats['total_jobs'],
-            'completed_jobs': self._stats['completed_jobs'],
-            'failed_jobs': self._stats['failed_jobs'],
-            'uptime_seconds': uptime
-        }
+        except Exception as e:
+            # Возвращаем базовую статистику в случае ошибки
+            return {
+                'status_counts': {},
+                'type_counts': {},
+                'workers': {
+                    'total': 0,
+                    'busy': 0,
+                    'idle': 0,
+                    'info': []
+                },
+                'running_jobs': 0,
+                'total_jobs': 0,
+                'completed_jobs': 0,
+                'failed_jobs': 0,
+                'pending_jobs': 0,
+                'uptime_seconds': 0
+            }
     
     def start(self):
         """Запуск сервиса (если он еще не запущен)."""

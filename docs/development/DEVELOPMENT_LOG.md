@@ -498,6 +498,43 @@ Visit /jobs page to track extraction progress
 
 ---
 
+### Log Entry #125 - 2025-07-05 01:35 UTC
+
+**Fixed API Error in Jobs Queue Status Endpoint**
+
+**Issue:** 
+- User reported error "'status'" on jobs page (http://192.168.88.82:8000/jobs)
+- API endpoint `/api/jobs/queue/status` was returning malformed JSON response
+- JavaScript loadQueueStatus() function was failing with KeyError
+
+**Root Cause:**
+- Method `get_queue_stats()` in `JobQueueService` was accessing uninitialized fields from `self._stats`
+- Fields `total_jobs`, `completed_jobs`, `failed_jobs` were always 0 and never updated
+- No error handling for database access failures
+
+**Solution:**
+- Updated `get_queue_stats()` method to calculate statistics directly from database
+- Added proper error handling with try-catch block
+- Added `total_jobs` calculation from database query
+- Extract status counts directly from database results instead of using `self._stats`
+- Return fallback statistics in case of database errors
+
+**Files Modified:**
+- `services/job_queue_service.py` - Enhanced `get_queue_stats()` method
+
+**Impact:**
+- Jobs page now loads correctly without "'status'" error
+- API endpoint returns proper JSON with real statistics from database
+- Improved error resilience for queue status requests
+- Better user experience on jobs management page
+
+**Testing:**
+- API endpoint tested via curl: returns proper JSON response
+- Error "'status'" resolved
+- All queue statistics now calculated from actual database data
+
+---
+
 
 
 
