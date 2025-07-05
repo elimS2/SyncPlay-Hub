@@ -152,6 +152,14 @@
       box-shadow:0 0 6px rgba(255,255,255,0.6);
     }
 
+    /* Video container and responsive sizing */
+    #player {
+      width: 100%;
+      max-height: calc(100vh - 200px); /* Prevent vertical videos from exceeding viewport */
+      object-fit: contain; /* Maintain aspect ratio */
+      background: #000;
+    }
+    
     /* fullscreen adjustments */
     #videoWrapper:fullscreen video{width:100%;height:100%;object-fit:contain;}
     #videoWrapper:-webkit-full-screen video{width:100%;height:100%;object-fit:contain;}
