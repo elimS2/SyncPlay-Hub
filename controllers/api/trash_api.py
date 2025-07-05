@@ -184,30 +184,32 @@ def api_clear_trash():
                     dir_path.rmdir()
                     log_message(f"[Trash] Removed empty directory: {dir_path}")
         except Exception as e:
-            log_message(f"[Trash] Warning: Could not remove empty directory: {e}")
+            log_message(f"[Trash] Warning: Could not remove some empty directories: {e}")
         
-        # Update database - mark all deleted tracks as cleared
+        # Update database: mark all deleted tracks as not restorable from file 
         conn = get_connection()
-        
-        # Get all deleted tracks to update their status
-        deleted_tracks = db.get_deleted_tracks(conn)
-        for track in deleted_tracks:
-            # Update with cleared flag
-            db.update_deleted_track_status(conn, track['id'], 'cleared')
-        
+        cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE deleted_tracks
+            SET can_restore = 0
+            WHERE trash_path IS NOT NULL AND can_restore = 1
+        """)
+        affected_records = cursor.rowcount
+        conn.commit()
         conn.close()
         
-        # Format freed size
-        formatted_freed = _format_file_size(size_freed)
+        formatted_size = _format_file_size(size_freed)
         
-        log_message(f"[Trash] Cleared trash folder: {files_deleted} files deleted, {formatted_freed} freed")
+        log_message(f"[Trash] Cleared trash: {files_deleted} files deleted, {formatted_size} freed")
+        log_message(f"[Trash] Updated {affected_records} database records (marked as not restorable)")
         
         return jsonify({
             "status": "ok",
             "message": f"Trash cleared successfully",
             "files_deleted": files_deleted,
             "size_freed": size_freed,
-            "formatted_freed": formatted_freed
+            "formatted_size": formatted_size,
+            "database_records_updated": affected_records
         })
         
     except Exception as e:
