@@ -2,15 +2,21 @@
 
 ## Project Overview
 - **Start:** 2025-06-16 03:29:20 +0300 (Initial import)
-- **End:** 2025-07-05 03:40:00 +0300 (feat: Add environment configuration display to settings page)
+- **End:** 2025-07-05 11:51:00 +0300 (fix: Translate trash API refactoring documentation to English)
 - **Duration:** 19 days intensive development
-- **Total:** 159 commits
+- **Total:** 161 commits
 
 ---
 
 ## All Commits (Chronological Order - ORIGINAL FULL TITLES)
 
-**#158** `7c3ebb4` 2025-07-05 08:00:00 +0300  
+**#161** `af94a2f` 2025-07-05 11:51:00 +0300  
+fix: Translate trash API refactoring documentation to English
+
+**#160** `01b1c8d` 2025-07-05 11:40:00 +0300  
+feat: Refactor trash management to separate API module with improved architecture
+
+**#159** `7c3ebb4` 2025-07-05 08:00:00 +0300  
 feat: Implement comprehensive trash management system with statistics and clearing functionality
 
 **#155** `bcf2ba9` 2025-07-05 05:10:00 +0300  

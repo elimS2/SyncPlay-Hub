@@ -504,7 +504,7 @@ def likes_player_page(like_count: int):
 
 # Register API blueprints
 app.register_blueprint(api_bp)
-app.register_blueprint(trash_bp)
+app.register_blueprint(trash_bp, url_prefix='/api')
 
 def _load_env_config():
     """Load configuration from .env file."""
