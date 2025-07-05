@@ -1175,41 +1175,47 @@ Fixed volume wheel control by correcting HTML input step attribute. The issue wa
 
 **Note:** User interface text in templates remains multilingual as intended, only code-level language has been standardized to English.
 
-### Log Entry #137 - 2025-07-05 21:36 UTC
+### Log Entry #137 - 2025-07-05 21:46 UTC
 
-**Context:** Пользователь запросил добавление кнопки для упорядочивания плейлиста по возрастанию даты публикации на YouTube (от старых к новым видео) на страницах типа http://192.168.88.82:8000/playlist/News.
+**Summary:** Added playback speed control functionality to video player
+
+**Files Modified:**
+- `templates/index.html` - Added speed control button and CSS styling
+- `static/player.js` - Added speed control logic with cycling through speeds
+- `static/player-virtual.js` - Added speed control for virtual playlists
+- `templates/likes_player.html` - Added speed control button for likes playlists
 
 **Changes Made:**
+1. **HTML Template Updates:**
+   - Added speed control button with clock icon and speed label
+   - Positioned button between volume slider and progress bar
+   - Added CSS styling for modern appearance with hover effects
 
-#### Templates Updated:
-1. **templates/index.html**: Добавлена кнопка `orderByDateBtn` с иконкой календаря после кнопки Smart shuffle
-2. **templates/likes_player.html**: Добавлена аналогичная кнопка для виртуальных плейлистов
+2. **JavaScript Functionality:**
+   - Implemented speed options: [0.5x, 0.75x, 1x, 1.25x, 1.5x, 2x]
+   - Default speed starts at 1x (normal speed)
+   - Click cycling through all available speeds
+   - Speed preservation when loading new tracks
+   - Speed change event logging for analytics
 
-#### JavaScript Functionality:
-3. **static/player.js**: 
-   - Добавлена функция `orderByPublishDate()` для сортировки треков по дате публикации YouTube
-   - Приоритет полей: `youtube_timestamp` > `youtube_release_timestamp` > `youtube_release_year`
-   - Добавлен обработчик `orderByDateBtn.onclick` 
-   - Сортировка происходит по возрастанию (старые видео в начале, новые в конце)
+3. **User Experience:**
+   - Visual speed indicator shows current playback rate (e.g., "1.5x")
+   - Tooltip shows current speed and click instruction
+   - Smooth transitions between speeds
+   - Works on both regular playlists and virtual likes playlists
 
-4. **static/player-virtual.js**:
-   - Добавлена функция `orderByPublishDate()` адаптированная для виртуальных плейлистов
-   - Использует поля `timestamp`, `release_timestamp`, `release_year` из API треков
-   - Добавлен обработчик `orderByDateBtn.onclick`
-   - Включает отладочную информацию с префиксом `[Virtual]`
+**Technical Implementation:**
+- Uses HTML5 video `playbackRate` property
+- Speed state managed in JavaScript with persistent index
+- Speed preserved across track changes via `loadTrack()` function
+- Integrated with existing event reporting system
 
-**Technical Details:**
-- Кнопка использует современный стиль `modern-btn modern-btn-accent`
-- SVG иконка представляет календарь с галочкой
-- Функция сортировки обрабатывает треки без метаданных даты (помещает в начало)
-- Логирование в консоль показывает первые 3 трека для верификации сортировки
-- Совместимо с существующими функциями Shuffle и Smart shuffle
+**User Request Fulfilled:**
+✅ Added playback speed control button allowing 1.5x speed playback
+✅ Available on `/playlist/News` and all other playlist pages
+✅ Accessible via single click - cycles through all speeds including 1.5x
 
-**User Impact:**
-- Пользователи теперь могут упорядочить любой плейлист по дате публикации YouTube
-- Особенно полезно для новостных и образовательных каналов
-- Работает как для обычных плейлистов, так и для виртуальных плейлистов по лайкам
-- Треки сортируются от самых старых к самым новым (хронологический порядок)
+**Testing Status:** Ready for user testing
 
 
 

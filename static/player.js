@@ -271,6 +271,8 @@ function getGroupPlaybackInfo(tracks) {
   const timeLabel = document.getElementById('timeLabel');
   const cMute = document.getElementById('cMute');
   const cVol = document.getElementById('cVol');
+  const cSpeed = document.getElementById('cSpeed');
+  const speedLabel = document.getElementById('speedLabel');
   const toggleListBtn = document.getElementById('toggleListBtn');
   const playlistPanel = document.getElementById('playlistPanel');
   const controlBar = document.getElementById('controlBar');
@@ -279,6 +281,10 @@ function getGroupPlaybackInfo(tracks) {
   const streamBtn = document.getElementById('streamBtn');
   let streamIdLeader = null;
   let tickTimer=null;
+
+  // Playback speed control
+  const speedOptions = [0.5, 0.75, 1, 1.25, 1.5, 2];
+  let currentSpeedIndex = 2; // Default to 1x (index 2)
 
   const playlistRel = typeof PLAYLIST_REL !== 'undefined' ? PLAYLIST_REL : '';
   let tracks = await fetchTracks(playlistRel);
@@ -677,6 +683,10 @@ function getGroupPlaybackInfo(tracks) {
     const track=queue[currentIndex];
     media.src=track.url;
     if(autoplay){media.play();}else{media.load();}
+    
+    // Preserve playback speed when loading new track
+    media.playbackRate = speedOptions[currentSpeedIndex];
+    
     if('mediaSession' in navigator){
         navigator.mediaSession.metadata = new MediaMetadata({
             title: track.name,
@@ -905,6 +915,44 @@ function getGroupPlaybackInfo(tracks) {
 
   cPrev.onclick = () => prevBtn.click();
   cNext.onclick = () => nextBtn.click();
+
+  // Speed control functionality
+  function updateSpeedDisplay() {
+    const speed = speedOptions[currentSpeedIndex];
+    if (speedLabel) {
+      speedLabel.textContent = `${speed}x`;
+    }
+    if (cSpeed) {
+      cSpeed.title = `Playback Speed: ${speed}x (click to change)`;
+    }
+  }
+
+  function cyclePlaybackSpeed() {
+    currentSpeedIndex = (currentSpeedIndex + 1) % speedOptions.length;
+    const newSpeed = speedOptions[currentSpeedIndex];
+    
+    if (media) {
+      media.playbackRate = newSpeed;
+    }
+    
+    updateSpeedDisplay();
+    
+    console.log(`⏩ Playback speed changed to ${newSpeed}x`);
+    
+    // Report speed change event if we have a current track
+    if (currentIndex >= 0 && currentIndex < queue.length) {
+      const track = queue[currentIndex];
+      reportEvent(track.video_id, 'speed_change', media.currentTime, { speed: newSpeed });
+    }
+  }
+
+  // Initialize speed display
+  updateSpeedDisplay();
+
+  // Speed control button click handler
+  if (cSpeed) {
+    cSpeed.onclick = cyclePlaybackSpeed;
+  }
 
   function togglePlay() {
     if (media.paused) {

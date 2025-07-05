@@ -134,6 +134,24 @@
       background:#fff;
     }
     
+    /* Speed control button styling */
+    #cSpeed {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      min-width: 60px;
+      padding: 8px 12px;
+    }
+    #cSpeed:hover {
+      background: rgba(97, 218, 251, 0.2);
+      border-color: rgba(97, 218, 251, 0.5);
+    }
+    #speedLabel {
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+    }
+    
     /* Enhanced progress bar styling */
     .progress{
       flex:1;height:8px;background:rgba(255,255,255,0.2);
@@ -524,6 +542,13 @@
             </svg>
           </button>
           <input type="range" id="cVol" min="0" max="1" step="0.01" value="1" class="vol-slider" />
+          <button id="cSpeed" class="ctrl-btn" title="Playback Speed: 1x">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10"></circle>
+              <polyline points="12,6 12,12 16,14"></polyline>
+            </svg>
+            <span id="speedLabel">1x</span>
+          </button>
         </div>
         <div id="progressContainer" class="progress"><div id="progressBar" class="progress-bar"></div></div>
         <span id="timeLabel" class="time">0:00 / 0:00</span>

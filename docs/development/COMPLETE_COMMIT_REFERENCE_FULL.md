@@ -2,13 +2,45 @@
 
 ## Project Overview
 - **Start:** 2025-06-16 03:29:20 +0300 (Initial import)
-- **End:** 2025-07-05 18:11:00 +0300 (feat: Add track tooltips to likes_player page and fix like button functionality)
+- **End:** 2025-07-05 21:46:00 +0300 (feat: add YouTube publish date sorting to playlist pages)
 - **Duration:** 19 days intensive development
-- **Total:** 167 commits
+- **Total:** 175 commits
 
 ---
 
 ## All Commits (Chronological Order - ORIGINAL FULL TITLES)
+
+**#175** `1bcc5e7` 2025-07-05 21:46:00 +0300  
+feat: add YouTube publish date sorting to playlist pages  
+Implemented YouTube publish date sorting functionality allowing users to order playlist tracks chronologically from oldest to newest videos. Added orderByDateBtn button with calendar icon to both regular and virtual playlists, enabling better organization of content especially for news and educational channels.
+
+**#174** `629d904` 2025-07-05 21:30:00 +0300  
+feat: enhance channel sync with database deletion check and URL preservation  
+Enhanced channel synchronization to detect manually deleted tracks and preserve source URLs during sync operations for improved data integrity.
+
+**#173** `b7246b1` 2025-07-05 21:15:00 +0300  
+feat: add database check for manually deleted tracks during channel sync  
+Added comprehensive database verification to detect tracks that were manually deleted from disk during channel synchronization process.
+
+**#172** `de2dede` 2025-07-05 21:00:00 +0300  
+feat: extend universal sidebar navigation to all main pages  
+Extended the universal sidebar navigation component to all main application pages for consistent user experience and improved navigation.
+
+**#171** `2ee5a4d` 2025-07-05 20:45:00 +0300  
+feat: add universal sidebar navigation with Vue.js reactive framework  
+Implemented universal sidebar navigation component with reactive Vue.js framework for dynamic menu management across the application.
+
+**#170** `6352fef` 2025-07-05 19:39:00 +0300  
+Fix case-insensitive search by moving filtering to Python  
+Resolved case-insensitive search functionality by implementing server-side filtering in Python instead of client-side JavaScript for better performance and reliability.
+
+**#169** `159646e` 2025-07-05 18:30:00 +0300  
+Add track search functionality to tracks page  
+Implemented comprehensive track search functionality allowing users to search through track titles with real-time filtering and improved user experience.
+
+**#168** `5b83c59` 2025-07-05 19:15:00 +0300  
+fix: Resolve Windows file lock deletion error (WinError 32) during playback  
+Fixed critical Windows file lock issue that prevented track deletion during playback by implementing proper media source release and lock handling mechanisms.
 
 **#167** `b8a3518` 2025-07-05 18:11:00 +0300  
 feat: Add track tooltips to likes_player page and fix like button functionality  
