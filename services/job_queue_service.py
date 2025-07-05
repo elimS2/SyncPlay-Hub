@@ -36,7 +36,7 @@ except ImportError:
 class JobQueueService:
     """Main job queue management service."""
     
-    def __init__(self, db_path: str = None, max_workers: int = 3):
+    def __init__(self, db_path: str = None, max_workers: int = 1):
         # Database setup
         if db_path is None:
             # Use .env file to determine database path
@@ -851,54 +851,75 @@ class JobQueueService:
     def get_queue_stats(self) -> Dict[str, Any]:
         """Get queue statistics."""
         try:
-            with sqlite3.connect(self.db_path) as conn:
-                cursor = conn.cursor()
-                
-                # Count jobs by status
-                cursor.execute("""
-                    SELECT status, COUNT(*) 
-                    FROM job_queue 
-                    GROUP BY status
-                """)
-                
-                status_counts = dict(cursor.fetchall())
-                
-                # Count jobs by type
-                cursor.execute("""
-                    SELECT job_type, COUNT(*) 
-                    FROM job_queue 
-                    GROUP BY job_type
-                """)
-                
-                type_counts = dict(cursor.fetchall())
-                
-                # Total job count
-                cursor.execute("SELECT COUNT(*) FROM job_queue")
-                total_jobs = cursor.fetchone()[0]
-                
-                # Worker information
-                with self._lock:
-                    worker_info = [
-                        worker.get_worker_info() 
-                        for worker in self._workers.values()
-                    ]
-                    running_jobs_count = len(self._running_jobs)
+            # Step 1: Direct DB connection (same as debug_stats)
+            status_counts = {}
+            type_counts = {}
+            total_jobs = 0
             
-            # Extract statistics from status_counts
+            try:
+                with sqlite3.connect(self.db_path) as conn:
+                    cursor = conn.cursor()
+                    
+                    # Count jobs by status
+                    cursor.execute("SELECT status, COUNT(*) FROM job_queue GROUP BY status")
+                    status_counts = dict(cursor.fetchall())
+                    
+                    # Count jobs by type
+                    cursor.execute("SELECT job_type, COUNT(*) FROM job_queue GROUP BY job_type")
+                    type_counts = dict(cursor.fetchall())
+                    
+                    # Total count
+                    cursor.execute("SELECT COUNT(*) FROM job_queue")
+                    total_jobs = cursor.fetchone()[0]
+                    
+            except Exception as e:
+                # If DB access fails, return empty stats
+                return {
+                    'status_counts': {},
+                    'type_counts': {},
+                    'workers': {'total': 0, 'busy': 0, 'idle': 0, 'info': []},
+                    'running_jobs': 0,
+                    'total_jobs': 0,
+                    'completed_jobs': 0,
+                    'failed_jobs': 0,
+                    'pending_jobs': 0,
+                    'uptime_seconds': 0
+                }
+            
+            # Step 2: Worker info
+            try:
+                with self._lock:
+                    worker_info = [worker.get_worker_info() for worker in self._workers.values()]
+                    running_jobs_count = len(self._running_jobs)
+            except Exception as e:
+                worker_info = []
+                running_jobs_count = 0
+                
+            # Step 3: Stats calculation
             completed_jobs = status_counts.get('completed', 0)
             failed_jobs = status_counts.get('failed', 0)
             pending_jobs = status_counts.get('pending', 0)
             
-            # Service uptime
-            uptime = (datetime.utcnow() - self._stats['start_time']).total_seconds()
+            # Step 4: Uptime calculation
+            try:
+                start_time = self._stats.get('start_time', datetime.utcnow())
+                if isinstance(start_time, str):
+                    try:
+                        start_time = datetime.fromisoformat(start_time.replace('GMT', '+00:00'))
+                    except Exception:
+                        start_time = datetime.utcnow()
+                
+                uptime = (datetime.utcnow() - start_time).total_seconds()
+            except Exception as e:
+                uptime = 0
             
             return {
                 'status_counts': status_counts,
                 'type_counts': type_counts,
                 'workers': {
                     'total': len(self._workers),
-                    'busy': sum(1 for w in worker_info if w['status'] == 'busy'),
-                    'idle': sum(1 for w in worker_info if w['status'] == 'idle'),
+                    'busy': sum(1 for w in worker_info if w.get('status') == 'busy'),
+                    'idle': sum(1 for w in worker_info if w.get('status') == 'idle'),
                     'info': worker_info
                 },
                 'running_jobs': running_jobs_count,
@@ -1007,7 +1028,7 @@ class JobQueueService:
 _job_queue_service: Optional[JobQueueService] = None
 
 
-def get_job_queue_service(db_path: str = None, max_workers: int = 3) -> JobQueueService:
+def get_job_queue_service(db_path: str = None, max_workers: int = 1) -> JobQueueService:
     """Get singleton instance of job queue service."""
     global _job_queue_service
     

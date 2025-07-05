@@ -27,6 +27,7 @@ Latest entries are maintained in separate files:
 - `DEVELOPMENT_LOG_121.md` - 2025-07-05 00:34 UTC
 - `DEVELOPMENT_LOG_122.md` - 2025-07-05 09:18 UTC
 - `DEVELOPMENT_LOG_123.md` - 2025-07-05 09:45 UTC
+- `DEVELOPMENT_LOG_125.md` - 2025-07-05 10:26 UTC
 
 ## 📖 How to Use
 
@@ -650,6 +651,37 @@ Visit /jobs page to track extraction progress
 - Test web interface to confirm statistics display correctly
 - Monitor job processing to ensure no disruption
 - Verify all job management features work properly
+
+### Log Entry #124b - 2025-07-05 10:09 UTC
+
+**Summary**: Fixed job queue service default parameters to ensure consistent behavior
+
+**Additional Issue Found**: 
+- After testing, API still returned zeros due to service creation order
+- API blueprint imported before main service initialization
+- First call to `get_job_queue_service()` used default `max_workers=3` parameter
+- Created new service instance instead of using configured one
+
+**Root Cause**: 
+- Default parameter `max_workers=3` in singleton function
+- API calls during import phase created service with wrong parameters
+- Main application `max_workers=1` parameter ignored for existing singleton
+
+**Solution**:
+- Changed default parameter in `get_job_queue_service()` from `max_workers=3` to `max_workers=1`
+- Changed default parameter in `JobQueueService.__init__()` for consistency
+- Ensures all service instances use sequential processing regardless of call order
+
+**Files Modified**:
+- `services/job_queue_service.py`: Updated default parameters to max_workers=1
+
+**Testing**:
+- Verified new default creates service with max_workers=1
+- Removed temporary debug code and test files
+
+**Result**: 
+Now any call to `get_job_queue_service()` will create service with max_workers=1, 
+ensuring sequential job processing and preventing thousands of tasks from running simultaneously.
 
 
 

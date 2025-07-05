@@ -2,6 +2,7 @@
 
 from pathlib import Path
 from flask import Blueprint, request, jsonify
+from datetime import datetime
 
 from .shared import log_message
 from services.job_queue_service import get_job_queue_service
@@ -347,4 +348,13 @@ def api_get_job_logs(job_id: int):
         
     except Exception as e:
         log_message(f"[Jobs API] Error getting logs for job {job_id}: {e}")
-        return jsonify({"status": "error", "error": str(e)}), 500 
+        return jsonify({"status": "error", "error": str(e)}), 500
+
+
+        return jsonify({
+            "status": "error",
+            "error": str(e),
+            "traceback": traceback.format_exc()
+        }), 500
+
+ 
