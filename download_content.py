@@ -197,7 +197,7 @@ def _validate_cookies_file(path: str) -> None:
 
 def fetch_content_metadata(url: str, *, cookies_path: str | None = None, use_browser: bool = False, 
                           debug: bool = False, progress_callback=None, date_from: str = None, 
-                          debug_show_all_entries: bool = False) -> Tuple[str, Set[str], bool]:
+                          debug_show_all_entries: bool = False, skip_url_normalization: bool = False) -> Tuple[str, Set[str], bool]:
     """Return (title, set_of_video_ids, is_channel) without downloading files."""
     
     # Helper function to log both to console and callback
@@ -212,10 +212,12 @@ def fetch_content_metadata(url: str, *, cookies_path: str | None = None, use_bro
     is_channel = is_channel_url(url)
     content_type = "channel" if is_channel else "playlist"
     
-    # Normalize URL
-    if is_channel:
+    # Normalize URL (unless explicitly skipped for sync)
+    if is_channel and not skip_url_normalization:
         url = normalize_channel_url(url)
         log_progress(f"[Info] Detected YouTube channel URL: {url}")
+    elif is_channel and skip_url_normalization:
+        log_progress(f"[Info] Detected YouTube channel URL (preserved): {url}")
     else:
         # Normalize playlist URL: if it's a watch URL with &list=, convert to full playlist link
         parsed = _urlparse.urlparse(url)
@@ -761,9 +763,24 @@ def _get_local_ids(content_dir: pathlib.Path) -> Set[str]:
 def download_content(url: str, output_dir: pathlib.Path, audio_only: bool = False, *, sync: bool = True,
                     channel_group: str = None, date_from: str = None, exclude_shorts: bool = True,
                     cookies_path: str | None = None, use_browser: bool = False, debug: bool = False, 
-                    progress_callback=None) -> None:
-    """Download YouTube content (playlist or channel) and optionally sync (delete) removed tracks."""
+                    progress_callback=None, skip_url_normalization: bool = False) -> None:
+    """
+    Download videos from a YouTube playlist or channel.
     
+    Args:
+        url: YouTube playlist or channel URL
+        output_dir: Base directory for downloads  
+        audio_only: Extract audio only (mp3) instead of video
+        sync: Remove local files that are no longer in the playlist/channel
+        channel_group: Channel group name for organization
+        date_from: Download only videos newer than this date (YYYY-MM-DD)
+        exclude_shorts: Skip YouTube Shorts (videos < 60 seconds)
+        cookies_path: Path to cookies file
+        use_browser: Use browser cookies instead of file
+        debug: Enable debug output
+        progress_callback: Function to call for progress updates
+        skip_url_normalization: Skip URL normalization (preserve /videos for sync)
+    """
     # Helper function to log both to console and callback
     def log_progress(msg):
         print(msg)
@@ -772,39 +789,30 @@ def download_content(url: str, output_dir: pathlib.Path, audio_only: bool = Fals
                 progress_callback(msg)
             except Exception:
                 pass  # Don't let callback errors break the download
-    
-    # Cookies configuration with automatic random selection
+
+    # Get current cookies config and status
     actual_cookies_path, actual_use_browser = get_cookies_for_download(cookies_path, use_browser)
     
-    # Show cookies status
-    if debug:
-        log_cookies_status()
-    
-    # Validate explicitly provided cookies
+    # Log cookies status
     if actual_cookies_path:
-        try:
-            _validate_cookies_file(actual_cookies_path)
-            if actual_cookies_path != cookies_path:
-                log_progress(f"[Info] Auto-selected random cookies file: {pathlib.Path(actual_cookies_path).name}")
-            else:
-                log_progress(f"[Info] Using explicitly provided cookies file: {actual_cookies_path}")
-        except Exception as exc:
-            log_progress(f"[Error] Cookies validation failed: {exc}")
-            sys.exit(1)
+        if actual_cookies_path != cookies_path:
+            log_progress(f"[Info] Auto-selected random cookies file: {pathlib.Path(actual_cookies_path).name}")
+        else:
+            log_progress(f"[Info] Using explicitly provided cookies file: {actual_cookies_path}")
     elif actual_use_browser:
         log_progress("[Info] Using browser cookies (Chrome profile by default)")
     else:
         log_progress("[Info] No cookies configured - downloads may fail for age-restricted content")
 
-    # 1. Fetch metadata first to know current IDs and sanitized title
+    # 1. Extract metadata (video IDs) from playlist/channel
     content_title, current_ids, is_channel = fetch_content_metadata(
-        url,
-        cookies_path=actual_cookies_path,
-        use_browser=actual_use_browser,
-        debug=debug,
-        progress_callback=progress_callback,
+        url, 
+        cookies_path=actual_cookies_path, 
+        use_browser=actual_use_browser, 
+        debug=debug, 
+        progress_callback=progress_callback, 
         date_from=date_from,
-        debug_show_all_entries=debug,  # Show all entries if debug mode is on
+        skip_url_normalization=skip_url_normalization  # ✅ Pass through the parameter
     )
     
     # Determine output directory structure
