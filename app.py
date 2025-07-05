@@ -501,9 +501,30 @@ def likes_player_page(like_count: int):
 # Register API blueprint
 app.register_blueprint(api_bp)
 
+def _load_env_config():
+    """Load configuration from .env file."""
+    config = {}
+    env_path = Path(__file__).parent / '.env'
+    
+    if env_path.exists():
+        try:
+            with open(env_path, 'r', encoding='utf-8') as f:
+                for line in f:
+                    line = line.strip().lstrip('\ufeff')  # Remove BOM
+                    if line and '=' in line and not line.startswith('#'):
+                        key, value = line.split('=', 1)
+                        config[key.strip()] = value.strip()
+        except Exception as e:
+            print(f"Warning: Failed to load .env file: {e}")
+    
+    return config
+
 def main():
     """Main entry point."""
     global ROOT_DIR, LOGS_DIR, SERVER_START_TIME
+    
+    # Load configuration from .env file
+    env_config = _load_env_config()
     
     parser = argparse.ArgumentParser(description="YouTube Playlist Player")
     parser.add_argument("--root", type=Path, default=Path.cwd() / "downloads", help="Root directory for playlists")
@@ -535,9 +556,16 @@ def main():
     # Ensure directories exist
     LOGS_DIR.mkdir(parents=True, exist_ok=True)
     
-    # Set database path to existing DB/tracks.db (original structure)
+    # Set database path - use DB_PATH from .env file if available, otherwise use default
     from database import set_db_path
-    db_path = DB_DIR / "tracks.db"
+    db_path_from_env = env_config.get('DB_PATH')
+    if db_path_from_env:
+        db_path = Path(db_path_from_env)
+        print(f"Using database path from .env: {db_path}")
+    else:
+        db_path = DB_DIR / "tracks.db"
+        print(f"Using default database path: {db_path}")
+    
     set_db_path(db_path)
     
     # Initialize logging
@@ -568,7 +596,13 @@ def main():
     
     # Initialize and start Job Queue Service
     from services.job_queue_service import get_job_queue_service
-    from services.job_workers import ChannelDownloadWorker, MetadataExtractionWorker, CleanupWorker, PlaylistDownloadWorker, BackupWorker, SingleVideoMetadataWorker
+    from services.job_workers import ChannelDownloadWorker, MetadataExtractionWorker, CleanupWorker, PlaylistDownloadWorker, BackupWorker
+    
+    # Force reload the single video metadata worker to ensure latest code
+    import importlib
+    import services.job_workers.single_video_metadata_worker
+    importlib.reload(services.job_workers.single_video_metadata_worker)
+    from services.job_workers.single_video_metadata_worker import SingleVideoMetadataWorker
     
     try:
         # Use only 1 worker to prevent parallel execution issues

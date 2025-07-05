@@ -69,12 +69,12 @@ def find_tracks_missing_metadata(conn, limit: Optional[int] = None, force_update
             query = """
             SELECT t.id, t.video_id, t.name, t.published_date
             FROM tracks t
-            LEFT JOIN youtube_video_metadata yvm ON t.video_id = yvm.video_id
+            LEFT JOIN youtube_video_metadata yvm ON t.video_id = yvm.youtube_id
             WHERE t.video_id NOT IN (
                 SELECT dt.video_id FROM deleted_tracks dt
             )
             AND (
-                yvm.video_id IS NULL 
+                yvm.youtube_id IS NULL 
                 OR (yvm.timestamp IS NULL AND yvm.release_timestamp IS NULL)
             )
             ORDER BY t.id ASC
@@ -124,7 +124,7 @@ def get_metadata_statistics(conn) -> Dict:
         # Tracks with metadata
         cur.execute("""
             SELECT COUNT(*) FROM tracks t
-            JOIN youtube_video_metadata yvm ON t.video_id = yvm.video_id
+            JOIN youtube_video_metadata yvm ON t.video_id = yvm.youtube_id
             WHERE t.video_id NOT IN (
                 SELECT dt.video_id FROM deleted_tracks dt
             )
@@ -211,15 +211,22 @@ def create_metadata_extraction_jobs(tracks: List[Dict], force_update: bool = Fal
 
 def print_scan_results(tracks: List[Dict], stats: Dict, limit: Optional[int] = None):
     """Print scan results summary."""
-    print(f"\n{'='*80}")
-    print(f"[METADATA SCAN RESULTS]")
-    print(f"{'='*80}")
-    
-    # Overall statistics
-    print(f"Total tracks in database: {stats['total_tracks']:,}")
-    print(f"Tracks with metadata: {stats['tracks_with_metadata']:,}")
-    print(f"Tracks without metadata: {stats['tracks_without_metadata']:,}")
-    print(f"Metadata coverage: {stats['coverage_percent']:.1f}%")
+    try:
+        print(f"\n{'='*80}")
+        print(f"[METADATA SCAN RESULTS]")
+        print(f"{'='*80}")
+        
+        # Overall statistics
+        print(f"Total tracks in database: {stats['total_tracks']:,}")
+        print(f"Tracks with metadata: {stats['tracks_with_metadata']:,}")
+        print(f"Tracks without metadata: {stats['tracks_without_metadata']:,}")
+        print(f"Metadata coverage: {stats['coverage_percent']:.1f}%")
+    except UnicodeEncodeError as e:
+        print(f"[ERROR] Unicode encoding error in scan results: {e}")
+        # Print basic statistics without formatting
+        print(f"Total tracks: {stats['total_tracks']}")
+        print(f"With metadata: {stats['tracks_with_metadata']}")
+        print(f"Without metadata: {stats['tracks_without_metadata']}")
     
     # Scan results
     print(f"\nFound {len(tracks)} tracks missing metadata")
@@ -232,7 +239,12 @@ def print_scan_results(tracks: List[Dict], stats: Dict, limit: Optional[int] = N
         for i, track in enumerate(tracks[:5]):
             name = track['name'][:50] + "..." if len(track['name']) > 50 else track['name']
             published = track['published_date'] or 'Unknown'
-            print(f"  {i+1}. {track['video_id']} - {name} (Published: {published})")
+            try:
+                print(f"  {i+1}. {track['video_id']} - {name} (Published: {published})")
+            except UnicodeEncodeError:
+                # Handle Unicode characters that can't be encoded in the terminal
+                safe_name = name.encode('ascii', errors='replace').decode('ascii')
+                print(f"  {i+1}. {track['video_id']} - {safe_name} (Published: {published})")
         
         if len(tracks) > 5:
             print(f"  ... and {len(tracks) - 5} more tracks")

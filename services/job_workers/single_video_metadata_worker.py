@@ -92,16 +92,19 @@ class SingleVideoMetadataWorker(JobWorker):
     def _metadata_exists(self, video_id: str) -> bool:
         """Check if metadata already exists for this video."""
         try:
-            db_path = self._get_database_path()
-            with sqlite3.connect(db_path) as conn:
-                cursor = conn.cursor()
-                cursor.execute("""
-                    SELECT id FROM youtube_video_metadata 
-                    WHERE video_id = ? AND (timestamp IS NOT NULL OR release_timestamp IS NOT NULL)
-                """, (video_id,))
-                
-                return cursor.fetchone() is not None
-                
+            # Use the main database connection from database.py
+            from database import get_connection
+            conn = get_connection()
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT id FROM youtube_video_metadata 
+                WHERE youtube_id = ? AND (timestamp IS NOT NULL OR release_timestamp IS NOT NULL)
+            """, (video_id,))
+            
+            result = cursor.fetchone() is not None
+            conn.close()
+            return result
+            
         except Exception as e:
             log_message(f"Error checking metadata existence for {video_id}: {e}")
             return False
@@ -153,64 +156,63 @@ class SingleVideoMetadataWorker(JobWorker):
     def _save_metadata_to_database(self, video_id: str, metadata: Dict[str, Any], job: Job) -> bool:
         """Save extracted metadata to database."""
         try:
-            db_path = self._get_database_path()
-            with sqlite3.connect(db_path) as conn:
-                cursor = conn.cursor()
-                
-                # Prepare metadata fields
-                title = metadata.get('title', '')
-                description = metadata.get('description', '')
-                channel = metadata.get('channel', '')
-                uploader = metadata.get('uploader', '')
-                uploader_id = metadata.get('uploader_id', '')
-                upload_date = metadata.get('upload_date', '')
-                
-                # Timestamps
-                timestamp = metadata.get('timestamp')
-                release_timestamp = metadata.get('release_timestamp')
-                
-                # Counts and metrics
-                view_count = metadata.get('view_count', 0)
-                like_count = metadata.get('like_count', 0)
-                dislike_count = metadata.get('dislike_count', 0)
-                comment_count = metadata.get('comment_count', 0)
-                
-                # Technical details
-                duration = metadata.get('duration', 0)
-                width = metadata.get('width', 0)
-                height = metadata.get('height', 0)
-                fps = metadata.get('fps', 0)
-                
-                # Categories and tags
-                categories = json.dumps(metadata.get('categories', []))
-                tags = json.dumps(metadata.get('tags', []))
-                
-                # Full metadata as JSON
-                full_metadata = json.dumps(metadata, ensure_ascii=False, default=str)
-                
-                # Insert or update metadata
-                cursor.execute("""
-                    INSERT OR REPLACE INTO youtube_video_metadata (
-                        video_id, title, description, channel, uploader, uploader_id,
-                        upload_date, timestamp, release_timestamp, view_count, like_count,
-                        dislike_count, comment_count, duration, width, height, fps,
-                        categories, tags, full_metadata, last_updated
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-                """, (
-                    video_id, title, description, channel, uploader, uploader_id,
-                    upload_date, timestamp, release_timestamp, view_count, like_count,
-                    dislike_count, comment_count, duration, width, height, fps,
-                    categories, tags, full_metadata
-                ))
-                
-                # Update tracks.published_date if video exists in tracks table
-                if upload_date:
-                    self._update_track_published_date(video_id, upload_date, cursor, job)
-                
-                conn.commit()
-                job.log_info(f"Successfully saved metadata for video {video_id} to database")
-                return True
-                
+            # Use the main database connection from database.py
+            from database import get_connection
+            conn = get_connection()
+            cursor = conn.cursor()
+            
+            # Prepare metadata fields
+            title = metadata.get('title', '')
+            description = metadata.get('description', '')
+            channel = metadata.get('channel', '')
+            uploader = metadata.get('uploader', '')
+            uploader_id = metadata.get('uploader_id', '')
+            upload_date = metadata.get('upload_date', '')
+            
+            # Timestamps
+            timestamp = metadata.get('timestamp')
+            release_timestamp = metadata.get('release_timestamp')
+            
+            # Counts and metrics
+            view_count = metadata.get('view_count', 0)
+            like_count = metadata.get('like_count', 0)
+            dislike_count = metadata.get('dislike_count', 0)
+            comment_count = metadata.get('comment_count', 0)
+            
+            # Technical details
+            duration = metadata.get('duration', 0)
+            width = metadata.get('width', 0)
+            height = metadata.get('height', 0)
+            fps = metadata.get('fps', 0)
+            
+            # Categories and tags
+            categories = json.dumps(metadata.get('categories', []))
+            tags = json.dumps(metadata.get('tags', []))
+            
+            # Full metadata as JSON
+            full_metadata = json.dumps(metadata, ensure_ascii=False, default=str)
+            
+            # Insert or update metadata
+            cursor.execute("""
+                INSERT OR REPLACE INTO youtube_video_metadata (
+                    youtube_id, title, description, channel, uploader, uploader_id,
+                    timestamp, release_timestamp, view_count, duration, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+            """, (
+                video_id, title, description, channel, uploader, uploader_id,
+                timestamp, release_timestamp, view_count, duration
+            ))
+            
+            # Update tracks.published_date if video exists in tracks table
+            upload_date = metadata.get('upload_date', '')
+            if upload_date:
+                self._update_track_published_date(video_id, upload_date, cursor, job)
+            
+            conn.commit()
+            conn.close()
+            job.log_info(f"Successfully saved metadata for video {video_id} to database")
+            return True
+            
         except Exception as e:
             job.log_exception(e, f"Error saving metadata for video {video_id} to database")
             return False
@@ -238,41 +240,7 @@ class SingleVideoMetadataWorker(JobWorker):
         except Exception as e:
             job.log_error(f"Error updating track published_date for video {video_id}: {e}")
     
-    def _get_database_path(self) -> str:
-        """Get database path from configuration."""
-        try:
-            project_root = Path(__file__).parent.parent.parent
-            config = self._load_config(project_root)
-            db_path = config.get('DB_PATH')
-            
-            if db_path:
-                return db_path
-            else:
-                # Fallback to default path
-                return str(project_root / 'tracks.db')
-                
-        except Exception:
-            # Ultimate fallback
-            project_root = Path(__file__).parent.parent.parent
-            return str(project_root / 'tracks.db')
-    
-    def _load_config(self, project_root: Path) -> dict:
-        """Load configuration from .env file."""
-        config = {}
-        env_path = project_root / '.env'
-        
-        if env_path.exists():
-            try:
-                with open(env_path, 'r', encoding='utf-8') as f:
-                    for line in f:
-                        line = line.strip().lstrip('\ufeff')  # Remove BOM
-                        if line and '=' in line and not line.startswith('#'):
-                            key, value = line.split('=', 1)
-                            config[key.strip()] = value.strip()
-            except Exception as e:
-                log_message(f"Warning: Failed to load .env file: {e}")
-        
-        return config
+
     
     def get_worker_info(self) -> dict:
         """Return worker information."""
