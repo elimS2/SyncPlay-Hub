@@ -1,114 +1,114 @@
 # Feature: Trash API Refactoring
 
-## 🎯 Цель
+## 🎯 Goal
 
-Выделить функциональность управления корзиной в отдельный API модуль `trash_api.py` для улучшения архитектурной консистентности, применения принципа единственной ответственности и обеспечения возможности дальнейшего расширения функций корзины.
+Extract trash management functionality into a separate API module `trash_api.py` to improve architectural consistency, apply the Single Responsibility Principle, and enable future expansion of trash functionality.
 
-## 📊 Статус
+## 📊 Status
 
-- **Статус:** COMPLETED ✅
-- **Прогресс:** 12/12 задач выполнено (100% завершен)  
-- **Дата начала:** 2025-07-05
-- **Дата завершения:** 2025-07-05
+- **Status:** COMPLETED ✅
+- **Progress:** 12/12 tasks completed (100% finished)  
+- **Start Date:** 2025-07-05
+- **Completion Date:** 2025-07-05
 
-## 🏗️ Архитектура
+## 🏗️ Architecture
 
-### Текущее состояние:
+### Current State:
 ```
 channels_api.py
-├── GET /api/deleted_tracks      (логически связано с корзиной)
-├── POST /api/restore_track      (логически связано с корзиной)
-├── GET /api/trash_stats         (логически связано с корзиной)
-├── POST /api/clear_trash        (логически связано с корзиной)
-└── POST /api/delete_track       (остается в channels_api.py)
+├── GET /api/deleted_tracks      (logically related to trash)
+├── POST /api/restore_track      (logically related to trash)
+├── GET /api/trash_stats         (logically related to trash)
+├── POST /api/clear_trash        (logically related to trash)
+└── POST /api/delete_track       (remains in channels_api.py)
 ```
 
-### Целевое состояние:
+### Target State:
 ```
-trash_api.py (НОВЫЙ)                    channels_api.py
+trash_api.py (NEW)                      channels_api.py
 ├── GET /api/deleted_tracks             ├── POST /api/delete_track
-├── POST /api/restore_track       ◄──── │   (импортирует trash utilities)
-├── GET /api/trash_stats                └── остальные channel методы
+├── POST /api/restore_track       ◄──── │   (imports trash utilities)
+├── GET /api/trash_stats                └── other channel methods
 ├── POST /api/clear_trash
-├── GET /api/trash/browse (БУДУЩЕЕ)
-└── POST /api/trash/partial_clear (БУДУЩЕЕ)
+├── GET /api/trash/browse (FUTURE)
+└── POST /api/trash/partial_clear (FUTURE)
 ```
 
-### Компоненты:
-- **TrashAPI Blueprint** - отдельный Flask blueprint для корзины
-- **Trash Utilities** - вспомогательные функции для работы с корзиной
-- **Database Integration** - методы для работы с `deleted_tracks` таблицей
-- **Cross-module Communication** - связь между `channels_api.py` и `trash_api.py`
+### Components:
+- **TrashAPI Blueprint** - separate Flask blueprint for trash operations
+- **Trash Utilities** - helper functions for trash operations
+- **Database Integration** - methods for working with `deleted_tracks` table
+- **Cross-module Communication** - connection between `channels_api.py` and `trash_api.py`
 
-## ✅ План реализации
+## ✅ Implementation Plan
 
-### Фаза 1: Подготовка и анализ ✅ ЗАВЕРШЕНА
-- [x] ✅ Анализ текущих зависимостей методов корзины
-- [x] ✅ Определение интерфейса взаимодействия между модулями
-- [x] ✅ Планирование структуры `trash_api.py`
-- [x] ✅ Создание списка вспомогательных функций для utilities
+### Phase 1: Preparation and Analysis ✅ COMPLETED
+- [x] ✅ Analysis of current trash method dependencies
+- [x] ✅ Define interface for module interaction
+- [x] ✅ Plan `trash_api.py` structure
+- [x] ✅ Create list of utility functions
 
-### Фаза 2: Создание нового модуля ✅ ЗАВЕРШЕНА
-- [x] ✅ Создание `controllers/api/trash_api.py` с Flask blueprint
-- [x] ✅ Настройка routing и базовой структуры
-- [x] ✅ Создание базовых imports и shared dependencies
-- [x] ✅ Добавление error handling и logging
+### Phase 2: New Module Creation ✅ COMPLETED
+- [x] ✅ Create `controllers/api/trash_api.py` with Flask blueprint
+- [x] ✅ Set up routing and basic structure
+- [x] ✅ Create basic imports and shared dependencies
+- [x] ✅ Add error handling and logging
 
-### Фаза 3: Миграция методов API ✅ ЗАВЕРШЕНА
-- [x] ✅ Перенос `GET /api/deleted_tracks` в `trash_api.py`
-- [x] ✅ Перенос `POST /api/restore_track` в `trash_api.py`  
-- [x] ✅ Перенос `GET /api/trash_stats` в `trash_api.py`
-- [x] ✅ Перенос `POST /api/clear_trash` в `trash_api.py`
+### Phase 3: API Method Migration ✅ COMPLETED
+- [x] ✅ Move `GET /api/deleted_tracks` to `trash_api.py`
+- [x] ✅ Move `POST /api/restore_track` to `trash_api.py`  
+- [x] ✅ Move `GET /api/trash_stats` to `trash_api.py`
+- [x] ✅ Move `POST /api/clear_trash` to `trash_api.py`
 
-### Фаза 4: Интеграция и тестирование ✅ ЗАВЕРШЕНА
-- [x] ✅ Регистрация trash_api blueprint в main app
-- [x] ✅ Обновление импортов в `channels_api.py` для `delete_track`
-- [x] ✅ Тестирование всех endpoints после миграции
-- [x] ✅ Обновление документации и навигации
+### Phase 4: Integration and Testing ✅ COMPLETED
+- [x] ✅ Register trash_api blueprint in main app
+- [x] ✅ Update imports in `channels_api.py` for `delete_track`
+- [x] ✅ Test all endpoints after migration
+- [x] ✅ Update documentation and navigation
 
-## 📁 Файлы
+## 📁 Files
 
-### Новые файлы
-- `controllers/api/trash_api.py` - основной модуль API корзины
-- `docs/features/TRASH_API_REFACTORING.md` - текущий план (этот файл)
+### New Files
+- `controllers/api/trash_api.py` - main trash API module
+- `docs/features/TRASH_API_REFACTORING.md` - current plan (this file)
 
-### Модифицированные файлы  
-- `controllers/api/channels_api.py` - удаление методов корзины, обновление импортов
-- `app.py` - регистрация нового blueprint
-- `controllers/api/__init__.py` - возможное обновление экспортов
-- `templates/deleted.html` - проверка корректности API calls (если нужно)
+### Modified Files  
+- `controllers/api/channels_api.py` - remove trash methods, update imports
+- `app.py` - register new blueprint
+- `controllers/api/__init__.py` - possible export updates
+- `templates/deleted.html` - verify API call correctness (if needed)
 
-## 🔧 Технические детали
+## 🔧 Technical Details
 
-### Методы для переноса:
+### Methods to Migrate:
 
 1. **`GET /api/deleted_tracks`**
-   - Получение списка удаленных треков с фильтрацией
-   - Группировка каналов для фильтров
-   - Зависимости: `db.get_deleted_tracks()`, `get_connection()`
+   - Get list of deleted tracks with filtering
+   - Group channels for filters
+   - Dependencies: `db.get_deleted_tracks()`, `get_connection()`
 
 2. **`POST /api/restore_track`**  
-   - Восстановление удаленного трека
-   - Поддержка методов: file/redownload
-   - Зависимости: `db.restore_deleted_track()`
+   - Restore deleted track
+   - Support methods: file/redownload
+   - Dependencies: `db.restore_deleted_track()`
 
 3. **`GET /api/trash_stats`**
-   - Статистика корзины (размер, количество файлов)
-   - Рекурсивный подсчет файлов
-   - Зависимости: `get_root_dir()`, `_format_file_size()`
+   - Trash statistics (size, file count)
+   - Recursive file counting
+   - Dependencies: `get_root_dir()`, `_format_file_size()`
 
 4. **`POST /api/clear_trash`**
-   - Очистка всех файлов из корзины
-   - Обновление флагов в базе данных
-   - Зависимости: `get_root_dir()`, `get_connection()`
+   - Clear all files from trash
+   - Update database flags
+   - Dependencies: `get_root_dir()`, `get_connection()`
 
-### Shared utilities (остаются доступными обеим модулям):
-- `get_connection()` - подключение к БД
-- `get_root_dir()` - получение корневой папки  
-- `log_message()` - логирование
-- `_format_file_size()` - форматирование размера файлов
+### Shared utilities (remain available to both modules):
+- `get_connection()` - database connection
+- `get_root_dir()` - get root folder  
+- `log_message()` - logging
+- `_format_file_size()` - format file size
 
-### Blueprint конфигурация:
+### Blueprint Configuration:
 ```python
 # controllers/api/trash_api.py
 trash_bp = Blueprint('trash_api', __name__, url_prefix='/api')
@@ -118,65 +118,65 @@ from controllers.api.trash_api import trash_bp
 app.register_blueprint(trash_bp)
 ```
 
-## 🧪 Тестирование
+## 🧪 Testing
 
-### Сценарии тестирования:
-1. **API Endpoints** - все методы работают после переноса
-2. **Cross-module Integration** - `delete_track` корректно работает с новым модулем
-3. **Error Handling** - обработка ошибок не изменилась
-4. **Performance** - производительность не ухудшилась
-5. **Frontend Compatibility** - веб-интерфейс работает без изменений
+### Testing Scenarios:
+1. **API Endpoints** - all methods work after migration
+2. **Cross-module Integration** - `delete_track` works correctly with new module
+3. **Error Handling** - error handling unchanged
+4. **Performance** - performance not degraded
+5. **Frontend Compatibility** - web interface works without changes
 
-### Чек-лист тестирования:
-- [ ] `GET /api/deleted_tracks` возвращает корректные данные
-- [ ] `POST /api/restore_track` восстанавливает треки  
-- [ ] `GET /api/trash_stats` показывает правильную статистику
-- [ ] `POST /api/clear_trash` очищает корзину и обновляет БД
-- [ ] `POST /api/delete_track` из channels_api продолжает работать
-- [ ] Веб-интерфейс `/deleted` функционирует полностью
-- [ ] Логирование работает корректно
-- [ ] Error handling не нарушен
+### Testing Checklist:
+- [ ] `GET /api/deleted_tracks` returns correct data
+- [ ] `POST /api/restore_track` restores tracks  
+- [ ] `GET /api/trash_stats` shows correct statistics
+- [ ] `POST /api/clear_trash` clears trash and updates DB
+- [ ] `POST /api/delete_track` from channels_api continues working
+- [ ] Web interface `/deleted` functions completely
+- [ ] Logging works correctly
+- [ ] Error handling not broken
 
-## 🚀 Будущие возможности расширения
+## 🚀 Future Enhancement Possibilities
 
-После успешного рефакторинга станет проще добавить:
+After successful refactoring, it becomes easier to add:
 
-### Дополнительные API endpoints:
-- `GET /api/trash/browse/{channel}` - просмотр корзины по каналам
-- `POST /api/trash/partial_clear` - частичная очистка (по датам/каналам)  
-- `GET /api/trash/size_by_channel` - статистика по каналам
-- `POST /api/trash/auto_cleanup` - автоматическая очистка старых файлов
-- `GET /api/trash/export` - экспорт списка удаленных треков
+### Additional API Endpoints:
+- `GET /api/trash/browse/{channel}` - browse trash by channels
+- `POST /api/trash/partial_clear` - partial clearing (by dates/channels)  
+- `GET /api/trash/size_by_channel` - statistics by channels
+- `POST /api/trash/auto_cleanup` - automatic cleanup of old files
+- `GET /api/trash/export` - export list of deleted tracks
 
-### UI/UX улучшения:
-- Браузер корзины с древовидной структурой
-- Массовое восстановление по фильтрам
-- Drag & drop для восстановления
-- Визуализация использования места по каналам
+### UI/UX Improvements:
+- Trash browser with tree structure
+- Bulk restoration by filters
+- Drag & drop for restoration
+- Visualization of space usage by channels
 
-## 📝 Заметки по реализации
+## 📝 Implementation Notes
 
-### Архитектурные принципы:
-- **Single Responsibility** - каждый модуль отвечает за свою область
-- **Loose Coupling** - минимальные зависимости между модулями  
-- **High Cohesion** - связанная функциональность в одном месте
-- **Extensibility** - легкость добавления новых функций
+### Architectural Principles:
+- **Single Responsibility** - each module handles its own area
+- **Loose Coupling** - minimal dependencies between modules  
+- **High Cohesion** - related functionality in one place
+- **Extensibility** - ease of adding new functions
 
-### Важные моменты:
-- Сохранить полную обратную совместимость API
-- Не нарушить существующую функциональность удаления  
-- Минимизировать изменения в frontend коде
-- Обеспечить корректное логирование и error handling
+### Important Points:
+- Maintain full backward API compatibility
+- Don't break existing deletion functionality  
+- Minimize changes in frontend code
+- Ensure correct logging and error handling
 
-### Порядок выполнения:
-1. Сначала создать новый модуль с копированием методов
-2. Протестировать новый модуль независимо
-3. Обновить регистрацию blueprint в app
-4. Удалить методы из channels_api.py только после полного тестирования
-5. Очистить неиспользуемые импорты
+### Execution Order:
+1. First create new module by copying methods
+2. Test new module independently
+3. Update blueprint registration in app
+4. Remove methods from channels_api.py only after full testing
+5. Clean up unused imports
 
 ---
 
-**Статус обновлений:**
-- 📋 2025-07-05 11:15 UTC - Создан план рефакторинга, определена архитектура и scope
-- ✅ 2025-07-05 11:35 UTC - **РЕФАКТОРИНГ ЗАВЕРШЕН**: Все 12 задач выполнены, trash API успешно выделен в отдельный модуль с полным сохранением функциональности 
+**Status Updates:**
+- 📋 2025-07-05 11:15 UTC - Created refactoring plan, defined architecture and scope
+- ✅ 2025-07-05 11:35 UTC - **REFACTORING COMPLETED**: All 12 tasks completed, trash API successfully extracted into separate module with full functionality preservation 
