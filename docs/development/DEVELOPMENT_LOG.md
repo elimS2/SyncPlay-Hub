@@ -7,6 +7,19 @@ This file serves as the main development log index. Individual log entries are m
 ## 🗂️ Log Entry Files
 
 Latest entries are maintained in separate files:
+- `DEVELOPMENT_LOG_132.md` - Fixed Windows File Lock Deletion Error (WinError 32)
+- `DEVELOPMENT_LOG_131.md` - 2025-07-05 12:06 UTC
+- `DEVELOPMENT_LOG_130.md` - 2025-07-05 11:51 UTC
+- `DEVELOPMENT_LOG_125.md` - 2025-07-05 10:26 UTC
+- `DEVELOPMENT_LOG_123.md` - 2025-07-05 09:45 UTC
+- `DEVELOPMENT_LOG_122.md` - 2025-07-05 09:18 UTC
+- `DEVELOPMENT_LOG_121.md` - 2025-07-05 00:34 UTC
+- `DEVELOPMENT_LOG_120.md` - 2025-07-05 00:04 UTC
+- `DEVELOPMENT_LOG_119.md` - 2025-07-04 23:55 UTC
+- `DEVELOPMENT_LOG_118.md` - 2025-07-04 23:44 UTC
+- `DEVELOPMENT_LOG_117.md` - 2025-07-02 23:07 UTC
+- `DEVELOPMENT_LOG_116.md` - 2025-07-02 22:59 UTC
+- `DEVELOPMENT_LOG_115.md` - 2025-07-02 22:41 UTC
 - `DEVELOPMENT_LOG_114.md` - Empty Channel Group Deletion Functionality
 - `DEVELOPMENT_LOG_113.md` - Fixed job queue service singleton initialization issue causing unintended parallel downloads
 - `DEVELOPMENT_LOG_112.md` - URL Format Consistency Fix - Channel URL Format Consistency
@@ -18,18 +31,6 @@ Latest entries are maintained in separate files:
 - `DEVELOPMENT_LOG_090.md` - Fixed Duplicate Heart Icons in "Likes Playlists" Button
 - `DEVELOPMENT_LOG_089.md` - Added Missing "Removed" Event Type Filter + Database Analysis  
 - `DEVELOPMENT_LOG_088.md` - Previous entry
-- `DEVELOPMENT_LOG_115.md` - 2025-07-02 22:41 UTC
-- `DEVELOPMENT_LOG_116.md` - 2025-07-02 22:59 UTC
-- `DEVELOPMENT_LOG_117.md` - 2025-07-02 23:07 UTC
-- `DEVELOPMENT_LOG_118.md` - 2025-07-04 23:44 UTC
-- `DEVELOPMENT_LOG_119.md` - 2025-07-04 23:55 UTC
-- `DEVELOPMENT_LOG_120.md` - 2025-07-05 00:04 UTC
-- `DEVELOPMENT_LOG_121.md` - 2025-07-05 00:34 UTC
-- `DEVELOPMENT_LOG_122.md` - 2025-07-05 09:18 UTC
-- `DEVELOPMENT_LOG_123.md` - 2025-07-05 09:45 UTC
-- `DEVELOPMENT_LOG_125.md` - 2025-07-05 10:26 UTC
-- `DEVELOPMENT_LOG_130.md` - 2025-07-05 11:51 UTC
-- `DEVELOPMENT_LOG_131.md` - 2025-07-05 12:06 UTC
 
 ## 📖 How to Use
 

@@ -2,15 +2,27 @@
 
 ## Project Overview
 - **Start:** 2025-06-16 03:29:20 +0300 (Initial import)
-- **End:** 2025-07-05 16:35:00 +0300 (fix: Exclude deleted tracks from virtual playlists by likes)
+- **End:** 2025-07-05 18:11:00 +0300 (feat: Add track tooltips to likes_player page and fix like button functionality)
 - **Duration:** 19 days intensive development
-- **Total:** 164 commits
+- **Total:** 167 commits
 
 ---
 
 ## All Commits (Chronological Order - ORIGINAL FULL TITLES)
 
-**#164** `[TBD]` 2025-07-05 16:35:00 +0300  
+**#167** `b8a3518` 2025-07-05 18:11:00 +0300  
+feat: Add track tooltips to likes_player page and fix like button functionality  
+Enhanced user experience by implementing comprehensive track tooltips and fixing like button functionality in the likes player page with improved styling and metadata display.
+
+**#166** `7954b3c` 2025-07-05 17:30:00 +0300  
+feat: Add enhanced track tooltips with YouTube metadata and playback statistics  
+Implemented rich tooltip system displaying YouTube metadata including publication date, view count, duration, and comprehensive playback statistics for better user information.
+
+**#165** `78bd8b7` 2025-07-05 17:00:00 +0300  
+feat: Add mouse wheel volume control with 1% precision steps  
+Added intuitive mouse wheel volume control functionality allowing users to adjust volume with 1% precision steps directly over the video element for enhanced playback control.
+
+**#164** `bd3291e` 2025-07-05 16:35:00 +0300  
 fix: Exclude deleted tracks from virtual playlists by likes  
 Modified SQL queries in controllers/api/playlist_api.py to exclude tracks in deleted_tracks table from virtual playlists, preventing playback errors and ensuring accurate like statistics by adding WHERE clause with NOT IN subquery.
 

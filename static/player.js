@@ -1523,12 +1523,32 @@ function getGroupPlaybackInfo(tracks) {
   async function deleteTrack(track, trackIndex) {
     try {
       // Confirm deletion
-      const confirmMessage = `Delete current track "${track.name.replace(/\s*\[.*?\]$/, '')}" from playlist?\n\nTrack will be moved to trash and can be restored.`;
+      const confirmMessage = `Delete track "${track.name.replace(/\s*\[.*?\]$/, '')}" from playlist?\n\nTrack will be moved to trash and can be restored.`;
       if (!confirm(confirmMessage)) {
         return;
       }
       
       console.log(`🗑️ Deleting track: ${track.name} (${track.video_id})`);
+      
+      // CRITICAL: If this is the currently playing track, pause and release file lock
+      let wasCurrentTrack = false;
+      let currentTime = 0;
+      
+      if (trackIndex === currentIndex && !media.paused) {
+        wasCurrentTrack = true;
+        console.log('🔓 Deleting currently playing track - releasing file lock...');
+        
+        // Pause and clear media source to release file lock
+        media.pause();
+        currentTime = media.currentTime; // Save position for potential restore
+        media.src = ''; // This releases the file lock
+        media.load(); // Ensure the media element is properly reset
+        
+        console.log('🔓 Media file released, proceeding with deletion...');
+        
+        // Give a small delay to ensure file is fully released
+        await new Promise(resolve => setTimeout(resolve, 200));
+      }
       
       // Send delete request to API
       const response = await fetch('/api/delete_track', {
@@ -1566,9 +1586,8 @@ function getGroupPlaybackInfo(tracks) {
             playIndex(nextIndex);
           } else {
             // No tracks left
-            media.pause();
-            media.src = '';
             currentIndex = -1;
+            showNotification('📭 Playlist is empty - all tracks deleted', 'info');
           }
         }
         
@@ -1581,6 +1600,21 @@ function getGroupPlaybackInfo(tracks) {
       } else {
         console.error('❌ Failed to delete track:', result.error);
         showNotification(`❌ Deletion error: ${result.error}`, 'error');
+        
+        // On failure, try to restore playback if it was the current track
+        if (wasCurrentTrack) {
+          console.log('🔄 Attempting to restore playback after deletion failure...');
+          try {
+            loadTrack(currentIndex, true);
+            if (currentTime && isFinite(currentTime)) {
+              setTimeout(() => {
+                media.currentTime = currentTime; // Restore position
+              }, 500);
+            }
+          } catch (restoreError) {
+            console.warn('⚠️ Could not restore playback:', restoreError);
+          }
+        }
       }
       
     } catch (error) {

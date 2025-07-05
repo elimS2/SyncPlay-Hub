@@ -907,7 +907,69 @@ def api_delete_track():
             
         log_message(f"[Delete] Sanitized filename: {full_file_path.name} → {target_file.name}")
         
-        # Move file to trash
+        # Move file to trash with retry mechanism for Windows file locks
+        import time
+        
+        def move_file_with_retry(source_path, target_path, max_retries=3, delay=0.5):
+            """
+            Move file with retry mechanism to handle Windows file locks.
+            
+            Args:
+                source_path: Source file path
+                target_path: Target file path  
+                max_retries: Maximum number of retry attempts
+                delay: Delay between retries in seconds
+                
+            Returns:
+                True if successful, False otherwise
+            """
+            for attempt in range(max_retries + 1):
+                try:
+                    if attempt > 0:
+                        # Wait before retry
+                        log_message(f"[Delete] Retry attempt {attempt}/{max_retries} after {delay}s delay...")
+                        time.sleep(delay)
+                        
+                        # Check if file is still being used
+                        try:
+                            # Try to open file in exclusive mode to check if it's locked
+                            with open(source_path, 'r+b') as test_file:
+                                pass  # File is not locked
+                            log_message(f"[Delete] File appears to be unlocked, proceeding with move...")
+                        except (OSError, IOError) as lock_error:
+                            if attempt == max_retries:
+                                log_message(f"[Delete] File still locked after {max_retries} retries: {lock_error}")
+                                return False
+                            else:
+                                log_message(f"[Delete] File still locked, will retry: {lock_error}")
+                                continue
+                    
+                    log_message(f"[Delete] Attempting to move file (attempt {attempt + 1}/{max_retries + 1})")
+                    log_message(f"[Delete] Moving file: {source_path} → {target_path}")
+                    
+                    shutil.move(source_path, target_path)
+                    log_message(f"[Delete] SUCCESS: File moved successfully on attempt {attempt + 1}")
+                    return True
+                    
+                except OSError as e:
+                    # Check if this is a Windows file lock error
+                    if "being used by another process" in str(e) or "WinError 32" in str(e):
+                        log_message(f"[Delete] Attempt {attempt + 1} failed with file lock error: {e}")
+                        if attempt == max_retries:
+                            log_message(f"[Delete] Final attempt failed - file is locked by another process")
+                            return False
+                        # Continue to next retry
+                        continue
+                    else:
+                        # Different error, don't retry
+                        log_message(f"[Delete] Move failed with non-lock error: {e}")
+                        return False
+                except Exception as e:
+                    log_message(f"[Delete] Move failed with unexpected error: {e}")
+                    return False
+            
+            return False
+        
         try:
             # Convert to absolute paths to avoid relative path issues
             source_path = str(full_file_path.resolve())
@@ -920,15 +982,25 @@ def api_delete_track():
             log_message(f"[Delete] DEBUG: - Source file exists: {full_file_path.exists()}")
             log_message(f"[Delete] DEBUG: - Source file readable: {full_file_path.is_file()}")
             
-            log_message(f"[Delete] Moving file: {source_path} → {target_path}")
-            shutil.move(source_path, target_path)
+            # Add small initial delay to give client time to release file
+            log_message(f"[Delete] Waiting briefly for client to release file lock...")
+            time.sleep(0.3)
+            
+            # Attempt file move with retry mechanism
+            move_success = move_file_with_retry(source_path, target_path)
+            
+            if not move_success:
+                error_msg = "Failed to move file to trash - file may still be in use by media player. Please try again in a moment."
+                log_message(f"[Delete] ERROR: {error_msg}")
+                return jsonify({"status": "error", "error": error_msg}), 500
             
             # Calculate trash_path relative to ROOT_DIR parent (D:\music\Youtube)
             trash_path = str(target_file.relative_to(root_dir.parent))
             log_message(f"[Delete] SUCCESS: Moved to trash: {track_name} → {trash_path}")
             log_message(f"[Delete] DEBUG: Target file created successfully: {target_file.exists()}")
+            
         except Exception as e:
-            log_message(f"[Delete] ERROR: Failed to move to trash: {e}")
+            log_message(f"[Delete] ERROR: Unexpected error during file move: {e}")
             log_message(f"[Delete] ERROR: Exception type: {type(e).__name__}")
             log_message(f"[Delete] ERROR: Source path: {source_path}")
             log_message(f"[Delete] ERROR: Target path: {target_path}")
