@@ -220,20 +220,21 @@ def api_cancel_job(job_id: int):
         # Get job queue service
         service = get_job_queue_service(max_workers=1)
         
-        # Cancel job
-        success = service.cancel_job(job_id)
+        # Cancel job - now returns (success, message)
+        success, message = service.cancel_job(job_id)
         
         if success:
-            log_message(f"[Jobs API] Cancelled job #{job_id}")
+            log_message(f"[Jobs API] Cancelled job #{job_id}: {message}")
             return jsonify({
                 "status": "ok",
-                "message": f"Job #{job_id} cancelled successfully"
+                "message": message
             })
         else:
+            log_message(f"[Jobs API] Failed to cancel job #{job_id}: {message}")
             return jsonify({
                 "status": "error",
-                "error": "Job not found or cannot be cancelled"
-            }), 404
+                "error": message
+            }), 400
         
     except Exception as e:
         log_message(f"[Jobs API] Error cancelling job {job_id}: {e}")

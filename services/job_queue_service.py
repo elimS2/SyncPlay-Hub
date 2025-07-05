@@ -684,26 +684,98 @@ class JobQueueService:
             
             return jobs
     
-    def cancel_job(self, job_id: int) -> bool:
-        """Отменяет задачу."""
+    def cancel_job(self, job_id: int) -> tuple[bool, str]:
+        """Отменяет задачу. Возвращает (success, message)."""
         with self._lock:
-            # Проверяем не выполняется ли задача сейчас
-            if job_id in self._running_jobs:
-                # TODO: Реализовать механизм остановки выполняющихся задач
-                return False
-            
+            # Сначала получаем информацию о задаче
             with sqlite3.connect(self.db_path) as conn:
                 cursor = conn.cursor()
-                
                 cursor.execute("""
-                    UPDATE job_queue 
-                    SET status = 'cancelled', completed_at = CURRENT_TIMESTAMP
-                    WHERE id = ? AND status IN ('pending', 'retrying')
+                    SELECT id, status, job_type, worker_id, started_at
+                    FROM job_queue 
+                    WHERE id = ?
                 """, (job_id,))
                 
-                conn.commit()
+                row = cursor.fetchone()
+                if not row:
+                    return False, "Job not found"
                 
-                return cursor.rowcount > 0
+                job_id_db, status, job_type, worker_id, started_at = row
+            
+            # Проверяем можно ли отменить задачу в зависимости от статуса
+            if status in ['completed', 'cancelled']:
+                return False, f"Job is already {status}"
+            
+            if status == 'failed':
+                return False, "Job has already failed"
+            
+            if status == 'timeout':
+                return False, "Job has already timed out"
+            
+            # Обрабатываем выполняющиеся задачи
+            if status == 'running':
+                # Проверяем присутствует ли задача в списке активных
+                if job_id in self._running_jobs:
+                    # Пытаемся отменить выполняющуюся задачу
+                    job = self._running_jobs[job_id]
+                    if hasattr(job, 'request_cancellation'):
+                        # Если задача поддерживает graceful cancellation
+                        job.request_cancellation()
+                        return True, "Cancellation request sent to running job"
+                    else:
+                        # Помечаем задачу как отмененную принудительно
+                        job.status = JobStatus.CANCELLED
+                        job.error_message = "Cancelled by user while running"
+                        job.completed_at = datetime.utcnow()
+                        
+                        # Обновляем в базе
+                        with sqlite3.connect(self.db_path) as conn:
+                            cursor = conn.cursor()
+                            cursor.execute("""
+                                UPDATE job_queue 
+                                SET status = 'cancelled', completed_at = CURRENT_TIMESTAMP,
+                                    error_message = 'Cancelled by user while running'
+                                WHERE id = ?
+                            """, (job_id,))
+                            conn.commit()
+                        
+                        # Удаляем из списка выполняющихся задач
+                        del self._running_jobs[job_id]
+                        return True, "Running job cancelled (forced)"
+                else:
+                    # Задача помечена как running в базе, но не найдена в активных
+                    # Это может произойти после перезапуска сервиса
+                    with sqlite3.connect(self.db_path) as conn:
+                        cursor = conn.cursor()
+                        cursor.execute("""
+                            UPDATE job_queue 
+                            SET status = 'cancelled', completed_at = CURRENT_TIMESTAMP,
+                                error_message = 'Cancelled by user (orphaned running job)'
+                            WHERE id = ?
+                        """, (job_id,))
+                        conn.commit()
+                    
+                    return True, "Orphaned running job cancelled"
+            
+            # Отменяем задачи в очереди (pending, retrying)
+            if status in ['pending', 'retrying']:
+                with sqlite3.connect(self.db_path) as conn:
+                    cursor = conn.cursor()
+                    cursor.execute("""
+                        UPDATE job_queue 
+                        SET status = 'cancelled', completed_at = CURRENT_TIMESTAMP,
+                            error_message = 'Cancelled by user'
+                        WHERE id = ? AND status IN ('pending', 'retrying')
+                    """, (job_id,))
+                    conn.commit()
+                    
+                    if cursor.rowcount > 0:
+                        return True, "Job cancelled successfully"
+                    else:
+                        return False, "Job could not be cancelled (status may have changed)"
+            
+            # Неизвестный статус
+            return False, f"Cannot cancel job with status '{status}'"
     
     def retry_job(self, job_id: int) -> bool:
         """Повторяет неудачную задачу."""

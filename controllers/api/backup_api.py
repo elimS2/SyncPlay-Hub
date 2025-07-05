@@ -268,18 +268,19 @@ def api_cancel_backup_job(job_id: int):
             }), 400
         
         # Try to cancel the job
-        success = job_service.cancel_job(job_id)
+        success, message = job_service.cancel_job(job_id)
         
         if success:
-            log_message(f"Backup job {job_id} cancelled successfully")
+            log_message(f"Backup job {job_id} cancelled successfully: {message}")
             return jsonify({
                 "status": "ok",
-                "message": "Job cancelled successfully"
+                "message": message
             })
         else:
+            log_message(f"Failed to cancel backup job {job_id}: {message}")
             return jsonify({
                 "status": "error",
-                "message": "Job could not be cancelled (may be running or already completed)"
+                "message": message
             }), 400
         
     except Exception as exc:
