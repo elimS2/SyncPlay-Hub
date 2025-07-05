@@ -83,6 +83,47 @@ def api_get_jobs():
         log_message(f"[Jobs API] Error getting jobs: {e}")
         return jsonify({"status": "error", "error": str(e)}), 500
 
+@jobs_bp.route("/jobs/count", methods=["GET"])
+def api_get_jobs_count():
+    """Get count of jobs with optional filtering."""
+    try:
+        # Parse query parameters
+        status_filter = request.args.get('status')
+        job_type_filter = request.args.get('type')
+        
+        # Convert string filters to enums
+        status_enum = None
+        if status_filter:
+            try:
+                status_enum = JobStatus(status_filter)
+            except ValueError:
+                return jsonify({"status": "error", "error": f"Invalid status: {status_filter}"}), 400
+        
+        job_type_enum = None
+        if job_type_filter:
+            try:
+                job_type_enum = JobType(job_type_filter)
+            except ValueError:
+                return jsonify({"status": "error", "error": f"Invalid job type: {job_type_filter}"}), 400
+        
+        # Get job queue service
+        service = get_job_queue_service(max_workers=1)
+        
+        # Get job count
+        count = service.get_jobs_count(
+            status=status_enum,
+            job_type=job_type_enum
+        )
+        
+        return jsonify({
+            "status": "ok",
+            "count": count
+        })
+        
+    except Exception as e:
+        log_message(f"[Jobs API] Error getting jobs count: {e}")
+        return jsonify({"status": "error", "error": str(e)}), 500
+
 @jobs_bp.route("/jobs", methods=["POST"])
 def api_create_job():
     """Create a new job."""

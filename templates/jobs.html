@@ -884,15 +884,23 @@
 
         async function updateTotalJobsCount(statusFilter, typeFilter) {
             try {
-                let url = '/api/jobs?limit=1000'; // Large limit to get all jobs for counting
-                if (statusFilter) url += '&status=' + statusFilter;
-                if (typeFilter) url += '&type=' + typeFilter;
+                let url = '/api/jobs/count';
+                const params = new URLSearchParams();
+                if (statusFilter) params.append('status', statusFilter);
+                if (typeFilter) params.append('type', typeFilter);
+                
+                if (params.toString()) {
+                    url += '?' + params.toString();
+                }
 
                 const response = await fetch(url);
                 const data = await response.json();
 
                 if (data.status === 'ok') {
-                    totalJobs = data.jobs.length;
+                    totalJobs = data.count;
+                } else {
+                    console.error('Error getting total jobs count:', data.error);
+                    totalJobs = 0;
                 }
             } catch (error) {
                 console.error('Error getting total jobs count:', error);

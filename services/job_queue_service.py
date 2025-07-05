@@ -2,8 +2,8 @@
 """
 Job Queue Service
 
-Основной сервис для управления очередью задач в YouTube Downloader.
-Обеспечивает создание, планирование, выполнение и мониторинг задач.
+Main service for managing job queue in YouTube Downloader.
+Provides creation, scheduling, execution and monitoring of jobs.
 """
 
 import sqlite3
@@ -34,12 +34,12 @@ except ImportError:
 
 
 class JobQueueService:
-    """Основной сервис управления очередью задач."""
+    """Main job queue management service."""
     
     def __init__(self, db_path: str = None, max_workers: int = 3):
         # Database setup
         if db_path is None:
-            # Используем .env файл для определения пути к базе
+            # Use .env file to determine database path
             project_root = Path(__file__).parent.parent
             env_path = project_root / '.env'
             
@@ -92,14 +92,14 @@ class JobQueueService:
             except Exception as e:
                 print(f"⚠️ Phase 7 initialization failed: {e}")
         
-        # Инициализация
+        # Initialization
         self._init_database()
         self._start_worker_threads()
     
     def _init_database(self):
-        """Инициализация базы данных для работы с очередью."""
+        """Initialize database for job queue operations."""
         with sqlite3.connect(self.db_path) as conn:
-            # Проверяем что таблица job_queue существует
+            # Check if job_queue table exists
             cursor = conn.cursor()
             cursor.execute("""
                 SELECT name FROM sqlite_master 
@@ -107,7 +107,7 @@ class JobQueueService:
             """)
             
             if not cursor.fetchone():
-                # Создаем таблицу если она не существует
+                # Create table if it doesn't exist
                 cursor.execute("""
                     CREATE TABLE job_queue (
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -129,7 +129,7 @@ class JobQueueService:
                     )
                 """)
                 
-                # Создаем индексы для производительности
+                # Create indexes for performance
                 cursor.execute("CREATE INDEX idx_job_queue_status ON job_queue(status)")
                 cursor.execute("CREATE INDEX idx_job_queue_priority ON job_queue(priority DESC)")
                 cursor.execute("CREATE INDEX idx_job_queue_created_at ON job_queue(created_at)")
@@ -138,7 +138,7 @@ class JobQueueService:
                 conn.commit()
     
     def _start_worker_threads(self):
-        """Запуск рабочих потоков."""
+        """Start worker threads."""
         for i in range(self.max_workers):
             worker_thread = threading.Thread(
                 target=self._worker_loop,
@@ -149,37 +149,37 @@ class JobQueueService:
             self._worker_threads.append(worker_thread)
     
     def _worker_loop(self):
-        """Основной цикл рабочего потока с zombie detection."""
+        """Main worker thread loop with zombie detection."""
         worker_name = threading.current_thread().name
         last_zombie_check = time.time()
-        zombie_check_interval = 300  # Проверяем zombie каждые 5 минут
+        zombie_check_interval = 300  # Check for zombies every 5 minutes
         
         while not self._stop_event.is_set():
             try:
-                # Периодическая проверка zombie задач
+                # Periodic zombie job check
                 current_time = time.time()
                 if current_time - last_zombie_check > zombie_check_interval:
                     self._cleanup_zombie_jobs()
                     last_zombie_check = current_time
                 
-                # Получаем следующую задачу из очереди
+                # Get next job from queue
                 job = self._get_next_job()
                 
                 if job is None:
-                    # Нет задач, ждем немного
+                    # No jobs available, wait a bit
                     time.sleep(1)
                     continue
                 
-                # Выполняем задачу
+                # Execute the job
                 self._execute_job(job, worker_name)
                 
             except Exception as e:
                 print(f"Worker {worker_name} error: {e}")
                 traceback.print_exc()
-                time.sleep(5)  # Пауза при ошибке
+                time.sleep(5)  # Pause on error
     
     def _get_next_job(self) -> Optional[Job]:
-        """Получает следующую задачу для выполнения."""
+        """Get next job for execution."""
         with self._lock:
             # Use optimized database connection if available
             if self._database_optimizer:
@@ -193,7 +193,7 @@ class JobQueueService:
         """Helper method to get next job from provided connection."""
         cursor = conn.cursor()
         
-        # Ищем задачи готовые к выполнению с учетом retry timing
+        # Look for jobs ready for execution considering retry timing
         current_time = datetime.utcnow().isoformat()
         cursor.execute("""
             SELECT id, job_type, job_data, status, priority, created_at,
@@ -212,7 +212,7 @@ class JobQueueService:
         if not row:
             return None
         
-        # Создаем объект Job
+        # Create Job object
         job = Job(
             job_type=JobType(row[1]),
             job_data=JobData.from_json(row[2]),
@@ -229,13 +229,13 @@ class JobQueueService:
         job.timeout_seconds = row[10]
         job.parent_job_id = row[11]
         
-        # Новые поля для enhanced error handling
+        # New fields for enhanced error handling
         if row[12]:  # next_retry_at
             job.next_retry_at = datetime.fromisoformat(row[12])
         if row[13]:  # failure_type
             job.failure_type = JobFailureType(row[13])
         
-        # Помечаем задачу как выполняющуюся
+        # Mark job as running
         cursor.execute("""
             UPDATE job_queue 
             SET status = 'running', started_at = CURRENT_TIMESTAMP
@@ -249,7 +249,7 @@ class JobQueueService:
         return job
     
     def _execute_job(self, job: Job, worker_name: str):
-        """Выполняет задачу."""
+        """Execute a job."""
         job.worker_id = worker_name
         
         # Apply job execution delay (Phase 2: Job Queue Delay System)
@@ -262,33 +262,33 @@ class JobQueueService:
             with self._lock:
                 self._running_jobs[job.id] = job
             
-            # Найдем подходящего воркера
+            # Find suitable worker
             worker = self._find_worker_for_job(job)
             
             if worker is None:
                 raise Exception(f"No worker available for job type {job.job_type.value}")
             
-            # Выполняем задачу с встроенным логированием
+            # Execute job with built-in logging
             success = worker.execute_job_with_logging(job)
                 
         except Exception as e:
             success = False
             error_message = str(e)
-            # Если у job есть логгер, используем его, иначе печатаем в консоль
+            # If job has logger, use it, otherwise print to console
             if job.get_logger():
                 job.log_exception(e, "job execution in JobQueueService")
             else:
                 print(f"Job {job.id} execution error: {e}")
                 
         finally:
-            # Обновляем статус в базе
+            # Update status in database
             with self._lock:
                 if job.id in self._running_jobs:
                     del self._running_jobs[job.id]
                 
                 self._update_job_completion(job, success, error_message)
             
-            # Вызываем callbacks
+            # Call callbacks
             self._call_job_callbacks(job.id, success, error_message)
     
     def _apply_job_delay(self, job: Job):
@@ -313,14 +313,14 @@ class JobQueueService:
             # Continue without delay
     
     def _find_worker_for_job(self, job: Job) -> Optional[JobWorker]:
-        """Находит воркера способного выполнить задачу."""
+        """Find worker capable of executing the job."""
         for worker in self._workers.values():
             if worker.can_handle_job(job):
                 return worker
         return None
     
     def _update_job_completion(self, job: Job, success: bool, error_message: Optional[str]):
-        """Обновляет статус завершенной задачи с enhanced retry logic."""
+        """Update completed job status with enhanced retry logic."""
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
             
@@ -336,9 +336,9 @@ class JobQueueService:
                 """, (new_status.value, job.log_file_path, job.id))
                 
             else:
-                # Enhanced retry logic с exponential backoff
+                # Enhanced retry logic with exponential backoff
                 if job.can_retry():
-                    # Планируем retry с exponential backoff
+                    # Schedule retry with exponential backoff
                     if job.schedule_retry():
                         new_status = JobStatus.RETRYING
                         
@@ -357,7 +357,7 @@ class JobQueueService:
                             job.id
                         ))
                     else:
-                        # Если schedule_retry вернул False, перемещаем в dead letter
+                        # If schedule_retry returned False, move to dead letter
                         job.move_to_dead_letter("Failed to schedule retry")
                         new_status = JobStatus.DEAD_LETTER
                         self._stats['failed_jobs'] += 1
@@ -378,7 +378,7 @@ class JobQueueService:
                             job.id
                         ))
                 else:
-                    # Максимальное количество попыток исчерпано
+                    # Maximum retry attempts exhausted
                     if job.retry_count >= job.max_retries:
                         job.move_to_dead_letter(f"Max retries ({job.max_retries}) exceeded")
                         new_status = JobStatus.DEAD_LETTER
@@ -407,7 +407,7 @@ class JobQueueService:
             job.status = new_status
     
     def _call_job_callbacks(self, job_id: int, success: bool, error_message: Optional[str]):
-        """Вызывает зарегистрированные callbacks для задачи."""
+        """Call registered callbacks for the job."""
         callbacks = self._job_callbacks.get(job_id, [])
         
         for callback in callbacks:
@@ -416,16 +416,16 @@ class JobQueueService:
             except Exception as e:
                 print(f"Callback error for job {job_id}: {e}")
         
-        # Очищаем callbacks после выполнения
+        # Clear callbacks after execution
         if job_id in self._job_callbacks:
             del self._job_callbacks[job_id]
     
     def _cleanup_zombie_jobs(self):
-        """Очищает zombie задачи."""
+        """Clean up zombie jobs."""
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
             
-            # Находим все running задачи
+            # Find all running jobs
             cursor.execute("""
                 SELECT id, job_type, job_data, status, priority, created_at,
                        started_at, log_file_path, error_message, retry_count, 
@@ -454,7 +454,7 @@ class JobQueueService:
                 job.timeout_seconds = row[11]
                 job.parent_job_id = row[12]
                 
-                # Новые поля Phase 6
+                # New fields Phase 6
                 if row[13]:  # failure_type
                     job.failure_type = JobFailureType(row[13])
                 if row[14]:  # next_retry_at
@@ -463,11 +463,11 @@ class JobQueueService:
                 if row[16]:  # moved_to_dead_letter_at
                     job.moved_to_dead_letter_at = datetime.fromisoformat(row[16])
                 
-                # Проверяем является ли задача zombie
+                # Check if job is zombie
                 if job.is_zombie():
                     job.mark_as_zombie(f"Zombie detected during cleanup after {job.get_elapsed_time():.0f}s")
                     
-                    # Обновляем в базе
+                    # Update in database
                     cursor.execute("""
                         UPDATE job_queue 
                         SET status = ?, error_message = ?, failure_type = ?
@@ -486,11 +486,11 @@ class JobQueueService:
                 print(f"Marked {zombie_count} zombie jobs during cleanup")
     
     def force_kill_zombie_jobs(self):
-        """Принудительно завершает все zombie задачи."""
+        """Forcefully terminate all zombie jobs."""
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
             
-            # Находим все zombie задачи
+            # Find all zombie jobs
             cursor.execute("""
                 SELECT id FROM job_queue WHERE status = 'zombie'
             """)
@@ -511,25 +511,25 @@ class JobQueueService:
             
             return 0
     
-    # Public API методы
+    # Public API methods
     
     def register_worker(self, worker: JobWorker):
-        """Регистрирует воркера для выполнения задач."""
+        """Register worker for job execution."""
         with self._lock:
             self._workers[worker.worker_id] = worker
     
     def unregister_worker(self, worker_id: str):
-        """Удаляет воркера из системы."""
+        """Remove worker from system."""
         with self._lock:
             if worker_id in self._workers:
                 del self._workers[worker_id]
     
     def add_job(self, job: Job, callback: Optional[Callable] = None) -> int:
         """
-        Добавляет задачу в очередь.
+        Add job to queue.
         
         Returns:
-            ID созданной задачи
+            ID of created job
         """
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
@@ -554,7 +554,7 @@ class JobQueueService:
             
             job.id = job_id
             
-            # Регистрируем callback если передан
+            # Register callback if provided
             if callback:
                 with self._lock:
                     if job_id not in self._job_callbacks:
@@ -566,12 +566,12 @@ class JobQueueService:
             return job_id
     
     def create_and_add_job(self, job_type: JobType, callback: Optional[Callable] = None, **kwargs) -> int:
-        """Создает и добавляет задачу с дефолтными настройками."""
+        """Create and add job with default settings."""
         job = create_job_with_defaults(job_type, **kwargs)
         return self.add_job(job, callback)
     
     def get_job(self, job_id: int) -> Optional[Job]:
-        """Получает информацию о задаче."""
+        """Get job information."""
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
             
@@ -606,7 +606,7 @@ class JobQueueService:
             job.timeout_seconds = row[13]
             job.parent_job_id = row[14]
             
-            # Новые поля Phase 6
+            # New fields Phase 6
             if row[15]:  # failure_type
                 job.failure_type = JobFailureType(row[15])
             if row[16]:  # next_retry_at
@@ -619,7 +619,7 @@ class JobQueueService:
     
     def get_jobs(self, status: Optional[JobStatus] = None, job_type: Optional[JobType] = None, 
                  limit: int = 100, offset: int = 0) -> List[Job]:
-        """Получает список задач с фильтрацией."""
+        """Get list of jobs with filtering."""
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.cursor()
             
@@ -671,7 +671,7 @@ class JobQueueService:
                 job.timeout_seconds = row[13]
                 job.parent_job_id = row[14]
                 
-                # Новые поля Phase 6
+                # New fields Phase 6
                 if row[15]:  # failure_type
                     job.failure_type = JobFailureType(row[15])
                 if row[16]:  # next_retry_at
@@ -684,10 +684,33 @@ class JobQueueService:
             
             return jobs
     
+    def get_jobs_count(self, status: Optional[JobStatus] = None, job_type: Optional[JobType] = None) -> int:
+        """Get jobs count with filtering without loading the actual job records."""
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            
+            query = "SELECT COUNT(*) FROM job_queue"
+            params = []
+            conditions = []
+            
+            if status:
+                conditions.append("status = ?")
+                params.append(status.value)
+            
+            if job_type:
+                conditions.append("job_type = ?")
+                params.append(job_type.value)
+            
+            if conditions:
+                query += " WHERE " + " AND ".join(conditions)
+            
+            cursor.execute(query, params)
+            return cursor.fetchone()[0]
+    
     def cancel_job(self, job_id: int) -> tuple[bool, str]:
-        """Отменяет задачу. Возвращает (success, message)."""
+        """Cancel a job. Returns (success, message)."""
         with self._lock:
-            # Сначала получаем информацию о задаче
+            # First get job information
             with sqlite3.connect(self.db_path) as conn:
                 cursor = conn.cursor()
                 cursor.execute("""
@@ -702,7 +725,7 @@ class JobQueueService:
                 
                 job_id_db, status, job_type, worker_id, started_at = row
             
-            # Проверяем можно ли отменить задачу в зависимости от статуса
+            # Check if job can be cancelled based on status
             if status in ['completed', 'cancelled']:
                 return False, f"Job is already {status}"
             
@@ -712,23 +735,23 @@ class JobQueueService:
             if status == 'timeout':
                 return False, "Job has already timed out"
             
-            # Обрабатываем выполняющиеся задачи
+            # Handle running jobs
             if status == 'running':
-                # Проверяем присутствует ли задача в списке активных
+                # Check if job is in active jobs list
                 if job_id in self._running_jobs:
-                    # Пытаемся отменить выполняющуюся задачу
+                    # Try to cancel running job
                     job = self._running_jobs[job_id]
                     if hasattr(job, 'request_cancellation'):
-                        # Если задача поддерживает graceful cancellation
+                        # If job supports graceful cancellation
                         job.request_cancellation()
                         return True, "Cancellation request sent to running job"
                     else:
-                        # Помечаем задачу как отмененную принудительно
+                        # Mark job as forcefully cancelled
                         job.status = JobStatus.CANCELLED
                         job.error_message = "Cancelled by user while running"
                         job.completed_at = datetime.utcnow()
                         
-                        # Обновляем в базе
+                        # Update in database
                         with sqlite3.connect(self.db_path) as conn:
                             cursor = conn.cursor()
                             cursor.execute("""
@@ -739,12 +762,12 @@ class JobQueueService:
                             """, (job_id,))
                             conn.commit()
                         
-                        # Удаляем из списка выполняющихся задач
+                        # Remove from running jobs list
                         del self._running_jobs[job_id]
                         return True, "Running job cancelled (forced)"
                 else:
-                    # Задача помечена как running в базе, но не найдена в активных
-                    # Это может произойти после перезапуска сервиса
+                    # Job marked as running in DB but not found in active jobs
+                    # This can happen after service restart
                     with sqlite3.connect(self.db_path) as conn:
                         cursor = conn.cursor()
                         cursor.execute("""
@@ -757,7 +780,7 @@ class JobQueueService:
                     
                     return True, "Orphaned running job cancelled"
             
-            # Отменяем задачи в очереди (pending, retrying)
+            # Cancel queued jobs (pending, retrying)
             if status in ['pending', 'retrying']:
                 with sqlite3.connect(self.db_path) as conn:
                     cursor = conn.cursor()
@@ -774,20 +797,20 @@ class JobQueueService:
                     else:
                         return False, "Job could not be cancelled (status may have changed)"
             
-            # Неизвестный статус
+            # Unknown status
             return False, f"Cannot cancel job with status '{status}'"
     
     def retry_job(self, job_id: int) -> bool:
-        """Повторяет неудачную задачу."""
+        """Retry a failed job."""
         with self._lock:
-            # Проверяем не выполняется ли задача сейчас
+            # Check if job is currently running
             if job_id in self._running_jobs:
                 return False
             
             with sqlite3.connect(self.db_path) as conn:
                 cursor = conn.cursor()
                 
-                # Проверяем статус задачи
+                # Check job status
                 cursor.execute("""
                     SELECT status, retry_count, max_retries
                     FROM job_queue 
@@ -800,15 +823,15 @@ class JobQueueService:
                 
                 status, retry_count, max_retries = row
                 
-                # Проверяем можно ли повторить задачу
+                # Check if job can be retried
                 if status not in ['failed', 'cancelled', 'timeout']:
                     return False
                 
-                # Можно также проверить лимит попыток (опционально)
+                # Can also check retry limit (optional)
                 # if retry_count >= max_retries:
                 #     return False
                 
-                # Сбрасываем задачу для повторного выполнения
+                # Reset job for re-execution
                 cursor.execute("""
                     UPDATE job_queue 
                     SET status = 'pending',
@@ -826,12 +849,12 @@ class JobQueueService:
                 return cursor.rowcount > 0
     
     def get_queue_stats(self) -> Dict[str, Any]:
-        """Получает статистику очереди."""
+        """Get queue statistics."""
         try:
             with sqlite3.connect(self.db_path) as conn:
                 cursor = conn.cursor()
                 
-                # Считаем задачи по статусам
+                # Count jobs by status
                 cursor.execute("""
                     SELECT status, COUNT(*) 
                     FROM job_queue 
@@ -840,7 +863,7 @@ class JobQueueService:
                 
                 status_counts = dict(cursor.fetchall())
                 
-                # Считаем задачи по типам
+                # Count jobs by type
                 cursor.execute("""
                     SELECT job_type, COUNT(*) 
                     FROM job_queue 
@@ -849,11 +872,11 @@ class JobQueueService:
                 
                 type_counts = dict(cursor.fetchall())
                 
-                # Общее количество задач
+                # Total job count
                 cursor.execute("SELECT COUNT(*) FROM job_queue")
                 total_jobs = cursor.fetchone()[0]
                 
-                # Информация о воркерах
+                # Worker information
                 with self._lock:
                     worker_info = [
                         worker.get_worker_info() 
@@ -861,12 +884,12 @@ class JobQueueService:
                     ]
                     running_jobs_count = len(self._running_jobs)
             
-            # Извлекаем статистику из status_counts
+            # Extract statistics from status_counts
             completed_jobs = status_counts.get('completed', 0)
             failed_jobs = status_counts.get('failed', 0)
             pending_jobs = status_counts.get('pending', 0)
             
-            # Время работы сервиса
+            # Service uptime
             uptime = (datetime.utcnow() - self._stats['start_time']).total_seconds()
             
             return {
@@ -887,7 +910,7 @@ class JobQueueService:
             }
             
         except Exception as e:
-            # Возвращаем базовую статистику в случае ошибки
+            # Return basic statistics in case of error
             return {
                 'status_counts': {},
                 'type_counts': {},
@@ -906,7 +929,7 @@ class JobQueueService:
             }
     
     def start(self):
-        """Запуск сервиса (если он еще не запущен)."""
+        """Start service (if not already started)."""
         if not self._worker_threads or all(not t.is_alive() for t in self._worker_threads):
             print("Starting Job Queue Service workers...")
             self._stop_event.clear()
@@ -915,27 +938,27 @@ class JobQueueService:
             print(f"Job Queue Service started with {len(self._worker_threads)} workers")
     
     def stop(self):
-        """Остановка сервиса (алиас для shutdown)."""
+        """Stop service (alias for shutdown)."""
         self.shutdown()
     
     def shutdown(self, graceful_timeout: int = 30):
-        """Graceful shutdown сервиса с ожиданием завершения текущих задач."""
+        """Graceful shutdown of service with waiting for current jobs to complete."""
         print("Initiating graceful shutdown of Job Queue Service...")
         
-        # Проверяем текущие выполняющиеся задачи
+        # Check current running jobs
         running_jobs = list(self._running_jobs.values())
         if running_jobs:
             print(f"Waiting for {len(running_jobs)} running jobs to complete (timeout: {graceful_timeout}s)...")
             
-            # Ждем завершения текущих задач с timeout
+            # Wait for current jobs to complete with timeout
             start_time = time.time()
             while running_jobs and (time.time() - start_time) < graceful_timeout:
                 time.sleep(1)
-                # Обновляем список активных задач
+                # Update active jobs list
                 with self._lock:
                     running_jobs = list(self._running_jobs.values())
             
-            # Если остались незавершенные задачи, помечаем их как cancelled
+            # If there are unfinished jobs remaining, mark them as cancelled
             if running_jobs:
                 print(f"Force cancelling {len(running_jobs)} remaining jobs...")
                 for job in running_jobs:
@@ -943,7 +966,7 @@ class JobQueueService:
                     job.error_message = "Cancelled due to service shutdown"
                     job.completed_at = datetime.utcnow()
                     
-                    # Обновляем в базе
+                    # Update in database
                     try:
                         with sqlite3.connect(self.db_path) as conn:
                             cursor = conn.cursor()
@@ -957,21 +980,21 @@ class JobQueueService:
                     except Exception as e:
                         print(f"Error updating cancelled job {job.id}: {e}")
         
-        # Финальная очистка zombie задач
+        # Final zombie job cleanup
         print("Performing final zombie cleanup...")
         self._cleanup_zombie_jobs()
         
-        # Сигнализируем потокам о завершении
+        # Signal threads to stop
         self._stop_event.set()
         
-        # Ждем завершения всех worker потоков
+        # Wait for all worker threads to complete
         print("Stopping worker threads...")
         for thread in self._worker_threads:
-            thread.join(timeout=10)  # Увеличенный timeout для graceful shutdown
+            thread.join(timeout=10)  # Increased timeout for graceful shutdown
             if thread.is_alive():
                 print(f"Warning: Worker thread {thread.name} did not shut down gracefully")
         
-        # Очищаем данные
+        # Clear data
         with self._lock:
             self._workers.clear()
             self._running_jobs.clear()
@@ -985,7 +1008,7 @@ _job_queue_service: Optional[JobQueueService] = None
 
 
 def get_job_queue_service(db_path: str = None, max_workers: int = 3) -> JobQueueService:
-    """Получает singleton instance сервиса очереди."""
+    """Get singleton instance of job queue service."""
     global _job_queue_service
     
     if _job_queue_service is None:
@@ -995,7 +1018,7 @@ def get_job_queue_service(db_path: str = None, max_workers: int = 3) -> JobQueue
 
 
 def shutdown_job_queue_service():
-    """Завершает работу singleton сервиса."""
+    """Shutdown singleton service."""
     global _job_queue_service
     
     if _job_queue_service is not None:
