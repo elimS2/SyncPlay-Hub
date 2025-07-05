@@ -10,11 +10,13 @@ from .metadata_extraction_worker import MetadataExtractionWorker
 from .cleanup_worker import CleanupWorker
 from .playlist_download_worker import PlaylistDownloadWorker
 from .backup_worker import BackupWorker
+from .single_video_metadata_worker import SingleVideoMetadataWorker
 
 __all__ = [
     'ChannelDownloadWorker',
     'MetadataExtractionWorker', 
     'CleanupWorker',
     'PlaylistDownloadWorker',
-    'BackupWorker'
+    'BackupWorker',
+    'SingleVideoMetadataWorker'
 ] 

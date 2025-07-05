@@ -36,6 +36,7 @@ class JobType(Enum):
     METADATA_EXTRACTION = "metadata_extraction"
     CHANNEL_METADATA_UPDATE = "channel_metadata_update"
     PLAYLIST_METADATA_UPDATE = "playlist_metadata_update"
+    SINGLE_VIDEO_METADATA_EXTRACTION = "single_video_metadata_extraction"  # Phase 3: Single video metadata extraction
     
     # Задачи обслуживания
     FILE_CLEANUP = "file_cleanup"

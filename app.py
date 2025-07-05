@@ -19,7 +19,7 @@ from services.streaming_service import get_streams, get_stream
 from controllers.api import api_bp, init_api_router
 
 # Import database functions
-from database import get_connection, iter_tracks_with_playlists, get_history_page
+from database import get_connection, iter_tracks_with_playlists, get_history_page, get_user_setting, set_user_setting
 
 # Add psutil import for process checking (optional)
 try:
@@ -449,6 +449,45 @@ def jobs_page():
     """Job Queue management page."""
     return render_template("jobs.html")
 
+@app.route("/settings", methods=['GET', 'POST'])
+def settings_page():
+    """Settings management page."""
+    from flask import request, redirect, url_for, flash
+    
+    if request.method == 'POST':
+        try:
+            # Get delay value from form
+            delay_seconds = int(request.form.get('job_execution_delay_seconds', 0))
+            
+            # Validate delay (0 to 86400 seconds = 24 hours)
+            if delay_seconds < 0 or delay_seconds > 86400:
+                raise ValueError("Delay must be between 0 and 86400 seconds (24 hours)")
+            
+            # Save setting to database
+            conn = get_connection()
+            set_user_setting(conn, 'job_execution_delay_seconds', str(delay_seconds))
+            conn.close()
+            
+            log_message(f"Settings updated: job_execution_delay_seconds = {delay_seconds}")
+            return redirect(url_for('settings_page'))
+            
+        except ValueError as e:
+            log_message(f"Settings validation error: {e}")
+            return render_template("settings.html", error=str(e), delay_seconds=request.form.get('job_execution_delay_seconds', 0))
+        except Exception as e:
+            log_message(f"Settings save error: {e}")
+            return render_template("settings.html", error="Failed to save settings", delay_seconds=request.form.get('job_execution_delay_seconds', 0))
+    
+    # GET request - load current settings
+    try:
+        conn = get_connection()
+        delay_seconds = get_user_setting(conn, 'job_execution_delay_seconds', '0')
+        conn.close()
+        return render_template("settings.html", delay_seconds=int(delay_seconds))
+    except Exception as e:
+        log_message(f"Settings load error: {e}")
+        return render_template("settings.html", delay_seconds=0, error="Failed to load settings")
+
 @app.route("/likes")
 def likes_playlists_page():
     """Virtual playlists by likes page."""
@@ -529,7 +568,7 @@ def main():
     
     # Initialize and start Job Queue Service
     from services.job_queue_service import get_job_queue_service
-    from services.job_workers import ChannelDownloadWorker, MetadataExtractionWorker, CleanupWorker, PlaylistDownloadWorker, BackupWorker
+    from services.job_workers import ChannelDownloadWorker, MetadataExtractionWorker, CleanupWorker, PlaylistDownloadWorker, BackupWorker, SingleVideoMetadataWorker
     
     try:
         # Use only 1 worker to prevent parallel execution issues
@@ -541,6 +580,7 @@ def main():
         job_service.register_worker(CleanupWorker())
         job_service.register_worker(PlaylistDownloadWorker())
         job_service.register_worker(BackupWorker())
+        job_service.register_worker(SingleVideoMetadataWorker())
         
         # Start the service
         job_service.start()

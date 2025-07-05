@@ -21,6 +21,9 @@ from .job_types import (
     create_job_with_defaults
 )
 
+# Database functions for settings
+from database import get_user_setting
+
 # Performance monitoring and optimization (Phase 7)
 try:
     from utils.performance_monitor import get_performance_monitor
@@ -249,6 +252,9 @@ class JobQueueService:
         """Выполняет задачу."""
         job.worker_id = worker_name
         
+        # Apply job execution delay (Phase 2: Job Queue Delay System)
+        self._apply_job_delay(job)
+        
         success = False
         error_message = None
         
@@ -284,6 +290,27 @@ class JobQueueService:
             
             # Вызываем callbacks
             self._call_job_callbacks(job.id, success, error_message)
+    
+    def _apply_job_delay(self, job: Job):
+        """Apply configured delay before job execution to prevent rate limiting."""
+        try:
+            # Get delay setting from database
+            with sqlite3.connect(self.db_path) as conn:
+                delay_seconds = int(get_user_setting(conn, 'job_execution_delay_seconds', '0'))
+            
+            if delay_seconds > 0:
+                # Log the delay application
+                worker_name = threading.current_thread().name
+                from utils.logging_utils import log_message
+                log_message(f"Applying job delay: {delay_seconds}s before executing job {job.id} (type: {job.job_type.value}) on worker {worker_name}")
+                
+                # Apply the delay
+                time.sleep(delay_seconds)
+                
+        except Exception as e:
+            # If there's an error getting/applying delay, log it but don't fail the job
+            print(f"Warning: Failed to apply job delay for job {job.id}: {e}")
+            # Continue without delay
     
     def _find_worker_for_job(self, job: Job) -> Optional[JobWorker]:
         """Находит воркера способного выполнить задачу."""
