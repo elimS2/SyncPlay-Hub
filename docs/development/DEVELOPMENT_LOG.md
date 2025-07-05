@@ -535,55 +535,35 @@ Visit /jobs page to track extraction progress
 
 ---
 
-### Log Entry #118 - 2025-07-05 01:52 UTC
+### Log Entry #118 - 2025-07-05 02:02 UTC
 
-**Affected Files:**
-- `services/job_queue_service.py`
-- `controllers/api/jobs_api.py`
-- `controllers/api_controller_ORIGINAL_BACKUP.py`
-- `controllers/api/backup_api.py`
+**Added Pagination to Jobs Page**
 
-**What Changed:**
-Fixed job cancellation functionality that was causing "Job not found or cannot be cancelled" errors, including handling of orphaned running jobs.
+**Changes Made:**
+- Added pagination controls to `templates/jobs.html` with CSS styles for navigation buttons
+- Implemented JavaScript pagination logic with currentPage, totalJobs, and jobsPerPage state variables
+- Modified `loadJobs()` function to support offset parameter for pagination
+- Added `updateTotalJobsCount()` function to get total jobs count for pagination calculations
+- Created pagination control functions: `goToFirstPage()`, `goToPreviousPage()`, `goToNextPage()`, `goToLastPage()`, `jumpToPage()`
+- Added `updatePaginationControls()` function to manage button states and pagination info display
+- Updated filter event listeners to reset pagination when filters change
+- Added Enter key support for page jump input field
 
 **Technical Details:**
-1. **Enhanced `cancel_job` method in JobQueueService:**
-   - Changed return type from `bool` to `tuple[bool, str]` to provide detailed error messages
-   - Added proper status checking before attempting cancellation
-   - Implemented support for cancelling running jobs with forced cancellation
-   - Added specific error messages for different job states (completed, failed, timeout, etc.)
-   - **Added handling for orphaned running jobs** - jobs marked as 'running' in database but not present in active jobs list (can happen after server restart)
+- Pagination shows/hides automatically based on whether multiple pages exist
+- Uses existing API `/api/jobs` with `limit` and `offset` parameters
+- Default page size is 50 jobs per page (configurable via limit filter)
+- Pagination info shows current page, total pages, and total jobs count
+- Jump-to-page functionality with input validation
 
-2. **Updated API endpoints** in jobs_api.py, backup_api.py, and api_controller_ORIGINAL_BACKUP.py:
-   - Modified to handle new return format from `cancel_job` method
-   - Improved error messages returned to the client
-   - Better logging of cancellation attempts and results
-
-**Problem Analysis:**
-- The original `cancel_job` method could only cancel jobs with status 'pending' or 'retrying'
-- The UI allowed cancelling jobs with status 'running' but the backend couldn't handle it
-- Additional issue: jobs marked as 'running' after server restart weren't properly handled
-
-**Solution:**
-- Enhanced the cancellation logic to handle different job statuses properly
-- Added support for forced cancellation of running jobs
-- **Added orphaned running job detection and cleanup** - handles jobs that are marked as running in DB but not tracked in memory
-- Provided specific error messages explaining why cancellation failed
-- Maintained backward compatibility while improving functionality
+**Files Modified:**
+- `templates/jobs.html` - Added pagination UI, CSS styles, and JavaScript logic
 
 **Impact:**
-- Users now get clear, specific error messages when cancellation fails
-- Running jobs can now be cancelled (with forced termination)
-- **Orphaned running jobs** (after server restart) can now be properly cancelled
-- Better user experience on the jobs management page
-- Improved system reliability and error handling
-
-**Testing Considerations:**
-- Test cancellation of jobs in different statuses (pending, running, completed, failed)
-- Test cancellation of orphaned running jobs (after server restart)
-- Verify error messages are displayed correctly in UI
-- Test forced cancellation of running jobs
-- Ensure no regression in existing job queue functionality
+- Improves performance when dealing with large number of jobs
+- Provides better user experience for navigating through job history
+- Maintains existing functionality while adding pagination features
+- No backend changes required as API already supported pagination parameters
 
 ---
 
