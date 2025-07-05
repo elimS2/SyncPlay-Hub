@@ -299,7 +299,7 @@ def api_tracks_by_likes(like_count):
     try:
         conn = get_connection()
         
-        # Get tracks with exactly like_count likes, using YouTube metadata title if available
+        # Get tracks with exactly like_count likes, including all statistics and metadata
         # Exclude deleted tracks
         query = """
         SELECT 
@@ -308,9 +308,16 @@ def api_tracks_by_likes(like_count):
             t.relpath,
             t.duration,
             t.play_likes,
+            t.play_starts,
+            t.play_finishes,
+            t.play_nexts,
+            t.play_prevs,
             t.last_start_ts,
             t.last_finish_ts,
-            COALESCE(t.last_finish_ts, t.last_start_ts) as last_play
+            COALESCE(t.last_finish_ts, t.last_start_ts) as last_play,
+            ym.timestamp,
+            ym.release_timestamp,
+            ym.release_year
         FROM tracks t
         LEFT JOIN youtube_video_metadata ym ON ym.youtube_id = t.video_id
         WHERE t.play_likes = ? 
@@ -329,9 +336,16 @@ def api_tracks_by_likes(like_count):
                 "relpath": row[2],
                 "duration": row[3] or 0,
                 "play_likes": row[4] or 0,
-                "last_start_ts": row[5],
-                "last_finish_ts": row[6],
-                "last_play": row[7],
+                "play_starts": row[5] or 0,
+                "play_finishes": row[6] or 0,
+                "play_nexts": row[7] or 0,
+                "play_prevs": row[8] or 0,
+                "last_start_ts": row[9],
+                "last_finish_ts": row[10],
+                "last_play": row[11],
+                "timestamp": row[12],  # YouTube publish timestamp
+                "release_timestamp": row[13],
+                "release_year": row[14],
                 "url": f"/media/{row[2]}"  # Use relpath, not video_id
             }
             tracks.append(track)

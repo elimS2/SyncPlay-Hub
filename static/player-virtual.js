@@ -457,6 +457,72 @@ function getGroupPlaybackInfo(tracks) {
       li.dataset.index = idx;
       if (idx === currentIndex) li.classList.add('playing');
       
+      // Prepare tooltip content with track metadata and statistics
+      const publishDate = t.timestamp ? new Date(t.timestamp * 1000).toLocaleDateString() : 'Unknown';
+      const lastPlayDate = t.last_play ? new Date(t.last_play + 'Z').toLocaleDateString() : 'Never';
+      const playCount = t.play_starts || 0;
+      const completeCount = t.play_finishes || 0;
+      const nextCount = t.play_nexts || 0;
+      const likeCount = t.play_likes || 0;
+      
+      // Debug: tooltip data prepared for track
+      
+      const tooltipContent = `
+        <div class="tooltip-row">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+            <line x1="16" y1="2" x2="16" y2="6"></line>
+            <line x1="8" y1="2" x2="8" y2="6"></line>
+            <line x1="3" y1="10" x2="21" y2="10"></line>
+          </svg>
+          <strong>Published:</strong> ${publishDate}
+        </div>
+        <div class="tooltip-row">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"></circle>
+            <polyline points="12,6 12,12 16,14"></polyline>
+          </svg>
+          <strong>Last Played:</strong> ${lastPlayDate}
+        </div>
+        <div class="tooltip-section">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M9 18V5l12-2v13"></path>
+            <circle cx="6" cy="18" r="3"></circle>
+            <circle cx="18" cy="16" r="3"></circle>
+          </svg>
+          <strong>Statistics</strong>
+        </div>
+        <div class="tooltip-row">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polygon points="5,3 19,12 5,21"></polygon>
+          </svg>
+          Total Plays: ${playCount}
+        </div>
+        <div class="tooltip-row">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M9 12l2 2 4-4"></path>
+            <path d="M21 12c-1 0-3-1-3-3s2-3 3-3 3 1 3 3-2 3-3 3"></path>
+            <path d="M3 12c1 0 3-1 3-3s-2-3-3-3-3 1-3 3 2 3 3 3"></path>
+          </svg>
+          Completed: ${completeCount}
+        </div>
+        <div class="tooltip-row">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polygon points="5,4 15,12 5,20"></polygon>
+            <line x1="19" y1="5" x2="19" y2="19"></line>
+          </svg>
+          Next Clicks: ${nextCount}
+        </div>
+        <div class="tooltip-row">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
+          </svg>
+          Likes: ${likeCount}
+        </div>
+      `;
+      
+      li.dataset.tooltipHtml = tooltipContent;
+      
       // Create track content container
       const trackContent = document.createElement('div');
       trackContent.className = 'track-content';
@@ -508,6 +574,11 @@ function getGroupPlaybackInfo(tracks) {
       li.appendChild(trackContent);
       listElem.appendChild(li);
     });
+    
+    console.log(`🎵 Rendered ${queue.length} tracks in playlist`);
+    
+    // Create global tooltip system (like in player.js)
+    setupGlobalTooltip();
   }
 
   function loadTrack(idx, autoplay=false){
@@ -1527,4 +1598,76 @@ function getGroupPlaybackInfo(tracks) {
       }, 300);
     }, 5000);
   }
-})(); 
+
+  // ===== GLOBAL TOOLTIP SYSTEM =====
+  function setupGlobalTooltip() {
+    // Remove existing tooltip if any (like player.js)
+    const existingTooltip = document.getElementById('global-tooltip');
+    if (existingTooltip) {
+      existingTooltip.remove();
+    }
+    
+    // Create global tooltip element (like player.js)
+    const tooltip = document.createElement('div');
+    tooltip.id = 'global-tooltip';
+    tooltip.className = 'custom-tooltip';
+    tooltip.style.display = 'none';
+    document.body.appendChild(tooltip);
+    
+    // Add event listeners to all tracks with tooltip data (like player.js)
+    const trackItems = listElem.querySelectorAll('li[data-tooltip-html]');
+    
+    trackItems.forEach(item => {
+      item.addEventListener('mouseenter', (e) => {
+        const tooltipHTML = item.getAttribute('data-tooltip-html');
+        tooltip.innerHTML = tooltipHTML;
+        tooltip.style.display = 'block';
+        
+        // Position tooltip intelligently (copied from player.js)
+        const rect = item.getBoundingClientRect();
+        const tooltipRect = tooltip.getBoundingClientRect();
+        const windowWidth = window.innerWidth;
+        const windowHeight = window.innerHeight;
+        
+        let left, top;
+        
+        // Check if there's enough space on the right
+        if (rect.right + tooltipRect.width + 20 <= windowWidth) {
+          // Show on the right
+          left = rect.right + 10;
+        } else {
+          // Show on the left
+          left = rect.left - tooltipRect.width - 10;
+        }
+        
+        // Ensure tooltip doesn't go off screen horizontally
+        if (left < 10) left = 10;
+        if (left + tooltipRect.width > windowWidth - 10) {
+          left = windowWidth - tooltipRect.width - 10;
+        }
+        
+        // Position vertically
+        top = rect.top;
+        
+        // Ensure tooltip doesn't go off screen vertically
+        if (top + tooltipRect.height > windowHeight - 10) {
+          top = windowHeight - tooltipRect.height - 10;
+        }
+        if (top < 10) top = 10;
+        
+        tooltip.style.position = 'fixed';
+        tooltip.style.left = left + 'px';
+        tooltip.style.top = top + 'px';
+      });
+      
+      item.addEventListener('mouseleave', () => {
+        tooltip.style.display = 'none';
+      });
+    });
+  }
+
+  // Tooltip system will be initialized after rendering tracks in renderList()
+  
+  // Tooltip system will be initialized in renderList() after tracks are rendered
+  
+  })(); 
