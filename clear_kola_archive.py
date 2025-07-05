@@ -22,7 +22,7 @@ for line in lines:
     for video_id in kola_videos:
         if video_id in line:
             should_keep = False
-            print(f"Удаляю: {line.strip()}")
+            print(f"Removing: {line.strip()}")
             break
     if should_keep:
         filtered_lines.append(line)
@@ -33,8 +33,8 @@ removed_count = original_count - len(filtered_lines)
 with open(archive_path, 'w', encoding='utf-8') as f:
     f.writelines(filtered_lines)
 
-print(f'\nРезультат:')
-print(f'Удалено {removed_count} записей KOLA из архива')
-print(f'Всего строк было: {original_count}')
-print(f'Всего строк стало: {len(filtered_lines)}')
-print('Канал KOLA готов для повторного скачивания!') 
+print(f'\nResult:')
+print(f'Removed {removed_count} KOLA entries from archive')
+print(f'Total lines before: {original_count}')
+print(f'Total lines after: {len(filtered_lines)}')
+print('KOLA channel ready for re-download!') 

@@ -4,23 +4,23 @@ Database package for YouTube downloader project.
 Contains migration system and database management utilities.
 """
 
-# Экспортируем основные классы для удобства использования
+# Export main classes for convenience
 from .migration_manager import MigrationManager, Migration
 
-# Импортируем и экспортируем функции из database.py (корневого файла)
+# Import and export functions from database.py (root file)
 import importlib.util
 import sys
 from pathlib import Path
 
-# Путь к файлу database.py в корне проекта
+# Path to database.py file in project root
 database_py_path = Path(__file__).parent.parent / "database.py"
 
-# Загружаем модуль database.py как database_core
+# Load database.py module as database_core
 spec = importlib.util.spec_from_file_location("database_core", database_py_path)
 database_core = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(database_core)
 
-# Экспортируем функции из database_core
+# Export functions from database_core
 # Connection helpers
 set_db_path = database_core.set_db_path
 get_connection = database_core.get_connection

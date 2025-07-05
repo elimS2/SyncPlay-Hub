@@ -457,7 +457,7 @@ function getGroupPlaybackInfo(tracks) {
       const deleteBtn = document.createElement('button');
       deleteBtn.className = 'delete-btn';
       deleteBtn.innerHTML = '🗑️';
-      deleteBtn.title = 'Удалить трек';
+      deleteBtn.title = 'Delete track';
       deleteBtn.style.cssText = `
         background: none;
         border: none;
@@ -604,14 +604,14 @@ function getGroupPlaybackInfo(tracks) {
   deleteCurrentBtn.onclick = async () => {
     // Check if there's a current track
     if (currentIndex < 0 || currentIndex >= queue.length) {
-      showNotification('❌ Нет активного трека для удаления', 'error');
+      showNotification('❌ No active track to delete', 'error');
       return;
     }
     
     const currentTrack = queue[currentIndex];
     
     // Confirm deletion
-    const confirmMessage = `Удалить текущий трек "${currentTrack.name.replace(/\s*\[.*?\]$/, '')}" из плейлиста?\n\nТрек будет перемещен в корзину и может быть восстановен.`;
+    const confirmMessage = `Delete current track "${currentTrack.name.replace(/\s*\[.*?\]$/, '')}" from playlist?\n\nTrack will be moved to trash and can be restored.`;
     if (!confirm(confirmMessage)) {
       return;
     }
@@ -664,18 +664,18 @@ function getGroupPlaybackInfo(tracks) {
         } else {
           // No tracks left
           currentIndex = -1;
-          showNotification('📭 Плейлист пуст - все треки удалены', 'info');
+          showNotification('📭 Playlist is empty - all tracks deleted', 'info');
         }
         
         // Update the list display
         renderList();
         
         // Show success message
-        showNotification(`✅ Трек удален: ${result.message}`, 'success');
+        showNotification(`✅ Track deleted: ${result.message}`, 'success');
         
       } else {
         console.error('❌ Failed to delete current track:', result.error);
-        showNotification(`❌ Ошибка удаления: ${result.error}`, 'error');
+        showNotification(`❌ Deletion error: ${result.error}`, 'error');
         
         // On failure, try to restore playback of the same track
         console.log('🔄 Attempting to restore playback after deletion failure...');
@@ -693,7 +693,7 @@ function getGroupPlaybackInfo(tracks) {
       
     } catch (error) {
       console.error('❌ Error deleting current track:', error);
-      showNotification(`❌ Ошибка сети: ${error.message}`, 'error');
+      showNotification(`❌ Network error: ${error.message}`, 'error');
       
       // On error, try to restore playback
       console.log('🔄 Attempting to restore playback after network error...');
@@ -833,17 +833,81 @@ function getGroupPlaybackInfo(tracks) {
     }
   };
 
+  // Volume wheel control variables - defined early for scope access
+  let volumeWheelTimeout = null;
+  let isVolumeWheelActive = false;
+  
   // Volume logic
   cMute.onclick = () => {
     media.muted = !media.muted;
     updateMuteIcon();
   };
   cVol.oninput = () => {
+    if (isVolumeWheelActive) {
+      return;
+    }
     media.volume = parseFloat(cVol.value);
     media.muted = media.volume === 0;
     updateMuteIcon();
     saveVolumeToDatabase(media.volume);
   };
+  
+  // Volume wheel control - adjust volume by 1% with mouse wheel
+  
+  if (cVol) {
+    
+    // Function to handle volume wheel adjustment
+    function handleVolumeWheel(e) {
+      e.preventDefault(); // Prevent page scroll
+      e.stopPropagation(); // Stop event bubbling
+      
+      // Block remote volume commands while user is using wheel
+      isVolumeWheelActive = true;
+      clearTimeout(volumeWheelTimeout);
+      volumeWheelTimeout = setTimeout(() => {
+        isVolumeWheelActive = false;
+      }, 2000); // 2 second cooldown
+      
+      const currentVolume = parseFloat(cVol.value);
+      const step = 0.01; // 1% step
+      
+      let newVolume;
+      if (e.deltaY < 0) {
+        // Wheel up - increase volume
+        newVolume = Math.min(1.0, currentVolume + step);
+      } else {
+        // Wheel down - decrease volume
+        newVolume = Math.max(0.0, currentVolume - step);
+      }
+      
+      // Check if we have an actual change
+      if (Math.abs(newVolume - currentVolume) < 0.001) {
+        return;
+      }
+      
+      // Update slider and media volume
+      cVol.value = newVolume;
+      media.volume = newVolume;
+      media.muted = media.volume === 0;
+      updateMuteIcon();
+      
+      // Force visual update
+      cVol.dispatchEvent(new Event('input', { bubbles: true }));
+      
+      saveVolumeToDatabase(media.volume);
+      
+      console.log(`🎚️ Volume wheel control: ${Math.round(currentVolume * 100)}% → ${Math.round(newVolume * 100)}%`);
+    }
+    
+    // Add wheel event listeners for cross-browser compatibility
+    cVol.addEventListener('wheel', handleVolumeWheel, { passive: false });
+    cVol.addEventListener('mousewheel', handleVolumeWheel, { passive: false }); // For older browsers
+    cVol.addEventListener('DOMMouseScroll', handleVolumeWheel, { passive: false }); // For Firefox
+    
+    console.log('✅ Volume wheel control setup complete with cross-browser support');
+  } else {
+    console.error('❌ cVol element not found - wheel control not initialized');
+  }
   
   function updateMuteIcon() {
     if (media.muted || media.volume === 0) {
@@ -1231,6 +1295,9 @@ function getGroupPlaybackInfo(tracks) {
           
         case 'volume':
           if (command.volume !== undefined) {
+            if (isVolumeWheelActive) {
+              break;
+            }
             console.log('🎮 [Remote] Set volume:', Math.round(command.volume * 100) + '%');
             media.volume = command.volume;
             cVol.value = command.volume;
@@ -1328,7 +1395,7 @@ function getGroupPlaybackInfo(tracks) {
   async function deleteTrack(track, trackIndex) {
     try {
       // Confirm deletion
-      const confirmMessage = `Удалить трек "${track.name.replace(/\s*\[.*?\]$/, '')}" из плейлиста?\n\nТрек будет перемещен в корзину и может быть восстановлен.`;
+      const confirmMessage = `Delete current track "${track.name.replace(/\s*\[.*?\]$/, '')}" from playlist?\n\nTrack will be moved to trash and can be restored.`;
       if (!confirm(confirmMessage)) {
         return;
       }
@@ -1381,16 +1448,16 @@ function getGroupPlaybackInfo(tracks) {
         renderList();
         
         // Show success message
-        showNotification(`✅ Трек удален: ${result.message}`, 'success');
+        showNotification(`✅ Track deleted: ${result.message}`, 'success');
         
       } else {
         console.error('❌ Failed to delete track:', result.error);
-        showNotification(`❌ Ошибка удаления: ${result.error}`, 'error');
+        showNotification(`❌ Deletion error: ${result.error}`, 'error');
       }
       
     } catch (error) {
       console.error('❌ Error deleting track:', error);
-      showNotification(`❌ Ошибка сети: ${error.message}`, 'error');
+      showNotification(`❌ Network error: ${error.message}`, 'error');
     }
   }
 

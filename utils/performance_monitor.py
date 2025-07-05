@@ -2,8 +2,8 @@
 """
 Performance Monitor for Job Queue System
 
-Система мониторинга производительности с метриками, профилированием
-и real-time статистикой для production deployment.
+Performance monitoring system with metrics, profiling
+and real-time statistics for production deployment.
 """
 
 import time
@@ -20,7 +20,7 @@ import os
 
 @dataclass
 class PerformanceMetrics:
-    """Metrics snapshot для конкретного момента времени."""
+    """Metrics snapshot for a specific moment in time."""
     
     timestamp: datetime
     
@@ -50,23 +50,23 @@ class PerformanceMetrics:
     db_query_time: float
     
     def to_dict(self) -> Dict[str, Any]:
-        """Преобразует в словарь для JSON serialization."""
+        """Converts to dictionary for JSON serialization."""
         data = asdict(self)
         data['timestamp'] = self.timestamp.isoformat()
         return data
 
 
 class MetricsCollector:
-    """Сборщик метрик для Job Queue System."""
+    """Metrics collector for Job Queue System."""
     
     def __init__(self, db_path: str, job_queue_service = None):
         self.db_path = db_path
         self.job_queue_service = job_queue_service
         
-        # История метрик (последние 24 часа)
-        self.metrics_history: deque = deque(maxlen=1440)  # По одной записи в минуту
+        # Metrics history (last 24 hours)
+        self.metrics_history: deque = deque(maxlen=1440)  # One record per minute
         
-        # Профилирование запросов
+        # Query profiling
         self.query_times: defaultdict = defaultdict(list)
         
         # Thread safety
@@ -77,7 +77,7 @@ class MetricsCollector:
         self._collection_thread = None
         
     def start_monitoring(self, interval: int = 60):
-        """Запускает background мониторинг с заданным интервалом (секунды)."""
+        """Starts background monitoring with specified interval (seconds)."""
         if self._collection_thread and self._collection_thread.is_alive():
             return
         
@@ -92,14 +92,14 @@ class MetricsCollector:
         print(f"Performance monitoring started (interval: {interval}s)")
     
     def stop_monitoring(self):
-        """Останавливает background мониторинг."""
+        """Stops background monitoring."""
         if self._collection_thread:
             self._stop_collection.set()
             self._collection_thread.join(timeout=5)
             print("Performance monitoring stopped")
     
     def _background_collection(self, interval: int):
-        """Background thread для сбора метрик."""
+        """Background thread for metrics collection."""
         while not self._stop_collection.wait(interval):
             try:
                 metrics = self.collect_metrics()
@@ -109,7 +109,7 @@ class MetricsCollector:
                 print(f"Error collecting metrics: {e}")
     
     def collect_metrics(self) -> PerformanceMetrics:
-        """Собирает все метрики в единый snapshot."""
+        """Collects all metrics into a single snapshot."""
         timestamp = datetime.utcnow()
         
         # Job Queue Metrics
@@ -133,12 +133,12 @@ class MetricsCollector:
         )
     
     def _collect_job_stats(self) -> Dict[str, int]:
-        """Собирает статистику по задачам из базы данных."""
+        """Collects job statistics from database."""
         try:
             with sqlite3.connect(self.db_path) as conn:
                 cursor = conn.cursor()
                 
-                # Подсчет задач по статусам
+                # Count jobs by status
                 cursor.execute("""
                     SELECT status, COUNT(*) 
                     FROM job_queue 
@@ -165,12 +165,12 @@ class MetricsCollector:
             }
     
     def _collect_performance_stats(self) -> Dict[str, float]:
-        """Собирает статистику производительности."""
+        """Collects performance statistics."""
         try:
             with sqlite3.connect(self.db_path) as conn:
                 cursor = conn.cursor()
                 
-                # Средняя продолжительность выполнения задач
+                # Average job execution duration
                 cursor.execute("""
                     SELECT 
                         AVG(
@@ -188,7 +188,7 @@ class MetricsCollector:
                 row = cursor.fetchone()
                 avg_duration = row[0] or 0.0
                 
-                # Jobs per minute (последний час)
+                # Jobs per minute (last hour)
                 cursor.execute("""
                     SELECT COUNT(*) 
                     FROM job_queue 
@@ -198,7 +198,7 @@ class MetricsCollector:
                 jobs_last_hour = cursor.fetchone()[0] or 0
                 jobs_per_minute = jobs_last_hour / 60.0
                 
-                # Success rate и retry rate
+                # Success rate and retry rate
                 cursor.execute("""
                     SELECT 
                         COUNT(*) as total,
@@ -232,7 +232,7 @@ class MetricsCollector:
             }
     
     def _collect_worker_stats(self) -> Dict[str, Any]:
-        """Собирает статистику по воркерам."""
+        """Collects worker statistics."""
         try:
             if self.job_queue_service:
                 stats = self.job_queue_service.get_queue_stats()
@@ -267,18 +267,18 @@ class MetricsCollector:
             }
     
     def _collect_database_stats(self) -> Dict[str, float]:
-        """Собирает метрики базы данных."""
+        """Collects database metrics."""
         try:
             # Database size
             db_size = 0.0
             if os.path.exists(self.db_path):
                 db_size = os.path.getsize(self.db_path) / (1024 * 1024)  # MB
             
-            # Average query time (за последние 100 запросов)
+            # Average query time (last 100 queries)
             with self._lock:
                 all_times = []
                 for query_type, times in self.query_times.items():
-                    all_times.extend(times[-100:])  # Последние 100 запросов каждого типа
+                    all_times.extend(times[-100:])  # Last 100 queries of each type
                 
                 avg_query_time = sum(all_times) / len(all_times) if all_times else 0.0
             
@@ -295,7 +295,7 @@ class MetricsCollector:
     
     @contextmanager
     def measure_query_time(self, query_type: str):
-        """Context manager для измерения времени выполнения запросов."""
+        """Context manager for measuring query execution time."""
         start_time = time.time()
         try:
             yield
@@ -303,12 +303,12 @@ class MetricsCollector:
             duration = time.time() - start_time
             with self._lock:
                 self.query_times[query_type].append(duration)
-                # Оставляем только последние 1000 измерений
+                # Keep only last 1000 measurements
                 if len(self.query_times[query_type]) > 1000:
                     self.query_times[query_type] = self.query_times[query_type][-1000:]
     
     def get_metrics_history(self, hours: int = 24) -> List[PerformanceMetrics]:
-        """Возвращает историю метрик за указанное количество часов."""
+        """Returns metrics history for specified number of hours."""
         cutoff_time = datetime.utcnow() - timedelta(hours=hours)
         
         with self._lock:
@@ -318,11 +318,11 @@ class MetricsCollector:
             ]
     
     def get_current_metrics(self) -> PerformanceMetrics:
-        """Возвращает текущие метрики."""
+        """Returns current metrics."""
         return self.collect_metrics()
     
     def export_metrics(self, file_path: str, hours: int = 24):
-        """Экспортирует метрики в JSON файл."""
+        """Exports metrics to JSON file."""
         history = self.get_metrics_history(hours)
         
         data = {
@@ -338,13 +338,13 @@ class MetricsCollector:
         print(f"Metrics exported to {file_path} ({len(history)} snapshots)")
     
     def get_performance_summary(self) -> Dict[str, Any]:
-        """Возвращает сводку производительности за последние 24 часа."""
+        """Returns performance summary for the last 24 hours."""
         history = self.get_metrics_history(24)
         
         if not history:
             return {'error': 'No metrics data available'}
         
-        # Агрегация метрик
+        # Aggregate metrics
         total_jobs = sum(m.total_jobs for m in history) / len(history)
         avg_success_rate = sum(m.success_rate for m in history) / len(history)
         avg_worker_utilization = sum(m.worker_utilization for m in history) / len(history)
@@ -368,12 +368,12 @@ class MetricsCollector:
         }
 
 
-# Singleton instance для global access
+# Singleton instance for global access
 _performance_monitor: Optional[MetricsCollector] = None
 
 
 def get_performance_monitor(db_path: str = None, job_queue_service = None) -> MetricsCollector:
-    """Получает singleton instance performance monitor."""
+    """Gets singleton instance of performance monitor."""
     global _performance_monitor
     
     if _performance_monitor is None:
@@ -385,14 +385,14 @@ def get_performance_monitor(db_path: str = None, job_queue_service = None) -> Me
 
 
 def start_performance_monitoring(db_path: str, job_queue_service = None, interval: int = 60):
-    """Запускает performance monitoring с заданными параметрами."""
+    """Starts performance monitoring with specified parameters."""
     monitor = get_performance_monitor(db_path, job_queue_service)
     monitor.start_monitoring(interval)
     return monitor
 
 
 def stop_performance_monitoring():
-    """Останавливает performance monitoring."""
+    """Stops performance monitoring."""
     global _performance_monitor
     
     if _performance_monitor:
@@ -400,21 +400,21 @@ def stop_performance_monitoring():
 
 
 if __name__ == "__main__":
-    # Пример использования
+    # Usage example
     print("🚀 Testing Performance Monitor...")
     
-    # Создаем тестовый monitor
+    # Create test monitor
     monitor = MetricsCollector("database.db")
     
-    # Собираем метрики
+    # Collect metrics
     metrics = monitor.collect_metrics()
     print(f"✅ Current metrics collected:")
     print(f"   Total jobs: {metrics.total_jobs}")
     print(f"   DB size: {metrics.db_size:.2f} MB")
     
-    # Тестируем query time measurement
+    # Test query time measurement
     with monitor.measure_query_time("test_query"):
-        time.sleep(0.01)  # Симулируем query
+        time.sleep(0.01)  # Simulate query
     
     print(f"✅ Query time measurement working")
     print("🎉 Performance Monitor test completed!") 

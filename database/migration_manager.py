@@ -2,8 +2,8 @@
 """
 Database Migration Manager
 
-Система управления миграциями для базы данных проекта.
-Позволяет версионировать изменения схемы и применять их автоматически.
+Database migration management system for the project.
+Allows versioning schema changes and applying them automatically.
 """
 
 import sqlite3
@@ -17,10 +17,10 @@ from abc import ABC, abstractmethod
 
 
 class Migration(ABC):
-    """Базовый класс для миграций."""
+    """Base class for migrations."""
     
     def __init__(self):
-        # Извлекаем номер миграции из имени класса (например Migration001 -> 1)
+        # Extract migration number from class name (e.g. Migration001 -> 1)
         class_name = self.__class__.__name__
         if class_name.startswith('Migration') and class_name[9:].isdigit():
             self.number = int(class_name[9:])
@@ -29,22 +29,22 @@ class Migration(ABC):
     
     @abstractmethod
     def up(self, conn: sqlite3.Connection) -> None:
-        """Применить миграцию (создать изменения)."""
+        """Apply migration (create changes)."""
         pass
     
     @abstractmethod
     def down(self, conn: sqlite3.Connection) -> None:
-        """Откатить миграцию (отменить изменения).""" 
+        """Rollback migration (undo changes).""" 
         pass
     
     @abstractmethod
     def description(self) -> str:
-        """Описание того, что делает миграция."""
+        """Description of what the migration does."""
         pass
 
 
 class MigrationManager:
-    """Менеджер для управления миграциями базы данных."""
+    """Manager for database migrations."""
     
     def __init__(self, db_path: str, migrations_dir: str = None):
         self.db_path = db_path
@@ -53,13 +53,13 @@ class MigrationManager:
         else:
             self.migrations_dir = Path(migrations_dir)
         
-        # Добавляем папку миграций в Python path
+        # Add migrations folder to Python path
         sys.path.insert(0, str(self.migrations_dir.parent))
         
         self._ensure_migration_table()
     
     def _ensure_migration_table(self):
-        """Создаёт таблицу для отслеживания миграций если её нет."""
+        """Creates migration tracking table if it doesn't exist."""
         conn = sqlite3.connect(self.db_path)
         try:
             conn.execute('''
@@ -76,7 +76,7 @@ class MigrationManager:
             conn.close()
     
     def get_applied_migrations(self) -> List[int]:
-        """Возвращает список номеров применённых миграций."""
+        """Returns list of applied migration numbers."""
         conn = sqlite3.connect(self.db_path)
         try:
             cur = conn.cursor()
@@ -91,21 +91,21 @@ class MigrationManager:
             conn.close()
     
     def get_available_migrations(self) -> List[Migration]:
-        """Загружает все доступные миграции из папки migrations."""
+        """Loads all available migrations from migrations folder."""
         migrations = []
         
-        # Ищем все файлы .py в папке migrations
+        # Look for all .py files in migrations folder
         if not self.migrations_dir.exists():
             return migrations
         
         for file_path in self.migrations_dir.glob('*.py'):
             if file_path.name.startswith('migration_') and file_path.name.endswith('.py'):
-                # Загружаем модуль миграции
+                # Load migration module
                 module_name = f"migrations.{file_path.stem}"
                 try:
                     module = importlib.import_module(module_name)
                     
-                    # Ищем классы Migration в модуле
+                    # Look for Migration classes in module
                     for attr_name in dir(module):
                         attr = getattr(module, attr_name)
                         if (isinstance(attr, type) and 
@@ -117,27 +117,27 @@ class MigrationManager:
                 except Exception as e:
                     print(f"Warning: Failed to load migration {file_path}: {e}")
         
-        # Сортируем по номеру миграции
+        # Sort by migration number
         migrations.sort(key=lambda m: m.number)
         return migrations
     
     def get_pending_migrations(self) -> List[Migration]:
-        """Возвращает миграции которые ещё не применены."""
+        """Returns migrations that haven't been applied yet."""
         applied = set(self.get_applied_migrations())
         available = self.get_available_migrations()
         
         return [m for m in available if m.number not in applied]
     
     def apply_migration(self, migration: Migration) -> bool:
-        """Применяет одну миграцию."""
+        """Applies one migration."""
         conn = sqlite3.connect(self.db_path)
         try:
             print(f"Applying migration {migration.number:03d}: {migration.description()}")
             
-            # Применяем миграцию
+            # Apply migration
             migration.up(conn)
             
-            # Записываем в таблицу миграций
+            # Record in migrations table
             conn.execute('''
                 INSERT INTO schema_migrations (migration_number, migration_name, applied_at)
                 VALUES (?, ?, datetime('now'))
@@ -155,15 +155,15 @@ class MigrationManager:
             conn.close()
     
     def rollback_migration(self, migration: Migration) -> bool:
-        """Откатывает одну миграцию."""
+        """Rolls back one migration."""
         conn = sqlite3.connect(self.db_path)
         try:
             print(f"Rolling back migration {migration.number:03d}: {migration.description()}")
             
-            # Откатываем миграцию
+            # Rollback migration
             migration.down(conn)
             
-            # Помечаем миграцию как откаченную
+            # Mark migration as rolled back
             conn.execute('''
                 UPDATE schema_migrations 
                 SET rollback_at = datetime('now')
@@ -182,7 +182,7 @@ class MigrationManager:
             conn.close()
     
     def migrate(self) -> int:
-        """Применяет все неприменённые миграции."""
+        """Applies all unapplied migrations."""
         pending = self.get_pending_migrations()
         
         if not pending:
@@ -207,7 +207,7 @@ class MigrationManager:
         return applied_count
     
     def migrate_json(self) -> int:
-        """Применяет все неприменённые миграции (тихий режим для JSON)."""
+        """Applies all unapplied migrations (silent mode for JSON)."""
         pending = self.get_pending_migrations()
         
         if not pending:
@@ -223,13 +223,13 @@ class MigrationManager:
         return applied_count
     
     def apply_migration_silent(self, migration: Migration) -> bool:
-        """Применяет одну миграцию без вывода в консоль."""
+        """Applies one migration without output to console."""
         conn = sqlite3.connect(self.db_path)
         try:
-            # Применяем миграцию
+            # Apply migration
             migration.up(conn)
             
-            # Записываем в таблицу миграций
+            # Record in migrations table
             conn.execute('''
                 INSERT INTO schema_migrations (migration_number, migration_name, applied_at)
                 VALUES (?, ?, datetime('now'))
@@ -245,13 +245,13 @@ class MigrationManager:
             conn.close()
     
     def rollback_migration_json(self, migration: Migration) -> bool:
-        """Откатывает одну миграцию (тихий режим для JSON)."""
+        """Rolls back one migration (silent mode for JSON)."""
         conn = sqlite3.connect(self.db_path)
         try:
-            # Откатываем миграцию
+            # Rollback migration
             migration.down(conn)
             
-            # Помечаем миграцию как откаченную
+            # Mark migration as rolled back
             conn.execute('''
                 UPDATE schema_migrations 
                 SET rollback_at = datetime('now')
@@ -269,12 +269,12 @@ class MigrationManager:
     
     def mark_migration_as_applied(self, migration_number: int, migration_name: str = None) -> bool:
         """
-        Помечает миграцию как выполненную без фактического применения.
-        Полезно когда изменения уже применены вручную.
+        Marks migration as applied without actually applying changes.
+        Useful when changes have already been applied manually.
         """
         conn = sqlite3.connect(self.db_path)
         try:
-            # Проверяем не применена ли уже
+            # Check if already applied
             cursor = conn.cursor()
             cursor.execute('''
                 SELECT COUNT(*) FROM schema_migrations 
@@ -285,7 +285,7 @@ class MigrationManager:
                 print(f"⚠️  Migration {migration_number:03d} is already marked as applied")
                 return False
             
-            # Помечаем как выполненную
+            # Mark as applied
             migration_name = migration_name or f"Migration{migration_number:03d}"
             cursor.execute('''
                 INSERT INTO schema_migrations (migration_number, migration_name, applied_at)
@@ -304,7 +304,7 @@ class MigrationManager:
             conn.close()
     
     def status(self) -> Dict[str, Any]:
-        """Показывает статус миграций."""
+        """Shows migration status."""
         applied = self.get_applied_migrations()
         available = self.get_available_migrations()
         pending = self.get_pending_migrations()
@@ -331,7 +331,7 @@ class MigrationManager:
         }
     
     def status_json(self) -> Dict[str, Any]:
-        """Возвращает статус миграций в формате для JSON."""
+        """Returns migration status in JSON format."""
         applied = self.get_applied_migrations()
         available = self.get_available_migrations()
         pending = self.get_pending_migrations()
@@ -359,7 +359,7 @@ class MigrationManager:
 
 
 def main():
-    """CLI для управления миграциями."""
+    """CLI for managing migrations."""
     import argparse
     
     parser = argparse.ArgumentParser(description="Database Migration Manager")
@@ -370,10 +370,10 @@ def main():
     
     args = parser.parse_args()
     
-    # Определяем путь к базе данных
+    # Define database path
     db_path = args.db_path
     if not db_path:
-        # Пытаемся загрузить из .env
+        # Try to load from .env
         env_path = Path(__file__).parent.parent / '.env'
         if env_path.exists():
             try:

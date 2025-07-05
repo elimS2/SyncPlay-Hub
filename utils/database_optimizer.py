@@ -2,8 +2,8 @@
 """
 Database Optimizer for Job Queue System
 
-Система оптимизации базы данных с connection pooling, query optimization,
-и database maintenance для production deployment.
+Database optimization system with connection pooling, query optimization,
+and database maintenance for production deployment.
 """
 
 import sqlite3
@@ -18,16 +18,16 @@ import logging
 
 
 class ConnectionPool:
-    """SQLite Connection Pool для оптимизации database access."""
+    """SQLite Connection Pool for database access optimization."""
     
     def __init__(self, db_path: str, pool_size: int = 10, timeout: float = 30.0):
         """
-        Инициализирует connection pool.
+        Initializes connection pool.
         
         Args:
-            db_path: Путь к SQLite database
-            pool_size: Максимальное количество соединений в pool
-            timeout: Timeout для получения соединения из pool (секунды)
+            db_path: Path to SQLite database
+            pool_size: Maximum number of connections in pool
+            timeout: Timeout for getting connection from pool (seconds)
         """
         self.db_path = db_path
         self.pool_size = pool_size
@@ -45,38 +45,38 @@ class ConnectionPool:
         
         # Performance optimization settings
         self._connection_settings = {
-            'journal_mode': 'WAL',  # Write-Ahead Logging для better concurrency
-            'synchronous': 'NORMAL',  # Balance между safety и performance
+            'journal_mode': 'WAL',  # Write-Ahead Logging for better concurrency
+            'synchronous': 'NORMAL',  # Balance between safety and performance
             'cache_size': -64000,  # 64MB cache size (negative = KB)
-            'temp_store': 'MEMORY',  # Временные таблицы в memory
+            'temp_store': 'MEMORY',  # Temporary tables in memory
             'mmap_size': 268435456,  # 256MB memory-mapped I/O
             'optimize': True  # Automatic query optimization
         }
         
-        # Инициализируем pool
+        # Initialize pool
         self._initialize_pool()
         
         logging.info(f"Connection pool initialized (size: {pool_size}, db: {db_path})")
     
     def _initialize_pool(self):
-        """Инициализирует connections в pool."""
+        """Initializes connections in pool."""
         for _ in range(self.pool_size):
             conn = self._create_connection()
             self._pool.put(conn)
     
     def _create_connection(self) -> sqlite3.Connection:
-        """Создает новое optimized SQLite соединение."""
+        """Creates new optimized SQLite connection."""
         try:
             conn = sqlite3.connect(
                 self.db_path,
-                check_same_thread=False,  # Разрешаем multi-threading
+                check_same_thread=False,  # Allow multi-threading
                 timeout=self.timeout
             )
             
-            # Применяем optimization settings
+            # Apply optimization settings
             self._apply_optimization_settings(conn)
             
-            # Включаем row factory для удобного доступа к данным
+            # Enable row factory for convenient data access
             conn.row_factory = sqlite3.Row
             
             with self._lock:
@@ -90,21 +90,21 @@ class ConnectionPool:
             raise
     
     def _apply_optimization_settings(self, conn: sqlite3.Connection):
-        """Применяет optimization settings к соединению."""
+        """Applies optimization settings to connection."""
         cursor = conn.cursor()
         
         try:
-            # Применяем каждую optimization setting
+            # Apply each optimization setting
             for setting, value in self._connection_settings.items():
                 if setting == 'optimize':
-                    continue  # Обрабатываем отдельно
+                    continue  # Handle separately
                 
                 if isinstance(value, str):
                     cursor.execute(f"PRAGMA {setting} = {value}")
                 else:
                     cursor.execute(f"PRAGMA {setting} = {value}")
             
-            # Запускаем автооптимизацию
+            # Run auto-optimization
             if self._connection_settings.get('optimize', False):
                 cursor.execute("PRAGMA optimize")
             
@@ -117,62 +117,62 @@ class ConnectionPool:
     
     @contextmanager
     def get_connection(self):
-        """Context manager для получения соединения из pool."""
+        """Context manager for getting connection from pool."""
         conn = None
         start_time = time.time()
         
         try:
-            # Получаем соединение из pool
+            # Get connection from pool
             try:
                 conn = self._pool.get(timeout=self.timeout)
             except Empty:
                 raise TimeoutError(f"Failed to get connection from pool within {self.timeout}s")
             
-            # Обновляем статистику
+            # Update statistics
             with self._lock:
                 self.active_connections += 1
                 self.peak_connections = max(self.peak_connections, self.active_connections)
             
-            # Проверяем, что соединение еще живо
+            # Check if connection is still alive
             try:
                 conn.execute("SELECT 1").fetchone()
             except sqlite3.Error:
-                # Соединение мертво, создаем новое
+                # Connection is dead, create new one
                 conn.close()
                 conn = self._create_connection()
             
             yield conn
             
         finally:
-            # Возвращаем соединение в pool
+            # Return connection to pool
             if conn:
                 try:
-                    # Rollback любых незакоммиченных транзакций
+                    # Rollback any uncommitted transactions
                     conn.rollback()
                     
-                    # Возвращаем в pool
+                    # Return to pool
                     self._pool.put(conn)
                     
                 except Exception as e:
                     logging.error(f"Error returning connection to pool: {e}")
-                    # Если не можем вернуть, создаем новое соединение для pool
+                    # If can't return, create new connection for pool
                     try:
                         new_conn = self._create_connection()
                         self._pool.put(new_conn)
                     except Exception:
-                        pass  # Pool будет меньше, но это лучше чем crash
+                        pass  # Pool will be smaller, but better than crash
                 
-                # Обновляем статистику
+                # Update statistics
                 with self._lock:
                     self.active_connections -= 1
             
-            # Логируем медленные запросы
+            # Log slow queries
             duration = time.time() - start_time
-            if duration > 1.0:  # Более 1 секунды
+            if duration > 1.0:  # More than 1 second
                 logging.warning(f"Slow database operation: {duration:.2f}s")
     
     def get_pool_stats(self) -> Dict[str, Any]:
-        """Возвращает статистику connection pool."""
+        """Returns connection pool statistics."""
         with self._lock:
             return {
                 'pool_size': self.pool_size,
@@ -184,16 +184,16 @@ class ConnectionPool:
             }
     
     def close_all(self):
-        """Закрывает все соединения в pool."""
+        """Closes all connections in pool."""
         with self._lock:
-            # Закрываем все соединения
+            # Close all connections
             for conn in self._all_connections:
                 try:
                     conn.close()
                 except Exception:
                     pass
             
-            # Очищаем pool
+            # Clear pool
             while not self._pool.empty():
                 try:
                     conn = self._pool.get_nowait()
@@ -208,15 +208,15 @@ class ConnectionPool:
 
 
 class DatabaseOptimizer:
-    """Главный класс для database optimization и maintenance."""
+    """Main class for database optimization and maintenance."""
     
     def __init__(self, db_path: str, pool_size: int = 10):
         """
-        Инициализирует database optimizer.
+        Initializes database optimizer.
         
         Args:
-            db_path: Путь к SQLite database
-            pool_size: Размер connection pool
+            db_path: Path to SQLite database
+            pool_size: Connection pool size
         """
         self.db_path = db_path
         self.connection_pool = ConnectionPool(db_path, pool_size)
@@ -226,30 +226,30 @@ class DatabaseOptimizer:
         self._query_stats = {}
         
         # Maintenance settings
-        self.maintenance_interval = 3600  # 1 час
+        self.maintenance_interval = 3600  # 1 hour
         self.last_maintenance = datetime.utcnow()
         
         logging.info(f"Database optimizer initialized for {db_path}")
     
     @contextmanager
     def get_optimized_connection(self):
-        """Получает optimized соединение с automatic query monitoring."""
+        """Gets optimized connection with automatic query monitoring."""
         with self.connection_pool.get_connection() as conn:
             yield OptimizedConnection(conn, self)
     
     def execute_query(self, query: str, params: tuple = (), fetch_one: bool = False, 
                      fetch_all: bool = False) -> Any:
         """
-        Выполняет optimized query с automatic caching и monitoring.
+        Executes optimized query with automatic caching and monitoring.
         
         Args:
-            query: SQL запрос
-            params: Параметры для запроса
-            fetch_one: Вернуть только одну строку
-            fetch_all: Вернуть все строки
+            query: SQL query
+            params: Query parameters
+            fetch_one: Return only one row
+            fetch_all: Return all rows
             
         Returns:
-            Результат запроса или None
+            Query result based on fetch parameters
         """
         start_time = time.time()
         query_hash = hash((query, params))
@@ -258,17 +258,17 @@ class DatabaseOptimizer:
             with self.connection_pool.get_connection() as conn:
                 cursor = conn.cursor()
                 
-                # Выполняем запрос
+                # Execute query
                 cursor.execute(query, params)
                 
-                # Получаем результат
+                # Get result
                 result = None
                 if fetch_one:
                     result = cursor.fetchone()
                 elif fetch_all:
                     result = cursor.fetchall()
                 
-                # Коммитим если нужно
+                # Commit if needed
                 if query.strip().upper().startswith(('INSERT', 'UPDATE', 'DELETE')):
                     conn.commit()
                 
@@ -278,12 +278,12 @@ class DatabaseOptimizer:
             logging.error(f"Query execution failed: {e}, Query: {query[:100]}...")
             raise
         finally:
-            # Записываем статистику запроса
+            # Record query statistics
             duration = time.time() - start_time
             self._record_query_stats(query, duration)
     
     def _record_query_stats(self, query: str, duration: float):
-        """Записывает статистику выполнения запроса."""
+        """Records query statistics for performance monitoring."""
         query_type = query.strip().split()[0].upper()
         
         if query_type not in self._query_stats:
@@ -300,12 +300,12 @@ class DatabaseOptimizer:
         stats['max_time'] = max(stats['max_time'], duration)
         stats['min_time'] = min(stats['min_time'], duration)
         
-        # Логируем очень медленные запросы
+        # Log very slow queries
         if duration > 5.0:
             logging.warning(f"Very slow query ({duration:.2f}s): {query[:200]}...")
     
     def get_query_stats(self) -> Dict[str, Any]:
-        """Возвращает статистику выполнения запросов."""
+        """Returns query performance statistics."""
         stats = {}
         
         for query_type, data in self._query_stats.items():
@@ -322,17 +322,17 @@ class DatabaseOptimizer:
     
     def run_maintenance(self, force: bool = False) -> Dict[str, Any]:
         """
-        Запускает database maintenance процедуры.
+        Runs database maintenance tasks.
         
         Args:
-            force: Принудительно запустить maintenance
+            force: Force maintenance even if interval hasn't passed
             
         Returns:
-            Результаты maintenance
+            Dictionary with maintenance results
         """
         now = datetime.utcnow()
         
-        # Проверяем, нужно ли запускать maintenance
+        # Check if maintenance should be run
         if not force and (now - self.last_maintenance).seconds < self.maintenance_interval:
             return {'skipped': True, 'reason': 'Too early for maintenance'}
         
@@ -343,7 +343,7 @@ class DatabaseOptimizer:
             with self.connection_pool.get_connection() as conn:
                 cursor = conn.cursor()
                 
-                # 1. VACUUM для освобождения места
+                # 1. VACUUM to free space
                 logging.info("Running VACUUM...")
                 db_size_before = os.path.getsize(self.db_path) if os.path.exists(self.db_path) else 0
                 cursor.execute("VACUUM")
@@ -355,15 +355,15 @@ class DatabaseOptimizer:
                     'space_freed_mb': (db_size_before - db_size_after) / (1024 * 1024)
                 }
                 
-                # 2. ANALYZE для обновления статистики
+                # 2. ANALYZE to update statistics
                 logging.info("Running ANALYZE...")
                 cursor.execute("ANALYZE")
                 
-                # 3. OPTIMIZE для обновления query planner statistics
+                # 3. OPTIMIZE to update query planner statistics
                 logging.info("Running OPTIMIZE...")
                 cursor.execute("PRAGMA optimize")
                 
-                # 4. Очистка старых completed задач (старше 7 дней)
+                # 4. Clean up old completed tasks (older than 7 days)
                 logging.info("Cleaning up old completed jobs...")
                 cutoff_date = now - timedelta(days=7)
                 cursor.execute("""
@@ -375,7 +375,7 @@ class DatabaseOptimizer:
                 cleaned_jobs = cursor.rowcount
                 results['cleanup'] = {'removed_jobs': cleaned_jobs}
                 
-                # 5. Проверка integrity
+                # 5. Check integrity
                 logging.info("Checking database integrity...")
                 cursor.execute("PRAGMA integrity_check")
                 integrity_result = cursor.fetchone()
@@ -383,7 +383,7 @@ class DatabaseOptimizer:
                 
                 conn.commit()
                 
-                # Обновляем время последнего maintenance
+                # Update last maintenance time
                 self.last_maintenance = now
                 
                 results['success'] = True
@@ -399,15 +399,15 @@ class DatabaseOptimizer:
         return results
     
     def get_database_stats(self) -> Dict[str, Any]:
-        """Возвращает полную статистику database."""
+        """Returns comprehensive database statistics."""
         try:
             with self.connection_pool.get_connection() as conn:
                 cursor = conn.cursor()
                 
-                # Размер базы данных
+                # Database size
                 db_size = os.path.getsize(self.db_path) if os.path.exists(self.db_path) else 0
                 
-                # Статистика таблиц
+                # Table statistics
                 cursor.execute("""
                     SELECT name, COUNT(*) as row_count
                     FROM sqlite_master 
@@ -445,13 +445,13 @@ class DatabaseOptimizer:
             return {'error': str(e)}
     
     def close(self):
-        """Закрывает все соединения и очищает ресурсы."""
+        """Closes database optimizer and all connections."""
         self.connection_pool.close_all()
         logging.info("Database optimizer closed")
 
 
 class OptimizedConnection:
-    """Wrapper для database connection с automatic monitoring."""
+    """Wrapper for database connection with automatic query monitoring."""
     
     def __init__(self, connection: sqlite3.Connection, optimizer: DatabaseOptimizer):
         self.connection = connection
@@ -459,7 +459,7 @@ class OptimizedConnection:
         self._start_time = time.time()
     
     def execute(self, query: str, params: tuple = ()):
-        """Выполняет query с monitoring."""
+        """Executes query with automatic monitoring."""
         start_time = time.time()
         try:
             cursor = self.connection.cursor()
@@ -470,24 +470,24 @@ class OptimizedConnection:
             self.optimizer._record_query_stats(query, duration)
     
     def commit(self):
-        """Коммитит транзакцию."""
+        """Commits transaction."""
         self.connection.commit()
     
     def rollback(self):
-        """Откатывает транзакцию."""
+        """Rolls back transaction."""
         self.connection.rollback()
     
     def __getattr__(self, name):
-        """Проксирует все остальные методы к оригинальному connection."""
+        """Delegates attribute access to underlying connection."""
         return getattr(self.connection, name)
 
 
-# Singleton instance для global access
+# Global optimizer instance for singleton pattern
 _database_optimizer: Optional[DatabaseOptimizer] = None
 
 
 def get_database_optimizer(db_path: str = None, pool_size: int = 10) -> DatabaseOptimizer:
-    """Получает singleton instance database optimizer."""
+    """Gets singleton instance of database optimizer."""
     global _database_optimizer
     
     if _database_optimizer is None:
@@ -499,33 +499,33 @@ def get_database_optimizer(db_path: str = None, pool_size: int = 10) -> Database
 
 
 def initialize_database_optimization(db_path: str, pool_size: int = 10) -> DatabaseOptimizer:
-    """Инициализирует database optimization."""
+    """Initializes database optimization system."""
     optimizer = get_database_optimizer(db_path, pool_size)
     logging.info(f"Database optimization initialized (pool_size: {pool_size})")
     return optimizer
 
 
 if __name__ == "__main__":
-    # Пример использования
+    # Usage example
     print("🚀 Testing Database Optimizer...")
     
-    # Инициализируем optimizer
+    # Initialize optimizer
     optimizer = DatabaseOptimizer("database.db", pool_size=5)
     
-    # Тестируем соединение
+    # Test connection
     with optimizer.get_optimized_connection() as conn:
         cursor = conn.execute("SELECT COUNT(*) FROM job_queue")
         count = cursor.fetchone()
         print(f"✅ Connection test: {count[0] if count else 0} jobs in queue")
     
-    # Получаем статистику
+    # Get statistics
     stats = optimizer.get_database_stats()
     print(f"✅ Database stats: {stats['database_size_mb']:.2f} MB")
     
-    # Тестируем maintenance
+    # Test maintenance
     maintenance_result = optimizer.run_maintenance(force=True)
     print(f"✅ Maintenance test: {maintenance_result['success']}")
     
-    # Закрываем
+    # Close
     optimizer.close()
     print("🎉 Database Optimizer test completed!") 

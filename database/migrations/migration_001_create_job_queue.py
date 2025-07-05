@@ -2,8 +2,8 @@
 """
 Migration 001: Create job_queue table
 
-Создаёт таблицу для управления очередью задач с полной поддержкой
-логирования, приоритетов и отслеживания статуса выполнения.
+Creates table for managing job queue with full support for
+logging, priorities and execution status tracking.
 """
 
 from database.migration_manager import Migration
@@ -11,12 +11,12 @@ import sqlite3
 
 
 class Migration001(Migration):
-    """Создание таблицы job_queue для системы очереди задач."""
+    """Create job_queue table for job queue system."""
     
     def up(self, conn: sqlite3.Connection) -> None:
-        """Создаёт таблицу job_queue и связанные индексы."""
+        """Creates job_queue table and related indexes."""
         
-        # Основная таблица для очереди задач
+        # Main table for job queue
         conn.execute('''
             CREATE TABLE job_queue (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -44,7 +44,7 @@ class Migration001(Migration):
             )
         ''')
         
-        # Индексы для производительности
+        # Indexes for performance
         conn.execute('CREATE INDEX idx_job_queue_status ON job_queue(status)')
         conn.execute('CREATE INDEX idx_job_queue_type ON job_queue(job_type)')
         conn.execute('CREATE INDEX idx_job_queue_priority ON job_queue(priority DESC)')
@@ -54,20 +54,20 @@ class Migration001(Migration):
         print("✅ Created job_queue table with all indexes")
     
     def down(self, conn: sqlite3.Connection) -> None:
-        """Удаляет таблицу job_queue и связанные индексы."""
+        """Deletes job_queue table and related indexes."""
         
-        # Сначала удаляем индексы
+        # First delete indexes
         conn.execute('DROP INDEX IF EXISTS idx_job_queue_status_priority')
         conn.execute('DROP INDEX IF EXISTS idx_job_queue_created_at')
         conn.execute('DROP INDEX IF EXISTS idx_job_queue_priority')
         conn.execute('DROP INDEX IF EXISTS idx_job_queue_type')
         conn.execute('DROP INDEX IF EXISTS idx_job_queue_status')
         
-        # Затем удаляем таблицу
+        # Then delete table
         conn.execute('DROP TABLE IF EXISTS job_queue')
         
         print("✅ Dropped job_queue table and all indexes")
     
     def description(self) -> str:
-        """Описание миграции."""
+        """Migration description."""
         return "Create job_queue table with status tracking, priorities, and logging support" 

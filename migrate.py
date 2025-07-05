@@ -2,15 +2,15 @@
 """
 Database Migrations CLI
 
-Удобный интерфейс для управления миграциями базы данных.
-Автоматически загружает конфигурацию из .env файла.
+Convenient interface for managing database migrations.
+Automatically loads configuration from .env file.
 """
 
 import sys
 import json
 from pathlib import Path
 
-# Добавляем корневую папку проекта в Python path
+# Add project root folder to Python path
 project_root = Path(__file__).parent
 sys.path.insert(0, str(project_root))
 
@@ -18,7 +18,7 @@ from database.migration_manager import MigrationManager
 
 
 def load_env_file():
-    """Загружает переменные из .env файла."""
+    """Loads variables from .env file."""
     env_path = project_root / '.env'
     if not env_path.exists():
         return {}
@@ -27,7 +27,7 @@ def load_env_file():
     try:
         with open(env_path, 'r', encoding='utf-8') as f:
             for line in f:
-                line = line.strip().lstrip('\ufeff')  # Убираем BOM
+                line = line.strip().lstrip('\ufeff')  # Remove BOM
                 if line and not line.startswith('#') and '=' in line:
                     key, value = line.split('=', 1)
                     env_vars[key.strip()] = value.strip()
@@ -38,7 +38,7 @@ def load_env_file():
 
 
 def main():
-    """Основная функция CLI."""
+    """Main CLI function."""
     import argparse
     
     parser = argparse.ArgumentParser(
@@ -63,7 +63,7 @@ Examples:
     
     args = parser.parse_args()
     
-    # Определяем путь к базе данных
+    # Determine database path
     db_path = args.db_path
     if not db_path:
         env_vars = load_env_file()
@@ -75,7 +75,7 @@ Examples:
     if not args.json:
         print(f"🔗 Using database: {db_path}")
     
-    # Проверяем существование базы данных
+    # Check database existence
     if not Path(db_path).exists():
         if args.json:
             error_result = {

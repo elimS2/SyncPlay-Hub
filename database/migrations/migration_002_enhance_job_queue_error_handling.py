@@ -2,12 +2,12 @@
 """
 Migration 002: Enhanced Job Queue Error Handling
 
-Добавляет новые поля в таблицу job_queue для Phase 6 - Error Handling & Retry Logic:
-- failure_type: Тип ошибки для классификации
-- next_retry_at: Время следующей попытки retry
-- last_error_traceback: Полный traceback последней ошибки
-- dead_letter_reason: Причина перемещения в dead letter queue
-- moved_to_dead_letter_at: Время перемещения в dead letter queue
+Adds new fields to job_queue table for Phase 6 - Error Handling & Retry Logic:
+- failure_type: Error type for classification
+- next_retry_at: Time of next retry attempt
+- last_error_traceback: Full traceback of last error
+- dead_letter_reason: Reason for moving to dead letter queue
+- moved_to_dead_letter_at: Time of moving to dead letter queue
 """
 
 from database.migration_manager import Migration
@@ -15,22 +15,22 @@ import sqlite3
 
 
 class Migration002(Migration):
-    """Расширенная обработка ошибок для системы очереди задач."""
+    """Enhanced error handling for job queue system."""
     
     def up(self, conn: sqlite3.Connection) -> None:
-        """Добавляет новые поля для error handling."""
+        """Adds new fields for error handling."""
         cursor = conn.cursor()
         
-        # Добавляем новые поля для enhanced error handling
+        # Add new fields for enhanced error handling
         new_columns = [
-            ("failure_type", "TEXT"),  # Тип ошибки (JobFailureType enum)
-            ("next_retry_at", "TIMESTAMP"),  # Время следующей попытки retry
-            ("last_error_traceback", "TEXT"),  # Полный traceback ошибки
-            ("dead_letter_reason", "TEXT"),  # Причина dead letter
-            ("moved_to_dead_letter_at", "TIMESTAMP")  # Время перемещения в dead letter
+            ("failure_type", "TEXT"),  # Error type (JobFailureType enum)
+            ("next_retry_at", "TIMESTAMP"),  # Time of next retry attempt
+            ("last_error_traceback", "TEXT"),  # Full error traceback
+            ("dead_letter_reason", "TEXT"),  # Dead letter reason
+            ("moved_to_dead_letter_at", "TIMESTAMP")  # Time moved to dead letter
         ]
         
-        # Проверяем какие колонки уже существуют
+        # Check which columns already exist
         cursor.execute("PRAGMA table_info(job_queue)")
         existing_columns = {row[1] for row in cursor.fetchall()}
         
@@ -43,7 +43,7 @@ class Migration002(Migration):
             else:
                 print(f"  ⚠️  Column already exists: {column_name}")
         
-        # Создаем индексы для новых полей
+        # Create indexes for new fields
         indexes_to_create = [
             ("idx_job_queue_next_retry", "next_retry_at"),
             ("idx_job_queue_failure_type", "failure_type"),
@@ -61,12 +61,12 @@ class Migration002(Migration):
         print("✅ Enhanced error handling fields added to job_queue")
     
     def down(self, conn: sqlite3.Connection) -> None:
-        """Откатывает миграцию (SQLite не поддерживает DROP COLUMN до версии 3.35)."""
+        """Rolls back migration (SQLite doesn't support DROP COLUMN before version 3.35)."""
         print("⚠️  Migration 002 downgrade not supported by SQLite")
         print("   New columns will remain in the table but won't be used")
     
     def description(self) -> str:
-        """Описание миграции."""
+        """Migration description."""
         return "Enhanced Job Queue Error Handling - adds failure_type, retry timing, and dead letter fields"
 
 
@@ -103,18 +103,18 @@ def get_migration_info():
 
 
 if __name__ == "__main__":
-    # Тестирование миграции
+    # Migration testing
     import os
     import tempfile
     
-    # Создаем временную базу для тестирования
+    # Create temporary database for testing
     with tempfile.NamedTemporaryFile(suffix='.db', delete=False) as tmp_db:
         test_db_path = tmp_db.name
     
     try:
         print("🧪 Testing migration on temporary database...")
         
-        # Создаем базовую таблицу job_queue (как в migration_001)
+        # Create base job_queue table (as in migration_001)
         with sqlite3.connect(test_db_path) as conn:
             cursor = conn.cursor()
             cursor.execute("""
@@ -140,13 +140,13 @@ if __name__ == "__main__":
             conn.commit()
             print("  📋 Created base job_queue table")
         
-        # Применяем миграцию через новый класс
+        # Apply migration through new class
         with sqlite3.connect(test_db_path) as conn:
             migration = Migration002()
             migration.up(conn)
             conn.commit()
         
-        # Проверяем результат
+        # Check result
         with sqlite3.connect(test_db_path) as conn:
             cursor = conn.cursor()
             cursor.execute("PRAGMA table_info(job_queue)")
@@ -156,7 +156,7 @@ if __name__ == "__main__":
             for col in columns:
                 print(f"  - {col}")
             
-            # Проверяем новые колонки
+            # Check new columns
             expected_new_columns = [
                 'failure_type', 'next_retry_at', 'last_error_traceback',
                 'dead_letter_reason', 'moved_to_dead_letter_at'
@@ -171,6 +171,6 @@ if __name__ == "__main__":
         print("\n🎉 Migration test completed successfully!")
         
     finally:
-        # Удаляем временную базу
+        # Delete temporary database
         os.unlink(test_db_path)
         print(f"🧹 Cleaned up temporary database") 

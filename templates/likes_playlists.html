@@ -384,7 +384,7 @@
       </div>
 
       <div id="likesGrid" class="likes-grid" style="display: none;">
-        <!-- Карточки виртуальных плейлистов будут добавлены динамически -->
+        <!-- Virtual playlist cards will be added dynamically -->
       </div>
 
       <div id="emptyState" class="empty-state" style="display: none;">
@@ -395,7 +395,7 @@
   </div>
 
   <script>
-    // Функция для загрузки статистики лайков
+    // Function to load likes statistics
     async function loadLikesStats() {
       try {
         const response = await fetch('/api/like_stats');
@@ -412,7 +412,7 @@
       }
     }
 
-    // Функция для отображения статистики лайков
+    // Function to display likes statistics
     function displayLikesStats(likeStats) {
       const loadingMessage = document.getElementById('loadingMessage');
       const likesGrid = document.getElementById('likesGrid');

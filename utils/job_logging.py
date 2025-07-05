@@ -2,8 +2,8 @@
 """
 Job Logging System
 
-Система индивидуального логирования для задач в Job Queue.
-Каждая задача получает отдельную папку с логами.
+Individual logging system for Job Queue tasks.
+Each task gets a separate folder with logs.
 """
 
 import os
@@ -18,15 +18,15 @@ from io import StringIO
 
 
 class JobLogger:
-    """Логгер для отдельной задачи с захватом всех выводов."""
+    """Logger for individual task with capture of all outputs."""
     
     def __init__(self, job_id: int, job_type: str, logs_root: str = None):
         self.job_id = job_id
         self.job_type = job_type
         
-        # Определяем корневую папку логов
+        # Determine root logs folder
         if logs_root is None:
-            # Используем ту же структуру что и основные логи
+            # Use same structure as main logs
             from pathlib import Path
             project_root = Path(__file__).parent.parent
             env_path = project_root / '.env'
@@ -45,24 +45,24 @@ class JobLogger:
             if not logs_root:
                 logs_root = str(project_root / 'logs')
         
-        # Создаем папку для задачи
+        # Create folder for task
         self.job_log_dir = Path(logs_root) / 'jobs' / f"job_{job_id:06d}_{job_type}"
         self.job_log_dir.mkdir(parents=True, exist_ok=True)
         
-        # Файлы логов
+        # Log files
         self.main_log_file = self.job_log_dir / 'job.log'
         self.stdout_file = self.job_log_dir / 'stdout.log'
         self.stderr_file = self.job_log_dir / 'stderr.log'
         self.progress_file = self.job_log_dir / 'progress.log'
         
-        # Настраиваем логгер
+        # Setup logger
         self.logger = logging.getLogger(f'job_{job_id}')
         self.logger.setLevel(logging.DEBUG)
         
-        # Очищаем существующие handlers
+        # Clear existing handlers
         self.logger.handlers.clear()
         
-        # Создаем handler для основного лога
+        # Create handler for main log
         main_handler = logging.FileHandler(self.main_log_file, encoding='utf-8')
         main_handler.setLevel(logging.DEBUG)
         formatter = logging.Formatter(
@@ -72,36 +72,36 @@ class JobLogger:
         main_handler.setFormatter(formatter)
         self.logger.addHandler(main_handler)
         
-        # Захват stdout/stderr
+        # Capture stdout/stderr
         self._original_stdout = None
         self._original_stderr = None
         self._stdout_capture = None
         self._stderr_capture = None
         
-        # Thread-local storage для множественных задач
+        # Thread-local storage for multiple tasks
         self._local = threading.local()
         
-        # Записываем начало задачи
+        # Write task start
         self.info(f"=== Job {job_id} ({job_type}) started at {datetime.utcnow().isoformat()} ===")
     
     def info(self, message: str):
-        """Логирование информационного сообщения."""
+        """Log informational message."""
         self.logger.info(message)
     
     def debug(self, message: str):
-        """Логирование отладочного сообщения."""
+        """Log debug message."""
         self.logger.debug(message)
     
     def warning(self, message: str):
-        """Логирование предупреждения."""
+        """Log warning message."""
         self.logger.warning(message)
     
     def error(self, message: str):
-        """Логирование ошибки."""
+        """Log error message."""
         self.logger.error(message)
     
     def progress(self, message: str, percentage: Optional[float] = None):
-        """Логирование прогресса выполнения."""
+        """Log execution progress."""
         timestamp = datetime.utcnow().isoformat()
         
         if percentage is not None:
@@ -109,55 +109,55 @@ class JobLogger:
         else:
             progress_msg = message
         
-        # Записываем в основной лог
+        # Write to main log
         self.info(f"PROGRESS: {progress_msg}")
         
-        # Записываем в файл прогресса
+        # Write to progress file
         with open(self.progress_file, 'a', encoding='utf-8') as f:
             f.write(f"{timestamp} {progress_msg}\n")
     
     def log_exception(self, exc: Exception, context: str = ""):
-        """Логирование исключения с контекстом."""
+        """Log exception with context."""
         import traceback
         
         error_msg = f"Exception in {context}: {type(exc).__name__}: {exc}"
         self.error(error_msg)
         
-        # Записываем полный traceback
+        # Write full traceback
         tb_str = traceback.format_exc()
         self.error(f"Traceback:\n{tb_str}")
     
     @contextmanager
     def capture_output(self):
-        """Контекстный менеджер для захвата stdout/stderr."""
-        # Сохраняем оригинальные потоки
+        """Context manager for capturing stdout/stderr."""
+        # Save original streams
         original_stdout = sys.stdout
         original_stderr = sys.stderr
         
         try:
-            # Создаем файлы для захвата
+            # Create files for capture
             stdout_file = open(self.stdout_file, 'a', encoding='utf-8')
             stderr_file = open(self.stderr_file, 'a', encoding='utf-8')
             
-            # Создаем tee-подобные объекты для дублирования вывода
+            # Create tee-like objects for duplicating output
             sys.stdout = TeeOutput(original_stdout, stdout_file)
             sys.stderr = TeeOutput(original_stderr, stderr_file)
             
             yield
             
         finally:
-            # Восстанавливаем оригинальные потоки
+            # Restore original streams
             sys.stdout = original_stdout
             sys.stderr = original_stderr
             
-            # Закрываем файлы
+            # Close files
             if stdout_file:
                 stdout_file.close()
             if stderr_file:
                 stderr_file.close()
     
     def finalize(self, success: bool, error_message: Optional[str] = None):
-        """Завершение логирования задачи."""
+        """Finalize task logging."""
         status = "COMPLETED" if success else "FAILED"
         end_time = datetime.utcnow().isoformat()
         
@@ -166,7 +166,7 @@ class JobLogger:
         if error_message:
             self.error(f"Final error: {error_message}")
         
-        # Записываем summary файл
+        # Write summary file
         summary_file = self.job_log_dir / 'summary.txt'
         with open(summary_file, 'w', encoding='utf-8') as f:
             f.write(f"Job ID: {self.job_id}\n")
@@ -181,13 +181,13 @@ class JobLogger:
             f.write(f"- Stderr: {self.stderr_file.name}\n")
             f.write(f"- Progress: {self.progress_file.name}\n")
         
-        # Закрываем handlers
+        # Close handlers
         for handler in self.logger.handlers:
             handler.close()
         self.logger.handlers.clear()
     
     def get_log_files(self) -> dict:
-        """Возвращает пути ко всем лог файлам."""
+        """Returns paths to all log files."""
         return {
             'main': str(self.main_log_file),
             'stdout': str(self.stdout_file),
@@ -199,7 +199,7 @@ class JobLogger:
 
 
 class TeeOutput:
-    """Класс для дублирования вывода в несколько потоков."""
+    """Class for duplicating output to multiple streams."""
     
     def __init__(self, *outputs):
         self.outputs = outputs
@@ -210,7 +210,7 @@ class TeeOutput:
                 output.write(data)
                 output.flush()
             except Exception:
-                pass  # Игнорируем ошибки записи
+                pass  # Ignore write errors
     
     def flush(self):
         for output in self.outputs:
@@ -221,14 +221,14 @@ class TeeOutput:
 
 
 def create_job_logger(job_id: int, job_type: str, logs_root: str = None) -> JobLogger:
-    """Фабричная функция для создания логгера задачи."""
+    """Factory function for creating task logger."""
     return JobLogger(job_id, job_type, logs_root)
 
 
 def cleanup_old_job_logs(logs_root: str = None, days_to_keep: int = 30):
-    """Очистка старых логов задач."""
+    """Cleanup old task logs."""
     if logs_root is None:
-        # Используем тот же код что и в JobLogger для определения logs_root
+        # Use same code as in JobLogger for determining logs_root
         from pathlib import Path
         project_root = Path(__file__).parent.parent
         env_path = project_root / '.env'
@@ -256,7 +256,7 @@ def cleanup_old_job_logs(logs_root: str = None, days_to_keep: int = 30):
     cleaned_count = 0
     for job_dir in jobs_dir.iterdir():
         if job_dir.is_dir() and job_dir.name.startswith('job_'):
-            # Проверяем время последней модификации
+            # Check last modification time
             if job_dir.stat().st_mtime < cutoff_time:
                 try:
                     import shutil
