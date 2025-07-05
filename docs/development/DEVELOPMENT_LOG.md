@@ -1170,6 +1170,52 @@ Fixed volume wheel control by correcting HTML input step attribute. The issue wa
 
 **Note:** User interface text in templates remains multilingual as intended, only code-level language has been standardized to English.
 
+### Log Entry #133 - 2025-07-05 16:35 UTC
+
+### Bug Fix - Virtual Playlists Excluding Deleted Tracks
+**Issue**: Virtual playlists by likes (at `/likes_player/1`) were including deleted tracks because the API didn't check the `deleted_tracks` table.
+
+**Problem Analysis**: 
+- The API endpoint `/api/tracks_by_likes/<int:like_count>` was only checking `tracks.play_likes` 
+- It didn't exclude tracks that exist in the `deleted_tracks` table
+- This caused deleted tracks to appear in virtual playlists, causing playback errors
+
+**Solution**:
+- Modified SQL query in `controllers/api/playlist_api.py` to exclude deleted tracks
+- Added `WHERE t.video_id NOT IN (SELECT video_id FROM deleted_tracks)` condition
+- Applied the same fix to `/api/like_stats` endpoint for consistency
+
+**Files Modified**:
+- `controllers/api/playlist_api.py`: Updated both `api_tracks_by_likes()` and `api_like_stats()` functions
+
+**Technical Details**:
+```sql
+-- Before (included deleted tracks):
+WHERE t.play_likes = ?
+
+-- After (excludes deleted tracks):
+WHERE t.play_likes = ? 
+    AND t.video_id NOT IN (SELECT video_id FROM deleted_tracks)
+```
+
+**Impact**:
+- Virtual playlists now only show active (non-deleted) tracks
+- Like statistics are accurate and don't count deleted tracks
+- Prevents playback errors from deleted tracks in virtual playlists
+- Maintains consistency with other APIs that exclude deleted tracks
+
+**Testing**:
+- Virtual playlists by likes now correctly exclude deleted tracks
+- Like statistics display accurate counts
+- No performance impact from the additional subquery
+
+**User Experience**:
+- Cleaner virtual playlists without broken/deleted tracks
+- More accurate like statistics
+- Consistent behavior across all playlist types
+
+---
+
 
 
 

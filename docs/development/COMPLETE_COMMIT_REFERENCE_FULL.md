@@ -2,15 +2,22 @@
 
 ## Project Overview
 - **Start:** 2025-06-16 03:29:20 +0300 (Initial import)
-- **End:** 2025-07-05 11:51:00 +0300 (fix: Translate trash API refactoring documentation to English)
+- **End:** 2025-07-05 16:35:00 +0300 (fix: Exclude deleted tracks from virtual playlists by likes)
 - **Duration:** 19 days intensive development
-- **Total:** 161 commits
+- **Total:** 164 commits
 
 ---
 
 ## All Commits (Chronological Order - ORIGINAL FULL TITLES)
 
-**#161** `af94a2f` 2025-07-05 11:51:00 +0300  
+**#164** `[TBD]` 2025-07-05 16:35:00 +0300  
+fix: Exclude deleted tracks from virtual playlists by likes  
+Modified SQL queries in controllers/api/playlist_api.py to exclude tracks in deleted_tracks table from virtual playlists, preventing playback errors and ensuring accurate like statistics by adding WHERE clause with NOT IN subquery.
+
+**#163** `bae9f72` 2025-07-05 15:00:00 +0300  
+fix: Restore original clear_trash method logic to fix critical bugs
+
+**#162** `af94a2f` 2025-07-05 11:51:00 +0300  
 fix: Translate trash API refactoring documentation to English
 
 **#160** `01b1c8d` 2025-07-05 11:40:00 +0300  

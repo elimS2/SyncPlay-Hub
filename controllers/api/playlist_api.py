@@ -300,6 +300,7 @@ def api_tracks_by_likes(like_count):
         conn = get_connection()
         
         # Get tracks with exactly like_count likes, using YouTube metadata title if available
+        # Exclude deleted tracks
         query = """
         SELECT 
             t.video_id,
@@ -312,7 +313,8 @@ def api_tracks_by_likes(like_count):
             COALESCE(t.last_finish_ts, t.last_start_ts) as last_play
         FROM tracks t
         LEFT JOIN youtube_video_metadata ym ON ym.youtube_id = t.video_id
-        WHERE t.play_likes = ?
+        WHERE t.play_likes = ? 
+            AND t.video_id NOT IN (SELECT video_id FROM deleted_tracks)
         ORDER BY COALESCE(ym.title, t.name)
         """
         
@@ -355,14 +357,15 @@ def api_like_stats():
     try:
         conn = get_connection()
         
-        # Get distribution of likes
+        # Get distribution of likes, excluding deleted tracks
         query = """
         SELECT 
             t.play_likes,
             COUNT(*) as track_count,
             GROUP_CONCAT(SUBSTR(t.name, 1, 30) || '...', ' • ') as sample_tracks
         FROM tracks t
-        WHERE t.play_likes > 0
+        WHERE t.play_likes > 0 
+            AND t.video_id NOT IN (SELECT video_id FROM deleted_tracks)
         GROUP BY t.play_likes
         ORDER BY t.play_likes
         """
