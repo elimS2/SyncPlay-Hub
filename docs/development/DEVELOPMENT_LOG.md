@@ -1175,57 +1175,41 @@ Fixed volume wheel control by correcting HTML input step attribute. The issue wa
 
 **Note:** User interface text in templates remains multilingual as intended, only code-level language has been standardized to English.
 
-### Log Entry #137 - 2025-01-06 20:24 UTC
+### Log Entry #137 - 2025-07-05 21:36 UTC
 
-**🗑️ FEATURE: Database Check for Manually Deleted Tracks During Channel Sync**
-
-**Files Modified:**
-- `download_content.py`
+**Context:** Пользователь запросил добавление кнопки для упорядочивания плейлиста по возрастанию даты публикации на YouTube (от старых к новым видео) на страницах типа http://192.168.88.82:8000/playlist/News.
 
 **Changes Made:**
 
-1. **Added `get_deleted_video_ids()` Function**:
-   - Queries `deleted_tracks` table for manually deleted video IDs
-   - Filters by `deletion_reason IN ('manual', 'manual_delete')`
-   - Returns set of video IDs to exclude from re-downloading
-   - Includes error handling if database unavailable
+#### Templates Updated:
+1. **templates/index.html**: Добавлена кнопка `orderByDateBtn` с иконкой календаря после кнопки Smart shuffle
+2. **templates/likes_player.html**: Добавлена аналогичная кнопка для виртуальных плейлистов
 
-2. **Enhanced Channel Sync Filtering**:
-   - Updated `build_ydl_opts()` to accept `sync` parameter
-   - Integrated deleted tracks check into `match_filter` function
-   - Added comprehensive filtering: **deleted tracks → shorts → duration**
-   - Updated filter statistics to track deleted track exclusions
+#### JavaScript Functionality:
+3. **static/player.js**: 
+   - Добавлена функция `orderByPublishDate()` для сортировки треков по дате публикации YouTube
+   - Приоритет полей: `youtube_timestamp` > `youtube_release_timestamp` > `youtube_release_year`
+   - Добавлен обработчик `orderByDateBtn.onclick` 
+   - Сортировка происходит по возрастанию (старые видео в начале, новые в конце)
 
-3. **Updated Function Signatures**:
-   - `build_ydl_opts()`: Added `sync: bool = True` parameter
-   - `download_content()`: Passes `sync` parameter to `build_ydl_opts()`
+4. **static/player-virtual.js**:
+   - Добавлена функция `orderByPublishDate()` адаптированная для виртуальных плейлистов
+   - Использует поля `timestamp`, `release_timestamp`, `release_year` из API треков
+   - Добавлен обработчик `orderByDateBtn.onclick`
+   - Включает отладочную информацию с префиксом `[Virtual]`
 
-4. **Enhanced Logging**:
-   - Shows count of manually deleted tracks to skip
-   - Filter debug shows deletion reason: `❌ FILTERED (Deleted)`
-   - Progress stats include deleted track count
+**Technical Details:**
+- Кнопка использует современный стиль `modern-btn modern-btn-accent`
+- SVG иконка представляет календарь с галочкой
+- Функция сортировки обрабатывает треки без метаданных даты (помещает в начало)
+- Логирование в консоль показывает первые 3 трека для верификации сортировки
+- Совместимо с существующими функциями Shuffle и Smart shuffle
 
-**Problem Solved:**
-- При синхронизации каналов система теперь проверяет базу данных `deleted_tracks`
-- Треки удаленные вручную через кнопку Delete **НЕ БУДУТ** повторно скачиваться
-- Работает для каналов при использовании параметра `sync=True`
-
-**Usage:**
-When syncing channels, system will:
-1. Load manually deleted video IDs from database
-2. Skip those videos during download process
-3. Log exclusion with reason "manually deleted track"
-4. Show statistics of how many tracks were filtered
-
-**Testing Required:**
-- Test channel sync after manually deleting tracks
-- Verify excluded tracks don't re-download
-- Check filter statistics accuracy
-- Confirm database error handling
-
-**Impact:** ✅ RESOLVED - Manual track deletions now respected during channel sync
-
----
+**User Impact:**
+- Пользователи теперь могут упорядочить любой плейлист по дате публикации YouTube
+- Особенно полезно для новостных и образовательных каналов
+- Работает как для обычных плейлистов, так и для виртуальных плейлистов по лайкам
+- Треки сортируются от самых старых к самым новым (хронологический порядок)
 
 
 

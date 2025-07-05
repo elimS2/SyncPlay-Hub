@@ -186,6 +186,56 @@ function smartChannelShuffle(tracks) {
   return processedTracks;
 }
 
+function orderByPublishDate(tracks) {
+  /**
+   * Sort tracks by YouTube publish date in ascending order (oldest first)
+   * Uses timestamp, release_timestamp, or release_year from virtual playlist API
+   */
+  if (!tracks || tracks.length === 0) return [];
+
+  const orderedTracks = [...tracks];
+  
+  orderedTracks.sort((a, b) => {
+    // Get publish dates for comparison
+    const getPublishTimestamp = (track) => {
+      // Priority: timestamp > release_timestamp > release_year > fallback to 0
+      if (track.timestamp && track.timestamp > 0) {
+        return track.timestamp;
+      }
+      if (track.release_timestamp && track.release_timestamp > 0) {
+        return track.release_timestamp;
+      }
+      if (track.release_year && track.release_year > 0) {
+        // Convert year to approximate timestamp (January 1st of that year)
+        return new Date(`${track.release_year}-01-01`).getTime() / 1000;
+      }
+      // Fallback for tracks without date info - put them at the beginning
+      return 0;
+    };
+
+    const aTime = getPublishTimestamp(a);
+    const bTime = getPublishTimestamp(b);
+    
+    // Sort ascending (oldest first)
+    return aTime - bTime;
+  });
+
+  console.log(`📅 [Virtual] Tracks ordered by publish date (oldest first): ${orderedTracks.length} tracks`);
+  
+  // Debug log first few tracks to verify sorting
+  if (orderedTracks.length > 0) {
+    console.log('📅 [Virtual] First few tracks by date:');
+    orderedTracks.slice(0, 3).forEach((track, idx) => {
+      const date = track.timestamp ? new Date(track.timestamp * 1000).toLocaleDateString() :
+                   track.release_timestamp ? new Date(track.release_timestamp * 1000).toLocaleDateString() :
+                   track.release_year ? track.release_year : 'Unknown';
+      console.log(`  ${idx + 1}. ${track.name} (${date})`);
+    });
+  }
+
+  return orderedTracks;
+}
+
 function getGroupPlaybackInfo(tracks) {
   /**
    * Get playback information for current track mix
@@ -654,6 +704,13 @@ function getGroupPlaybackInfo(tracks) {
      }
      
      playIndex(0);
+  };
+
+  orderByDateBtn.onclick = () => {
+    // Sort tracks by YouTube publish date (oldest first)
+    queue = orderByPublishDate([...tracks]);
+    console.log('📅 [Virtual] Tracks ordered by YouTube publish date (oldest first)');
+    playIndex(0);
   };
 
   stopBtn.onclick = () => {
