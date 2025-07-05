@@ -69,6 +69,41 @@ def normalize_channel_url(url: str) -> str:
     return url
 
 
+def get_deleted_video_ids() -> Set[str]:
+    """Get set of video IDs that were manually deleted by user.
+    
+    Returns:
+        Set of video IDs that should not be re-downloaded.
+    """
+    try:
+        from database import get_connection
+        
+        conn = get_connection()
+        cursor = conn.cursor()
+        
+        # Get all manually deleted video IDs
+        cursor.execute("""
+            SELECT video_id 
+            FROM deleted_tracks 
+            WHERE deletion_reason IN ('manual', 'manual_delete')
+        """)
+        
+        deleted_ids = set()
+        for row in cursor.fetchall():
+            deleted_ids.add(row[0])
+        
+        conn.close()
+        
+        if deleted_ids:
+            print(f"[Info] Found {len(deleted_ids)} manually deleted tracks to skip during sync")
+        
+        return deleted_ids
+        
+    except Exception as exc:
+        print(f"[Warning] Could not load deleted tracks from database: {exc}")
+        return set()
+
+
 class _ProgLogger:
     def __init__(self, total=None, progress_callback=None):
         self.count = 0
@@ -501,7 +536,8 @@ def cleanup_local_files(content_dir: pathlib.Path, current_ids: Set[str], root_d
 
 
 def build_ydl_opts(output_dir: pathlib.Path, audio_only: bool, is_channel: bool = False, 
-                   channel_group: str = None, date_from: str = None, exclude_shorts: bool = True, *,
+                   channel_group: str = None, date_from: str = None, exclude_shorts: bool = True,
+                   sync: bool = True, *,
                    cookies_path: str | None = None, use_browser: bool = False) -> Dict[str, Any]:
     """Build yt-dlp options dict."""
     
@@ -544,10 +580,13 @@ def build_ydl_opts(output_dir: pathlib.Path, audio_only: bool, is_channel: bool 
         **({"cookiesfrombrowser": ("chrome",)} if use_browser and not cookies_path else {}),
     }
     
-    # Add filter to exclude Shorts (videos shorter than 60 seconds)
-    if exclude_shorts and is_channel:
+    # Add comprehensive filter for channels (Shorts + manually deleted tracks)
+    if is_channel:
+        # Get manually deleted video IDs for channel sync filtering
+        deleted_video_ids = get_deleted_video_ids() if sync else set()
+        
         # Counters for filter statistics
-        filter_stats = {'total': 0, 'passed': 0, 'filtered_short': 0, 'filtered_duration': 0}
+        filter_stats = {'total': 0, 'passed': 0, 'filtered_short': 0, 'filtered_duration': 0, 'filtered_deleted': 0}
         
         def match_filter(info):
             video_title = info.get('title', 'Unknown Title')
@@ -563,15 +602,22 @@ def build_ydl_opts(output_dir: pathlib.Path, audio_only: bool, is_channel: bool 
             print(f"[Filter Debug]   Duration: {duration}s, is_short: {is_short}")
             print(f"[Filter Debug]   URL: {webpage_url}")
             
-            # Skip if it's explicitly marked as a Short
-            if is_short or 'shorts' in webpage_url.lower():
+            # 🗑️ CHECK: Skip if manually deleted by user
+            if sync and video_id in deleted_video_ids:
+                filter_stats['filtered_deleted'] += 1
+                reason = f"Skipping manually deleted track: '{video_title}' (ID: {video_id})"
+                print(f"[Filter Debug]   ❌ FILTERED (Deleted): {reason}")
+                return reason
+            
+            # 📱 CHECK: Skip if it's explicitly marked as a Short (if exclude_shorts enabled)
+            if exclude_shorts and (is_short or 'shorts' in webpage_url.lower()):
                 filter_stats['filtered_short'] += 1
                 reason = f"Skipping YouTube Short: '{video_title}' (ID: {video_id})"
                 print(f"[Filter Debug]   ❌ FILTERED (Short): {reason}")
                 return reason
             
-            # Skip if duration is less than 60 seconds
-            if duration is not None and duration < 60:
+            # ⏰ CHECK: Skip if duration is less than 60 seconds (if exclude_shorts enabled)
+            if exclude_shorts and duration is not None and duration < 60:
                 filter_stats['filtered_duration'] += 1
                 reason = f"Skipping video shorter than 60s (Shorts): '{video_title}' (ID: {video_id}) ({duration}s)"
                 print(f"[Filter Debug]   ❌ FILTERED (Duration): {reason}")
@@ -583,7 +629,7 @@ def build_ydl_opts(output_dir: pathlib.Path, audio_only: bool, is_channel: bool 
             
             # Show progress every 10 videos
             if filter_stats['total'] % 10 == 0:
-                print(f"[Filter Stats] Processed {filter_stats['total']} videos: {filter_stats['passed']} passed, {filter_stats['filtered_short']} filtered (shorts), {filter_stats['filtered_duration']} filtered (duration)")
+                print(f"[Filter Stats] Processed {filter_stats['total']} videos: {filter_stats['passed']} passed, {filter_stats['filtered_deleted']} filtered (deleted), {filter_stats['filtered_short']} filtered (shorts), {filter_stats['filtered_duration']} filtered (duration)")
             
             return None
         opts["match_filter"] = match_filter
@@ -595,7 +641,11 @@ def build_ydl_opts(output_dir: pathlib.Path, audio_only: bool, is_channel: bool 
         #     }
         # }
         
-        print(f"[Info] Shorts exclusion filter enabled (videos < 60s will be skipped)")
+        if exclude_shorts:
+            print(f"[Info] Shorts exclusion filter enabled (videos < 60s will be skipped)")
+        
+        if sync and len(deleted_video_ids) > 0:
+            print(f"[Info] Manual deletion filter enabled ({len(deleted_video_ids)} deleted tracks will be skipped)")
     
     # Channel-specific options
     if is_channel:
@@ -787,7 +837,7 @@ def download_content(url: str, output_dir: pathlib.Path, audio_only: bool = Fals
 
     # 2. Download/update files
     ydl_opts = build_ydl_opts(
-        output_dir, audio_only, is_channel, channel_group, date_from, exclude_shorts,
+        output_dir, audio_only, is_channel, channel_group, date_from, exclude_shorts, sync,
         cookies_path=actual_cookies_path, use_browser=actual_use_browser
     )
     if debug:
@@ -870,7 +920,6 @@ def download_playlist(playlist_url: str, output_dir: pathlib.Path, audio_only: b
         sync=sync, cookies_path=cookies_path, use_browser=use_browser,
         debug=debug, progress_callback=progress_callback
     )
-
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Download YouTube playlists or channels (video or audio only)")

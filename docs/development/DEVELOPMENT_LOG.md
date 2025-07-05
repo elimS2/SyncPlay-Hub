@@ -1175,49 +1175,55 @@ Fixed volume wheel control by correcting HTML input step attribute. The issue wa
 
 **Note:** User interface text in templates remains multilingual as intended, only code-level language has been standardized to English.
 
-### Log Entry #133 - 2025-07-05 16:35 UTC
+### Log Entry #137 - 2025-01-06 20:24 UTC
 
-### Bug Fix - Virtual Playlists Excluding Deleted Tracks
-**Issue**: Virtual playlists by likes (at `/likes_player/1`) were including deleted tracks because the API didn't check the `deleted_tracks` table.
+**🗑️ FEATURE: Database Check for Manually Deleted Tracks During Channel Sync**
 
-**Problem Analysis**: 
-- The API endpoint `/api/tracks_by_likes/<int:like_count>` was only checking `tracks.play_likes` 
-- It didn't exclude tracks that exist in the `deleted_tracks` table
-- This caused deleted tracks to appear in virtual playlists, causing playback errors
+**Files Modified:**
+- `download_content.py`
 
-**Solution**:
-- Modified SQL query in `controllers/api/playlist_api.py` to exclude deleted tracks
-- Added `WHERE t.video_id NOT IN (SELECT video_id FROM deleted_tracks)` condition
-- Applied the same fix to `/api/like_stats` endpoint for consistency
+**Changes Made:**
 
-**Files Modified**:
-- `controllers/api/playlist_api.py`: Updated both `api_tracks_by_likes()` and `api_like_stats()` functions
+1. **Added `get_deleted_video_ids()` Function**:
+   - Queries `deleted_tracks` table for manually deleted video IDs
+   - Filters by `deletion_reason IN ('manual', 'manual_delete')`
+   - Returns set of video IDs to exclude from re-downloading
+   - Includes error handling if database unavailable
 
-**Technical Details**:
-```sql
--- Before (included deleted tracks):
-WHERE t.play_likes = ?
+2. **Enhanced Channel Sync Filtering**:
+   - Updated `build_ydl_opts()` to accept `sync` parameter
+   - Integrated deleted tracks check into `match_filter` function
+   - Added comprehensive filtering: **deleted tracks → shorts → duration**
+   - Updated filter statistics to track deleted track exclusions
 
--- After (excludes deleted tracks):
-WHERE t.play_likes = ? 
-    AND t.video_id NOT IN (SELECT video_id FROM deleted_tracks)
-```
+3. **Updated Function Signatures**:
+   - `build_ydl_opts()`: Added `sync: bool = True` parameter
+   - `download_content()`: Passes `sync` parameter to `build_ydl_opts()`
 
-**Impact**:
-- Virtual playlists now only show active (non-deleted) tracks
-- Like statistics are accurate and don't count deleted tracks
-- Prevents playback errors from deleted tracks in virtual playlists
-- Maintains consistency with other APIs that exclude deleted tracks
+4. **Enhanced Logging**:
+   - Shows count of manually deleted tracks to skip
+   - Filter debug shows deletion reason: `❌ FILTERED (Deleted)`
+   - Progress stats include deleted track count
 
-**Testing**:
-- Virtual playlists by likes now correctly exclude deleted tracks
-- Like statistics display accurate counts
-- No performance impact from the additional subquery
+**Problem Solved:**
+- При синхронизации каналов система теперь проверяет базу данных `deleted_tracks`
+- Треки удаленные вручную через кнопку Delete **НЕ БУДУТ** повторно скачиваться
+- Работает для каналов при использовании параметра `sync=True`
 
-**User Experience**:
-- Cleaner virtual playlists without broken/deleted tracks
-- More accurate like statistics
-- Consistent behavior across all playlist types
+**Usage:**
+When syncing channels, system will:
+1. Load manually deleted video IDs from database
+2. Skip those videos during download process
+3. Log exclusion with reason "manually deleted track"
+4. Show statistics of how many tracks were filtered
+
+**Testing Required:**
+- Test channel sync after manually deleting tracks
+- Verify excluded tracks don't re-download
+- Check filter statistics accuracy
+- Confirm database error handling
+
+**Impact:** ✅ RESOLVED - Manual track deletions now respected during channel sync
 
 ---
 
