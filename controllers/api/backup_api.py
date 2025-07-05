@@ -153,7 +153,7 @@ def api_force_backup():
 def api_backup_jobs():
     """Get list of recent backup jobs."""
     try:
-        job_service = get_job_queue_service(max_workers=1)
+        job_service = get_job_queue_service()
         
         # Get recent DATABASE_BACKUP jobs
         backup_jobs = job_service.get_jobs(
@@ -196,7 +196,7 @@ def api_backup_jobs():
 def api_backup_job_details(job_id: int):
     """Get detailed information about a specific backup job."""
     try:
-        job_service = get_job_queue_service(max_workers=1)
+        job_service = get_job_queue_service()
         job = job_service.get_job(job_id)
         
         if not job:
@@ -251,7 +251,7 @@ def api_backup_job_details(job_id: int):
 def api_cancel_backup_job(job_id: int):
     """Cancel a pending backup job."""
     try:
-        job_service = get_job_queue_service(max_workers=1)
+        job_service = get_job_queue_service()
         
         # Check if job exists and is a backup job
         job = job_service.get_job(job_id)

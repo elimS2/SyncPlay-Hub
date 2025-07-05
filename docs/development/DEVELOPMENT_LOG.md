@@ -607,6 +607,50 @@ Visit /jobs page to track extraction progress
 - Users can easily see their current configuration
 - Provides helpful setup instructions for new users
 
+### Log Entry #124 - 2025-07-05 09:57 UTC
+
+**Summary**: Fixed job queue statistics displaying zeros in web interface
+
+**Problem**: 
+- Job queue statistics on /jobs page showed all zeros (0 total jobs, 0 running, 0 completed, etc.)
+- Despite having 4838 total jobs in database with 2196 pending jobs
+- User reported Single Video Metadata Extraction jobs were processing but not reflected in statistics
+
+**Root Cause Analysis**: 
+- API endpoints were creating new JobQueueService instances with `max_workers=1` parameter
+- These new instances had no registered workers (0 registered workers)
+- While database contained tasks, service couldn't process them due to missing workers
+- Main application used different service instance with proper worker registration
+
+**Solution**:
+1. **Fixed API Service Calls**: Removed `max_workers=1` parameter from all API endpoint calls
+   - `controllers/api/jobs_api.py`: 8 instances fixed
+   - `controllers/api/backup_api.py`: 3 instances fixed  
+   - `controllers/api/channels_api.py`: 1 instance fixed
+2. **Ensured Singleton Pattern**: All API endpoints now use same service instance as main application
+3. **Verified Worker Registration**: Main application registers workers, API reuses same instance
+
+**Files Modified**:
+- `controllers/api/jobs_api.py`: Fixed all `get_job_queue_service(max_workers=1)` calls
+- `controllers/api/backup_api.py`: Fixed all `get_job_queue_service(max_workers=1)` calls
+- `controllers/api/channels_api.py`: Fixed `get_job_queue_service(max_workers=1)` call
+
+**Testing**:
+- Created diagnostic scripts to verify service state
+- Confirmed main application has registered workers
+- Verified API calls now use same service instance
+- Deleted temporary debug files
+
+**Expected Result**: 
+- Job queue statistics should now display correct values
+- Queue status panel should show actual job counts
+- Running jobs should be properly tracked and displayed
+
+**Next Steps**:
+- Test web interface to confirm statistics display correctly
+- Monitor job processing to ensure no disruption
+- Verify all job management features work properly
+
 
 
 

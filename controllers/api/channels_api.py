@@ -202,7 +202,7 @@ def api_add_channel():
             from services.job_types import JobType, JobPriority
             
             # Get job service
-            job_service = get_job_queue_service(max_workers=1)
+            job_service = get_job_queue_service()
             
             # Create callback function to handle metadata completion and create download jobs
             def metadata_completion_callback(job_id: int, success: bool, error_message: str = None):

@@ -36,7 +36,7 @@ def api_get_jobs():
                 return jsonify({"status": "error", "error": f"Invalid job type: {job_type_filter}"}), 400
         
         # Get job queue service
-        service = get_job_queue_service(max_workers=1)
+        service = get_job_queue_service()
         
         # Get jobs
         jobs = service.get_jobs(
@@ -107,7 +107,7 @@ def api_get_jobs_count():
                 return jsonify({"status": "error", "error": f"Invalid job type: {job_type_filter}"}), 400
         
         # Get job queue service
-        service = get_job_queue_service(max_workers=1)
+        service = get_job_queue_service()
         
         # Get job count
         count = service.get_jobs_count(
@@ -153,7 +153,7 @@ def api_create_job():
         parent_job_id = data.get('parent_job_id')
         
         # Get job queue service
-        service = get_job_queue_service(max_workers=1)
+        service = get_job_queue_service()
         
         # Create and add job
         job_id = service.create_and_add_job(
@@ -180,7 +180,7 @@ def api_get_job(job_id: int):
     """Get details of a specific job."""
     try:
         # Get job queue service
-        service = get_job_queue_service(max_workers=1)
+        service = get_job_queue_service()
         
         # Get job
         job = service.get_job(job_id)
@@ -221,7 +221,7 @@ def api_retry_job(job_id: int):
     """Retry a failed job."""
     try:
         # Get job queue service
-        service = get_job_queue_service(max_workers=1)
+        service = get_job_queue_service()
         
         # Get current job
         job = service.get_job(job_id)
@@ -259,7 +259,7 @@ def api_cancel_job(job_id: int):
     """Cancel a pending or running job."""
     try:
         # Get job queue service
-        service = get_job_queue_service(max_workers=1)
+        service = get_job_queue_service()
         
         # Cancel job - now returns (success, message)
         success, message = service.cancel_job(job_id)
@@ -286,7 +286,7 @@ def api_get_queue_status():
     """Get overall job queue status and statistics."""
     try:
         # Get job queue service
-        service = get_job_queue_service(max_workers=1)
+        service = get_job_queue_service()
         
         # Get queue statistics
         stats = service.get_queue_stats()
@@ -307,7 +307,7 @@ def api_get_job_logs(job_id: int):
     """Get log content for a specific job."""
     try:
         # Get job queue service
-        service = get_job_queue_service(max_workers=1)
+        service = get_job_queue_service()
         
         # Get job
         job = service.get_job(job_id)
