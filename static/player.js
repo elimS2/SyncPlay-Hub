@@ -523,6 +523,29 @@ const cDislike = document.getElementById('cDislike');
         tooltipHTML += `<div class="tooltip-row"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg><strong>Publish Date:</strong> Unknown</div>`;
       }
       
+      // Add YouTube view count info
+      if (t.youtube_view_count !== undefined && t.youtube_view_count !== null) {
+        const viewCount = Number(t.youtube_view_count).toLocaleString();
+        tooltipHTML += `<div class="tooltip-row"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg><strong>YouTube Views:</strong> ${viewCount}</div>`;
+      }
+      
+      // Add metadata sync date info
+      if (t.youtube_metadata_updated) {
+        try {
+          const syncDate = new Date(t.youtube_metadata_updated);
+          const syncFormatted = syncDate.toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+          });
+          tooltipHTML += `<div class="tooltip-row"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"></path></svg><strong>Metadata Synced:</strong> ${syncFormatted}</div>`;
+        } catch (e) {
+          tooltipHTML += `<div class="tooltip-row"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"></path></svg><strong>Metadata Synced:</strong> Unknown</div>`;
+        }
+      }
+      
       // Add last play date info
       if (t.last_play) {
         try {

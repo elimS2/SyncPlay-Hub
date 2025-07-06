@@ -141,8 +141,11 @@ def scan_tracks(scan_root: Path) -> List[dict]:
                         track_data["youtube_release_timestamp"] = youtube_metadata['release_timestamp']
                     if 'release_year' in keys:
                         track_data["youtube_release_year"] = youtube_metadata['release_year']
+                    # Add metadata sync information for tooltip
+                    if 'updated_at' in keys:
+                        track_data["youtube_metadata_updated"] = youtube_metadata['updated_at']
                 except Exception as e:
-                    print(f"Warning: Failed to extract metadata fields for {video_id}: {e}")
+                    print(f"Warning: Error processing YouTube metadata for {video_id}: {e}")
             
             tracks.append(track_data)
     
