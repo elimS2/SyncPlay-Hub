@@ -546,6 +546,11 @@ const cDislike = document.getElementById('cDislike');
         }
       }
       
+             // Add channel handle (@channelname) info
+       if (t.youtube_channel_handle) {
+         tooltipHTML += `<div class="tooltip-row"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg><strong>Channel:</strong> ${t.youtube_channel_handle}</div>`;
+       }
+      
       // Add last play date info
       if (t.last_play) {
         try {

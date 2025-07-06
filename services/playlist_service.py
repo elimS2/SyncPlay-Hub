@@ -144,6 +144,21 @@ def scan_tracks(scan_root: Path) -> List[dict]:
                     # Add metadata sync information for tooltip
                     if 'updated_at' in keys:
                         track_data["youtube_metadata_updated"] = youtube_metadata['updated_at']
+                    # Add channel handle (@channelname) for tooltip
+                    channel_handle = None
+                    if 'channel_url' in keys and youtube_metadata['channel_url'] and '@' in youtube_metadata['channel_url']:
+                        url_parts = youtube_metadata['channel_url'].split('@')
+                        if len(url_parts) > 1:
+                            channel_handle = '@' + url_parts[1].split('/')[0]
+                    elif 'uploader_url' in keys and youtube_metadata['uploader_url'] and '@' in youtube_metadata['uploader_url']:
+                        url_parts = youtube_metadata['uploader_url'].split('@')
+                        if len(url_parts) > 1:
+                            channel_handle = '@' + url_parts[1].split('/')[0]
+                    elif 'uploader_id' in keys and youtube_metadata['uploader_id'] and youtube_metadata['uploader_id'].startswith('@'):
+                        channel_handle = youtube_metadata['uploader_id']
+                    
+                    if channel_handle:
+                        track_data["youtube_channel_handle"] = channel_handle
                 except Exception as e:
                     print(f"Warning: Error processing YouTube metadata for {video_id}: {e}")
             
