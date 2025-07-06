@@ -2,7 +2,28 @@ import sqlite3
 from pathlib import Path
 from typing import Iterator, Optional, Union
 
-DB_PATH = Path(__file__).with_name("tracks.db")
+def _load_env_config() -> dict:
+    """Load configuration from .env file."""
+    config = {}
+    project_root = Path(__file__).parent
+    env_path = project_root / '.env'
+    
+    if env_path.exists():
+        try:
+            with open(env_path, 'r', encoding='utf-8') as f:
+                for line in f:
+                    line = line.strip().lstrip('\ufeff')  # Remove BOM
+                    if line and '=' in line and not line.startswith('#'):
+                        key, value = line.split('=', 1)
+                        config[key.strip()] = value.strip()
+        except Exception as e:
+            print(f"Warning: Failed to load .env file: {e}")
+    
+    return config
+
+# Initialize DB_PATH from .env file
+_env_config = _load_env_config()
+DB_PATH = Path(_env_config.get('DB_PATH', 'tracks.db'))
 
 # ---------- Connection helpers ----------
 

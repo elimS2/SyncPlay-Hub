@@ -28,6 +28,14 @@ This directory contains command-line interface (CLI) scripts and tools for the Y
   python scripts/list_channels.py --db-path "D:/path/tracks.db" # Use specific database
   ```
 
+### Database Management
+- `database_audit.py` - Audit database for tracks with missing files
+- `restore_missing_tracks.py` - Automatically restore missing tracks with stable paths
+
+### Channel Management
+- `cleanup_channel_metadata.py` - Clean up channel metadata
+- `scan_missing_metadata.py` - Scan for tracks with missing metadata
+
 ## Script Categories
 
 ### 🎯 **CLI Tools** (Interactive/Standalone)
@@ -125,4 +133,76 @@ python -m scripts.extract_channel_metadata [args]
 - Maintain backwards compatibility for existing automation
 
 ## Future Organization
-Consider moving all CLI scripts from root to this directory for better project organization while maintaining backwards compatibility through wrapper scripts or path adjustments. 
+Consider moving all CLI scripts from root to this directory for better project organization while maintaining backwards compatibility through wrapper scripts or path adjustments.
+
+## Missing Tracks Restoration
+
+The `restore_missing_tracks.py` script automatically restores tracks that exist in the database but are missing from disk. It uses a stable directory structure based on YouTube Channel IDs to prevent issues with channel/folder renames and integrates with the job queue system.
+
+### Features
+
+- **Stable Path Structure**: Uses `PLAYLISTS_DIR/YouTube_Channel_ID/video_file` format
+- **Job Queue Integration**: Creates download jobs instead of direct downloads
+- **Priority System**: Prioritizes tracks with likes and high play counts
+- **Batch Processing**: Can restore multiple tracks with progress tracking
+- **Dry Run Mode**: Test what would be restored without creating jobs
+- **Configuration Support**: Reads settings from `.env` file
+
+### Usage Examples
+
+```bash
+# Restore all missing tracks with priority for liked tracks
+python scripts/restore_missing_tracks.py
+
+# Restore only top 10 missing tracks
+python scripts/restore_missing_tracks.py --max-tracks 10
+
+# Dry run - show what would be restored
+python scripts/restore_missing_tracks.py --dry-run
+
+# Restore without priority for liked tracks
+python scripts/restore_missing_tracks.py --no-priority
+
+# Specify custom paths
+python scripts/restore_missing_tracks.py --db-path "D:/music/Youtube/DB/tracks.db" --playlists-dir "D:/music/Youtube/Playlists"
+```
+
+### Directory Structure
+
+After restoration, tracks are organized as:
+```
+PLAYLISTS_DIR/
+├── UC1234567890abcdef/  # Channel ID 1
+│   ├── Song Title 1 [video_id1].mp4
+│   └── Song Title 2 [video_id2].mp4
+├── UC9876543210fedcba/  # Channel ID 2
+│   ├── Another Song [video_id3].mp4
+│   └── Yet Another [video_id4].mp4
+└── ...
+```
+
+### Benefits
+
+- **Rename-Resistant**: Channel name changes don't affect file paths
+- **Organized**: Files grouped by channel for easy management
+- **Traceable**: Channel ID in path allows easy identification
+- **Consistent**: All restored tracks follow the same structure
+- **Job Queue Integration**: Downloads managed by the job system with monitoring
+
+### Configuration
+
+The script reads configuration from `.env` file:
+- `DB_PATH` - Database file path
+- `PLAYLISTS_DIR` - Directory for storing playlists
+- `ROOT_DIR` - Root directory (fallback for PLAYLISTS_DIR)
+
+### Prerequisites
+
+- Python 3.6+
+- `yt-dlp` installed (`pip install yt-dlp`)
+- Job queue system running
+- Valid YouTube cookies (recommended for better success rate)
+
+## Environment Setup
+
+See `ENV_SETUP.md` for detailed environment configuration instructions. 
