@@ -14,13 +14,14 @@ This file provides structured information about the project's evolution, key arc
 ## 📈 **Complete Development Timeline**
 
 ### **Project Statistics**
-- **Total Commits:** 181
+- **Total Commits:** 184
 - **Development Period:** 2025-06-16 to 2025-07-06 (active development)
-- **Latest Commit:** 3e72ca4 - feat: Implement net likes system for playlist formation (likes minus dislikes)
-- **Recent Major Features:** Virtual Playlists System + Complete Job Queue System (Phases 1-7) + Performance Optimization & Monitoring + Database Migration System Enhancement + Channel Analyzer Automation + Job Queue UI Improvements + Trash Management System + Net Likes System
+- **Latest Commit:** c2689ca - feat: Add deleted status column to tracks page with visual indicators and deletion details
+- **Recent Major Features:** Virtual Playlists System + Complete Job Queue System (Phases 1-7) + Performance Optimization & Monitoring + Database Migration System Enhancement + Channel Analyzer Automation + Job Queue UI Improvements + Trash Management System + Net Likes System + Deleted Status Display
 - **Initial Import:** e299d24 - SyncPlay-Hub project inception
 
 ### **Virtual Playlists & Latest Features (2025-06-29 to 2025-07-06)**
+- `c2689ca` - **Deleted Status Display** - feat: Add deleted status column to tracks page with visual indicators and deletion details
 - `3e72ca4` - **Net Likes System** - feat: Implement net likes system for playlist formation (likes minus dislikes)
 - `71de24d` - **Performance Optimization** - perf: Remove database transaction blocking in scan_to_db.py for improved performance  
 - `a1b0077` - **Database Performance** - feat: Implement comprehensive scan_to_db.py performance optimization with 10x speed improvement

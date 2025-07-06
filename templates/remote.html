@@ -525,6 +525,8 @@
         this.currentTrack = null;
         this.currentStatus = null;
         this.syncInterval = null;
+        this.isVolumeControlActive = false;
+        this.volumeControlTimeout = null;
         
         this.initElements();
         this.attachEvents();
@@ -594,6 +596,9 @@
           const volume = parseInt(e.target.value);
           this.volumeValue.textContent = volume + '%';
           
+          // Activate volume control protection
+          this.setVolumeControlActive();
+          
           // Add track info for volume logging
           const payload = { volume: volume / 100 };
           if (this.currentStatus && this.currentStatus.current_track) {
@@ -607,9 +612,12 @@
         // Volume buttons
         this.volumeUpBtn.addEventListener('click', () => {
           const currentVolume = parseInt(this.volumeSlider.value);
-          const newVolume = Math.min(100, currentVolume + 10);
+          const newVolume = Math.min(100, currentVolume + 1);
           this.volumeSlider.value = newVolume;
           this.volumeValue.textContent = newVolume + '%';
+          
+          // Activate volume control protection
+          this.setVolumeControlActive();
           
           // Add track info for volume logging
           const payload = { volume: newVolume / 100 };
@@ -624,9 +632,12 @@
 
         this.volumeDownBtn.addEventListener('click', () => {
           const currentVolume = parseInt(this.volumeSlider.value);
-          const newVolume = Math.max(0, currentVolume - 10);
+          const newVolume = Math.max(0, currentVolume - 1);
           this.volumeSlider.value = newVolume;
           this.volumeValue.textContent = newVolume + '%';
+          
+          // Activate volume control protection
+          this.setVolumeControlActive();
           
           // Add track info for volume logging
           const payload = { volume: newVolume / 100 };
@@ -651,12 +662,22 @@
         this.volumeSlider.addEventListener('touchmove', (e) => {
           const touchCurrentY = e.touches[0].clientY;
           const deltaY = touchStartY - touchCurrentY;
-          const volumeChange = Math.round(deltaY / 3); // Sensitivity adjustment
+          const volumeChange = Math.round(deltaY / 10); // Increased sensitivity for smoother control
           
           let newVolume = Math.max(0, Math.min(100, volumeStartValue + volumeChange));
           this.volumeSlider.value = newVolume;
           this.volumeValue.textContent = newVolume + '%';
         }, { passive: true });
+      }
+      
+      setVolumeControlActive() {
+        this.isVolumeControlActive = true;
+        clearTimeout(this.volumeControlTimeout);
+        this.volumeControlTimeout = setTimeout(() => {
+          this.isVolumeControlActive = false;
+          console.log('📱 Volume control protection deactivated');
+        }, 3000); // 3 seconds cooldown
+        console.log('📱 Volume control protection activated');
       }
       
       async sendCommand(command, data = {}) {
@@ -787,11 +808,13 @@
              </svg>`;
         this.playBtn.classList.toggle('playing', status.playing);
         
-        // Update volume
-        if (status.volume !== undefined) {
+        // Update volume (only if not actively controlled by user)
+        if (status.volume !== undefined && !this.isVolumeControlActive) {
           const volumePercent = Math.round(status.volume * 100);
           this.volumeSlider.value = volumePercent;
           this.volumeValue.textContent = volumePercent + '%';
+        } else if (this.isVolumeControlActive) {
+          console.log('📱 Volume sync blocked - user is actively controlling volume');
         }
         
         // Update last sync time
@@ -899,25 +922,25 @@
         // Handle volume control via media session
         try {
           navigator.mediaSession.setActionHandler('seekbackward', () => {
-            adjustVolume(-0.1);
+            adjustVolume(-0.01);
             console.log('📱 Media Session: Volume down');
           });
           
           navigator.mediaSession.setActionHandler('seekforward', () => {
-            adjustVolume(0.1);
+            adjustVolume(0.01);
             console.log('📱 Media Session: Volume up');
           });
           
-          // Also try previoustrack/nexttrack for volume
-          navigator.mediaSession.setActionHandler('previoustrack', () => {
-            adjustVolume(-0.1);
-            console.log('📱 Media Session: Previous (Volume down)');
-          });
-          
-          navigator.mediaSession.setActionHandler('nexttrack', () => {
-            adjustVolume(0.1);
-            console.log('📱 Media Session: Next (Volume up)');
-          });
+                  // Also try previoustrack/nexttrack for volume
+        navigator.mediaSession.setActionHandler('previoustrack', () => {
+          adjustVolume(-0.01);
+          console.log('📱 Media Session: Previous (Volume down)');
+        });
+        
+        navigator.mediaSession.setActionHandler('nexttrack', () => {
+          adjustVolume(0.01);
+          console.log('📱 Media Session: Next (Volume up)');
+        });
           
           console.log('📱 Media Session volume handlers set');
         } catch (error) {
@@ -964,7 +987,7 @@
           if (Math.abs(deltaY) > 20 && deltaX < 50) {
             e.preventDefault();
             
-            const volumeChange = Math.round(deltaY / 5); // Sensitivity
+            const volumeChange = Math.round(deltaY / 20); // Increased sensitivity for smoother control
             let newVolume = Math.max(0, Math.min(100, startVolume + volumeChange));
             
             const volumeSlider = document.getElementById('volumeSlider');
@@ -982,6 +1005,11 @@
         // Send final volume to server
         const finalVolume = parseInt(document.getElementById('volumeSlider').value);
         const remoteControl = document.querySelector('.remote-container').remoteControlInstance;
+        
+        // Activate volume control protection
+        if (remoteControl) {
+          remoteControl.setVolumeControlActive();
+        }
         
         // Prepare payload with track info
         const payload = { volume: finalVolume / 100 };
@@ -1042,7 +1070,7 @@
         event.stopPropagation();
         
         const isVolumeUp = event.code?.includes('Up') || event.key?.includes('Up');
-        adjustVolume(isVolumeUp ? 0.1 : -0.1);
+        adjustVolume(isVolumeUp ? 0.01 : -0.01);
         
         console.log('📱 Hardware volume', isVolumeUp ? 'up' : 'down', 'pressed');
         return false;
@@ -1051,11 +1079,11 @@
       // Also handle arrow keys as fallback
       if (event.code === 'ArrowUp' && event.altKey) {
         event.preventDefault();
-        adjustVolume(0.1);
+        adjustVolume(0.01);
         console.log('📱 Alt+Up volume control');
       } else if (event.code === 'ArrowDown' && event.altKey) {
         event.preventDefault();
-        adjustVolume(-0.1);
+        adjustVolume(-0.01);
         console.log('📱 Alt+Down volume control');
       }
     }
@@ -1073,8 +1101,13 @@
       volumeSlider.value = newVolume;
       volumeValue.textContent = newVolume + '%';
       
-      // Prepare payload with track info
+      // Activate volume control protection
       const remoteControl = document.querySelector('.remote-container').remoteControlInstance;
+      if (remoteControl) {
+        remoteControl.setVolumeControlActive();
+      }
+      
+      // Prepare payload with track info
       const payload = { volume: newVolume / 100 };
       if (remoteControl && remoteControl.currentStatus && remoteControl.currentStatus.current_track) {
         payload.video_id = remoteControl.currentStatus.current_track.video_id;
