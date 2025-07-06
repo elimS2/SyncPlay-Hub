@@ -320,9 +320,17 @@ function getGroupPlaybackInfo(tracks) {
                    info.type === 'podcasts' ? '🎙️' : '📋';
       console.log(`  ${icon} ${info.group}: ${info.count} tracks (${info.isChannel ? 'Channel' : 'Playlist'})`);
     });
-    }
+  }
 
-
+  if (tracks.length === 0) {
+    console.warn('❌ No tracks loaded - check API endpoint');
+  } else if (queue.length === 0) {
+    console.warn('❌ Queue is empty - check smartChannelShuffle function');
+  } else {
+    console.log('✅ Data looks good, rendering playlist...');
+    renderList();
+    console.log('✅ Playlist rendered successfully');
+  }
 
   // ---- Google Cast Integration ----
   console.log('🔄 CAST DEBUG: Starting Google Cast integration setup...');
@@ -505,6 +513,8 @@ function getGroupPlaybackInfo(tracks) {
           }
       });
   }
+
+  console.log('🔍 [DEBUG] Cast integration completed, starting main player logic...');
 
   function renderList() {
     listElem.innerHTML = '';
@@ -1360,11 +1370,13 @@ function getGroupPlaybackInfo(tracks) {
   }
   function stopTick(){ if(tickTimer){clearInterval(tickTimer);tickTimer=null;} }
 
-  streamBtn.onclick = async ()=>{
-     if(streamIdLeader){
-        alert('Stream already running. Share this URL:\n'+window.location.origin+'/stream/'+streamIdLeader);
-        return;
-     }
+  // Add null check for streamBtn to prevent errors
+  if (streamBtn) {
+    streamBtn.onclick = async ()=>{
+       if(streamIdLeader){
+          alert('Stream already running. Share this URL:\n'+window.location.origin+'/stream/'+streamIdLeader);
+          return;
+       }
      const title = prompt('Stream title:', document.title);
      if(title===null) return;
      try{
@@ -1396,6 +1408,9 @@ function getGroupPlaybackInfo(tracks) {
         document.getElementById('closeShare').onclick=()=> overlay.style.display='none';
      }catch(err){alert('Stream creation failed: '+err);}  
   };
+  } else {
+    console.warn('🔍 [DEBUG] streamBtn not found, streaming functionality disabled');
+  }
 
   // stop tick when window unload
   window.addEventListener('beforeunload',()=> stopTick());
@@ -1403,6 +1418,8 @@ function getGroupPlaybackInfo(tracks) {
   // ==============================
   // REMOTE CONTROL SYNCHRONIZATION
   // ==============================
+  
+  console.log('🔍 [DEBUG] About to start remote control setup...');
   
   // Sync player state with remote control API
   async function syncRemoteState() {
@@ -1415,7 +1432,9 @@ function getGroupPlaybackInfo(tracks) {
         progress: media.currentTime || 0,
         playlist: queue,
         current_index: currentIndex,
-        last_update: Date.now() / 1000
+        last_update: Date.now() / 1000,
+        player_type: 'virtual',
+        player_source: window.location.pathname
       };
       
       console.log('🎮 Syncing remote state:', {
@@ -1443,12 +1462,20 @@ function getGroupPlaybackInfo(tracks) {
   // Listen for remote control commands
   async function pollRemoteCommands() {
     try {
+      console.log('🎮 [Virtual] Polling for remote commands...');
       const response = await fetch('/api/remote/commands');
+      console.log('🎮 [Virtual] Poll response status:', response.status);
       if (response.ok) {
         const commands = await response.json();
+        console.log('🎮 [Virtual] Poll response data:', commands);
+        if (commands && commands.length > 0) {
+          console.log('🎮 [Virtual] Received commands:', commands);
+        }
         for (const command of commands) {
           await executeRemoteCommand(command);
         }
+      } else {
+        console.warn('🎮 [Virtual] Poll failed with status:', response.status);
       }
     } catch(err) {
       console.warn('Remote polling failed:', err);
@@ -1463,21 +1490,40 @@ function getGroupPlaybackInfo(tracks) {
       switch(command.type) {
         case 'play':
           console.log('🎮 [Remote] Toggle play/pause');
-          if (media.paused) {
-            await media.play();
+          const playButton = document.getElementById('playBtn');
+          if (playButton) {
+            console.log('🎮 [Remote] playBtn found, clicking...');
+            playButton.click();
           } else {
-            media.pause();
+            console.log('🎮 [Remote] playBtn not found, using media directly');
+            if (media.paused) {
+              await media.play();
+            } else {
+              media.pause();
+            }
           }
           break;
           
         case 'next':
-          console.log('🎮 [Remote] Next track');
-          nextBtn.click();
+          console.log('🎮 [Remote] Next track - clicking button');
+          const nextButton = document.getElementById('nextBtn');
+          if (nextButton) {
+            console.log('🎮 [Remote] nextBtn found, clicking...');
+            nextButton.click();
+          } else {
+            console.error('🎮 [Remote] nextBtn not found!');
+          }
           break;
           
         case 'prev':
-          console.log('🎮 [Remote] Previous track');
-          prevBtn.click();
+          console.log('🎮 [Remote] Previous track - clicking button');
+          const prevButton = document.getElementById('prevBtn');
+          if (prevButton) {
+            console.log('🎮 [Remote] prevBtn found, clicking...');
+            prevButton.click();
+          } else {
+            console.error('🎮 [Remote] prevBtn not found!');
+          }
           break;
           
         case 'stop':
@@ -1500,23 +1546,45 @@ function getGroupPlaybackInfo(tracks) {
           break;
           
         case 'shuffle':
-          console.log('🎮 [Remote] Shuffle playlist');
-          shuffleBtn.click();
+          console.log('🎮 [Remote] Shuffle playlist - clicking button');
+          const shuffleButton = document.getElementById('shuffleBtn');
+          if (shuffleButton) {
+            console.log('🎮 [Remote] shuffleBtn found, clicking...');
+            shuffleButton.click();
+          } else {
+            console.error('🎮 [Remote] shuffleBtn not found!');
+          }
           break;
           
         case 'like':
-          console.log('🎮 [Remote] Like track');
-          cLike.click();
+          console.log('🎮 [Remote] Like track - checking button:', document.getElementById('cLike'));
+          const likeButton = document.getElementById('cLike');
+          if (likeButton) {
+            likeButton.click();
+          } else {
+            console.error('🎮 [Remote] Like button not found!');
+          }
           break;
           
         case 'youtube':
-          console.log('🎮 [Remote] Open YouTube');
-          cYoutube.click();
+          console.log('🎮 [Remote] Open YouTube - checking button:', document.getElementById('cYoutube'));
+          const youtubeButton = document.getElementById('cYoutube');
+          if (youtubeButton) {
+            youtubeButton.click();
+          } else {
+            console.error('🎮 [Remote] YouTube button not found!');
+          }
           break;
           
         case 'fullscreen':
-          console.log('🎮 [Remote] Toggle fullscreen');
-          cFull.click();
+          console.log('🎮 [Remote] Toggle fullscreen - clicking button');
+          const fullscreenButton = document.getElementById('cFull');
+          if (fullscreenButton) {
+            console.log('🎮 [Remote] cFull found, clicking...');
+            fullscreenButton.click();
+          } else {
+            console.error('🎮 [Remote] cFull not found!');
+          }
           break;
           
         default:
@@ -1530,7 +1598,11 @@ function getGroupPlaybackInfo(tracks) {
     }
   }
   
+  // === REMOTE CONTROL INITIALIZATION ===
+  console.log('🔧 [Virtual] Starting remote control initialization...');
+  
   // Enhanced event listeners for remote sync
+  console.log('🔧 [Virtual] Adding event listeners for remote sync...');
   media.addEventListener('play', syncRemoteState);
   media.addEventListener('pause', syncRemoteState);
   media.addEventListener('loadeddata', syncRemoteState);
@@ -1540,8 +1612,10 @@ function getGroupPlaybackInfo(tracks) {
       syncRemoteState();
     }
   });
+  console.log('✅ [Virtual] Event listeners added successfully');
   
   // Override existing functions to include remote sync
+  console.log('🔧 [Virtual] Overriding functions for remote sync...');
   const originalPlayIndex = playIndex;
   window.playIndex = function(idx) {
     originalPlayIndex.call(this, idx);
@@ -1553,37 +1627,28 @@ function getGroupPlaybackInfo(tracks) {
     originalTogglePlay.call(this);
     setTimeout(syncRemoteState, 200);
   };
+  console.log('✅ [Virtual] Functions overridden successfully');
   
   // Initial state sync after everything is loaded
+  console.log('🔧 [Virtual] Setting up initial sync timer...');
   setTimeout(() => {
+    console.log('⏰ [Virtual] Initial sync timer triggered');
     if (currentIndex >= 0) {
+      console.log('🎵 [Virtual] Syncing initial state...');
       syncRemoteState();
     }
     // Start periodic sync every 3 seconds
+    console.log('🔧 [Virtual] Starting periodic sync interval...');
     setInterval(syncRemoteState, 3000);
   }, 1000);
   
   // Periodic remote command polling (every 1 second)
-  setInterval(pollRemoteCommands, 1000);
+  console.log('🎮 [Virtual] Setting up command polling interval...');
+  const pollInterval = setInterval(pollRemoteCommands, 1000);
+  console.log('🎮 [Virtual] Poll interval ID:', pollInterval);
   
   console.log('🎮 Remote control synchronization initialized');
   
-  // Initial render of the playlist after all functions are defined
-  console.log('🎵 Initializing playlist render...');
-  console.log('📊 Tracks loaded:', tracks.length);
-  console.log('📊 Queue length:', queue.length);
-  console.log('🎯 Current index:', currentIndex);
-  
-  if (tracks.length === 0) {
-    console.warn('❌ No tracks loaded - check API endpoint');
-  } else if (queue.length === 0) {
-    console.warn('❌ Queue is empty - check smartChannelShuffle function');
-  } else {
-    console.log('✅ Data looks good, rendering playlist...');
-    renderList();
-    console.log('✅ Playlist rendered successfully');
-  }
-
   // Function to delete a track
   async function deleteTrack(track, trackIndex) {
     try {

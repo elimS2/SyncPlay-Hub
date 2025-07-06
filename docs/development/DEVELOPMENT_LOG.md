@@ -7,6 +7,7 @@ This file serves as the main development log index. Individual log entries are m
 ## 🗂️ Log Entry Files
 
 Latest entries are maintained in separate files:
+- `DEVELOPMENT_LOG_138.md` - Remote Control Virtual Player Support Fix (2025-07-05 23:31 UTC)
 - `DEVELOPMENT_LOG_137.md` - Video Player Responsive Design Enhancement (2025-07-05 23:20 UTC)
 - `DEVELOPMENT_LOG_136.md` - Extended Universal Sidebar to All Main Pages (2025-07-05 19:55 UTC)
 - `DEVELOPMENT_LOG_135.md` - Universal Sidebar Navigation Implementation (2025-07-05 19:39 UTC)
@@ -1217,6 +1218,46 @@ Fixed volume wheel control by correcting HTML input step attribute. The issue wa
 ✅ Accessible via single click - cycles through all speeds including 1.5x
 
 **Testing Status:** Ready for user testing
+
+### Log Entry #138 - 2025-07-06 11:09 UTC
+
+**Files Modified:**
+- `static/player-virtual.js` - Fixed remote control initialization structure
+- `controllers/api/remote_api.py` - Removed frequent sync logging
+
+**Changes Made:**
+
+1. **Fixed Remote Control Initialization in Virtual Player:**
+   - **Problem:** Remote control initialization code was incorrectly placed inside the `executeRemoteCommand` function instead of the main initialization block
+   - **Solution:** Moved remote control setup code to proper location in main execution flow
+   - **Impact:** Remote control now properly initializes when virtual player loads
+
+2. **Fixed JavaScript Error Blocking Code Execution:**
+   - **Problem:** `streamBtn.onclick` assignment caused error when `streamBtn` was null, preventing remote control initialization
+   - **Solution:** Added null check `if (streamBtn)` before onclick assignment
+   - **Impact:** Code execution now continues to remote control initialization even when streaming button is not available
+
+3. **Removed Log Spam from Remote Sync:**
+   - **Problem:** Every sync operation logged "[Remote] State synced from [player_type] player" message every 2-3 seconds
+   - **Solution:** Removed the frequent sync logging from `api_remote_sync_internal()` function
+   - **Impact:** Cleaner log output without repetitive sync messages
+
+**Testing Results:**
+- ✅ Remote control now works with virtual player (`/likes_player/1`)
+- ✅ Remote control page (`/remote`) can control both regular and virtual players
+- ✅ Player type detection shows correct player type on remote control interface
+- ✅ All remote commands (play/pause, next/prev, volume, shuffle, like) work correctly
+- ✅ No more log spam from frequent sync operations
+
+**Technical Details:**
+- Remote control initialization moved from inside `executeRemoteCommand` function to main code execution block
+- Added proper error handling for missing UI elements (`streamBtn`)
+- Maintained comprehensive debugging logging for troubleshooting
+- Preserved all remote control functionality while fixing structural issues
+
+**Status:** Remote control for virtual player is now fully functional and integrated.
+
+---
 
 
 

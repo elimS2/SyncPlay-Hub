@@ -387,6 +387,11 @@
       <div class="status-dot" id="statusDot"></div>
       <span id="statusText">Connecting...</span>
     </div>
+    
+    <!-- Player Type Info -->
+    <div class="player-type-info" id="playerTypeInfo" style="text-align: center; margin-bottom: 15px; padding: 8px; background: rgba(255,255,255,0.05); border-radius: 8px; font-size: 12px; color: var(--text-muted); display: none;">
+      <span id="playerTypeText">Unknown Player</span>
+    </div>
 
     <!-- Current Track Info -->
     <div class="track-info">
@@ -517,6 +522,10 @@
         // Status elements
         this.statusDot = document.getElementById('statusDot');
         this.statusText = document.getElementById('statusText');
+        
+        // Player type elements
+        this.playerTypeInfo = document.getElementById('playerTypeInfo');
+        this.playerTypeText = document.getElementById('playerTypeText');
         
         // Track info elements
         this.trackTitle = document.getElementById('trackTitle');
@@ -671,6 +680,30 @@
       updateStatus(status) {
         console.log('📱 Remote: Updating status:', status);
         this.currentStatus = status; // Store current status for volume logging
+        
+        // Update player type info
+        if (status.player_type) {
+          let playerTypeDisplay = '';
+          switch (status.player_type) {
+            case 'regular':
+              playerTypeDisplay = '📁 Regular Playlist';
+              break;
+            case 'virtual':
+              playerTypeDisplay = '❤️ Virtual Playlist';
+              break;
+            default:
+              playerTypeDisplay = '🎵 Unknown Player';
+          }
+          
+          if (status.player_source) {
+            playerTypeDisplay += ` (${status.player_source})`;
+          }
+          
+          this.playerTypeText.textContent = playerTypeDisplay;
+          this.playerTypeInfo.style.display = 'block';
+        } else {
+          this.playerTypeInfo.style.display = 'none';
+        }
         
         // Check if track changed (reset like state)
         const trackChanged = !this.currentTrack || 

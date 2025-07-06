@@ -1455,7 +1455,9 @@ function getGroupPlaybackInfo(tracks) {
         progress: media.currentTime || 0,
         playlist: queue,
         current_index: currentIndex,
-        last_update: Date.now() / 1000
+        last_update: Date.now() / 1000,
+        player_type: 'regular',
+        player_source: window.location.pathname
       };
       
       console.log('🎮 Syncing remote state:', {

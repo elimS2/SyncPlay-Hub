@@ -32,7 +32,9 @@ PLAYER_STATE = {
     'progress': 0,
     'playlist': [],
     'current_index': -1,
-    'last_update': None
+    'last_update': None,
+    'player_type': None,  # 'regular' or 'virtual'
+    'player_source': None  # Track which player is active
 }
 
 # Command queue for remote control

@@ -24,7 +24,7 @@ def api_remote_play():
         'timestamp': time.time()
     })
     
-    log_message("[Remote] Play/pause command queued")
+    log_message(f"[Remote] Play/pause command queued. Queue length: {len(COMMAND_QUEUE)}")
     return jsonify({"status": "ok", "command": "queued"})
 
 @remote_bp.route("/remote/next", methods=["POST"])
@@ -36,7 +36,7 @@ def api_remote_next():
         'timestamp': time.time()
     })
     
-    log_message("[Remote] Next track command queued")
+    log_message(f"[Remote] Next track command queued. Queue length: {len(COMMAND_QUEUE)}")
     return jsonify({"status": "ok", "command": "queued"})
 
 @remote_bp.route("/remote/prev", methods=["POST"])
@@ -175,9 +175,17 @@ def api_remote_sync_internal():
     global PLAYER_STATE
     data = request.get_json() or {}
     
+    # Get player type from request
+    player_type = data.get('player_type', 'regular')
+    player_source = data.get('player_source', 'unknown')
+    
     # Update server state with player data
     PLAYER_STATE.update(data)
     PLAYER_STATE['last_update'] = time.time()
+    PLAYER_STATE['player_type'] = player_type
+    PLAYER_STATE['player_source'] = player_source
+    
+    # Note: Removed frequent sync logging to avoid log spam
     
     return jsonify({"status": "ok"})
 
@@ -189,7 +197,7 @@ def api_remote_commands():
     COMMAND_QUEUE.clear()
     
     if commands:
-        log_message(f"[Remote] Returning {len(commands)} commands to player")
+        log_message(f"[Remote] Returning {len(commands)} commands to player: {[cmd['type'] for cmd in commands]}")
     
     return jsonify(commands)
 
