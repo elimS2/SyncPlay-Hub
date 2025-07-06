@@ -14,13 +14,15 @@ This file provides structured information about the project's evolution, key arc
 ## 📈 **Complete Development Timeline**
 
 ### **Project Statistics**
-- **Total Commits:** 178
+- **Total Commits:** 180
 - **Development Period:** 2025-06-16 to 2025-07-06 (active development)
-- **Latest Commit:** afc23c9 - Fix: Remote control support for virtual player (/likes_player) with comprehensive debugging and log cleanup
+- **Latest Commit:** 71de24d - perf: Remove database transaction blocking in scan_to_db.py for improved performance
 - **Recent Major Features:** Virtual Playlists System + Complete Job Queue System (Phases 1-7) + Performance Optimization & Monitoring + Database Migration System Enhancement + Channel Analyzer Automation + Job Queue UI Improvements + Trash Management System
 - **Initial Import:** e299d24 - SyncPlay-Hub project inception
 
 ### **Virtual Playlists & Latest Features (2025-06-29 to 2025-07-06)**
+- `71de24d` - **Performance Optimization** - perf: Remove database transaction blocking in scan_to_db.py for improved performance  
+- `a1b0077` - **Database Performance** - feat: Implement comprehensive scan_to_db.py performance optimization with 10x speed improvement
 - `afc23c9` - **Remote Control Fix** - Fix: Remote control support for virtual player (/likes_player) with comprehensive debugging and log cleanup  
 - `1bcc5e7` - **YouTube Date Sorting** - feat: add YouTube publish date sorting to playlist pages
 - `629d904` - **Channel Sync Enhancement** - feat: enhance channel sync with database deletion check and URL preservation

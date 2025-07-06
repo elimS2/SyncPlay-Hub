@@ -7,6 +7,8 @@ This file serves as the main development log index. Individual log entries are m
 ## 🗂️ Log Entry Files
 
 Latest entries are maintained in separate files:
+- `DEVELOPMENT_LOG_140.md` - Removed Duplicate Player Control Buttons from Virtual Player (2025-07-06 14:12 UTC)
+- `DEVELOPMENT_LOG_139.md` - Removed Duplicate Player Control Buttons (2025-07-06 14:03 UTC)
 - `DEVELOPMENT_LOG_138.md` - Remote Control Virtual Player Support Fix (2025-07-05 23:31 UTC)
 - `DEVELOPMENT_LOG_137.md` - Video Player Responsive Design Enhancement (2025-07-05 23:20 UTC)
 - `DEVELOPMENT_LOG_136.md` - Extended Universal Sidebar to All Main Pages (2025-07-05 19:55 UTC)
@@ -1257,48 +1259,53 @@ Fixed volume wheel control by correcting HTML input step attribute. The issue wa
 
 **Status:** Remote control for virtual player is now fully functional and integrated.
 
-### Log Entry #139 - 2025-07-06 13:20 UTC
+### Log Entry #139 - 2025-07-06 14:05 UTC
 
-**Modified Files:**
-- `scan_to_db.py` - Major performance optimizations and diagnostics
+**Files Modified:**
+- templates/index.html
+- static/player.js
 
 **Changes Made:**
-1. **Performance Optimizations:**
-   - Added in-memory caching of all existing tracks (video_id, relpath, duration, id)
-   - Implemented fast path for unchanged files - skip all processing if file exists with same path
-   - Added comprehensive timing metrics and progress tracking with timestamps
-   - Removed transaction management issues (auto-commit handling)
+1. **Removed duplicate control buttons** from the top control bar in playlist view:
+   - Removed `prevBtn` (Previous track)
+   - Removed `playBtn` (Play/Pause)
+   - Removed `nextBtn` (Next track)
+   - Removed `stopBtn` (Stop playback)
 
-2. **Diagnostic Improvements:**
-   - Added detailed timing for each operation (load, process, commit)
-   - Added counters for files skipped vs processed vs without video_id
-   - Per-playlist statistics showing processing time and file breakdown
-   - Progress reporting every 50 files with timestamps
+2. **Refactored JavaScript functionality** to use direct functions instead of button references:
+   - Created `stopPlayback()` function
+   - Created `nextTrack()` function
+   - Created `prevTrack()` function
+   - Created `togglePlayback()` function
+   - Updated bottom control buttons to use these functions directly
+   - Updated keyboard shortcuts to use new functions
+   - Updated Media Session API handlers to use new functions
+   - Updated remote control commands to use new functions
 
-3. **Bug Fixes:**
-   - Fixed count increment for skipped files (was causing 0 tracks display)
-   - Fixed transaction commit error handling
-   - Added proper file counting for unchanged files
+3. **Code cleanup:**
+   - Removed JavaScript variables for deleted buttons
+   - Maintained all existing functionality through bottom player controls
+   - Preserved all integrations (keyboard, media session, remote control)
 
-**Performance Results:**
-- "New Music" playlist (1615 files): ~12 seconds (was ~2 minutes)
-- Overall improvement: ~10x faster scanning
-- Most processing time now spent on files without proper video_id extraction
+**Reasoning:**
+User requested removal of duplicate control buttons from the top of playlist pages, as the same functionality is available in the bottom player controls. This reduces UI clutter while maintaining full functionality.
 
 **Impact:**
-- Dramatically faster rescanning of large music libraries
-- Better diagnostics for troubleshooting file issues
-- Stable performance for unchanged files
+- Cleaner playlist interface with less visual clutter
+- All playback controls still available through bottom player
+- No loss of functionality - all features preserved
+- Keyboard shortcuts still work
+- Remote control still works
+- Media Session API integration still works
 
-**Architecture:**
-- Maintains proper job queue integration
-- Uses existing upsert_track functions
-- Preserves all existing functionality while adding optimizations
+**Testing Required:**
+- Verify all playback controls work from bottom player
+- Test keyboard shortcuts (Space, Arrow keys)
+- Test remote control integration
+- Test media session API integration
+- Ensure no JavaScript errors in console
 
-**Next Steps:**
-- Monitor file video_id extraction issues
-- Consider batch SQL operations for remaining bottlenecks
-- Test with user's large library
+**Risk Assessment:** Low - functionality moved to existing controls, no new features introduced.
 
 
 

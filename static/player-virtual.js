@@ -269,10 +269,6 @@ function getGroupPlaybackInfo(tracks) {
   const listElem = document.getElementById('tracklist');
   const shuffleBtn = document.getElementById('shuffleBtn');
   const smartShuffleBtn = document.getElementById('smartShuffleBtn');
-  const stopBtn = document.getElementById('stopBtn');
-  const nextBtn = document.getElementById('nextBtn');
-  const prevBtn = document.getElementById('prevBtn');
-  const playBtn = document.getElementById('playBtn');
   const deleteCurrentBtn = document.getElementById('deleteCurrentBtn');
   const fullBtn = document.getElementById('fullBtn');
   const cLike = document.getElementById('cLike');
@@ -733,29 +729,30 @@ function getGroupPlaybackInfo(tracks) {
     playIndex(0);
   };
 
-  stopBtn.onclick = () => {
+  // Direct functions for playback control
+  function stopPlayback() {
     media.pause();
     media.currentTime = 0;
-  };
+  }
 
-  nextBtn.onclick = () => {
+  function nextTrack() {
     if (currentIndex + 1 < queue.length) {
       // send event for current track before switching
       if(currentIndex>=0){ reportEvent(queue[currentIndex].video_id,'next'); }
       playIndex(currentIndex + 1);
       sendStreamEvent({action:'next', idx: currentIndex, paused: media.paused, position:0});
     }
-  };
+  }
 
-  prevBtn.onclick = () => {
+  function prevTrack() {
     if (currentIndex - 1 >= 0) {
       if(currentIndex>=0){ reportEvent(queue[currentIndex].video_id,'prev'); }
       playIndex(currentIndex - 1);
       sendStreamEvent({action:'prev', idx: currentIndex, paused: media.paused, position: media.currentTime});
     }
-  };
+  }
 
-  playBtn.onclick = () => {
+  function togglePlayback() {
     if (media.paused) {
       media.play();
       sendStreamEvent({action:'play', position: media.currentTime, paused:false});
@@ -764,7 +761,7 @@ function getGroupPlaybackInfo(tracks) {
       media.pause();
       sendStreamEvent({action:'pause', position: media.currentTime, paused:true});
     }
-  };
+  }
 
   deleteCurrentBtn.onclick = async () => {
     // Check if there's a current track
@@ -883,8 +880,8 @@ function getGroupPlaybackInfo(tracks) {
     }
   };
 
-  cPrev.onclick = () => prevBtn.click();
-  cNext.onclick = () => nextBtn.click();
+  cPrev.onclick = () => prevTrack();
+  cNext.onclick = () => nextTrack();
 
   // Speed control functionality
   function updateSpeedDisplay() {
@@ -924,14 +921,7 @@ function getGroupPlaybackInfo(tracks) {
     cSpeed.onclick = cyclePlaybackSpeed;
   }
 
-  function togglePlay() {
-    if (media.paused) {
-      media.play();
-    } else {
-      media.pause();
-    }
-  }
-  cPlay.onclick = togglePlay;
+  cPlay.onclick = togglePlayback;
 
   media.addEventListener('play', () => {
     // Change to pause icon
@@ -1204,7 +1194,7 @@ function getGroupPlaybackInfo(tracks) {
           e.preventDefault();
           performKeyboardSeek(10);
         } else {
-          nextBtn.click();
+          nextTrack();
         }
         break;
       case 'ArrowLeft':
@@ -1213,7 +1203,7 @@ function getGroupPlaybackInfo(tracks) {
           e.preventDefault();
           performKeyboardSeek(-10);
         } else {
-          prevBtn.click();
+          prevTrack();
         }
         break;
       case 'ArrowUp':
@@ -1226,7 +1216,7 @@ function getGroupPlaybackInfo(tracks) {
         break;
       case 'Space':
         e.preventDefault();
-        playBtn.click();
+        togglePlayback();
         break;
     }
   });
@@ -1277,14 +1267,14 @@ function getGroupPlaybackInfo(tracks) {
 
   // ---- Media Session API ----
   if ('mediaSession' in navigator) {
-      navigator.mediaSession.setActionHandler('previoustrack', () => prevBtn.click());
-      navigator.mediaSession.setActionHandler('nexttrack', () => nextBtn.click());
+      navigator.mediaSession.setActionHandler('previoustrack', () => prevTrack());
+      navigator.mediaSession.setActionHandler('nexttrack', () => nextTrack());
       navigator.mediaSession.setActionHandler('play', () => media.play());
       navigator.mediaSession.setActionHandler('pause', () => media.pause());
   }
 
   // Clicking on the video toggles play/pause
-  media.addEventListener('click', togglePlay);
+  media.addEventListener('click', togglePlayback);
 
   // Playlist collapse/expand
   toggleListBtn.onclick = () => {
@@ -1490,46 +1480,22 @@ function getGroupPlaybackInfo(tracks) {
       switch(command.type) {
         case 'play':
           console.log('🎮 [Remote] Toggle play/pause');
-          const playButton = document.getElementById('playBtn');
-          if (playButton) {
-            console.log('🎮 [Remote] playBtn found, clicking...');
-            playButton.click();
-          } else {
-            console.log('🎮 [Remote] playBtn not found, using media directly');
-            if (media.paused) {
-              await media.play();
-            } else {
-              media.pause();
-            }
-          }
+          togglePlayback();
           break;
           
         case 'next':
-          console.log('🎮 [Remote] Next track - clicking button');
-          const nextButton = document.getElementById('nextBtn');
-          if (nextButton) {
-            console.log('🎮 [Remote] nextBtn found, clicking...');
-            nextButton.click();
-          } else {
-            console.error('🎮 [Remote] nextBtn not found!');
-          }
+          console.log('🎮 [Remote] Next track');
+          nextTrack();
           break;
           
         case 'prev':
-          console.log('🎮 [Remote] Previous track - clicking button');
-          const prevButton = document.getElementById('prevBtn');
-          if (prevButton) {
-            console.log('🎮 [Remote] prevBtn found, clicking...');
-            prevButton.click();
-          } else {
-            console.error('🎮 [Remote] prevBtn not found!');
-          }
+          console.log('🎮 [Remote] Previous track');
+          prevTrack();
           break;
           
         case 'stop':
           console.log('🎮 [Remote] Stop playback');
-          media.pause();
-          media.currentTime = 0;
+          stopPlayback();
           break;
           
         case 'volume':
@@ -1622,9 +1588,9 @@ function getGroupPlaybackInfo(tracks) {
     setTimeout(syncRemoteState, 200);
   };
   
-  const originalTogglePlay = togglePlay;
-  window.togglePlay = function() {
-    originalTogglePlay.call(this);
+  const originalTogglePlayback = togglePlayback;
+  window.togglePlayback = function() {
+    originalTogglePlayback.call(this);
     setTimeout(syncRemoteState, 200);
   };
   console.log('✅ [Virtual] Functions overridden successfully');
