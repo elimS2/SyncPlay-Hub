@@ -13,7 +13,6 @@ from __future__ import annotations
 
 import argparse
 import re
-import sqlite3
 import subprocess
 import time
 from pathlib import Path
@@ -81,8 +80,8 @@ def scan(playlists_dir: Path):
     load_time = time.time() - load_start
     print(f"[SCAN] Loaded {len(existing_tracks)} existing tracks in {load_time:.2f}s - {time.strftime('%H:%M:%S')}")
     
-    # OPTIMIZATION: Disable autocommit for batch operations  
-    # Note: Some functions may auto-commit, so we'll handle transaction carefully
+    # OPTIMIZATION: Use autocommit for faster individual operations
+    # With most files being skipped, autocommit is more efficient than batch transactions
     
     total_playlists = 0
     total_tracks = 0
@@ -189,7 +188,6 @@ def scan(playlists_dir: Path):
                 "DELETE FROM track_playlists WHERE playlist_id=? AND track_id=?",
                 [(playlist_id, tid) for tid in to_remove],
             )
-            # OPTIMIZATION: Don't commit here, will commit at the end
 
         # update stats
         update_playlist_stats(conn, playlist_id, count)
@@ -197,18 +195,8 @@ def scan(playlists_dir: Path):
         print(f"[SCAN]   Playlist '{playlist_dir.name}': {count} tracks total, {new_tracks} new, {files_no_id} without video_id - {playlist_time:.2f}s")
         total_tracks += count
         
-    # OPTIMIZATION: Commit all changes at once (if transaction is active)
-    commit_start = time.time()
-    print(f"[SCAN] Committing all changes to database... - {time.strftime('%H:%M:%S')}")
-    try:
-        conn.execute("COMMIT")
-        commit_time = time.time() - commit_start
-        print(f"[SCAN] Committed in {commit_time:.2f}s - {time.strftime('%H:%M:%S')}")
-    except sqlite3.OperationalError as e:
-        if "no transaction is active" in str(e):
-            print(f"[SCAN] All changes already committed - {time.strftime('%H:%M:%S')}")
-        else:
-            raise
+    # OPTIMIZATION: All changes auto-committed during processing
+    print(f"[SCAN] All changes auto-committed during processing - {time.strftime('%H:%M:%S')}")
     
     conn.close()
     
