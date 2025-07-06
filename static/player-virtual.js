@@ -533,6 +533,14 @@ const cDislike = document.getElementById('cDislike');
       // Debug: tooltip data prepared for track
       
       const tooltipContent = `
+        ${t.youtube_channel_handle ? `
+        <div class="tooltip-row">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+            <circle cx="12" cy="7" r="4"></circle>
+          </svg>
+          <strong>Channel:</strong> ${t.youtube_channel_handle}
+        </div>` : ''}
         <div class="tooltip-row">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
@@ -570,14 +578,26 @@ const cDislike = document.getElementById('cDislike');
             }
           })()}
         </div>` : ''}
-        ${t.youtube_channel_handle ? `
+        ${t.youtube_duration_string ? `
         <div class="tooltip-row">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
-            <circle cx="12" cy="7" r="4"></circle>
+            <circle cx="12" cy="12" r="10"></circle>
+            <polyline points="12,6 12,12 16,14"></polyline>
           </svg>
-          <strong>Channel:</strong> ${t.youtube_channel_handle}
-        </div>` : ''}
+          <strong>Duration:</strong> ${t.youtube_duration_string}
+        </div>` : (t.youtube_duration ? `
+        <div class="tooltip-row">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"></circle>
+            <polyline points="12,6 12,12 16,14"></polyline>
+          </svg>
+          <strong>Duration:</strong> ${(() => {
+            const duration = Math.floor(t.youtube_duration);
+            const minutes = Math.floor(duration / 60);
+            const seconds = duration % 60;
+            return minutes + ':' + seconds.toString().padStart(2, '0');
+          })()}
+        </div>` : '')}
         <div class="tooltip-row">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <circle cx="12" cy="12" r="10"></circle>

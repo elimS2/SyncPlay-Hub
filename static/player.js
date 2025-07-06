@@ -496,6 +496,11 @@ const cDislike = document.getElementById('cDislike');
       // Create custom tooltip with SVG icons
       let tooltipHTML = '';
       
+      // Add channel handle (@channelname) info - FIRST ITEM
+      if (t.youtube_channel_handle) {
+        tooltipHTML += `<div class="tooltip-row"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg><strong>Channel:</strong> ${t.youtube_channel_handle}</div>`;
+      }
+      
       // Add YouTube publish date info
       if (t.youtube_timestamp || t.youtube_release_timestamp || t.youtube_release_year) {
         let publishDate = 'Unknown';
@@ -546,9 +551,15 @@ const cDislike = document.getElementById('cDislike');
         }
       }
       
-             // Add channel handle (@channelname) info
-       if (t.youtube_channel_handle) {
-         tooltipHTML += `<div class="tooltip-row"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg><strong>Channel:</strong> ${t.youtube_channel_handle}</div>`;
+             // Add video duration info
+       if (t.youtube_duration_string) {
+         tooltipHTML += `<div class="tooltip-row"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12,6 12,12 16,14"></polyline></svg><strong>Duration:</strong> ${t.youtube_duration_string}</div>`;
+       } else if (t.youtube_duration) {
+         const duration = Math.floor(t.youtube_duration);
+         const minutes = Math.floor(duration / 60);
+         const seconds = duration % 60;
+         const durationStr = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+         tooltipHTML += `<div class="tooltip-row"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12,6 12,12 16,14"></polyline></svg><strong>Duration:</strong> ${durationStr}</div>`;
        }
       
       // Add last play date info
