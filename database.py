@@ -387,15 +387,15 @@ def record_event(conn: sqlite3.Connection, video_id: str, event: str, position: 
     """Record playback or library event and update counters/history.
 
     Supported events:
-        - start, finish, next, prev, like, play, pause  –  coming from the web player
-        - volume_change                                 –  volume change events
-        - seek                                          –  seek/scrub events (position changes)
-        - playlist_added                                –  track added/discovered in playlist
-        - removed                                       –  file deletion during library sync
-        - backup_created                                –  database backup creation
-        - channel_downloaded                            –  channel content downloaded
+        - start, finish, next, prev, like, dislike, play, pause  –  coming from the web player
+        - volume_change                                          –  volume change events
+        - seek                                                   –  seek/scrub events (position changes)
+        - playlist_added                                         –  track added/discovered in playlist
+        - removed                                                –  file deletion during library sync
+        - backup_created                                         –  database backup creation
+        - channel_downloaded                                     –  channel content downloaded
     """
-    valid = {"start", "finish", "next", "prev", "like", "play", "pause", "volume_change", "seek", "playlist_added", "removed", "backup_created", "channel_downloaded"}
+    valid = {"start", "finish", "next", "prev", "like", "dislike", "play", "pause", "volume_change", "seek", "playlist_added", "removed", "backup_created", "channel_downloaded"}
     if event not in valid:
         return
     cur = conn.cursor()
@@ -417,6 +417,13 @@ def record_event(conn: sqlite3.Connection, video_id: str, event: str, position: 
             # skip counting duplicate like
             return
         set_parts.append("play_likes = play_likes + 1")
+    elif event == "dislike":
+        # check last dislike within 12h
+        dislike_recent = cur.execute("SELECT 1 FROM play_history WHERE video_id=? AND event='dislike' AND ts >= datetime('now','-12 hours') LIMIT 1", (video_id,)).fetchone()
+        if dislike_recent:
+            # skip counting duplicate dislike
+            return
+        # Note: dislike doesn't increment a counter like likes do, just records the event
     elif event == "playlist_added":
         # no per-track counters, only history log
         pass

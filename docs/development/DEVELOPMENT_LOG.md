@@ -1307,6 +1307,84 @@ User requested removal of duplicate control buttons from the top of playlist pag
 
 **Risk Assessment:** Low - functionality moved to existing controls, no new features introduced.
 
+### Log Entry #146 - 2025-07-06 14:43 UTC
+
+**Affected Files:**
+- `services/playlist_service.py` - Added dislike count retrieval from play_history table
+- `controllers/api/playlist_api.py` - Added dislike count to tracks_by_likes API response
+- `static/player-virtual.js` - Added dislike display in virtual playlist tooltips
+- `static/player.js` - Added dislike display in regular playlist tooltips
+
+**Changes:**
+1. **Database Enhancement:** Modified `_get_track_stats()` to fetch dislike count from `play_history` table
+2. **API Enhancement:** Added dislike count subquery to `/api/tracks_by_likes/` endpoint
+3. **UI Enhancement:** Added purple dislike icon and count to all playlist tooltips 
+4. **Visual Design:** Used purple color (#9b59b6) for dislike icons to match button styling
+
+**Feature:** User requested dislike display in playlist tooltips (всплывающие подсказки)
+
+**Implementation:** Since dislikes are stored as events in `play_history` table (not as counters like likes), we count them dynamically using SQL subqueries and display alongside other track statistics
+
+**Impact:** All playlist tooltips now show both likes and dislikes, providing complete user feedback information
+
+---
+
+### Log Entry #145 - 2025-07-06 14:38 UTC
+
+**Affected Files:**
+- `database.py` - Added "dislike" to valid events list and time restriction
+- `controllers/api/base_api.py` - Added "dislike" to API validation
+- `templates/history.html` - Added dislike event filter, CSS styling, and documentation
+
+**Changes:**
+1. **Database Fix:** Added "dislike" to valid events list in `record_event()` function
+2. **API Fix:** Added "dislike" to valid events in `/api/event` endpoint
+3. **UI Enhancement:** Added dislike filter checkbox to Events page
+4. **Visual Enhancement:** Added purple styling for dislike events (#9b59b6)
+5. **Documentation:** Added dislike event description to Events page reference
+
+**Issue:** User reported that dislike events were not appearing on `/events` page despite being triggered from players
+
+**Root Cause:** "dislike" event was not included in the valid events list in `database.py`, causing the `record_event()` function to silently ignore dislike events
+
+**Impact:** Now dislike events are properly recorded in database and visible on Events page with purple styling
+
+---
+
+### Log Entry #144 - 2025-07-06 14:25 UTC
+
+**Affected Files:**
+- `controllers/api/remote_api.py` - Added dislike API endpoint
+- `templates/likes_player.html` - Added dislike button and styles
+- `templates/index.html` - Added dislike button and styles
+- `templates/remote.html` - Added dislike button, styles, and event handlers
+- `static/player-virtual.js` - Added dislike button handling and remote command support
+- `static/player.js` - Added dislike button handling and remote command support
+
+**Changes:**
+1. **API Enhancement:** Added `/remote/dislike` endpoint to record dislike events in database
+2. **UI Updates:** Added dislike button (👎) with purple active state (#9b59b6) next to like button in all players
+3. **Remote Control:** Added dislike functionality to remote control interface
+4. **JavaScript Integration:** Added dislike event handlers, state management, and remote command processing
+
+**Reasoning:**
+User requested adding dislike functionality to complement existing like feature. Implementation follows same pattern as like functionality for consistency and reliability.
+
+**Impact:**
+- Users can now dislike tracks using purple dislike button
+- Remote control supports dislike commands
+- Dislike events are properly recorded in database
+- Both virtual and regular players support dislike functionality
+- UI maintains consistent design with like/dislike buttons side by side
+
+**Testing Notes:**
+- All players now have both like and dislike buttons
+- Remote control can trigger dislike from any device
+- Button states reset properly when switching tracks
+- Database properly records dislike events with timestamp and position
+- **UPDATED:** Added 12-hour time restriction for dislikes (same as likes) to prevent spam
+- **BUGFIX:** Fixed dislike events not appearing in /events page - added "dislike" to valid events list
+
 
 
 

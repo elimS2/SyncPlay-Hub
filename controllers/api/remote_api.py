@@ -134,6 +134,28 @@ def api_remote_like():
     
     return jsonify({"status": "error", "message": "No current track"}), 400
 
+
+@remote_bp.route("/remote/dislike", methods=["POST"])
+def api_remote_dislike():
+    """Dislike current track."""
+    global PLAYER_STATE
+    if PLAYER_STATE['current_track'] and 'video_id' in PLAYER_STATE['current_track']:
+        video_id = PLAYER_STATE['current_track']['video_id']
+        
+        # Record dislike event in database
+        try:
+            conn = get_connection()
+            record_event(conn, video_id, 'dislike', position=PLAYER_STATE['progress'])
+            conn.close()
+            
+            log_message(f"[Remote] Disliked track: {PLAYER_STATE['current_track'].get('name', 'Unknown')}")
+            return jsonify({"status": "ok"})
+        except Exception as e:
+            log_message(f"[Remote] Error recording dislike: {e}")
+            return jsonify({"status": "error", "message": str(e)}), 500
+    
+    return jsonify({"status": "error", "message": "No current track"}), 400
+
 @remote_bp.route("/remote/shuffle", methods=["POST"])
 def api_remote_shuffle():
     """Shuffle playlist."""

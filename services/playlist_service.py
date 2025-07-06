@@ -42,19 +42,28 @@ def _get_track_stats(video_id: str) -> dict:
     from database import get_connection
     try:
         conn = get_connection()
+        # Get basic stats from tracks table
         row = conn.execute(
             "SELECT play_starts, play_finishes, play_nexts, play_prevs, play_likes FROM tracks WHERE video_id=?", 
             (video_id,)
         ).fetchone()
+        
+        # Get dislike count from play_history table
+        dislike_count = conn.execute(
+            "SELECT COUNT(*) FROM play_history WHERE video_id=? AND event='dislike'", 
+            (video_id,)
+        ).fetchone()[0]
+        
         conn.close()
         if not row:
-            return {}
+            return {"play_dislikes": dislike_count or 0}
         return {
             "play_starts": row["play_starts"] or 0,
             "play_finishes": row["play_finishes"] or 0,
             "play_nexts": row["play_nexts"] or 0,
             "play_prevs": row["play_prevs"] or 0,
-            "play_likes": row["play_likes"] or 0
+            "play_likes": row["play_likes"] or 0,
+            "play_dislikes": dislike_count or 0
         }
     except Exception:
         return {}

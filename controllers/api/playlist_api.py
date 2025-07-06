@@ -317,7 +317,8 @@ def api_tracks_by_likes(like_count):
             COALESCE(t.last_finish_ts, t.last_start_ts) as last_play,
             ym.timestamp,
             ym.release_timestamp,
-            ym.release_year
+            ym.release_year,
+            (SELECT COUNT(*) FROM play_history ph WHERE ph.video_id = t.video_id AND ph.event = 'dislike') as play_dislikes
         FROM tracks t
         LEFT JOIN youtube_video_metadata ym ON ym.youtube_id = t.video_id
         WHERE t.play_likes = ? 
@@ -346,6 +347,7 @@ def api_tracks_by_likes(like_count):
                 "timestamp": row[12],  # YouTube publish timestamp
                 "release_timestamp": row[13],
                 "release_year": row[14],
+                "play_dislikes": row[15] or 0,  # Dislike count from play_history
                 "url": f"/media/{row[2]}"  # Use relpath, not video_id
             }
             tracks.append(track)

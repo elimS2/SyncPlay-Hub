@@ -103,7 +103,7 @@ def api_event():
     video_id = data.get("video_id")
     ev = data.get("event")
     pos = data.get("position")
-    if not video_id or ev not in {"start", "finish", "next", "prev", "like", "play", "pause"}:
+    if not video_id or ev not in {"start", "finish", "next", "prev", "like", "dislike", "play", "pause"}:
         return jsonify({"status": "error", "message": "bad payload"}), 400
     
     conn = get_connection()

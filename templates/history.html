@@ -234,6 +234,7 @@
     .event-next { color: #9c27b0; }
     .event-prev { color: #9c27b0; }
     .event-like { color: #e91e63; }
+    .event-dislike { color: #9b59b6; font-weight: bold; }
     .event-volume_change { color: #ffeb3b; font-weight: bold; }
     .event-seek { color: #00bcd4; font-weight: bold; }
     .event-playlist_added { color: #8bc34a; font-weight: bold; }
@@ -358,6 +359,10 @@
             <label class="event-type-checkbox" for="filter-like">
               <input type="checkbox" id="filter-like" {% if not filters.event_types_filter_applied or (filters.event_types and 'like' in filters.event_types) %}checked{% endif %}>
               <span>Like</span>
+            </label>
+            <label class="event-type-checkbox" for="filter-dislike">
+              <input type="checkbox" id="filter-dislike" {% if not filters.event_types_filter_applied or (filters.event_types and 'dislike' in filters.event_types) %}checked{% endif %}>
+              <span>Dislike</span>
             </label>
             <label class="event-type-checkbox" for="filter-volume_change">
               <input type="checkbox" id="filter-volume_change" {% if not filters.event_types_filter_applied or (filters.event_types and 'volume_change' in filters.event_types) %}checked{% endif %}>
@@ -523,6 +528,7 @@
         <div><span class="event-next">🟣 next</span> - Manual skip to next track</div>
         <div><span class="event-prev">🟣 prev</span> - Manual skip to previous track</div>
         <div><span class="event-like">🩷 like</span> - Track marked as favorite</div>
+        <div><span class="event-dislike">🟣 dislike</span> - Track marked as disliked</div>
         <div><span class="event-volume_change">🟡 volume_change</span> - Volume level adjusted</div>
         <div><span class="event-seek">🔵 seek</span> - Position changed (seek/scrub)</div>
         <div><span class="event-playlist_added">🟢 playlist_added</span> - Track added/discovered in playlist</div>
