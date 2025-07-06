@@ -90,137 +90,93 @@ from utils.logging_utils import log_message
 
 ---
 
-## 📋 **Development Logging (MANDATORY)**
+## 📋 **Development Documentation Policy**
 
-### **Automatic Documentation Requirement**
-**EVERY** code modification must be immediately documented in `DEVELOPMENT_LOG.md`. No exceptions.
+### **🚨 IMPORTANT: Development Log Maintenance Discontinued**
 
-### **When to Log**
-- ✅ **After every code edit** - functions, classes, variables, imports
-- ✅ **Configuration changes** - settings, environment variables  
-- ✅ **Bug fixes** - even small ones
-- ✅ **Refactoring** - code structure improvements
-- ✅ **New features** - functionality additions
-- ✅ **Template changes** - HTML, CSS, JavaScript modifications
-- ✅ **Database changes** - schema, queries, migrations
+**As of 2025-07-06, development log maintenance has been discontinued to reduce overhead and token consumption.**
 
-### **Log Entry Format**
-Each entry must follow this structure:
+### **New Documentation Approach**
 
-```markdown
-### Log Entry #XXX - YYYY-MM-DD HH:MM
-**Change:** [Brief description of what was changed]
+#### **Use Detailed Commit Messages**
+Instead of maintaining separate development logs, use comprehensive commit messages:
 
-#### Files Modified
-- `path/to/file1.py` - [what changed]
-- `path/to/file2.html` - [what changed]
-
-#### Reason for Change
-[Detailed explanation of WHY this change was needed]
-
-#### What Changed
-```python
-# Before
-old_code_example()
-
-# After  
-new_code_example()
+**Prompt for AI Assistant:**
+```
+"Give an exhaustive, detailed comment for the commit, I will copy-paste it and make the commit"
 ```
 
-#### Impact Analysis
-- **Functionality:** [How does this affect existing features]
-- **Performance:** [Any performance implications]
-- **Compatibility:** [Breaking changes or backwards compatibility]
-- **Testing:** [What needs to be tested]
+**Example Detailed Commit Message:**
+```
+feat: implement comprehensive trash management system
 
-#### Verification
-- [ ] Code runs without errors
-- [ ] Templates render correctly
-- [ ] API endpoints work as expected
-- [ ] No breaking changes introduced
+- Add trash statistics API endpoint (/api/trash_stats)
+- Implement clear trash functionality with confirmation (/api/clear_trash)
+- Add trash size calculation with recursive directory scanning
+- Create UI section in deleted tracks page with modern card layout
+- Add confirmation dialog with multi-step validation
+- Preserve database records while removing physical files
+- Update can_restore flag to prevent restoration of cleared files
+- Add error handling for permission issues and missing directories
+- Implement loading states and user feedback for operations
+- Format file sizes with human-readable units (B, KB, MB, GB)
+
+Technical details:
+- Uses shutil.rmtree() for efficient directory cleanup
+- Implements graceful error handling for file system operations
+- Maintains data integrity by preserving audit trail in database
+- Follows REST API patterns with proper HTTP status codes
+- Includes comprehensive input validation and sanitization
+
+Impact: Provides disk space management while maintaining data safety
+Files: controllers/api/channels_api.py, templates/deleted.html
 ```
 
-### **Example Log Entry**
-```markdown
-### Log Entry #002 - 2025-06-21 14:30
-**Change:** Fix playlist URL generation in list_playlists function
-
-#### Files Modified
-- `services/playlist_service.py` - Fixed relative path calculation
-
-#### Reason for Change
-URLs were generating with double "Playlists/" prefix causing 404 errors:
-- Wrong: `/playlist/Playlists/TopMusic6` 
-- Correct: `/playlist/TopMusic6`
-
-#### What Changed
-```python
-# Before
-rel = str(d.relative_to(root.parent))  # "Playlists/TopMusic6"
-
-# After
-rel = d.name  # "TopMusic6"
-```
-
-#### Impact Analysis
-- **Functionality:** Fixed broken playlist navigation links
-- **Performance:** No impact
-- **Compatibility:** No breaking changes
-- **Testing:** All playlist links now work correctly
-
-#### Verification
-- [x] Code runs without errors
-- [x] Templates render correctly  
-- [x] Playlist links navigate properly
-- [x] No breaking changes introduced
-```
-
-### **Logging Workflow**
-1. **Make code change**
-2. **Immediately create log entry** in `DEVELOPMENT_LOG.md`
-3. **Test the change**
-4. **Update verification checklist** in log entry
-5. **Check git history synchronization** (see below)
-6. **Commit both code and log** together
-
-### **Benefits of Logging**
-- **Traceability** - Know why every change was made
-- **Debugging** - Quickly find when issues were introduced
-- **Knowledge Transfer** - New developers understand decisions
-- **Change Impact** - See connections between modifications
-
----
-
-## 🔄 **Git History Synchronization (MANDATORY)**
-
-### **Automatic Git Synchronization**
-**EVERY** time you edit `DEVELOPMENT_LOG.md`, you **MUST** check if all git commits are documented in `PROJECT_HISTORY.md`.
-
-### **When to Synchronize**
-- ✅ **After adding development log entry** - Check for new commits
-- ✅ **Before committing changes** - Ensure history is complete
-- ✅ **After git pulls/merges** - Check for team commits
-- ✅ **Weekly reviews** - Periodic synchronization checks
-
-### **Synchronization Process**
-
-#### **Step 1: Get Current Git Log**
+#### **Access Development History**
+Use git commands to review development history:
 ```bash
-# Get recent commits not in PROJECT_HISTORY.md
-git log --pretty=format:"%h %ad %s" --date=short -10
+# Recent commits overview
+git log --oneline -10
 
-# Count total commits
-git rev-list --count HEAD
+# Detailed commit history
+git log --stat -5
+
+# Full changes with diffs
+git log -p -3
+
+# Commits in date range
+git log --since="2025-07-01" --until="2025-07-10"
+
+# Search commits by keyword
+git log --grep="trash" --oneline
+
+# Show specific commit details
+git show <commit_hash>
 ```
+
+### **Benefits of New Approach**
+- ✅ **Reduced overhead** - No time spent on log maintenance
+- ✅ **Token efficiency** - No large log files to process
+- ✅ **Better git integration** - History directly in version control
+- ✅ **Searchable** - Use git commands to find specific changes
+- ✅ **Atomic** - Each commit contains complete change description
+- ✅ **Standardized** - Follows conventional commit message format
+
+### **Commit Message Guidelines**
+- **Type**: feat, fix, docs, refactor, test, style, chore
+- **Scope**: Optional, e.g., `feat(api): add new endpoint`
+- **Description**: Detailed explanation of what and why
+- **Body**: Technical details, impact analysis, testing notes
+- **Footer**: Breaking changes, issue references
 
 ### **🔧 Git Commands Without Pager (PowerShell & Terminal)**
 
-#### **CRITICAL: Use --no-pager for All Git Commands**
+#### **RECOMMENDED: Use --no-pager for Git Commands**
 
 **Problem:** In PowerShell and some terminals, git commands open a pager that blocks output
-**Solution:** Always use `--no-pager` flag for automated git operations
+**Solution:** Use `--no-pager` flag for better compatibility
 
-#### **Recommended Git Commands (No Pager):**
+#### **Useful Git Commands:**
 
 **Get Recent Commits:**
 ```bash
@@ -253,220 +209,43 @@ git --no-pager log --oneline --since="2025-06-20" --until="2025-06-22"
 git --no-pager log --oneline commit1..commit2
 ```
 
-#### **Why --no-pager is Essential:**
+#### **Why --no-pager is Useful:**
 - ✅ **Works in PowerShell** - No hanging or blocking
 - ✅ **Script-friendly** - Clean output for automation
 - ✅ **Large outputs** - Can retrieve 30+ commits without issues
 - ✅ **Consistent behavior** - Same output across different terminals
 - ✅ **AI/Tool compatible** - Output directly usable in scripts
 
-#### **Examples of Successful Commands:**
-```bash
-# ✅ WORKS: Gets 20 commits cleanly in PowerShell
-git --no-pager log --oneline -20
+---
 
-# ❌ PROBLEM: May hang in PowerShell
-git log --oneline -20
+## 🔧 **Development Standards**
 
-# ✅ WORKS: Full commit info with dates
-git --no-pager log --pretty="format:%h %ci %s" -5
+### **Code Quality**
+- **Follow PEP 8** for Python code style
+- **Use type hints** where appropriate: `def get_playlist(name: str) -> Dict[str, Any]:`
+- **Write docstrings** for functions and classes
+- **Handle exceptions** properly with specific error types
 
-# ✅ WORKS: Count verification
-git --no-pager rev-list --count HEAD
+### **Import Organization**
+```python
+# Standard library imports
+import os
+import json
+from pathlib import Path
+
+# Third-party imports
+from flask import Flask, request, jsonify
+import sqlite3
+
+# Local imports
+from services.playlist_service import get_playlists
+from utils.logging_utils import log_message
 ```
 
-#### **Mandatory Usage in Development Rules:**
-- **ALL git history checks** must use `--no-pager`
-- **ALL commit count verifications** must use `--no-pager`
-- **ALL automated git queries** must use `--no-pager`
-- **NO exceptions** - this prevents terminal blocking issues
-
-#### **Step 2: Compare with PROJECT_HISTORY.md**
-Check if recent commits are documented in:
-- `## 📈 **Complete Development Timeline**`
-- Appropriate development phase sections
-- Latest commit hash should match HEAD
-
-#### **Step 3: Add Missing Commits**
-```markdown
-### **Phase X: [Current Phase] (YYYY-MM-DD)**
-- `[commit_hash]` - **[Feature name]** - [Brief description]
-```
-
-### **🚨 Git Integration Workflow (MANDATORY - NO EXCEPTIONS)**
-
-#### **CRITICAL TRIGGER: After EVERY DEVELOPMENT_LOG.md Edit**
-**IMMEDIATE MANDATORY ACTIONS:**
-1. **MUST RUN:** `git --no-pager log -1 --oneline` (no exceptions)
-2. **MUST CHECK:** Find this commit in PROJECT_HISTORY.md timeline
-3. **IF MISSING:** Add to appropriate development phase immediately
-4. **MUST UPDATE:** Total commits count in PROJECT_HISTORY.md
-
-**⚠️ FAILURE TO FOLLOW THIS WORKFLOW IS A CRITICAL RULE VIOLATION**
-
-#### **Standard Git Workflow (Before Each Commit):**
-1. **Check current HEAD:** `git --no-pager log -1 --oneline`
-2. **Verify in PROJECT_HISTORY.md:** Find this commit in timeline
-3. **If missing:** Add to appropriate phase
-4. **Update statistics:** Total commits count
-
-#### **Example Missing Commit Detection:**
-```bash
-# Current HEAD
-git --no-pager log -1 --pretty=format:"%h %s"
-# Output: abc1234 Fix template rendering error
-
-# Check PROJECT_HISTORY.md - if abc1234 not found:
-# ADD TO PROJECT_HISTORY.md:
-```
-```markdown
-### **Phase 5: Bug Fixes & Improvements (2025-06-21)**
-- `abc1234` - **Template error fix** - Resolve active_downloads.items() issue
-```
-
-### **PROJECT_HISTORY.md Maintenance**
-
-#### **Structure to Maintain:**
-```markdown
-## 📈 **Complete Development Timeline**
-
-### **Project Statistics**
-- **Total Commits:** [CURRENT_COUNT] ← Update this!
-- **Development Period:** 2025-06-16 to [CURRENT_DATE]
-- **Latest Commit:** [HEAD_HASH] - [HEAD_MESSAGE]
-
-### **Phase 0: Project Genesis (2025-06-16)**
-### **Phase 1: UI/UX Development (2025-06-16)**  
-### **Phase 2: Download System Enhancement (2025-06-16)**
-### **Phase 3: Advanced Features (2025-06-17 to 2025-06-19)**
-### **Phase 4: Recent Enhancements (2025-06-20)**
-### **Phase 5: Current Development (2025-06-21)** ← Add new phases!
-```
-
-#### **Phase Classification Guidelines:**
-- **Genesis:** Initial project setup and basic functionality
-- **UI/UX:** Player interface and user experience improvements
-- **Download System:** Download management and progress tracking
-- **Advanced Features:** Database, streaming, complex functionality
-- **Recent Enhancements:** Latest feature additions
-- **Bug Fixes:** Error resolution and stability improvements
-- **Refactoring:** Code organization and architecture changes
-- **Documentation:** Documentation and development process improvements
-
-### **Automated Checks**
-
-#### **Quick Verification Commands:**
-```bash
-# Get latest 5 commits
-git --no-pager log --oneline -5
-
-# Search for commit in PROJECT_HISTORY.md
-grep -i "[commit_hash]" docs/development/PROJECT_HISTORY.md
-
-# If not found - ADD TO HISTORY!
-```
-
-#### **Commit Message Analysis:**
-- **feat:** → New feature (add to current development phase)
-- **fix:** → Bug fix (add to bug fixes phase)
-- **docs:** → Documentation (add to documentation phase)
-- **refactor:** → Code refactoring (add to refactoring phase)
-
-### **📊 Git Commit Logs Synchronization (MANDATORY)**
-
-#### **CRITICAL: Multiple Git Log Files Must Stay Synchronized**
-
-**AFTER EVERY DEVELOPMENT_LOG.md edit, you MUST check and update ALL git log files:**
-
-#### **Step 1: Count Total Commits in Git**
-```bash
-# Get exact commit count from git
-git --no-pager rev-list --count HEAD
-```
-
-#### **Step 2: Compare with Documentation Files**
-Check commit counts in these files:
-- `docs/development/COMPLETE_COMMIT_REFERENCE.md` (line ~4: "Total: XX commits")
-- `docs/development/COMPLETE_COMMIT_REFERENCE_FULL.md` (last line: "Total: XX commits")
-- `docs/development/PROJECT_HISTORY.md` (statistics section)
-
-#### **Step 3: Find Missing Commits**
-If git count > documentation count:
-1. **Run:** `git --no-pager log --oneline -5` to see recent commits
-2. **Check each file** for missing commit hashes
-3. **Add missing commits** to all relevant files
-
-#### **Files to Update When Adding Commits:**
-
-**COMPLETE_COMMIT_REFERENCE.md:**
-```markdown
-**#XXX** `hash123` YYYY-MM-DD HH:MM:SS - **CATEGORY:** feat: commit message
-```
-
-**COMPLETE_COMMIT_REFERENCE_FULL.md:**
-```markdown
-**#XXX** `hash123` YYYY-MM-DD HH:MM:SS +0300
-feat: commit message: [Detailed description of changes and impact]
-```
-
-**PROJECT_HISTORY.md:**
-```markdown
-**Commit #XXX:** `hash123` - **Feature Name**
-- **Development Log:** Entry #YYY - Brief description
-- **Impact:** What this commit achieved
-- **Files:** List of modified files
-```
-
-#### **Update Total Counts:**
-- Change "Total: 77 commits" → "Total: 78 commits" in ALL files
-- Update any statistics sections with new counts
-- Verify all files show same total count
-
-#### **🚨 MANDATORY VERIFICATION CHECKLIST:**
-After EVERY DEVELOPMENT_LOG.md edit:
-- [ ] **Check:** `git rev-list --count HEAD` 
-- [ ] **Compare:** Count in COMPLETE_COMMIT_REFERENCE.md
-- [ ] **Compare:** Count in COMPLETE_COMMIT_REFERENCE_FULL.md  
-- [ ] **Compare:** Count in PROJECT_HISTORY.md
-- [ ] **If different:** Add missing commits to ALL files
-- [ ] **Verify:** All files show same total count
-- [ ] **Link:** New commits to appropriate Development Log entries
-
-#### **Example Workflow:**
-```bash
-# 1. Check git
-git --no-pager rev-list --count HEAD
-# Output: 79
-
-# 2. Check docs (if they show 78, we're missing 1 commit)
-grep "Total:" docs/development/COMPLETE_COMMIT_REFERENCE.md
-# Output: "Total: 78 commits"
-
-# 3. Find missing commit
-git --no-pager log --oneline -1
-# Output: "abc1234 feat: implement new feature"
-
-# 4. Add abc1234 to all three files as commit #79
-# 5. Update all "Total: 78" to "Total: 79"
-```
-
-### **Error Prevention**
-
-#### **Common Mistakes to Avoid:**
-- ❌ Adding log entry without checking git sync
-- ❌ Committing with undocumented commits in history
-- ❌ Forgetting to update total commit count
-- ❌ Not classifying commits into appropriate phases
-- ❌ **Updating only one git log file instead of all three**
-- ❌ **Forgetting to check git commit count before documenting**
-
-#### **Quality Checks:**
-- ✅ Latest commit in PROJECT_HISTORY.md matches `git --no-pager log -1`
-- ✅ Total commit count matches `git --no-pager rev-list --count HEAD`
-- ✅ All recent commits have appropriate phase classification
-- ✅ Commit messages match documented descriptions
-- ✅ **ALL THREE git log files show same total commit count**
-- ✅ **All missing commits added to all relevant files**
+### **Function Naming**
+- **Public functions:** `get_active_downloads()`, `scan_library()`
+- **Private functions:** `_ensure_subdir()`, `_format_file_size()`
+- **API endpoints:** `api_playlists()`, `api_event()`
 
 ---
 
@@ -576,10 +355,13 @@ python app.py --root "/path/to/data"
 
 ## 📚 **Related Documentation**
 
-- **[Development Log](DEVELOPMENT_LOG.md)** - Issue tracking and fixes
+- **[Development Log](DEVELOPMENT_LOG.md)** - Historical reference (discontinued)
+- **[Project History](PROJECT_HISTORY.md)** - Historical reference (discontinued)
 - **[Refactoring Checklist](REFACTORING_CHECKLIST.md)** - Code comparison progress
 - **[Deep Verification Plan](DEEP_VERIFICATION_PLAN.md)** - Testing methodology
 - **[Main README](../../README.md)** - Project overview and usage
+
+**Note:** Development logs are no longer maintained. Use `git log` for development history.
 
 ---
 
@@ -591,14 +373,11 @@ Before submitting changes:
 - [ ] Error handling is implemented
 - [ ] Templates render correctly
 - [ ] APIs return expected data structures
-- [ ] **Changes are logged in DEVELOPMENT_LOG.md** (MANDATORY)
-- [ ] Log entry includes: what, why, impact, verification
-- [ ] **Git history is synchronized in PROJECT_HISTORY.md** (MANDATORY)
-- [ ] Latest commits documented in appropriate development phase
-- [ ] Total commit count updated in PROJECT_HISTORY.md
+- [ ] **Use detailed commit message** with comprehensive description
+- [ ] Commit message includes: what, why, technical details, impact
 - [ ] Manual testing completed
-- [ ] Verification checklist in log completed
-- [ ] Commit message follows conventions
+- [ ] Commit message follows conventional commit format
+- [ ] All changes are properly tested and verified
 
 ---
 

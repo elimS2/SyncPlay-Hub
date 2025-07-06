@@ -1,5 +1,22 @@
 # Project History & Git Context
 
+## 🚨 PROJECT HISTORY MAINTENANCE DISCONTINUED - 2025-07-06 16:44 UTC
+
+**DECISION: PROJECT_HISTORY.md maintenance has been discontinued**
+
+This file will no longer be actively maintained. For current project development history, use git commands:
+
+- `git log --oneline` - Quick overview of commits
+- `git log --stat` - Commits with file changes
+- `git log -p` - Full diff history
+- `git log --since="2025-07-01"` - Recent commits
+
+**Last manually maintained commit:** `c2689ca` - feat: Add deleted status column to tracks page with visual indicators and deletion details
+
+**This file remains for historical reference only.**
+
+---
+
 ## 🎯 **Project Overview for AI Context**
 
 This file provides structured information about the project's evolution, key architectural decisions, and important changes to help AI assistants (like Cursor IDE) understand the project context better.

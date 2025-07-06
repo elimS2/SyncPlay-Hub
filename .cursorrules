@@ -1,13 +1,20 @@
 # Cursor IDE Project Rules
 
-## 🚨 CRITICAL WORKFLOW REMINDER 🚨
-**EVERY TIME YOU EDIT DEVELOPMENT_LOG.md:**
-1. **FIRST: Verify current time using `mcp_time-server_get_current_time_utc_tool`**
-2. **Use accurate UTC timestamp in log entry header**
-3. IMMEDIATELY run: `git --no-pager log -1 --oneline`
-4. Check if commit exists in PROJECT_HISTORY.md
-5. If missing, add to PROJECT_HISTORY.md
-6. NO EXCEPTIONS - THIS IS MANDATORY
+## 🚨 DEVELOPMENT LOG DISCONTINUED - 2025-07-06 🚨
+**Development log maintenance has been discontinued to reduce overhead and token consumption.**
+
+**NEW POLICY: Use detailed commit messages instead of development logs**
+
+**Prompt for comprehensive commit messages:**
+```
+"Give an exhaustive, detailed comment for the commit, I will copy-paste it and make the commit"
+```
+
+**For development history, use git commands:**
+- `git log --oneline -10` - Recent commits
+- `git log --stat -5` - Commits with file changes
+- `git log -p -3` - Full diff history
+- `git log --grep="keyword"` - Search commits
 
 ## Code Language Policy (MANDATORY)
 - ALL source code MUST be written exclusively in ENGLISH
@@ -23,39 +30,37 @@
 - Translate existing non-English code to English when modifying
 - All new code follows English-only conventions
 
-## Development Logging (MANDATORY)
-- AFTER EVERY code modification, MUST document the change in docs/development/DEVELOPMENT_LOG.md
-- Include: what changed, why changed, impact analysis
-- Format: new log entry with timestamp, affected files, reasoning
-- NO exceptions - even small changes must be logged
+## Commit Message Guidelines
+- Use conventional commit format: `type: description`
+- Types: feat, fix, docs, refactor, test, style, chore
+- Include comprehensive details in commit body
+- Explain what, why, technical details, and impact
+- Example:
+  ```
+  feat: implement comprehensive trash management system
+  
+  - Add trash statistics API endpoint (/api/trash_stats)
+  - Implement clear trash functionality with confirmation
+  - Add UI section with modern card layout
+  - Preserve database records while removing physical files
+  
+  Technical details:
+  - Uses shutil.rmtree() for efficient directory cleanup
+  - Implements graceful error handling for file operations
+  - Maintains data integrity by preserving audit trail
+  
+  Impact: Provides disk space management while maintaining data safety
+  Files: controllers/api/channels_api.py, templates/deleted.html
+  ```
 
-## Time Verification (MANDATORY)
-- **BEFORE EVERY DEVELOPMENT_LOG.md entry, MUST verify current time using MCP Time Server**
-- **ALWAYS use `mcp_time-server_get_current_time_utc_tool` for accurate UTC timestamp**
-- **NEVER use placeholder dates or estimated times** 
-- **Required format: ### Log Entry #XXX - 2025-06-21 14:01 UTC**
-- **NO exceptions - timestamp accuracy is critical for development traceability**
-
-## Git History Synchronization (MANDATORY - NO EXCEPTIONS)
-- **IMMEDIATELY AFTER EVERY edit to DEVELOPMENT_LOG.md, MUST run `git --no-pager log -1 --oneline`**
-- **MANDATORY WORKFLOW: Edit DEVELOPMENT_LOG.md → IMMEDIATELY check git → Update ALL git log files**
-- **CRITICAL: Check git commit count with `git --no-pager rev-list --count HEAD`**
-- **MUST synchronize ALL THREE git log files:**
-  - docs/development/PROJECT_HISTORY.md
-  - docs/development/COMPLETE_COMMIT_REFERENCE.md
-  - docs/development/COMPLETE_COMMIT_REFERENCE_FULL.md
-- **If git count > docs count: ADD missing commits to ALL files**
-- **Update total commit counts in ALL files to match git**
-- **FAILURE TO SYNC ALL GIT LOG FILES IS A CRITICAL RULE VIOLATION**
-
-## Git Commands (MANDATORY)
-- **ALWAYS use --no-pager flag with ALL git commands** (prevents hanging in PowerShell)
-- **Correct:** `git --no-pager log --oneline -10`
-- **Wrong:** `git log --oneline -10` (may hang in PowerShell)
-- **Required for:** log, rev-list, show, and all output commands
-- **NO EXCEPTIONS** - this ensures cross-platform compatibility
+## Git Commands (RECOMMENDED)
+- **RECOMMENDED: Use --no-pager flag with git commands** (prevents hanging in PowerShell)
+- **Better:** `git --no-pager log --oneline -10`
+- **May hang:** `git log --oneline -10` (in PowerShell)
+- **Useful for:** log, rev-list, show, and all output commands
+- **Benefits:** Cross-platform compatibility and script-friendly output
 
 ## Priority
 - These rules override any other language preferences
 - Code quality and international standards take precedence
-- Development logging is mandatory for all code changes 
+- Detailed commit messages are encouraged for better development tracking 
