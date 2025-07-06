@@ -318,10 +318,11 @@ def api_tracks_by_likes(like_count):
             ym.timestamp,
             ym.release_timestamp,
             ym.release_year,
-            (SELECT COUNT(*) FROM play_history ph WHERE ph.video_id = t.video_id AND ph.event = 'dislike') as play_dislikes
+            (SELECT COUNT(*) FROM play_history ph WHERE ph.video_id = t.video_id AND ph.event = 'dislike') as play_dislikes,
+            (t.play_likes - (SELECT COUNT(*) FROM play_history ph WHERE ph.video_id = t.video_id AND ph.event = 'dislike')) as net_likes
         FROM tracks t
         LEFT JOIN youtube_video_metadata ym ON ym.youtube_id = t.video_id
-        WHERE t.play_likes = ? 
+        WHERE (t.play_likes - (SELECT COUNT(*) FROM play_history ph WHERE ph.video_id = t.video_id AND ph.event = 'dislike')) = ?
             AND t.video_id NOT IN (SELECT video_id FROM deleted_tracks)
         ORDER BY COALESCE(ym.title, t.name)
         """
@@ -348,6 +349,7 @@ def api_tracks_by_likes(like_count):
                 "release_timestamp": row[13],
                 "release_year": row[14],
                 "play_dislikes": row[15] or 0,  # Dislike count from play_history
+                "net_likes": row[16] or 0,  # Net likes (likes - dislikes)
                 "url": f"/media/{row[2]}"  # Use relpath, not video_id
             }
             tracks.append(track)
@@ -373,24 +375,25 @@ def api_like_stats():
     try:
         conn = get_connection()
         
-        # Get distribution of likes, excluding deleted tracks
+        # Get distribution of net likes (likes - dislikes), excluding deleted tracks
         query = """
         SELECT 
-            t.play_likes,
+            (t.play_likes - (SELECT COUNT(*) FROM play_history ph WHERE ph.video_id = t.video_id AND ph.event = 'dislike')) as net_likes,
             COUNT(*) as track_count,
-            GROUP_CONCAT(SUBSTR(t.name, 1, 30) || '...', ' • ') as sample_tracks
+            GROUP_CONCAT(SUBSTR(COALESCE(ym.title, t.name), 1, 30) || '...', ' • ') as sample_tracks
         FROM tracks t
-        WHERE t.play_likes > 0 
+        LEFT JOIN youtube_video_metadata ym ON ym.youtube_id = t.video_id
+        WHERE (t.play_likes - (SELECT COUNT(*) FROM play_history ph WHERE ph.video_id = t.video_id AND ph.event = 'dislike')) > 0 
             AND t.video_id NOT IN (SELECT video_id FROM deleted_tracks)
-        GROUP BY t.play_likes
-        ORDER BY t.play_likes
+        GROUP BY net_likes
+        ORDER BY net_likes
         """
         
         cursor = conn.execute(query)
         like_stats = []
         
         for row in cursor.fetchall():
-            likes = row[0] or 0
+            net_likes = row[0] or 0
             count = row[1]
             sample = row[2] or ""
             
@@ -400,7 +403,7 @@ def api_like_stats():
                 sample_parts.append("...")
             
             like_stats.append({
-                "likes": likes,
+                "likes": net_likes,  # Using net_likes (likes - dislikes) as "likes"
                 "count": count,
                 "sample_tracks": " • ".join(sample_parts)
             })

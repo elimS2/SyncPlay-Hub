@@ -528,6 +528,7 @@ const cDislike = document.getElementById('cDislike');
       const nextCount = t.play_nexts || 0;
       const likeCount = t.play_likes || 0;
       const dislikeCount = t.play_dislikes || 0;
+      const netLikeCount = t.net_likes || 0;
       
       // Debug: tooltip data prepared for track
       
@@ -588,6 +589,13 @@ const cDislike = document.getElementById('cDislike');
             <path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3z"></path>
           </svg>
           Dislikes: ${dislikeCount}
+        </div>
+        <div class="tooltip-row">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#4CAF50" stroke-width="2">
+            <path d="M9 12l2 2 4-4"></path>
+            <circle cx="12" cy="12" r="10"></circle>
+          </svg>
+          <strong>Net Likes: ${netLikeCount}</strong>
         </div>
       `;
       

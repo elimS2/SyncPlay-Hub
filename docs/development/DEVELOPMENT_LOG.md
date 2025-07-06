@@ -1307,6 +1307,38 @@ User requested removal of duplicate control buttons from the top of playlist pag
 
 **Risk Assessment:** Low - functionality moved to existing controls, no new features introduced.
 
+### Log Entry #147 - 2025-07-06 14:51 UTC
+
+**Affected Files:**
+- `controllers/api/playlist_api.py` - Changed likes playlist logic to use net likes (likes - dislikes)
+- `templates/likes_playlists.html` - Updated description to explain net likes calculation
+- `static/player-virtual.js` - Added net likes display in virtual playlist tooltips
+- `static/player.js` - Added net likes calculation and display in regular playlist tooltips
+
+**Changes:**
+1. **Core Logic Change:** Likes playlists now use "net likes" (likes minus dislikes) instead of raw likes
+2. **API Enhancement:** Modified `/api/tracks_by_likes/` and `/api/like_stats` to calculate net likes
+3. **User Interface:** Updated descriptions to explain net likes calculation with examples
+4. **Tooltip Enhancement:** Added green net likes indicator with checkmark icon in all tooltips
+5. **Database Query:** Added net_likes calculation as SQL subquery in track retrieval
+
+**Example:** Track with 5 likes and 2 dislikes now appears in "3 likes" playlist (5 - 2 = 3)
+
+**User Request:** Change likes playlist formation logic to subtract dislikes from likes for more accurate track rating
+
+**Impact:** 
+- More balanced track rating system accounting for negative feedback
+- Playlists now reflect true user sentiment rather than just positive interactions
+- Tracks with equal likes/dislikes (net 0) are excluded from likes playlists
+- Enhanced user experience with clear net rating visualization
+
+**Technical Implementation:**
+- SQL subquery: `(t.play_likes - (SELECT COUNT(*) FROM play_history ph WHERE ph.video_id = t.video_id AND ph.event = 'dislike'))`
+- Client-side net likes calculation for regular playlists where API doesn't provide it
+- Visual distinction: green color (#4CAF50) for net likes, red for likes, purple for dislikes
+
+---
+
 ### Log Entry #146 - 2025-07-06 14:43 UTC
 
 **Affected Files:**
