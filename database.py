@@ -356,11 +356,18 @@ def iter_tracks_with_playlists(conn: sqlite3.Connection, search_query: str = Non
     base_query = """
         SELECT t.*, 
                GROUP_CONCAT(p.name, ', ') AS playlists,
-               COALESCE(ym.title, t.name) AS display_name
+               COALESCE(ym.title, t.name) AS display_name,
+               CASE 
+                   WHEN dt.video_id IS NOT NULL THEN 1 
+                   ELSE 0 
+               END AS is_deleted,
+               dt.deleted_at AS deletion_date,
+               dt.deletion_reason AS deletion_reason
         FROM tracks t
         LEFT JOIN track_playlists tp ON tp.track_id = t.id
         LEFT JOIN playlists p ON p.id = tp.playlist_id
         LEFT JOIN youtube_video_metadata ym ON ym.youtube_id = t.video_id
+        LEFT JOIN deleted_tracks dt ON dt.video_id = t.video_id
         GROUP BY t.id
         ORDER BY COALESCE(ym.title, t.name) COLLATE NOCASE
     """
@@ -375,7 +382,7 @@ def iter_tracks_with_playlists(conn: sqlite3.Connection, search_query: str = Non
             display_name = row['display_name'] or ''
             search_term = search_query.strip().lower()
             if search_term in display_name.lower():
-                yield row 
+                yield row
 
 
 # ---------- Play counts ----------

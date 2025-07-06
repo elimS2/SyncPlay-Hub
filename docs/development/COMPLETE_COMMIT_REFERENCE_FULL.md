@@ -2,13 +2,18 @@
 
 ## Project Overview
 - **Start:** 2025-06-16 03:29:20 +0300 (Initial import)
-- **End:** 2025-07-05 21:46:00 +0300 (feat: add YouTube publish date sorting to playlist pages)
-- **Duration:** 19 days intensive development
-- **Total:** 178 commits
+- **End:** 2025-07-06 14:58:00 +0300 (feat: Implement net likes system for playlist formation)
+- **Duration:** 20 days intensive development
+- **Total:** 179 commits
 
 ---
 
 ## All Commits (Chronological Order - ORIGINAL FULL TITLES)
+
+**#179** `3e72ca4` 2025-07-06 14:58:00 +0300  
+feat: Implement net likes system for playlist formation (likes minus dislikes)  
+**Files:** Controllers, API endpoints, playlist formation logic  
+**Description:** Implemented comprehensive net likes system allowing virtual playlists to be formed based on likes minus dislikes ratio, providing more accurate track popularity assessment and enhanced playlist curation capabilities.
 
 **#178** `afc23c9` 2025-07-06 00:00:00 +0000  
 Fix: Remote control support for virtual player (/likes_player) with comprehensive debugging and log cleanup  

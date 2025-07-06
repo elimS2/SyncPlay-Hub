@@ -1417,6 +1417,50 @@ User requested adding dislike functionality to complement existing like feature.
 - **UPDATED:** Added 12-hour time restriction for dislikes (same as likes) to prevent spam
 - **BUGFIX:** Fixed dislike events not appearing in /events page - added "dislike" to valid events list
 
+### Log Entry #141 - 2025-07-06 14:58 UTC
+
+**Affected Files:**
+- `database.py` - Modified `iter_tracks_with_playlists` function
+- `templates/tracks.html` - Added new "Deleted" column and styling
+
+**Changes Made:**
+1. **Database Function Enhancement:**
+   - Modified `iter_tracks_with_playlists()` function to include LEFT JOIN with `deleted_tracks` table
+   - Added fields: `is_deleted`, `deletion_date`, `deletion_reason`
+   - Now tracks display whether they have been deleted or not
+
+2. **UI Improvements:**
+   - Added new "Deleted" column to tracks table
+   - Added visual indicators: ❌ Deleted / ✅ Active
+   - Added tooltip showing deletion date and reason when hovering over deleted tracks
+   - Added CSS styling to highlight deleted tracks with red background tint and reduced opacity
+   - Increased table min-width from 1200px to 1300px to accommodate new column
+
+3. **User Experience:**
+   - Users can now easily identify which tracks have been deleted
+   - Deleted tracks are visually distinguished with background highlight
+   - Deletion information is available on hover (date and reason)
+   - Active tracks show green indicator for clear status
+
+**Technical Details:**
+- Used LEFT JOIN to avoid excluding tracks from results
+- Added `is_deleted` boolean field and `deletion_date`/`deletion_reason` from `deleted_tracks` table
+- Implemented CSS classes `.track-deleted`, `.deleted-status` for visual styling
+- Updated `colspan` in empty state from 16 to 17 for new column
+
+**Impact:**
+- Addresses user request to show deletion status on tracks page
+- Improves track management visibility
+- No breaking changes to existing functionality
+- Enhanced user experience for content management
+
+**Testing Notes:**
+- Feature ready for testing at http://192.168.88.82:8000/tracks?search=god
+- Both deleted and active tracks should display with appropriate visual indicators
+- Tooltips should show deletion details for deleted tracks
+
+---
+
 
 
 
