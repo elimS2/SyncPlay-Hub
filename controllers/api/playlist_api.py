@@ -383,7 +383,7 @@ def api_like_stats():
             GROUP_CONCAT(SUBSTR(COALESCE(ym.title, t.name), 1, 30) || '...', ' • ') as sample_tracks
         FROM tracks t
         LEFT JOIN youtube_video_metadata ym ON ym.youtube_id = t.video_id
-        WHERE (t.play_likes - (SELECT COUNT(*) FROM play_history ph WHERE ph.video_id = t.video_id AND ph.event = 'dislike')) > 0 
+        WHERE (t.play_likes - (SELECT COUNT(*) FROM play_history ph WHERE ph.video_id = t.video_id AND ph.event = 'dislike')) >= 0 
             AND t.video_id NOT IN (SELECT video_id FROM deleted_tracks)
         GROUP BY net_likes
         ORDER BY net_likes
