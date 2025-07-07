@@ -879,7 +879,15 @@
                             <div class="channel-name">${channel.name}</div>
                             <div class="channel-stats">
                                 ${channel.track_count || 0} tracks
-                                ${channel.last_sync_ts ? '• Last sync: ' + new Date(channel.last_sync_ts).toLocaleDateString() : '• Never synced'}
+                                ${channel.last_sync_ts ? '• Last sync: ' + new Date(channel.last_sync_ts).toLocaleString('ru-RU', { 
+                                    year: 'numeric', 
+                                    month: '2-digit', 
+                                    day: '2-digit', 
+                                    hour: '2-digit', 
+                                    minute: '2-digit', 
+                                    second: '2-digit',
+                                    hour12: false 
+                                }) : '• Never synced'}
                             </div>
                         </div>
                     </div>
