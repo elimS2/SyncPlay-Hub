@@ -456,17 +456,17 @@
                     <label class="form-label" for="behaviorType">Behavior Type</label>
                     <select id="behaviorType" class="form-select" required>
                         <option value="music">Music - Random play, no auto-delete</option>
-                        <option value="news">News - Chronological play, auto-delete after finish</option>
-                        <option value="education">Education - Sequential play, optional auto-delete</option>
-                        <option value="podcasts">Podcasts - Sequential play, no auto-delete</option>
+                        <option value="news">News - Newest first, auto-delete after finish</option>
+                        <option value="education">Education - Oldest first, optional auto-delete</option>
+                        <option value="podcasts">Podcasts - Oldest first, no auto-delete</option>
                     </select>
                 </div>
                 <div class="form-group">
                     <label class="form-label" for="playOrder">Play Order</label>
                     <select id="playOrder" class="form-select" required>
                         <option value="random">Random</option>
-                        <option value="chronological_newest">Newest First</option>
-                        <option value="chronological_oldest">Oldest First</option>
+                        <option value="newest_first">Newest First</option>
+                        <option value="oldest_first">Oldest First</option>
                     </select>
                 </div>
                 <div class="form-group">
@@ -580,12 +580,12 @@
                     autoDelete.checked = false;
                     break;
                 case 'news':
-                    playOrder.value = 'chronological_newest';
+                    playOrder.value = 'newest_first';
                     autoDelete.checked = true;
                     break;
                 case 'education':
                 case 'podcasts':
-                    playOrder.value = 'chronological_oldest';
+                    playOrder.value = 'oldest_first';
                     autoDelete.checked = false;
                     break;
             }
@@ -838,7 +838,7 @@
                             </div>
                             <div class="group-stats">
                                 ${group.channel_count} channels, ${group.total_tracks} tracks
-                                • ${group.play_order.replace('_', ' ')} order
+                                • ${formatPlayOrder(group.play_order)} order
                             </div>
                         </div>
                         <div class="group-actions">
@@ -936,6 +936,19 @@
                     </div>
                 </div>
             `).join('');
+        }
+
+        function formatPlayOrder(playOrder) {
+            switch (playOrder) {
+                case 'random':
+                    return 'random';
+                case 'newest_first':
+                    return 'newest first';
+                case 'oldest_first':
+                    return 'oldest first';
+                default:
+                    return playOrder ? playOrder.replace('_', ' ') : 'random';
+            }
         }
 
         function getGroupIcon(behaviorType) {
