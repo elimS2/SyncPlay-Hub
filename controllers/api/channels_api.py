@@ -588,11 +588,11 @@ def api_sync_channel_group(group_id: int):
                 # Create metadata extraction job with callback
                 metadata_job_id = job_service.create_and_add_job(
                     JobType.METADATA_EXTRACTION,
+                    callback=sync_completion_callback,  # ✅ Fixed: use callback instead of completion_callback
                     priority=JobPriority.HIGH,
-                    playlist_url=channel_url,
-                    target_folder=f"{group_dict['name']}/Channel-{channel_name}" if group_dict else f"Channel-{channel_name}",
-                    completion_callback=sync_completion_callback,
-                    skip_url_normalization=True  # Preserve original URL
+                    channel_url=channel_url,  # ✅ Fixed: use channel_url instead of playlist_url
+                    channel_id=channel_dict.get('id'),  # Add channel ID for database linking
+                    force_update=False  # Don't force update during sync
                 )
                 
                 log_message(f"[Group Sync] {channel_name}: Created metadata extraction job #{metadata_job_id}")
