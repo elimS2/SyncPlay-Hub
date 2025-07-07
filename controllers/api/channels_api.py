@@ -386,7 +386,7 @@ def api_add_channel():
 
 @channels_bp.route("/sync_channel_group/<int:group_id>", methods=["POST"])
 def api_sync_channel_group(group_id: int):
-    """Sync all channels in a group."""
+    """Sync all channels in a group using optimized Job Queue system (same as individual channel sync)."""
     try:
         data = request.get_json() or {}
         date_from = data.get('date_from')  # Optional date filter
@@ -411,56 +411,217 @@ def api_sync_channel_group(group_id: int):
         
         conn.close()
         
-        # Start background sync for all channels
-        def _sync_worker():
+        # Extract shared sync logic from api_sync_channel
+        def sync_single_channel(channel_dict, group_dict, date_filter_from=None):
+            """Sync a single channel using optimized Job Queue system."""
             try:
-                from download_content import download_content
+                # Import job queue system
+                from services.job_queue_service import get_job_queue_service
+                from services.job_types import JobType, JobPriority
+                from pathlib import Path
+                import re
                 
-                success_count = 0
-                for channel in channels:
+                # Get job service
+                job_service = get_job_queue_service()
+                
+                # Keep original URL as stored (preserves /videos if user added it)
+                channel_url = channel_dict['url']
+                channel_name = channel_dict['name']
+                
+                # Helper function to get already downloaded video IDs
+                def get_downloaded_video_ids(channel_name: str, group_name: str) -> set:
+                    """Get set of video IDs that are already downloaded locally."""
                     try:
-                        # Set up progress callback for logging
-                        def progress_callback(msg):
-                            log_message(f"[Group Sync] {channel['name']}: {msg}")
-                        
-                        # Sync channel content
+                        from download_content import VIDEO_ID_RE
                         root_dir = get_root_dir()
                         if not root_dir:
-                            log_message(f"[Group Sync] Error: ROOT_DIR not initialized")
-                            return
-                            
-                        download_content(
-                            url=channel['url'],
-                            output_dir=root_dir,
-                            audio_only=False,  # Download video files for channels
-                            sync=True,
-                            channel_group=group['name'],
-                            date_from=date_from,
-                            exclude_shorts=True,  # Exclude Shorts from download
-                            progress_callback=progress_callback
-                        )
+                            return set()
                         
-                        # Update channel sync timestamp - count actual tracks
-                        conn = get_connection()
+                        # Try multiple possible folder names
+                        possible_folders = []
+                        possible_folders.append(root_dir / group_name / f"Channel-{channel_name}")
                         
-                        # Count actual files in channel folder
-                        channel_folder = root_dir / group['name'] / f"Channel-{channel['name']}"
-                        actual_track_count = 0
-                        if channel_folder.exists():
-                            video_extensions = ['.mp4', '.webm', '.mkv', '.avi']
-                            actual_track_count = len([f for f in channel_folder.iterdir() 
-                                                    if f.is_file() and f.suffix.lower() in video_extensions])
+                        # Also try extracting from URL
+                        if '@' in channel_url:
+                            url_channel_name = channel_url.split('@')[1].split('/')[0]
+                            possible_folders.append(root_dir / group_name / f"Channel-{url_channel_name}")
                         
-                        db.update_channel_sync(conn, channel['id'], actual_track_count)
-                        conn.close()
+                        # Find existing folder
+                        for folder_path in possible_folders:
+                            if folder_path.exists():
+                                video_ids = set()
+                                for file_path in folder_path.iterdir():
+                                    if file_path.is_file():
+                                        match = VIDEO_ID_RE.search(file_path.name)
+                                        if match:
+                                            video_ids.add(match.group(1))
+                                
+                                log_message(f"[Group Sync] {channel_name}: Found {len(video_ids)} already downloaded videos")
+                                return video_ids
                         
-                        success_count += 1
-                        log_message(f"[Group Sync] Successfully synced channel: {channel['name']}")
+                        log_message(f"[Group Sync] {channel_name}: No existing folder found, will download all videos")
+                        return set()
                         
                     except Exception as e:
+                        log_message(f"[Group Sync] {channel_name}: Error checking downloaded videos: {e}")
+                        return set()
+                
+                # Create callback function to handle metadata completion
+                def sync_completion_callback(job_id: int, success: bool, error_message: str = None):
+                    """Callback function to create download jobs only for missing videos."""
+                    if not success:
+                        log_message(f"[Group Sync] {channel_name}: Metadata extraction failed - {error_message}")
+                        return
+                    
+                    log_message(f"[Group Sync] {channel_name}: Metadata extraction completed, creating download jobs...")
+                    
+                    # Get already downloaded video IDs
+                    downloaded_video_ids = get_downloaded_video_ids(channel_name, group_dict['name'] if group_dict else '')
+                    
+                    # Get manually deleted video IDs to avoid re-downloading
+                    try:
+                        from download_content import get_deleted_video_ids
+                        deleted_video_ids = get_deleted_video_ids()
+                        log_message(f"[Group Sync] {channel_name}: Found {len(deleted_video_ids)} manually deleted tracks to skip")
+                    except Exception as e:
+                        log_message(f"[Group Sync] {channel_name}: Warning - Could not get deleted video IDs: {e}")
+                        deleted_video_ids = set()
+                    
+                    # Combine both sets: videos to skip = already downloaded + manually deleted
+                    videos_to_skip = downloaded_video_ids | deleted_video_ids
+                    log_message(f"[Group Sync] {channel_name}: Total videos to skip: {len(videos_to_skip)} (downloaded: {len(downloaded_video_ids)}, deleted: {len(deleted_video_ids)})")
+                    
+                    # Get metadata from database and create download jobs
+                    try:
+                        conn = get_connection()
+                        
+                        # Get all videos from metadata for this channel
+                        cursor = conn.cursor()
+                        
+                        # Extract channel identifier from URL for metadata search
+                        if '@' in channel_url:
+                            channel_name_search = channel_url.split('@')[1].split('/')[0]
+                            search_pattern = f'%@{channel_name_search}%'
+                        elif '/channel/' in channel_url:
+                            channel_id_search = channel_url.split('/channel/')[1].split('/')[0]
+                            search_pattern = f'%{channel_id_search}%'
+                        elif '/c/' in channel_url:
+                            channel_name_search = channel_url.split('/c/')[1].split('/')[0]
+                            search_pattern = f'%{channel_name_search}%'
+                        else:
+                            search_pattern = f'%{channel_url}%'
+                        
+                        query = """
+                            SELECT youtube_id, title FROM youtube_video_metadata 
+                            WHERE (channel_url LIKE ? OR channel LIKE ?)
+                        """
+                        params = [search_pattern, search_pattern]
+                        
+                        # Add date filter if specified
+                        if date_filter_from:
+                            try:
+                                from datetime import datetime
+                                date_obj = datetime.strptime(date_filter_from, '%Y-%m-%d')
+                                timestamp = int(date_obj.timestamp())
+                                query += " AND (timestamp >= ? OR release_timestamp >= ?)"
+                                params.extend([timestamp, timestamp])
+                            except ValueError:
+                                log_message(f"[Group Sync] {channel_name}: Invalid date filter '{date_filter_from}', ignoring")
+                        
+                        query += " ORDER BY timestamp DESC, release_timestamp DESC"
+                        
+                        cursor.execute(query, params)
+                        videos = cursor.fetchall()
+                        conn.close()
+                        
+                        if not videos:
+                            log_message(f"[Group Sync] {channel_name}: No videos found in metadata")
+                            return
+                        
+                        # Create download jobs for each video NOT already downloaded AND NOT manually deleted
+                        created_jobs = 0
+                        skipped_downloaded = 0
+                        skipped_deleted = 0
+                        
+                        # Calculate target folder for downloads
+                        target_folder = f"{group_dict['name']}/Channel-{channel_name}" if group_dict else f"Channel-{channel_name}"
+                        
+                        for video in videos:
+                            video_id = video[0]
+                            video_title = video[1] or f"Video {video_id}"
+                            
+                            # Skip if already downloaded (physically present)
+                            if video_id in downloaded_video_ids:
+                                skipped_downloaded += 1
+                                continue
+                            
+                            # Skip if manually deleted by user
+                            if video_id in deleted_video_ids:
+                                skipped_deleted += 1
+                                continue
+                            
+                            video_url = f"https://www.youtube.com/watch?v={video_id}"
+                            
+                            try:
+                                # Create single video download job
+                                job_id = job_service.create_and_add_job(
+                                    JobType.SINGLE_VIDEO_DOWNLOAD,
+                                    priority=JobPriority.NORMAL,
+                                    playlist_url=video_url,
+                                    target_folder=target_folder,
+                                    format_selector='bestvideo+bestaudio/best',
+                                    extract_audio=False,  # Download video files for channels
+                                    download_archive=True,
+                                    exclude_shorts=True  # Exclude YouTube Shorts
+                                )
+                                
+                                created_jobs += 1
+                                
+                            except Exception as e:
+                                log_message(f"[Group Sync] {channel_name}: Failed to create download job for {video_title[:50]}... - {e}")
+                        
+                        log_message(f"[Group Sync] {channel_name}: Created {created_jobs} download jobs | Skipped {skipped_downloaded} downloaded + {skipped_deleted} deleted = {skipped_downloaded + skipped_deleted} total")
+                        
+                    except Exception as e:
+                        log_message(f"[Group Sync] {channel_name}: Error processing metadata: {e}")
+                
+                # Create metadata extraction job with callback
+                metadata_job_id = job_service.create_and_add_job(
+                    JobType.METADATA_EXTRACTION,
+                    priority=JobPriority.HIGH,
+                    playlist_url=channel_url,
+                    target_folder=f"{group_dict['name']}/Channel-{channel_name}" if group_dict else f"Channel-{channel_name}",
+                    completion_callback=sync_completion_callback,
+                    skip_url_normalization=True  # Preserve original URL
+                )
+                
+                log_message(f"[Group Sync] {channel_name}: Created metadata extraction job #{metadata_job_id}")
+                return True
+                
+            except ImportError:
+                log_message(f"[Group Sync] {channel_name}: Job Queue System not available, skipping channel")
+                return False
+            except Exception as e:
+                log_message(f"[Group Sync] {channel_name}: Error during sync: {e}")
+                return False
+        
+        # Start background sync for all channels using optimized logic
+        def _sync_worker():
+            try:
+                success_count = 0
+                failed_count = 0
+                
+                for channel in channels:
+                    try:
+                        if sync_single_channel(channel, group, date_from):
+                            success_count += 1
+                        else:
+                            failed_count += 1
+                    except Exception as e:
+                        failed_count += 1
                         log_message(f"[Group Sync] Error syncing channel {channel['name']}: {e}")
                 
-                log_message(f"[Group Sync] Completed group '{group['name']}': {success_count}/{len(channels)} channels synced")
+                log_message(f"[Group Sync] Completed group '{group['name']}': {success_count} channels started, {failed_count} failed")
                 
             except Exception as e:
                 log_message(f"[Group Sync] Error syncing group '{group['name']}': {e}")
@@ -469,14 +630,15 @@ def api_sync_channel_group(group_id: int):
         sync_thread = threading.Thread(target=_sync_worker, daemon=True)
         sync_thread.start()
         
-        log_message(f"[Channels] Started sync for group '{group['name']}' with {len(channels)} channels")
+        log_message(f"[Channels] Started optimized sync for group '{group['name']}' with {len(channels)} channels")
         
         return jsonify({
             "status": "started", 
-            "message": f"Sync started for {len(channels)} channels in group '{group['name']}'",
+            "message": f"Optimized sync started for {len(channels)} channels in group '{group['name']}'",
             "group_name": group['name'],
             "channels_count": len(channels),
-            "date_filter": {"from": date_from, "to": date_to} if date_from or date_to else None
+            "date_filter": {"from": date_from, "to": date_to} if date_from or date_to else None,
+            "sync_type": "optimized_job_queue"
         })
         
     except Exception as e:
