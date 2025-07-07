@@ -314,6 +314,53 @@ const cDislike = document.getElementById('cDislike');
     }
   }
 
+  // Playlist speed functions
+  async function savePlaylistSpeed(speed) {
+    if (!playlistRel) return;
+    
+    try {
+      const response = await fetch('/api/save_playback_speed', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          relpath: playlistRel,
+          speed: speed
+        })
+      });
+      
+      const result = await response.json();
+      if (result.status === 'ok') {
+        console.log(`⚡ Playlist speed saved: ${speed}x`);
+      } else {
+        console.warn('❌ Failed to save playlist speed:', result.message);
+      }
+    } catch (error) {
+      console.error('❌ Error saving playlist speed:', error);
+    }
+  }
+
+  async function loadPlaylistSpeed() {
+    if (!playlistRel) return 1.0; // Default fallback
+    
+    try {
+      const response = await fetch(`/api/get_playback_speed?relpath=${encodeURIComponent(playlistRel)}`);
+      const result = await response.json();
+      
+      if (result.status === 'ok') {
+        console.log(`⚡ Loaded playlist speed: ${result.speed}x`);
+        return result.speed;
+      } else {
+        console.warn('❌ Failed to load playlist speed:', result.message);
+        return 1.0; // Default fallback
+      }
+    } catch (error) {
+      console.error('❌ Error loading playlist speed:', error);
+      return 1.0; // Default fallback
+    }
+  }
+
   async function loadPlaylistPreference() {
     if (!playlistRel) return 'shuffle'; // Default fallback
     
@@ -358,6 +405,17 @@ const cDislike = document.getElementById('cDislike');
   const savedPreference = await loadPlaylistPreference();
   let queue = []; // Initialize queue
   await applyDisplayPreference(savedPreference);
+
+  // Load and apply saved playback speed
+  const savedSpeed = await loadPlaylistSpeed();
+  const speedIndex = speedOptions.indexOf(savedSpeed);
+  if (speedIndex !== -1) {
+    currentSpeedIndex = speedIndex;
+    console.log(`⚡ Applied saved speed: ${savedSpeed}x`);
+  } else {
+    console.warn(`⚠️ Invalid saved speed ${savedSpeed}x, using default 1x`);
+    currentSpeedIndex = 2; // Default to 1x (index 2)
+  }
   
   let currentIndex = -1;
   
@@ -1052,7 +1110,7 @@ const cDislike = document.getElementById('cDislike');
     }
   }
 
-  function cyclePlaybackSpeed() {
+  async function cyclePlaybackSpeed() {
     currentSpeedIndex = (currentSpeedIndex + 1) % speedOptions.length;
     const newSpeed = speedOptions[currentSpeedIndex];
     
@@ -1063,6 +1121,9 @@ const cDislike = document.getElementById('cDislike');
     updateSpeedDisplay();
     
     console.log(`⏩ Playback speed changed to ${newSpeed}x`);
+    
+    // Save the new speed to playlist settings
+    await savePlaylistSpeed(newSpeed);
     
     // Report speed change event if we have a current track
     if (currentIndex >= 0 && currentIndex < queue.length) {
@@ -1756,6 +1817,10 @@ const cDislike = document.getElementById('cDislike');
     console.log('✅ Data looks good, rendering playlist...');
     renderList();
     console.log('✅ Playlist rendered successfully');
+    
+    // Update speed display to show saved speed
+    updateSpeedDisplay();
+    console.log(`⚡ Speed display updated to show current speed: ${speedOptions[currentSpeedIndex]}x`);
   }
 
   // Function to delete a track

@@ -486,4 +486,106 @@ def api_get_display_preference():
         
     except Exception as e:
         log_message(f"[Playlist Preferences] Error getting preference: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@playlist_bp.route("/save_playback_speed", methods=["POST"])
+def api_save_playback_speed():
+    """Save playback speed for a playlist."""
+    data = request.get_json(force=True, silent=True) or {}
+    relpath = (data.get("relpath") or "").strip()
+    speed = data.get("speed")
+    
+    if not relpath or speed is None:
+        return jsonify({"status": "error", "message": "missing relpath or speed"}), 400
+
+    # Validate speed value
+    valid_speeds = [0.5, 0.75, 1, 1.25, 1.5, 2]
+    if speed not in valid_speeds:
+        return jsonify({"status": "error", "message": f"invalid speed, must be one of: {valid_speeds}"}), 400
+
+    try:
+        conn = get_connection()
+        
+        # Check if playlist exists
+        row = db.get_playlist_by_relpath(conn, relpath)
+        if not row:
+            conn.close()
+            return jsonify({"status": "error", "message": "playlist not found"}), 404
+
+        # Update playback speed
+        conn.execute("UPDATE playlists SET playback_speed=? WHERE relpath=?", (speed, relpath))
+        conn.commit()
+        conn.close()
+        
+        log_message(f"[Playlist Speed] Saved '{speed}x' for playlist '{relpath}'")
+        return jsonify({"status": "ok", "message": f"Playback speed saved: {speed}x"})
+        
+    except Exception as e:
+        log_message(f"[Playlist Speed] Error saving speed: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@playlist_bp.route("/get_playback_speed", methods=["GET"])
+def api_get_playback_speed():
+    """Get playback speed for a playlist."""
+    relpath = request.args.get("relpath", "").strip()
+    
+    if not relpath:
+        return jsonify({"status": "error", "message": "missing relpath parameter"}), 400
+
+    try:
+        conn = get_connection()
+        
+        # Get playlist with playback speed
+        row = db.get_playlist_by_relpath(conn, relpath)
+        if not row:
+            conn.close()
+            return jsonify({"status": "error", "message": "playlist not found"}), 404
+        
+        # Get playback speed or default to 1.0
+        playback_speed = row["playback_speed"] if row["playback_speed"] else 1.0
+        
+        conn.close()
+        
+        return jsonify({
+            "status": "ok", 
+            "speed": playback_speed,
+            "playlist_name": row["name"] if row["name"] else "Unknown"
+        })
+        
+    except Exception as e:
+        log_message(f"[Playlist Speed] Error getting speed: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@playlist_bp.route("/get_playlist_settings", methods=["GET"])
+def api_get_playlist_settings():
+    """Get all settings for a playlist (display preference and playback speed)."""
+    relpath = request.args.get("relpath", "").strip()
+    
+    if not relpath:
+        return jsonify({"status": "error", "message": "missing relpath parameter"}), 400
+
+    try:
+        conn = get_connection()
+        
+        # Get playlist with all settings
+        row = db.get_playlist_by_relpath(conn, relpath)
+        if not row:
+            conn.close()
+            return jsonify({"status": "error", "message": "playlist not found"}), 404
+        
+        # Get settings or defaults
+        display_preference = row["display_preferences"] if row["display_preferences"] else "shuffle"
+        playback_speed = row["playback_speed"] if row["playback_speed"] else 1.0
+        
+        conn.close()
+        
+        return jsonify({
+            "status": "ok", 
+            "display_preference": display_preference,
+            "playback_speed": playback_speed,
+            "playlist_name": row["name"] if row["name"] else "Unknown"
+        })
+        
+    except Exception as e:
+        log_message(f"[Playlist Settings] Error getting settings: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500 
