@@ -271,7 +271,7 @@ All client logic lives in **`static/player.js`** – extend, re-skin or integrat
    ```bash
    # Via web interface: http://localhost:8000/channels
    # Or via API:
-   curl -X POST http://localhost:8000/api/create_channel_group \
+   curl -X POST http://localhost:8000/api/channels/create_channel_group \
         -H "Content-Type: application/json" \
         -d '{"name": "Music", "behavior_type": "music", "auto_delete_enabled": false}'
    ```
@@ -549,12 +549,17 @@ The web player exposes several API endpoints for programmatic control:
 - `POST /api/link_playlist` – Link local folder to YouTube URL
 
 ### 🆕 Channel Management
-- `GET /api/channel_groups` – List all channel groups with statistics
-- `POST /api/create_channel_group` – Create new channel group
-- `POST /api/add_channel` – Add YouTube channel to group (starts download)
-- `GET /api/channels/<group_id>` – Get channels in specific group
-- `POST /api/sync_channel_group/<group_id>` – Sync all channels in group
-- `POST /api/sync_channel/<channel_id>` – Sync specific channel
+- `GET /api/channels/channel_groups` – List all channel groups with statistics
+- `POST /api/channels/create_channel_group` – Create new channel group
+- `POST /api/channels/add_channel` – Add YouTube channel to group (starts download)
+- `GET /api/channels/groups/<group_id>` – Get channels in specific group
+- `POST /api/channels/sync_channel_group/<group_id>` – Sync all channels in group
+- `POST /api/channels/sync_channel/<channel_id>` – Sync specific channel
+- `POST /api/channels/remove_channel/<channel_id>` – Remove channel from group
+- `POST /api/channels/refresh_channel_stats/<channel_id>` – Refresh channel statistics
+- `POST /api/channels/delete_channel_group/<group_id>` – Delete empty channel group
+- `POST /api/channels/delete_track` – Move track to trash
+- `POST /api/channels/rescan_files` – Rescan all media files
 - `GET /api/deleted_tracks` – List deleted tracks for recovery
 - `POST /api/restore_track/<track_id>` – Restore deleted track from trash
 

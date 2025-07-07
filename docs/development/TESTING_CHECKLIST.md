@@ -151,33 +151,33 @@
 ### 7.1 Группы каналов
 ```bash
 # Получить список групп
-curl http://localhost:8000/api/channel_groups
+curl http://localhost:8000/api/channels/channel_groups
 
 # Создать новую группу
-curl -X POST http://localhost:8000/api/create_channel_group \
+curl -X POST http://localhost:8000/api/channels/create_channel_group \
   -H "Content-Type: application/json" \
   -d '{"name":"Test","behavior_type":"education","auto_delete_enabled":false}'
 ```
 
-- [ ] **GET /api/channel_groups**: Возвращает JSON со списком групп
-- [ ] **POST /api/create_channel_group**: Создает новую группу
+- [ ] **GET /api/channels/channel_groups**: Возвращает JSON со списком групп
+- [ ] **POST /api/channels/create_channel_group**: Создает новую группу
 - [ ] **Валидация**: Обязательные поля проверяются
 
 ### 7.2 Каналы
 ```bash
 # Добавить канал
-curl -X POST http://localhost:8000/api/add_channel \
+curl -X POST http://localhost:8000/api/channels/add_channel \
   -H "Content-Type: application/json" \
   -d '{"name":"Test Channel","url":"https://www.youtube.com/@example","group_id":1}'
 ```
 
-- [ ] **POST /api/add_channel**: Добавляет канал в группу
+- [ ] **POST /api/channels/add_channel**: Добавляет канал в группу
 - [ ] **Фоновая загрузка**: Процесс запускается
 - [ ] **Валидация URL**: Неправильные URL отклоняются
 
 ### 7.3 Синхронизация
-- [ ] **POST /api/sync_channel_group**: Синхронизирует группу
-- [ ] **POST /api/sync_channel**: Синхронизирует отдельный канал
+- [ ] **POST /api/channels/sync_channel_group**: Синхронизирует группу
+- [ ] **POST /api/channels/sync_channel**: Синхронизирует отдельный канал
 - [ ] **Логирование**: События записываются в логи
 
 ### 7.4 Удаленные треки

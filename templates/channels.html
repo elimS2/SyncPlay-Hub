@@ -593,7 +593,7 @@
         // API functions
         async function loadChannelGroups() {
             try {
-                const response = await fetch('/api/channel_groups');
+                const response = await fetch('/api/channels/channel_groups');
                 const result = await response.json();
                 
                 if (result.status === 'ok') {
@@ -617,7 +617,7 @@
 
         async function loadChannelsForGroup(groupId) {
             try {
-                const response = await fetch(`/api/channels/${groupId}`);
+                const response = await fetch(`/api/channels/groups/${groupId}`);
                 const result = await response.json();
                 
                 if (result.status === 'ok') {
@@ -641,7 +641,7 @@
             };
 
             try {
-                const response = await fetch('/api/create_channel_group', {
+                const response = await fetch('/api/channels/create_channel_group', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(formData)
@@ -688,7 +688,7 @@
             };
 
             try {
-                const response = await fetch('/api/add_channel', {
+                const response = await fetch('/api/channels/add_channel', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(formData)
@@ -713,7 +713,7 @@
 
         async function syncChannelGroup(groupId) {
             try {
-                const response = await fetch(`/api/sync_channel_group/${groupId}`, {
+                const response = await fetch(`/api/channels/sync_channel_group/${groupId}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({})
@@ -732,7 +732,7 @@
 
         async function syncChannel(channelId) {
             try {
-                const response = await fetch(`/api/sync_channel/${channelId}`, {
+                const response = await fetch(`/api/channels/sync_channel/${channelId}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({})
@@ -768,7 +768,7 @@
                 }
                 
                 // Then refresh the specific channel stats
-                const refreshResponse = await fetch(`/api/refresh_channel_stats/${channelId}`, {
+                const refreshResponse = await fetch(`/api/channels/refresh_channel_stats/${channelId}`, {
                     method: 'POST'
                 });
                 
@@ -939,7 +939,7 @@
             if (!confirmed) return;
             
             try {
-                const response = await fetch(`/api/remove_channel/${channelId}`, {
+                const response = await fetch(`/api/channels/remove_channel/${channelId}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ 
@@ -978,7 +978,7 @@
             if (!confirmed) return;
             
             try {
-                const response = await fetch(`/api/delete_channel_group/${groupId}`, {
+                const response = await fetch(`/api/channels/delete_channel_group/${groupId}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' }
                 });

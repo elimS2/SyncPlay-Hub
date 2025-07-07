@@ -43,11 +43,11 @@ Transform SyncPlay-Hub into intelligent content management system:
 ## 🚀 **PHASE 2: BACKEND INTEGRATION** ✅ **COMPLETED**
 
 ### ✅ 2.1 API Routes (controllers/api_controller.py)
-- [x] **GET** `/api/channel_groups` - List all groups with stats
-- [x] **POST** `/api/create_channel_group` - Create new group  
-- [x] **POST** `/api/add_channel` - Add channel to group
-- [x] **POST** `/api/sync_channel_group` - Sync all channels in group
-- [x] **POST** `/api/sync_channel` - Sync individual channel
+- [x] **GET** `/api/channels/channel_groups` - List all groups with stats
+- [x] **POST** `/api/channels/create_channel_group` - Create new group
+- [x] **POST** `/api/channels/add_channel` - Add channel to group
+- [x] **POST** `/api/channels/sync_channel_group` - Sync all channels in group
+- [x] **POST** `/api/channels/sync_channel` - Sync individual channel
 - [x] **GET** `/api/deleted_tracks` - Get deleted tracks for restoration
 - [x] **POST** `/api/restore_track` - Restore deleted track
 - **Status:** ✅ **DONE** - All 7 API endpoints implemented

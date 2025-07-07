@@ -867,7 +867,7 @@ const cDislike = document.getElementById('cDislike');
       await new Promise(resolve => setTimeout(resolve, 200));
       
       // Send delete request to API
-      const response = await fetch('/api/delete_track', {
+      const response = await fetch('/api/channels/delete_track', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -1720,7 +1720,7 @@ const cDislike = document.getElementById('cDislike');
       console.log(`🗑️ Deleting track: ${track.name} (${track.video_id})`);
       
       // Send delete request to API
-      const response = await fetch('/api/delete_track', {
+      const response = await fetch('/api/channels/delete_track', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
