@@ -252,6 +252,7 @@ function getGroupPlaybackInfo(tracks) {
   const listElem = document.getElementById('tracklist');
   const shuffleBtn = document.getElementById('shuffleBtn');
   const smartShuffleBtn = document.getElementById('smartShuffleBtn');
+  const orderByDateBtn = document.getElementById('orderByDateBtn');
   const deleteCurrentBtn = document.getElementById('deleteCurrentBtn');
   const fullBtn = document.getElementById('fullBtn');
   const cLike = document.getElementById('cLike');
@@ -286,7 +287,78 @@ const cDislike = document.getElementById('cDislike');
   const playlistRel = typeof PLAYLIST_REL !== 'undefined' ? PLAYLIST_REL : '';
   let tracks = await fetchTracks(playlistRel);
 
-  let queue = smartChannelShuffle([...tracks]);
+  // Playlist preferences functions
+  async function savePlaylistPreference(preference) {
+    if (!playlistRel) return;
+    
+    try {
+      const response = await fetch('/api/save_display_preference', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          relpath: playlistRel,
+          preference: preference
+        })
+      });
+      
+      const result = await response.json();
+      if (result.status === 'ok') {
+        console.log(`💾 Playlist preference saved: ${preference}`);
+      } else {
+        console.warn('❌ Failed to save playlist preference:', result.message);
+      }
+    } catch (error) {
+      console.error('❌ Error saving playlist preference:', error);
+    }
+  }
+
+  async function loadPlaylistPreference() {
+    if (!playlistRel) return 'shuffle'; // Default fallback
+    
+    try {
+      const response = await fetch(`/api/get_display_preference?relpath=${encodeURIComponent(playlistRel)}`);
+      const result = await response.json();
+      
+      if (result.status === 'ok') {
+        console.log(`📂 Loaded playlist preference: ${result.preference}`);
+        return result.preference;
+      } else {
+        console.warn('❌ Failed to load playlist preference:', result.message);
+        return 'shuffle'; // Default fallback
+      }
+    } catch (error) {
+      console.error('❌ Error loading playlist preference:', error);
+      return 'shuffle'; // Default fallback
+    }
+  }
+
+  // Apply display preference
+  async function applyDisplayPreference(preference) {
+    switch (preference) {
+      case 'smart':
+        queue = smartChannelShuffle([...tracks]);
+        console.log('🧠 Applied smart channel shuffle from saved preference');
+        break;
+      case 'order_by_date':
+        queue = orderByPublishDate([...tracks]);
+        console.log('📅 Applied order by date from saved preference');
+        break;
+      case 'shuffle':
+      default:
+        queue = [...tracks];
+        shuffle(queue);
+        console.log('🔀 Applied random shuffle from saved preference');
+        break;
+    }
+  }
+
+  // Load saved preference and apply it
+  const savedPreference = await loadPlaylistPreference();
+  let queue = []; // Initialize queue
+  await applyDisplayPreference(savedPreference);
+  
   let currentIndex = -1;
   
   // Log playback info
@@ -768,15 +840,19 @@ const cDislike = document.getElementById('cDislike');
     }
   });
 
-  shuffleBtn.onclick = () => {
+  shuffleBtn.onclick = async () => {
     // Regular random shuffle
     queue = [...tracks];
     shuffle(queue);
     console.log('🔀 Random shuffle applied to all tracks');
+    
+    // Save preference
+    await savePlaylistPreference('shuffle');
+    
     playIndex(0);
   };
 
-  smartShuffleBtn.onclick = ()=>{
+  smartShuffleBtn.onclick = async ()=>{
      // Smart channel-aware shuffle
      queue = smartChannelShuffle([...tracks]);
      console.log('🧠 Smart channel shuffle applied');
@@ -794,13 +870,20 @@ const cDislike = document.getElementById('cDislike');
        });
      }
      
+     // Save preference
+     await savePlaylistPreference('smart');
+     
      playIndex(0);
   };
 
-  orderByDateBtn.onclick = () => {
+  orderByDateBtn.onclick = async () => {
     // Sort tracks by YouTube publish date (oldest first)
     queue = orderByPublishDate([...tracks]);
     console.log('📅 Tracks ordered by YouTube publish date (oldest first)');
+    
+    // Save preference
+    await savePlaylistPreference('order_by_date');
+    
     playIndex(0);
   };
 

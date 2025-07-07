@@ -418,4 +418,72 @@ def api_like_stats():
         
     except Exception as e:
         log_message(f"[Virtual Playlist] Error getting like stats: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@playlist_bp.route("/save_display_preference", methods=["POST"])
+def api_save_display_preference():
+    """Save display preference for a playlist."""
+    data = request.get_json(force=True, silent=True) or {}
+    relpath = (data.get("relpath") or "").strip()
+    preference = (data.get("preference") or "").strip()
+    
+    if not relpath or not preference:
+        return jsonify({"status": "error", "message": "missing relpath or preference"}), 400
+
+    # Validate preference value
+    valid_preferences = ["shuffle", "smart", "order_by_date"]
+    if preference not in valid_preferences:
+        return jsonify({"status": "error", "message": f"invalid preference, must be one of: {valid_preferences}"}), 400
+
+    try:
+        conn = get_connection()
+        
+        # Check if playlist exists
+        row = db.get_playlist_by_relpath(conn, relpath)
+        if not row:
+            conn.close()
+            return jsonify({"status": "error", "message": "playlist not found"}), 404
+
+        # Update display preference
+        conn.execute("UPDATE playlists SET display_preferences=? WHERE relpath=?", (preference, relpath))
+        conn.commit()
+        conn.close()
+        
+        log_message(f"[Playlist Preferences] Saved '{preference}' for playlist '{relpath}'")
+        return jsonify({"status": "ok", "message": f"Display preference saved: {preference}"})
+        
+    except Exception as e:
+        log_message(f"[Playlist Preferences] Error saving preference: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@playlist_bp.route("/get_display_preference", methods=["GET"])
+def api_get_display_preference():
+    """Get display preference for a playlist."""
+    relpath = request.args.get("relpath", "").strip()
+    
+    if not relpath:
+        return jsonify({"status": "error", "message": "missing relpath parameter"}), 400
+
+    try:
+        conn = get_connection()
+        
+        # Get playlist with display preference
+        row = db.get_playlist_by_relpath(conn, relpath)
+        if not row:
+            conn.close()
+            return jsonify({"status": "error", "message": "playlist not found"}), 404
+        
+        # Get display preference or default to shuffle
+        display_preference = row["display_preferences"] if row["display_preferences"] else "shuffle"
+        
+        conn.close()
+        
+        return jsonify({
+            "status": "ok", 
+            "preference": display_preference,
+            "playlist_name": row["name"] if row["name"] else "Unknown"
+        })
+        
+    except Exception as e:
+        log_message(f"[Playlist Preferences] Error getting preference: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500 
