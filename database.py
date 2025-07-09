@@ -1077,7 +1077,7 @@ def get_channels_by_group(conn: sqlite3.Connection, group_id: int):
         FROM channels c
         JOIN channel_groups cg ON cg.id = c.channel_group_id
         WHERE c.channel_group_id = ?
-        ORDER BY c.name
+        ORDER BY c.last_sync_ts ASC NULLS FIRST, c.name
     """, (group_id,))
     return cur.fetchall()
 
