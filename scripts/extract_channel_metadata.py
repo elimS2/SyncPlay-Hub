@@ -448,6 +448,45 @@ def smart_extract_with_date_check(url: str, date_from: str, cookies_path: str = 
                 final_boundary = batch_start + boundary_offset - 1
                 
                 log_message(f"Exact boundary found at video position: {final_boundary}")
+                
+                # Special case: if boundary is very low (1-2 videos) and we already have accessible videos,
+                # use the accessible videos we already extracted instead of risking member-only videos
+                if final_boundary <= 2 and len(boundary_videos) > 0:
+                    log_message(f"Low boundary detected ({final_boundary}), using already extracted accessible videos")
+                    log_message(f"Filtering {len(boundary_videos)} videos by date instead of re-extracting")
+                    
+                    # Filter boundary_videos by date
+                    filtered_videos = []
+                    for video in boundary_videos:
+                        video_date = None
+                        
+                        # Try different date fields
+                        if video.get('upload_date'):
+                            video_date = parse_upload_date(video['upload_date'])
+                        elif video.get('timestamp'):
+                            try:
+                                video_date = datetime.fromtimestamp(video['timestamp'])
+                            except:
+                                pass
+                        elif video.get('release_timestamp'):
+                            try:
+                                video_date = datetime.fromtimestamp(video['release_timestamp'])
+                            except:
+                                pass
+                        
+                        # Check if video passes date filter
+                        if video_date:
+                            try:
+                                target_date = datetime.strptime(date_from, '%Y-%m-%d')
+                                if video_date >= target_date:
+                                    filtered_videos.append(video)
+                            except:
+                                pass
+                    
+                    log_message(f"Filtered to {len(filtered_videos)} videos that pass date filter")
+                    all_results.extend(filtered_videos)
+                    break
+                
                 break
             else:
                 log_message(f"Batch {batch_start}:{batch_end} still has new videos (batch boundary date: {batch_boundary_date}), continuing")
@@ -461,7 +500,7 @@ def smart_extract_with_date_check(url: str, date_from: str, cookies_path: str = 
             break
     
     # Phase 3: Get full metadata for all videos from start to boundary
-    if final_boundary and final_boundary > 0:
+    if final_boundary and final_boundary > 0 and len(all_results) == 0:
         log_message(f"Extracting full metadata for videos 1:{final_boundary}")
         log_message(f"Using --ignore-errors to skip member-only videos in final extraction")
         
@@ -495,6 +534,9 @@ def smart_extract_with_date_check(url: str, date_from: str, cookies_path: str = 
             log_message(f"This suggests all videos in this range are member-only")
             log_message(f"Falling back to extract first batch as safety measure")
             return run_ytdlp_extract(url, batch_size, cookies_path, f"1:{batch_size}")
+    
+    elif final_boundary and final_boundary > 0 and len(all_results) > 0:
+        log_message(f"Phase 3 skipped - already extracted {len(all_results)} videos in special case handling")
     
     elif final_boundary == 0:
         log_message("No videos newer than date_from found")
