@@ -204,7 +204,7 @@ def run_ytdlp_extract_batch(url: str, start_index: int, batch_size: int = 50,
                     log_message(f"Warning: Failed to parse JSON line: {e}")
                     continue
         
-        log_message(f"Successfully extracted {len(metadata_list)} videos")
+        log_message(f"Successfully extracted {len(metadata_list)} videos from batch extraction")
         return metadata_list
         
     except subprocess.TimeoutExpired:
@@ -222,7 +222,16 @@ def get_video_date(video_id: str, cookies_path: str = None) -> Optional[str]:
         
         log_message(f"Getting date for video {video_id}: {' '.join(cmd)}")
         
-        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        
+        if result.returncode != 0:
+            # Check if this is a member-only video
+            if result.stderr and ("members-only" in result.stderr.lower() or "join this channel" in result.stderr.lower()):
+                log_message(f"Video {video_id} is member-only, skipping")
+            else:
+                log_message(f"Error getting date for video {video_id}: {result.stderr}")
+            return None
+        
         video_data = json.loads(result.stdout)
         
         upload_date = video_data.get('upload_date')
@@ -242,6 +251,39 @@ def get_video_date(video_id: str, cookies_path: str = None) -> Optional[str]:
     except Exception as e:
         log_message(f"Unexpected error getting date for video {video_id}: {e}")
         return None
+
+def get_batch_boundary_date(batch_videos: List[Dict[str, Any]], cookies_path: str = None) -> Optional[str]:
+    """
+    Get upload date for the last accessible video in a batch.
+    Tries videos from end to beginning, skipping member-only videos.
+    """
+    if not batch_videos:
+        return None
+    
+    log_message(f"=== IMPROVED MEMBER-ONLY HANDLING ===")
+    log_message(f"Trying to get date from any accessible video in batch of {len(batch_videos)} videos")
+    
+    # Try to get date for videos starting from the end
+    for i in range(len(batch_videos) - 1, -1, -1):
+        video = batch_videos[i]
+        video_id = video.get('id')
+        
+        if not video_id:
+            log_message(f"Video at position {i+1}/{len(batch_videos)} has no ID, skipping")
+            continue
+            
+        video_date = get_video_date(video_id, cookies_path)
+        if video_date:
+            log_message(f"SUCCESS: Using video {video_id} (position {i+1}/{len(batch_videos)}) for batch boundary date: {video_date}")
+            log_message(f"=== END IMPROVED HANDLING ===")
+            return video_date
+        else:
+            log_message(f"FAILED: Video {video_id} (position {i+1}/{len(batch_videos)}) - could not get date (likely member-only)")
+    
+    log_message(f"CRITICAL: Could not get date for ANY video in batch of {len(batch_videos)} videos")
+    log_message(f"This suggests all videos in this batch are member-only or inaccessible")
+    log_message(f"=== END IMPROVED HANDLING ===")
+    return None
 
 def find_date_boundary_in_batch(metadata_list: List[Dict[str, Any]], date_from: str) -> int:
     """Find the exact position where videos become too old"""
@@ -294,6 +336,8 @@ def smart_extract_with_date_check(url: str, date_from: str, cookies_path: str = 
     all_results = []
     batch_start = 1
     final_boundary = None
+    max_empty_batches = 3  # Maximum number of consecutive batches with no accessible videos
+    empty_batch_count = 0
     
     # Phase 1: Find the batch containing the date boundary
     while True:
@@ -331,37 +375,55 @@ def smart_extract_with_date_check(url: str, date_from: str, cookies_path: str = 
             
             log_message(f"Found {len(batch_videos)} videos in batch")
             
-            # Check date of last video in batch
-            last_video = batch_videos[-1]
-            last_video_id = last_video.get('id')
+            # Check date of any accessible video in batch (starting from the end)
+            batch_boundary_date = get_batch_boundary_date(batch_videos, cookies_path)
             
-            if not last_video_id:
-                log_message(f"Warning: No ID for last video in batch, stopping")
-                break
-            
-            last_video_date = get_video_date(last_video_id, cookies_path)
-            
-            if not last_video_date:
-                log_message(f"Warning: Could not get date for last video {last_video_id}, stopping")
-                break
+            if not batch_boundary_date:
+                empty_batch_count += 1
+                log_message(f"Warning: Could not get date for any video in batch {batch_start}:{batch_end}")
+                log_message(f"This batch may contain only member-only videos")
+                log_message(f"Empty batch count: {empty_batch_count}/{max_empty_batches}")
+                
+                if empty_batch_count >= max_empty_batches:
+                    log_message(f"=== MEMBER-ONLY CHANNEL DETECTED ===")
+                    log_message(f"Found {max_empty_batches} consecutive batches with no accessible videos")
+                    log_message(f"This channel likely has mostly member-only content")
+                    log_message(f"Stopping extraction to avoid infinite loop")
+                    log_message(f"=== END MEMBER-ONLY DETECTION ===")
+                    break
+                    
+                log_message(f"Trying next batch to find accessible videos...")
+                batch_start = batch_end + 1
+                continue
+            else:
+                # Reset counter if we found accessible videos
+                empty_batch_count = 0
             
             # Convert dates to same format for comparison (YYYYMMDD)
             date_from_formatted = date_from.replace('-', '')  # "2025-06-29" -> "20250629"
             
-            if last_video_date <= date_from_formatted:
+            if batch_boundary_date <= date_from_formatted:
                 # Found the batch with boundary!
-                log_message(f"Found boundary batch {batch_start}:{batch_end}: last video date {last_video_date} <= {date_from}")
+                log_message(f"Found boundary batch {batch_start}:{batch_end}: batch boundary date {batch_boundary_date} <= {date_from}")
                 
                 # Phase 2: Find exact boundary within this batch
                 log_message(f"Getting full metadata for boundary batch {batch_start}:{batch_end}")
+                log_message(f"Using --ignore-errors to skip member-only videos")
                 
-                boundary_cmd = ["yt-dlp", "--dump-json", url, 
+                boundary_cmd = ["yt-dlp", "--dump-json", "--ignore-errors", url, 
                                "--playlist-items", f"{batch_start}:{batch_end}"]
                 
                 if cookies_path:
                     boundary_cmd.extend(["--cookies", cookies_path])
                 
-                boundary_result = subprocess.run(boundary_cmd, capture_output=True, text=True, check=True)
+                log_message(f"Executing boundary command: {' '.join(boundary_cmd)}")
+                boundary_result = subprocess.run(boundary_cmd, capture_output=True, text=True)
+                
+                if boundary_result.returncode != 0:
+                    log_message(f"Warning: Boundary extraction had errors (exit code {boundary_result.returncode})")
+                    if boundary_result.stderr:
+                        log_message(f"Boundary extraction stderr: {boundary_result.stderr}")
+                    log_message(f"Continuing with whatever data was extracted...")
                 
                 boundary_videos = []
                 for line in boundary_result.stdout.strip().split('\n'):
@@ -372,6 +434,15 @@ def smart_extract_with_date_check(url: str, date_from: str, cookies_path: str = 
                         except json.JSONDecodeError:
                             continue
                 
+                log_message(f"Successfully extracted {len(boundary_videos)} accessible videos from boundary batch")
+                
+                if not boundary_videos:
+                    log_message(f"No accessible videos found in boundary batch {batch_start}:{batch_end}")
+                    log_message(f"This suggests all videos in this batch are member-only")
+                    log_message(f"Continuing to next batch...")
+                    batch_start = batch_end + 1
+                    continue
+                
                 # Find exact boundary position within batch
                 boundary_offset = find_date_boundary_in_batch(boundary_videos, date_from)
                 final_boundary = batch_start + boundary_offset - 1
@@ -379,7 +450,7 @@ def smart_extract_with_date_check(url: str, date_from: str, cookies_path: str = 
                 log_message(f"Exact boundary found at video position: {final_boundary}")
                 break
             else:
-                log_message(f"Batch {batch_start}:{batch_end} still has new videos (last date: {last_video_date}), continuing")
+                log_message(f"Batch {batch_start}:{batch_end} still has new videos (batch boundary date: {batch_boundary_date}), continuing")
                 batch_start = batch_end + 1
                 
         except subprocess.CalledProcessError as e:
@@ -392,35 +463,47 @@ def smart_extract_with_date_check(url: str, date_from: str, cookies_path: str = 
     # Phase 3: Get full metadata for all videos from start to boundary
     if final_boundary and final_boundary > 0:
         log_message(f"Extracting full metadata for videos 1:{final_boundary}")
+        log_message(f"Using --ignore-errors to skip member-only videos in final extraction")
         
-        final_cmd = ["yt-dlp", "--dump-json", url, "--playlist-items", f"1:{final_boundary}"]
+        final_cmd = ["yt-dlp", "--dump-json", "--ignore-errors", url, "--playlist-items", f"1:{final_boundary}"]
         
         if cookies_path:
             final_cmd.extend(["--cookies", cookies_path])
         
         log_message(f"Executing final extraction: {' '.join(final_cmd)}")
         
-        try:
-            final_result = subprocess.run(final_cmd, capture_output=True, text=True, check=True)
-            
-            for line in final_result.stdout.strip().split('\n'):
-                if line.strip():
-                    try:
-                        video_data = json.loads(line)
-                        all_results.append(video_data)
-                    except json.JSONDecodeError:
-                        continue
-                        
-            log_message(f"Successfully extracted {len(all_results)} videos")
-            
-        except subprocess.CalledProcessError as e:
-            log_message(f"Error in final extraction: {e}")
-            raise RuntimeError(f"Final extraction failed: {e}")
+        final_result = subprocess.run(final_cmd, capture_output=True, text=True)
+        
+        if final_result.returncode != 0:
+            log_message(f"Warning: Final extraction had errors (exit code {final_result.returncode})")
+            if final_result.stderr:
+                log_message(f"Final extraction stderr: {final_result.stderr}")
+            log_message(f"Continuing with whatever data was extracted...")
+        
+        for line in final_result.stdout.strip().split('\n'):
+            if line.strip():
+                try:
+                    video_data = json.loads(line)
+                    all_results.append(video_data)
+                except json.JSONDecodeError:
+                    continue
+                    
+        log_message(f"Successfully extracted {len(all_results)} accessible videos from final extraction")
+        
+        if not all_results:
+            log_message(f"No accessible videos found in range 1:{final_boundary}")
+            log_message(f"This suggests all videos in this range are member-only")
+            log_message(f"Falling back to extract first batch as safety measure")
+            return run_ytdlp_extract(url, batch_size, cookies_path, f"1:{batch_size}")
     
     elif final_boundary == 0:
         log_message("No videos newer than date_from found")
     else:
-        log_message("Could not determine boundary, extracting first batch as fallback")
+        log_message("=== NEW LOGIC ACTIVE ===")
+        log_message("Could not determine date boundary using improved member-only handling")
+        log_message("This may indicate all videos in batches are member-only or inaccessible")
+        log_message("Falling back to extract first batch as safety measure")
+        log_message("=== END NEW LOGIC ===")
         # Fallback: extract first batch
         return run_ytdlp_extract(url, batch_size, cookies_path, f"1:{batch_size}")
     
@@ -455,6 +538,7 @@ def run_ytdlp_extract(url: str, max_entries: int = None, cookies_path: str = Non
         "yt-dlp", 
         "--flat-playlist", 
         "--dump-json", 
+        "--ignore-errors",
         url
     ]
     
@@ -484,10 +568,10 @@ def run_ytdlp_extract(url: str, max_entries: int = None, cookies_path: str = Non
         )
         
         if result.returncode != 0:
-            error_msg = f"yt-dlp failed with exit code {result.returncode}"
+            log_message(f"Warning: yt-dlp had errors (exit code {result.returncode})")
             if result.stderr:
-                error_msg += f"\nError output: {result.stderr}"
-            raise RuntimeError(error_msg)
+                log_message(f"yt-dlp stderr: {result.stderr}")
+            log_message(f"Continuing with whatever data was extracted (--ignore-errors enabled)...")
         
         # Parse JSON output
         metadata_list = []
@@ -500,7 +584,12 @@ def run_ytdlp_extract(url: str, max_entries: int = None, cookies_path: str = Non
                     log_message(f"Warning: Failed to parse JSON line: {e}")
                     continue
         
-        log_message(f"Successfully extracted {len(metadata_list)} videos")
+        log_message(f"Successfully extracted {len(metadata_list)} accessible videos")
+        
+        if not metadata_list:
+            log_message(f"No accessible videos found - channel may contain only member-only content")
+            log_message(f"Returning empty results")
+        
         return metadata_list
         
     except subprocess.TimeoutExpired:
