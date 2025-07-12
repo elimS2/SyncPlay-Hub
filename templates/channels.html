@@ -106,6 +106,55 @@
             font-weight: 600;
         }
 
+        .group-title-container {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .collapse-btn {
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            cursor: pointer;
+            padding: 4px;
+            border-radius: 4px;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .collapse-btn:hover {
+            background: rgba(255, 255, 255, 0.1);
+            color: var(--text-primary);
+        }
+
+        .collapse-btn svg {
+            transition: transform 0.2s ease;
+        }
+
+        .collapse-btn.collapsed svg {
+            transform: rotate(-90deg);
+        }
+
+        .channels-list {
+            display: grid;
+            gap: 12px;
+            overflow: hidden;
+            transition: max-height 0.3s ease, opacity 0.3s ease;
+        }
+
+        .channels-list.collapsed {
+            max-height: 0;
+            opacity: 0;
+        }
+
+        .channels-list.expanded {
+            max-height: 2000px;
+            opacity: 1;
+        }
+
         .group-stats {
             color: var(--text-secondary);
             font-size: 0.9rem;
@@ -192,11 +241,6 @@
             background: #777;
             border-color: #777;
             color: white;
-        }
-
-        .channels-list {
-            display: grid;
-            gap: 12px;
         }
 
         .channel-item {
@@ -378,6 +422,12 @@
                 flex-direction: column;
                 align-items: flex-start;
                 gap: 12px;
+            }
+
+            .group-actions {
+                width: 100%;
+                justify-content: flex-start;
+                flex-wrap: wrap;
             }
 
             .channel-item {
@@ -871,6 +921,11 @@
 
             emptyState.style.display = 'none';
             container.innerHTML = channelGroups.map(group => renderChannelGroup(group)).join('');
+            
+            // Initialize collapse states after rendering
+            setTimeout(() => {
+                initializeChannelGroupStates();
+            }, 50);
         }
 
         function renderChannelGroup(group) {
@@ -884,16 +939,21 @@
             return `
                 <div class="channel-group">
                     <div class="group-header">
-                        <div>
+                        <div class="group-title-container">
+                            <button class="collapse-btn" onclick="toggleChannelList(${group.id})">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <polyline points="9 6 15 12 9 18"/>
+                                </svg>
+                            </button>
                             <div class="group-title">
                                 ${icon} ${group.name}
                                 ${autoDeleteBadge}
                                 ${likesIncludedBadge}
                             </div>
-                            <div class="group-stats">
-                                ${group.channel_count} channels, ${group.total_tracks} tracks
-                                • ${formatPlayOrder(group.play_order)} order
-                            </div>
+                        </div>
+                        <div class="group-stats">
+                            ${group.channel_count} channels, ${group.total_tracks} tracks
+                            • ${formatPlayOrder(group.play_order)} order
                         </div>
                         <div class="group-actions">
                             <button class="btn" onclick="showAddChannelModal(${group.id})">
@@ -926,7 +986,7 @@
                             `}
                         </div>
                     </div>
-                    <div class="channels-list" id="channels-${group.id}">
+                    <div class="channels-list collapsed" id="channels-${group.id}">
                         ${renderChannelsForGroup(group.id)}
                     </div>
                 </div>
@@ -1105,6 +1165,50 @@
             } catch (error) {
                 alert('Request failed: ' + error.message);
             }
+        }
+
+        function toggleChannelList(groupId) {
+            const channelsList = document.getElementById(`channels-${groupId}`);
+            const collapseBtn = document.querySelector(`[onclick="toggleChannelList(${groupId})"]`);
+            const isCollapsed = channelsList.classList.contains('collapsed');
+
+            if (isCollapsed) {
+                channelsList.classList.remove('collapsed');
+                channelsList.classList.add('expanded');
+                collapseBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>';
+                // Save expanded state to localStorage
+                localStorage.setItem(`channelGroup_${groupId}_expanded`, 'true');
+            } else {
+                channelsList.classList.remove('expanded');
+                channelsList.classList.add('collapsed');
+                collapseBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 6 15 12 9 18"/></svg>';
+                // Save collapsed state to localStorage
+                localStorage.setItem(`channelGroup_${groupId}_expanded`, 'false');
+            }
+        }
+
+        function initializeChannelGroupStates() {
+            // Initialize collapse states for all groups
+            channelGroups.forEach(group => {
+                const channelsList = document.getElementById(`channels-${group.id}`);
+                const collapseBtn = document.querySelector(`[onclick="toggleChannelList(${group.id})"]`);
+                
+                if (channelsList && collapseBtn) {
+                    // Check if user has a saved preference, otherwise default to collapsed
+                    const savedState = localStorage.getItem(`channelGroup_${group.id}_expanded`);
+                    const isExpanded = savedState === 'true';
+                    
+                    if (isExpanded) {
+                        channelsList.classList.remove('collapsed');
+                        channelsList.classList.add('expanded');
+                        collapseBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>';
+                    } else {
+                        channelsList.classList.remove('expanded');
+                        channelsList.classList.add('collapsed');
+                        collapseBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 6 15 12 9 18"/></svg>';
+                    }
+                }
+            });
         }
 
         // Initialize page
