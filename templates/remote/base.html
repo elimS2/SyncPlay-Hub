@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>📱 Remote Control - SyncPlay-Hub</title>
+  <!-- Favicon using emoji -->
+  <link rel="icon" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='0.9em' font-size='90'>📱</text></svg>">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/remote.css') }}">
+</head>
+<body>
+  <div class="remote-container">
+    {% include 'remote/components/header.html' %}
+    {% include 'remote/components/track_info.html' %}
+    {% include 'remote/components/controls.html' %}
+    {% include 'remote/components/volume.html' %}
+  </div>
+
+  <script>
+    // Pass server variables to external JavaScript
+    window.SERVER_IP = "{{ server_ip }}";
+    window.SERVER_PORT = "{{ request.environ.get('SERVER_PORT', '8000') }}";
+  </script>
+  <script src="{{ url_for('static', filename='js/remote.js') }}"></script>
+</body>
+</html> 
