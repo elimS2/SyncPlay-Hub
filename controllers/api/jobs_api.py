@@ -357,4 +357,45 @@ def api_get_job_logs(job_id: int):
             "traceback": traceback.format_exc()
         }), 500
 
+@jobs_bp.route("/jobs/clear_queue", methods=["POST"])
+def api_clear_job_queue():
+    """Clear all pending jobs from the queue."""
+    try:
+        data = request.get_json() or {}
+        confirm = data.get('confirm', False)
+        
+        # Require confirmation for safety
+        if not confirm:
+            return jsonify({
+                "status": "error", 
+                "error": "Confirmation required to clear job queue"
+            }), 400
+        
+        # Get job queue service
+        service = get_job_queue_service()
+        
+        # Get pending jobs count before clearing
+        pending_jobs = service.get_jobs(status=JobStatus.PENDING, limit=1000)
+        pending_count = len(pending_jobs)
+        
+        # Clear all pending jobs
+        cleared_count = 0
+        for job in pending_jobs:
+            success, message = service.cancel_job(job.id)
+            if success:
+                cleared_count += 1
+        
+        log_message(f"[Jobs API] Cleared {cleared_count}/{pending_count} pending jobs from queue")
+        
+        return jsonify({
+            "status": "ok",
+            "message": f"Cleared {cleared_count} pending jobs from queue",
+            "cleared_count": cleared_count,
+            "total_pending": pending_count
+        })
+        
+    except Exception as e:
+        log_message(f"[Jobs API] Error clearing job queue: {e}")
+        return jsonify({"status": "error", "error": str(e)}), 500
+
  

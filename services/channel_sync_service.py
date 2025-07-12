@@ -677,6 +677,25 @@ class ChannelSyncService:
                                     'availability': availability
                                 })
                                 
+                                # Save metadata to database for later use by scan_to_db.py
+                                try:
+                                    from utils.metadata_utils import save_video_metadata_from_entry
+                                    
+                                    # Save metadata using common utility function
+                                    success = save_video_metadata_from_entry(
+                                        entry=entry,
+                                        channel_url=channel['url'],  # Use original channel URL
+                                        logger_func=lambda msg: log_message(f"[Quick Sync] {msg}")
+                                    )
+                                    
+                                    if success:
+                                        log_message(f"[Quick Sync] Saved metadata for: {video_title[:50]}...")
+                                    else:
+                                        log_message(f"[Quick Sync] Warning: Failed to save metadata for {video_id}")
+                                        
+                                except Exception as e:
+                                    log_message(f"[Quick Sync] Warning: Failed to save metadata for {video_id}: {e}")
+                                
                                 log_message(f"[Quick Sync] Will download: {video_title[:50]}... ({pub_date or 'unknown date'})")
                     
                     except Exception as e:

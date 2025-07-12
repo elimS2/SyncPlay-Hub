@@ -88,6 +88,39 @@ def api_backups():
     except Exception as exc:
         return jsonify({"status": "error", "message": str(exc)}), 500
 
+@base_bp.route("/database/maintenance", methods=["POST"])
+def api_database_maintenance():
+    """Run database maintenance operations."""
+    try:
+        log_message("Starting database maintenance...")
+        
+        # Import database optimizer
+        from utils.database_optimizer import DatabaseOptimizer
+        
+        # Create optimizer instance
+        optimizer = DatabaseOptimizer()
+        
+        # Run maintenance with force=True to execute immediately
+        result = optimizer.run_maintenance(force=True)
+        
+        if result.get('success', False):
+            log_message(f"Database maintenance completed successfully in {result.get('duration', 0):.2f}s")
+            return jsonify({
+                "status": "ok",
+                "message": "Database maintenance completed successfully",
+                "details": result
+            })
+        else:
+            log_message(f"Database maintenance failed: {result.get('reason', 'Unknown error')}")
+            return jsonify({
+                "status": "error",
+                "message": result.get('reason', 'Database maintenance failed')
+            }), 500
+            
+    except Exception as exc:
+        log_message(f"Database maintenance error: {exc}")
+        return jsonify({"status": "error", "message": str(exc)}), 500
+
 @base_bp.route("/event", methods=["POST"])
 def api_event():
     """Record playback events."""

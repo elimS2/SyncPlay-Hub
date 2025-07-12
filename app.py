@@ -542,6 +542,20 @@ def settings_page():
         log_message(f"Settings load error: {e}")
         return render_template("settings.html", delay_seconds=0, error="Failed to load settings", env_config=env_config, server_info=server_info)
 
+@app.route("/maintenance")
+def maintenance_page():
+    """System maintenance page."""
+    # Calculate uptime for server info
+    uptime = datetime.datetime.now() - SERVER_START_TIME
+    uptime_str = str(uptime).split('.')[0]  # Remove microseconds
+    server_info = {
+        'pid': os.getpid(),
+        'start_time': SERVER_START_TIME.strftime('%Y-%m-%d %H:%M:%S'),
+        'uptime': uptime_str
+    }
+    
+    return render_template("maintenance.html", server_info=server_info)
+
 @app.route("/likes")
 def likes_playlists_page():
     """Virtual playlists by likes page."""

@@ -17,6 +17,8 @@ from .remote_api import remote_bp
 from .channels_api import channels_bp
 from .jobs_api import jobs_bp
 from .backup_api import backup_bp
+from .metadata_api import metadata_bp
+from .cleanup_api import cleanup_bp
 
 # Create main API blueprint
 api_bp = Blueprint('api', __name__, url_prefix='/api')
@@ -33,6 +35,8 @@ api_bp.register_blueprint(remote_bp)
 api_bp.register_blueprint(channels_bp)
 api_bp.register_blueprint(jobs_bp)
 api_bp.register_blueprint(backup_bp)
+api_bp.register_blueprint(metadata_bp)
+api_bp.register_blueprint(cleanup_bp)
 
 def init_api_router(root_dir):
     """Initialize the API router with root directory."""
