@@ -115,6 +115,74 @@
     text-align: center;
   }
 
+  /* Dropdown Menu Styles */
+  .nav-dropdown {
+    position: relative;
+  }
+
+  .dropdown-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    cursor: pointer;
+  }
+
+  .dropdown-arrow {
+    transition: transform 0.3s ease;
+    margin-left: auto;
+  }
+
+  .nav-dropdown.open .dropdown-arrow {
+    transform: rotate(180deg);
+  }
+
+  .nav-submenu {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.3s ease;
+    background: var(--bg-primary);
+  }
+
+  .nav-dropdown.open .nav-submenu {
+    max-height: 400px;
+  }
+
+  .nav-subitem {
+    margin-bottom: 1px;
+  }
+
+  .nav-sublink {
+    display: flex;
+    align-items: center;
+    padding: 10px 20px 10px 52px;
+    color: var(--text-secondary);
+    text-decoration: none;
+    transition: all 0.2s ease;
+    font-size: 13px;
+    font-weight: 400;
+    border-left: 3px solid transparent;
+  }
+
+  .nav-sublink:hover {
+    background: var(--bg-hover);
+    color: var(--accent);
+    border-left-color: var(--accent);
+  }
+
+  .nav-sublink.active {
+    background: var(--bg-hover);
+    color: var(--accent);
+    border-left-color: var(--accent);
+  }
+
+  .nav-sublink .nav-icon {
+    width: 16px;
+    margin-right: 10px;
+  }
+
   /* Main Content */
   .main-content {
     flex: 1;
