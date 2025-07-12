@@ -116,7 +116,7 @@ def api_remote_volume():
 @remote_bp.route("/remote/like", methods=["POST"])
 def api_remote_like():
     """Like current track."""
-    global PLAYER_STATE
+    global PLAYER_STATE, COMMAND_QUEUE
     if PLAYER_STATE['current_track'] and 'video_id' in PLAYER_STATE['current_track']:
         video_id = PLAYER_STATE['current_track']['video_id']
         
@@ -125,6 +125,17 @@ def api_remote_like():
             conn = get_connection()
             record_event(conn, video_id, 'like', position=PLAYER_STATE['progress'])
             conn.close()
+            
+            # Update like state in PLAYER_STATE
+            PLAYER_STATE['like_active'] = True
+            PLAYER_STATE['dislike_active'] = False  # Reset dislike when liking
+            PLAYER_STATE['last_update'] = time.time()
+            
+            # Add command to queue for player synchronization
+            COMMAND_QUEUE.append({
+                'type': 'like',
+                'timestamp': time.time()
+            })
             
             log_message(f"[Remote] Liked track: {PLAYER_STATE['current_track'].get('name', 'Unknown')}")
             return jsonify({"status": "ok"})
@@ -138,7 +149,7 @@ def api_remote_like():
 @remote_bp.route("/remote/dislike", methods=["POST"])
 def api_remote_dislike():
     """Dislike current track."""
-    global PLAYER_STATE
+    global PLAYER_STATE, COMMAND_QUEUE
     if PLAYER_STATE['current_track'] and 'video_id' in PLAYER_STATE['current_track']:
         video_id = PLAYER_STATE['current_track']['video_id']
         
@@ -147,6 +158,17 @@ def api_remote_dislike():
             conn = get_connection()
             record_event(conn, video_id, 'dislike', position=PLAYER_STATE['progress'])
             conn.close()
+            
+            # Update dislike state in PLAYER_STATE
+            PLAYER_STATE['dislike_active'] = True
+            PLAYER_STATE['like_active'] = False  # Reset like when disliking
+            PLAYER_STATE['last_update'] = time.time()
+            
+            # Add command to queue for player synchronization
+            COMMAND_QUEUE.append({
+                'type': 'dislike',
+                'timestamp': time.time()
+            })
             
             log_message(f"[Remote] Disliked track: {PLAYER_STATE['current_track'].get('name', 'Unknown')}")
             return jsonify({"status": "ok"})

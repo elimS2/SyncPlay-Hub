@@ -34,7 +34,9 @@ PLAYER_STATE = {
     'current_index': -1,
     'last_update': None,
     'player_type': None,  # 'regular' or 'virtual'
-    'player_source': None  # Track which player is active
+    'player_source': None,  # Track which player is active
+    'like_active': False,  # Like button state for current session
+    'dislike_active': False  # Dislike button state for current session
 }
 
 # Command queue for remote control

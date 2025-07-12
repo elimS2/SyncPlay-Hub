@@ -640,3 +640,5 @@ def api_get_playlist_settings():
     except Exception as e:
         log_message(f"[Playlist Settings] Error getting settings: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500 
+
+ 

@@ -1498,6 +1498,13 @@ const cDislike = document.getElementById('cDislike');
   async function syncRemoteState() {
     try {
       const currentTrack = currentIndex >= 0 && currentIndex < queue.length ? queue[currentIndex] : null;
+      
+      // Get current like/dislike button states
+      const likeButton = document.getElementById('cLike');
+      const dislikeButton = document.getElementById('cDislike');
+      const likeActive = likeButton ? likeButton.classList.contains('like-active') : false;
+      const dislikeActive = dislikeButton ? dislikeButton.classList.contains('dislike-active') : false;
+      
       const playerState = {
         current_track: currentTrack,
         playing: !media.paused && currentTrack !== null,
@@ -1507,7 +1514,9 @@ const cDislike = document.getElementById('cDislike');
         current_index: currentIndex,
         last_update: Date.now() / 1000,
         player_type: 'virtual',
-        player_source: window.location.pathname
+        player_source: window.location.pathname,
+        like_active: likeActive,
+        dislike_active: dislikeActive
       };
       
       console.log('🎮 Syncing remote state:', {
@@ -1569,11 +1578,25 @@ const cDislike = document.getElementById('cDislike');
         case 'next':
           console.log('🎮 [Remote] Next track');
           nextTrack();
+          // Reset like buttons when track changes
+          setTimeout(() => {
+            const likeBtn = document.getElementById('cLike');
+            const dislikeBtn = document.getElementById('cDislike');
+            if (likeBtn) likeBtn.classList.remove('like-active');
+            if (dislikeBtn) dislikeBtn.classList.remove('dislike-active');
+          }, 100);
           break;
           
         case 'prev':
           console.log('🎮 [Remote] Previous track');
           prevTrack();
+          // Reset like buttons when track changes
+          setTimeout(() => {
+            const likeBtn = document.getElementById('cLike');
+            const dislikeBtn = document.getElementById('cDislike');
+            if (likeBtn) likeBtn.classList.remove('like-active');
+            if (dislikeBtn) dislikeBtn.classList.remove('dislike-active');
+          }, 100);
           break;
           
         case 'stop':
@@ -1652,8 +1675,42 @@ const cDislike = document.getElementById('cDislike');
       
       // Sync state after command execution
       setTimeout(syncRemoteState, 200);
+      
+      // Sync like buttons with remote state
+      setTimeout(syncLikeButtonsWithRemote, 300);
     } catch (error) {
       console.error('🎮 [Remote] Error executing command:', error);
+    }
+  }
+  
+  // Function to sync like buttons with remote state
+  async function syncLikeButtonsWithRemote() {
+    try {
+      const response = await fetch('/api/remote/status');
+      if (response.ok) {
+        const status = await response.json();
+        
+        const likeButton = document.getElementById('cLike');
+        const dislikeButton = document.getElementById('cDislike');
+        
+        if (likeButton && status.like_active !== undefined) {
+          if (status.like_active) {
+            likeButton.classList.add('like-active');
+          } else {
+            likeButton.classList.remove('like-active');
+          }
+        }
+        
+        if (dislikeButton && status.dislike_active !== undefined) {
+          if (status.dislike_active) {
+            dislikeButton.classList.add('dislike-active');
+          } else {
+            dislikeButton.classList.remove('dislike-active');
+          }
+        }
+      }
+    } catch (error) {
+      console.warn('Failed to sync like buttons with remote:', error);
     }
   }
   
@@ -1899,4 +1956,96 @@ const cDislike = document.getElementById('cDislike');
   
   // Tooltip system will be initialized in renderList() after tracks are rendered
   
+  // ==============================
+  // LIKE SYNCHRONIZATION
+  // ==============================
+  
+  // Function to sync likes after like/dislike actions (session-based only)
+  async function syncLikesAfterAction(video_id, action) {
+    console.log(`🎵 [Like Sync] Syncing likes after ${action} for ${video_id}`);
+    
+    // Just sync remote state to update remote control
+    setTimeout(async () => {
+      await syncRemoteState();
+    }, 200);
+  }
+  
+  // Override existing like/dislike button handlers to include sync
+  function setupLikeSyncHandlers() {
+    const likeButton = document.getElementById('cLike');
+    const dislikeButton = document.getElementById('cDislike');
+    
+    if (likeButton) {
+      // Store original handler
+      const originalLikeHandler = likeButton.onclick;
+      
+      likeButton.onclick = async function(e) {
+        // Call original handler
+        if (originalLikeHandler) {
+          originalLikeHandler.call(this, e);
+        }
+        
+        // Sync likes after action
+        const currentTrack = currentIndex >= 0 && currentIndex < queue.length ? queue[currentIndex] : null;
+        if (currentTrack && currentTrack.video_id) {
+          await syncLikesAfterAction(currentTrack.video_id, 'like');
+        }
+      };
+    }
+    
+    if (dislikeButton) {
+      // Store original handler
+      const originalDislikeHandler = dislikeButton.onclick;
+      
+      dislikeButton.onclick = async function(e) {
+        // Call original handler
+        if (originalDislikeHandler) {
+          originalDislikeHandler.call(this, e);
+        }
+        
+        // Sync likes after action
+        const currentTrack = currentIndex >= 0 && currentIndex < queue.length ? queue[currentIndex] : null;
+        if (currentTrack && currentTrack.video_id) {
+          await syncLikesAfterAction(currentTrack.video_id, 'dislike');
+        }
+      };
+    }
+  }
+  
+  // Initialize like sync when page loads
+  window.addEventListener('DOMContentLoaded', function() {
+    console.log('🎵 [Like Sync] Initializing like synchronization...');
+    setupLikeSyncHandlers();
+    
+    // Start periodic sync with remote control for likes
+    setInterval(async () => {
+      if (typeof syncLikeButtonsWithRemote === 'function') {
+        await syncLikeButtonsWithRemote();
+      }
+    }, 3000); // Check every 3 seconds
+  });
+  
+  // Override loadTrack to reset like buttons when track changes
+  const originalLoadTrack = loadTrack;
+  window.loadTrack = function(idx, autoplay = false) {
+    // Call original function
+    originalLoadTrack.call(this, idx, autoplay);
+    
+    // Reset like buttons for new track (session-based)
+    const likeButton = document.getElementById('cLike');
+    const dislikeButton = document.getElementById('cDislike');
+    
+    if (likeButton) {
+      likeButton.classList.remove('like-active');
+    }
+    if (dislikeButton) {
+      dislikeButton.classList.remove('dislike-active');
+    }
+    
+    // Sync remote state after track change to update button states
+    setTimeout(() => {
+      syncRemoteState();
+    }, 200);
+  };
+
   })(); 

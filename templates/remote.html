@@ -577,15 +577,23 @@
         this.playBtn.addEventListener('click', () => this.sendCommand('play'));
         this.nextBtn.addEventListener('click', () => this.sendCommand('next'));
         this.shuffleBtn.addEventListener('click', () => this.sendCommand('shuffle'));
-        this.likeBtn.addEventListener('click', () => {
-          // Toggle like state immediately for better UX
-          this.likeBtn.classList.toggle('like-active');
-          this.sendCommand('like');
+        this.likeBtn.addEventListener('click', async () => {
+          // Send command and wait for sync (no immediate toggle)
+          await this.sendCommand('like');
+          
+          // Sync likes after action with longer delay to allow processing
+          if (this.currentStatus && this.currentStatus.current_track && this.currentStatus.current_track.video_id) {
+            await this.syncLikesAfterAction(this.currentStatus.current_track.video_id, 'like');
+          }
         });
-        this.dislikeBtn.addEventListener('click', () => {
-          // Toggle dislike state immediately for better UX
-          this.dislikeBtn.classList.toggle('dislike-active');
-          this.sendCommand('dislike');
+        this.dislikeBtn.addEventListener('click', async () => {
+          // Send command and wait for sync (no immediate toggle)
+          await this.sendCommand('dislike');
+          
+          // Sync likes after action with longer delay to allow processing
+          if (this.currentStatus && this.currentStatus.current_track && this.currentStatus.current_track.video_id) {
+            await this.syncLikesAfterAction(this.currentStatus.current_track.video_id, 'dislike');
+          }
         });
         this.youtubeBtn.addEventListener('click', () => this.sendCommand('youtube'));
         this.stopBtn.addEventListener('click', () => this.sendCommand('stop'));
@@ -756,6 +764,23 @@
           this.dislikeBtn.classList.remove('dislike-active');
         }
         
+        // Sync like/dislike button states from player
+        if (status.like_active !== undefined) {
+          if (status.like_active) {
+            this.likeBtn.classList.add('like-active');
+          } else {
+            this.likeBtn.classList.remove('like-active');
+          }
+        }
+        
+        if (status.dislike_active !== undefined) {
+          if (status.dislike_active) {
+            this.dislikeBtn.classList.add('dislike-active');
+          } else {
+            this.dislikeBtn.classList.remove('dislike-active');
+          }
+        }
+        
         // Update track info
         if (status.current_track) {
           const track = status.current_track;
@@ -823,13 +848,25 @@
       
       updateConnectionStatus(connected) {
         this.connected = connected;
-        this.statusDot.classList.toggle('connected', connected);
+        this.statusDot.className = connected ? 'status-dot connected' : 'status-dot disconnected';
         this.statusText.textContent = connected ? 'Connected' : 'Disconnected';
         
-        // Disable controls when disconnected
-        const controls = [this.prevBtn, this.playBtn, this.nextBtn, this.shuffleBtn, 
-                         this.likeBtn, this.youtubeBtn, this.stopBtn, this.fullscreenBtn];
-        controls.forEach(btn => btn.classList.toggle('disabled', !connected));
+        // Update last sync time
+        this.lastSync.textContent = new Date().toLocaleTimeString();
+      }
+      
+      // ==============================
+      // LIKE SYNCHRONIZATION
+      // ==============================
+      
+      // Function to sync likes after like/dislike actions (session-based only)
+      async syncLikesAfterAction(video_id, action) {
+        console.log(`📱 [Remote Like Sync] Syncing likes after ${action} for ${video_id}`);
+        
+        // Just sync status to update remote control with longer delay
+        setTimeout(async () => {
+          await this.syncStatus();
+        }, 800);
       }
       
       formatTime(seconds) {
@@ -840,13 +877,21 @@
       }
       
       startSync() {
+        console.log('📱 Remote: Starting sync...');
+        
         // Initial sync
         this.syncStatus();
         
-        // Regular sync every 2 seconds
+        // Set up periodic sync
         this.syncInterval = setInterval(() => {
           this.syncStatus();
         }, 2000);
+        
+        // Set up server info update
+        this.updateServerInfo();
+        setInterval(() => {
+          this.updateServerInfo();
+        }, 30000);
       }
     }
     
