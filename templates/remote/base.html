@@ -21,6 +21,14 @@
     window.SERVER_IP = "{{ server_ip }}";
     window.SERVER_PORT = "{{ request.environ.get('SERVER_PORT', '8000') }}";
   </script>
+  
+  <!-- Remote Control Modules (load in dependency order) -->
+  <script src="{{ url_for('static', filename='js/modules/toast-notifications.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/modules/keep-awake.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/modules/volume-control.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/modules/remote-control.js') }}"></script>
+  
+  <!-- Main entry point and coordinator -->
   <script src="{{ url_for('static', filename='js/remote.js') }}"></script>
 </body>
 </html> 
