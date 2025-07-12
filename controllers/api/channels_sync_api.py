@@ -138,3 +138,100 @@ def api_sync_channel(channel_id: int):
     except Exception as e:
         log_message(f"[Channels] Error syncing channel: {e}")
         return jsonify({"status": "error", "error": str(e)}), 500 
+
+
+@channels_sync_bp.route("/quick_sync_channel/<int:channel_id>", methods=["POST"])
+def api_quick_sync_channel(channel_id: int):
+    """Quick sync individual channel - creates a job in the queue for optimized processing."""
+    try:
+        conn = get_connection()
+        
+        # Get channel info
+        channel_raw = db.get_channel_by_id(conn, channel_id)
+        if not channel_raw:
+            conn.close()
+            return jsonify({"status": "error", "error": "Channel not found"}), 404
+        
+        # Convert to dict for easier access
+        channel = dict(channel_raw)
+        
+        # Get group info
+        group_raw = db.get_channel_group_by_id(conn, channel['channel_group_id'])
+        group = dict(group_raw) if group_raw else None
+        
+        conn.close()
+        
+        # Create quick sync job in queue
+        try:
+            from services.job_queue_service import get_job_queue_service
+            from services.job_types import JobType, JobPriority
+            
+            # Get job service
+            job_service = get_job_queue_service()
+            
+            # Create quick sync job with high priority
+            job_id = job_service.create_and_add_job(
+                JobType.QUICK_SYNC,
+                priority=JobPriority.HIGH,
+                channel_id=channel_id,
+                channel_name=channel['name'],
+                channel_url=channel['url'],
+                group_name=group['name'] if group else None
+            )
+            
+            log_message(f"[Quick Sync API] Created quick sync job #{job_id} for channel '{channel['name']}'")
+            
+            return jsonify({
+                "status": "started",
+                "message": f"Quick sync job created for channel '{channel['name']}'. Job #{job_id} added to queue.",
+                "job_id": job_id,
+                "channel_name": channel['name'],
+                "channel_id": channel_id,
+                "process": "quick_sync_queued"
+            })
+            
+        except ImportError:
+            # Fallback if job queue not available
+            log_message(f"[Quick Sync API] Job Queue System not available, falling back to immediate execution")
+            
+            # Use ChannelSyncService for immediate execution (fallback)
+            sync_service = ChannelSyncService()
+            result = sync_service.quick_sync_channel_core(channel_id=channel_id)
+            
+            # Log the operation
+            if result.get('status') == 'started':
+                log_message(f"[Quick Sync API] Started quick sync for channel '{channel['name']}' with {result.get('new_videos', 0)} new videos")
+            elif result.get('status') == 'up_to_date':
+                log_message(f"[Quick Sync API] Channel '{channel['name']}' is up to date")
+            else:
+                log_message(f"[Quick Sync API] Quick sync failed for channel '{channel['name']}': {result.get('error', 'Unknown error')}")
+            
+            return jsonify(result)
+        
+    except Exception as e:
+        log_message(f"[Quick Sync API] Error creating quick sync job: {e}")
+        return jsonify({"status": "error", "error": str(e)}), 500
+
+
+@channels_sync_bp.route("/quick_sync_channel_group/<int:group_id>", methods=["POST"])
+def api_quick_sync_channel_group(group_id: int):
+    """Quick sync all channels in a group - creates QUICK_SYNC jobs for all channels."""
+    try:
+        # Use ChannelSyncService for quick sync business logic
+        sync_service = ChannelSyncService()
+        
+        # Execute quick sync for the entire group
+        result = sync_service.quick_sync_channel_group(group_id=group_id)
+        
+        # Log the operation
+        if result.get('status') == 'started':
+            log_message(f"[Quick Sync Group API] Started quick sync for group '{result.get('group_name')}' with {result.get('jobs_created', 0)} jobs")
+        else:
+            log_message(f"[Quick Sync Group API] Quick sync group failed: {result.get('error', 'Unknown error')}")
+        
+        # Return result from service layer (already contains proper HTTP response format)
+        return jsonify(result)
+        
+    except Exception as e:
+        log_message(f"[Quick Sync Group API] Error quick syncing channel group: {e}")
+        return jsonify({"status": "error", "error": str(e)}), 500 

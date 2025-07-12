@@ -48,6 +48,7 @@ class JobType(Enum):
     CHANNEL_SYNC = "channel_sync"
     PLAYLIST_SYNC = "playlist_sync"
     LIBRARY_SCAN = "library_scan"
+    QUICK_SYNC = "quick_sync"
     
     # System tasks
     DATABASE_BACKUP = "database_backup"
@@ -626,6 +627,11 @@ JOB_TYPE_CONFIGS = {
         'timeout_seconds': 1200,  # 20 minutes
         'max_retries': 2,
         'priority': JobPriority.URGENT
+    },
+    JobType.QUICK_SYNC: {
+        'timeout_seconds': 300,   # 5 minutes
+        'max_retries': 2,
+        'priority': JobPriority.HIGH
     }
 }
 

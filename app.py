@@ -651,7 +651,7 @@ def main():
     
     # Initialize and start Job Queue Service
     from services.job_queue_service import get_job_queue_service
-    from services.job_workers import ChannelDownloadWorker, MetadataExtractionWorker, CleanupWorker, PlaylistDownloadWorker, BackupWorker
+    from services.job_workers import ChannelDownloadWorker, MetadataExtractionWorker, CleanupWorker, PlaylistDownloadWorker, BackupWorker, QuickSyncWorker
     
     # Force reload the single video metadata worker to ensure latest code
     import importlib
@@ -670,6 +670,7 @@ def main():
         job_service.register_worker(PlaylistDownloadWorker())
         job_service.register_worker(BackupWorker())
         job_service.register_worker(SingleVideoMetadataWorker())
+        job_service.register_worker(QuickSyncWorker())
         
         # Start the service
         job_service.start()

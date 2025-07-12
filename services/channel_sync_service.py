@@ -386,6 +386,394 @@ class ChannelSyncService:
         # TODO: This will be implemented in Step 2.1
         # Will iterate through channels and call sync_single_channel_core for each
         pass
+    
+    def quick_sync_channel_group(
+        self,
+        group_id: int
+    ) -> Dict[str, Any]:
+        """
+        Quick sync all channels in a group.
+        
+        Creates QUICK_SYNC jobs for all channels in the group. Each job will process
+        channels individually with optimized metadata fetching.
+        
+        Args:
+            group_id: ID of the channel group to quick sync
+            
+        Returns:
+            Dict with sync result: {"status": "started", "message": "...", "jobs_created": 5}
+        """
+        try:
+            conn = get_connection()
+            
+            # Get group info
+            group_raw = db.get_channel_group_by_id(conn, group_id)
+            if not group_raw:
+                conn.close()
+                return {"status": "error", "error": "Channel group not found"}
+            
+            group = dict(group_raw)
+            
+            # Get channels in group
+            channels_raw = db.get_channels_by_group(conn, group_id)
+            if not channels_raw:
+                conn.close()
+                return {"status": "error", "error": "No channels found in group"}
+            
+            channels = [dict(channel) for channel in channels_raw]
+            conn.close()
+            
+            log_message(f"[Quick Sync Group] Starting quick sync for group: {group['name']}")
+            log_message(f"[Quick Sync Group] Found {len(channels)} channels to process")
+            
+            # Create quick sync jobs for all channels
+            try:
+                from services.job_queue_service import get_job_queue_service
+                from services.job_types import JobType, JobPriority
+                
+                job_service = get_job_queue_service()
+                
+                created_jobs = []
+                failed_jobs = 0
+                
+                for channel in channels:
+                    try:
+                        # Create quick sync job with high priority
+                        job_id = job_service.create_and_add_job(
+                            JobType.QUICK_SYNC,
+                            priority=JobPriority.HIGH,
+                            channel_id=channel['id'],
+                            channel_name=channel['name'],
+                            channel_url=channel['url'],
+                            group_name=group['name']
+                        )
+                        
+                        created_jobs.append({
+                            'job_id': job_id,
+                            'channel_id': channel['id'],
+                            'channel_name': channel['name']
+                        })
+                        
+                        log_message(f"[Quick Sync Group] Created job #{job_id} for channel: {channel['name']}")
+                        
+                    except Exception as e:
+                        failed_jobs += 1
+                        log_message(f"[Quick Sync Group] Failed to create job for channel {channel['name']}: {e}")
+                
+                log_message(f"[Quick Sync Group] Quick sync group completed:")
+                log_message(f"[Quick Sync Group]   - Jobs created: {len(created_jobs)}")
+                log_message(f"[Quick Sync Group]   - Failed to create: {failed_jobs}")
+                
+                return {
+                    "status": "started",
+                    "message": f"Quick sync started for {len(created_jobs)} channels in group '{group['name']}'",
+                    "group_name": group['name'],
+                    "group_id": group_id,
+                    "channels_count": len(channels),
+                    "jobs_created": len(created_jobs),
+                    "failed_jobs": failed_jobs,
+                    "created_jobs": created_jobs,
+                    "process": "quick_sync_group_queued"
+                }
+                
+            except ImportError:
+                # Fallback if job queue not available
+                log_message(f"[Quick Sync Group] Job Queue System not available, falling back to sequential execution")
+                
+                # Sequential execution as fallback
+                def _group_sync_worker():
+                    try:
+                        success_count = 0
+                        failed_count = 0
+                        
+                        for channel in channels:
+                            try:
+                                # Execute quick sync directly for each channel
+                                result = self.quick_sync_channel_core(channel['id'])
+                                
+                                if result.get('status') in ['started', 'up_to_date']:
+                                    success_count += 1
+                                    if result.get('status') == 'started':
+                                        log_message(f"[Quick Sync Group] Channel {channel['name']}: {result.get('new_videos', 0)} new videos")
+                                    else:
+                                        log_message(f"[Quick Sync Group] Channel {channel['name']}: up to date")
+                                else:
+                                    failed_count += 1
+                                    log_message(f"[Quick Sync Group] Channel {channel['name']} failed: {result.get('error', 'Unknown error')}")
+                                    
+                            except Exception as e:
+                                failed_count += 1
+                                log_message(f"[Quick Sync Group] Error quick syncing channel {channel['name']}: {e}")
+                        
+                        log_message(f"[Quick Sync Group] Completed group '{group['name']}': {success_count} channels processed, {failed_count} failed")
+                        
+                    except Exception as e:
+                        log_message(f"[Quick Sync Group] Error quick syncing group '{group['name']}': {e}")
+                
+                # Start sync in background
+                import threading
+                sync_thread = threading.Thread(target=_group_sync_worker, daemon=True)
+                sync_thread.start()
+                
+                return {
+                    "status": "started",
+                    "message": f"Quick sync started for {len(channels)} channels in group '{group['name']}' (fallback method)",
+                    "group_name": group['name'],
+                    "group_id": group_id,
+                    "channels_count": len(channels),
+                    "process": "quick_sync_group_fallback"
+                }
+                
+        except Exception as e:
+            log_message(f"[Quick Sync Group] Error quick syncing channel group: {e}")
+            return {"status": "error", "error": str(e)}
+    
+    def quick_sync_channel_core(
+        self,
+        channel_id: int
+    ) -> Dict[str, Any]:
+        """
+        Quick sync logic for a single channel.
+        
+        Fetches metadata directly from YouTube starting from the newest videos,
+        and stops when it reaches already downloaded content. This is much more
+        efficient than full metadata extraction.
+        
+        Args:
+            channel_id: ID of the channel to quick sync
+            
+        Returns:
+            Dict with sync result: {"status": "started", "message": "...", "new_videos": 5}
+        """
+        try:
+            conn = get_connection()
+            
+            # Get channel info
+            channel_raw = db.get_channel_by_id(conn, channel_id)
+            if not channel_raw:
+                conn.close()
+                return {"status": "error", "error": "Channel not found"}
+            
+            channel = dict(channel_raw)
+            
+            # Get group info
+            group_raw = db.get_channel_group_by_id(conn, channel['channel_group_id'])
+            group = dict(group_raw) if group_raw else None
+            
+            conn.close()
+            
+            log_message(f"[Quick Sync] Starting quick sync for channel: {channel['name']}")
+            log_message(f"[Quick Sync] Channel URL: {channel['url']}")
+            
+            # Step 1: Get latest videos metadata directly from YouTube in batches
+            try:
+                from utils.cookies_manager import get_cookies_for_download
+                from yt_dlp import YoutubeDL
+                
+                # Get cookies configuration
+                cookies_path, use_browser = get_cookies_for_download(None, False)
+                
+                # Setup yt-dlp options for metadata extraction
+                common_cookies = ({"cookiefile": cookies_path} if cookies_path else {})
+                if use_browser and not cookies_path:
+                    common_cookies.setdefault("cookiesfrombrowser", ("chrome",))
+                
+                # Configure yt-dlp for quick metadata extraction
+                ydl_opts = {
+                    "quiet": True,
+                    "skip_download": True,
+                    "extract_flat": False,  # We need full metadata for dates
+                    "ignoreerrors": True,
+                    **common_cookies
+                }
+                
+                new_videos_to_download = []
+                batch_size = 5  # Very small batch for ultra-fast detection of already downloaded videos
+                current_batch = 1
+                found_downloaded_video = False
+                
+                log_message(f"[Quick Sync] Fetching metadata in batches of {batch_size} videos...")
+                
+                while not found_downloaded_video and current_batch <= 60:  # Limit to 60 batches (300 videos max)
+                    start_index = (current_batch - 1) * batch_size + 1
+                    end_index = current_batch * batch_size
+                    
+                    log_message(f"[Quick Sync] Processing batch {current_batch}: videos {start_index}-{end_index}")
+                    
+                    # Set playlist items for this batch
+                    ydl_opts["playlist_items"] = f"{start_index}:{end_index}"
+                    
+                    try:
+                        with YoutubeDL(ydl_opts) as ydl:
+                            # Extract metadata for this batch
+                            info = ydl.extract_info(channel['url'], download=False)
+                            
+                            if not info or 'entries' not in info:
+                                log_message(f"[Quick Sync] No videos found in batch {current_batch}")
+                                break
+                            
+                            entries = info.get('entries', [])
+                            if not entries:
+                                log_message(f"[Quick Sync] Empty batch {current_batch}, stopping")
+                                break
+                            
+                            log_message(f"[Quick Sync] Found {len(entries)} videos in batch {current_batch}")
+                            
+                            # Process each video in this batch
+                            for entry in entries:
+                                if not entry:  # Skip None entries
+                                    continue
+                                    
+                                video_id = entry.get('id')
+                                if not video_id:
+                                    continue
+                                
+                                video_title = entry.get('title', f'Video {video_id}')
+                                
+                                # Check if this video is already downloaded
+                                conn = get_connection()
+                                if db.is_track_already_downloaded(conn, video_id):
+                                    log_message(f"[Quick Sync] Found already downloaded video: {video_title[:50]}...")
+                                    log_message(f"[Quick Sync] Stopping here - reached already downloaded content")
+                                    conn.close()
+                                    found_downloaded_video = True
+                                    break
+                                conn.close()
+                                
+                                # Check if video is available for download
+                                availability = entry.get('availability', 'public')
+                                if availability in ['private', 'premium_only', 'subscriber_only']:
+                                    log_message(f"[Quick Sync] Skipping unavailable video: {video_title[:50]}... ({availability})")
+                                    continue
+                                
+                                # Check if it's a short (duration < 60 seconds)
+                                duration = entry.get('duration')
+                                if duration and duration < 60:
+                                    log_message(f"[Quick Sync] Skipping short video: {video_title[:50]}... ({duration}s)")
+                                    continue
+                                
+                                # Check if it's a live stream
+                                live_status = entry.get('live_status')
+                                if live_status in ['is_live', 'is_upcoming']:
+                                    log_message(f"[Quick Sync] Skipping live/upcoming video: {video_title[:50]}... ({live_status})")
+                                    continue
+                                
+                                # Get publication date
+                                timestamp = entry.get('timestamp') or entry.get('release_timestamp')
+                                pub_date = None
+                                if timestamp:
+                                    try:
+                                        from datetime import datetime
+                                        pub_date = datetime.fromtimestamp(timestamp).strftime('%Y-%m-%d')
+                                    except (ValueError, OSError):
+                                        pass
+                                
+                                # This video should be downloaded
+                                new_videos_to_download.append({
+                                    'video_id': video_id,
+                                    'title': video_title,
+                                    'pub_date': pub_date,
+                                    'duration': duration,
+                                    'availability': availability
+                                })
+                                
+                                log_message(f"[Quick Sync] Will download: {video_title[:50]}... ({pub_date or 'unknown date'})")
+                    
+                    except Exception as e:
+                        log_message(f"[Quick Sync] Error processing batch {current_batch}: {e}")
+                        break
+                    
+                    current_batch += 1
+                
+                log_message(f"[Quick Sync] Metadata extraction completed. Found {len(new_videos_to_download)} new videos to download.")
+                
+                if not new_videos_to_download:
+                    return {
+                        "status": "up_to_date",
+                        "message": f"Channel '{channel['name']}' is up to date. No new videos to download.",
+                        "channel_name": channel['name'],
+                        "batches_processed": current_batch - 1,
+                        "new_videos": 0
+                    }
+                
+                # Step 2: Create download jobs for new videos
+                try:
+                    from services.job_queue_service import get_job_queue_service
+                    from services.job_types import JobType, JobPriority
+                    
+                    job_service = get_job_queue_service()
+                    
+                    # Calculate target folder for downloads
+                    target_folder = f"{group['name']}/Channel-{channel['name']}" if group else f"Channel-{channel['name']}"
+                    
+                    created_jobs = 0
+                    failed_jobs = 0
+                    
+                    for video in new_videos_to_download:
+                        video_id = video['video_id']
+                        video_title = video['title']
+                        video_url = f"https://www.youtube.com/watch?v={video_id}"
+                        
+                        try:
+                            # Create single video download job
+                            job_id = job_service.create_and_add_job(
+                                JobType.SINGLE_VIDEO_DOWNLOAD,
+                                priority=JobPriority.HIGH,  # High priority for quick sync
+                                playlist_url=video_url,
+                                target_folder=target_folder,
+                                format_selector='bestvideo+bestaudio/best',
+                                extract_audio=False,  # Download video files for channels
+                                download_archive=True,
+                                exclude_shorts=True
+                            )
+                            
+                            created_jobs += 1
+                            if created_jobs <= 5:  # Log first 5 jobs
+                                log_message(f"[Quick Sync] Queued job #{job_id} for: {video_title[:50]}...")
+                            elif created_jobs == 6:
+                                log_message(f"[Quick Sync] ... (logging truncated, continuing to queue remaining videos)")
+                            
+                        except Exception as e:
+                            failed_jobs += 1
+                            log_message(f"[Quick Sync] Failed to create job for {video_id}: {e}")
+                    
+                    log_message(f"[Quick Sync] Quick sync completed:")
+                    log_message(f"[Quick Sync]   - Channel: {channel['name']}")
+                    log_message(f"[Quick Sync]   - Batches processed: {current_batch - 1}")
+                    log_message(f"[Quick Sync]   - New videos found: {len(new_videos_to_download)}")
+                    log_message(f"[Quick Sync]   - Download jobs created: {created_jobs}")
+                    log_message(f"[Quick Sync]   - Failed jobs: {failed_jobs}")
+                    
+                    return {
+                        "status": "started",
+                        "message": f"Quick sync started for channel '{channel['name']}'. Found {len(new_videos_to_download)} new videos to download.",
+                        "channel_name": channel['name'],
+                        "channel_id": channel_id,
+                        "new_videos": len(new_videos_to_download),
+                        "jobs_created": created_jobs,
+                        "jobs_failed": failed_jobs,
+                        "batches_processed": current_batch - 1,
+                        "process": "quick_sync_optimized"
+                    }
+                    
+                except ImportError:
+                    # Fallback if job queue not available
+                    log_message(f"[Quick Sync] Job Queue System not available, quick sync requires job queue")
+                    return {
+                        "status": "error",
+                        "error": "Quick sync requires job queue system which is not available"
+                    }
+                
+            except ImportError:
+                log_message(f"[Quick Sync] yt-dlp not available, cannot perform quick sync")
+                return {
+                    "status": "error",
+                    "error": "Quick sync requires yt-dlp which is not available"
+                }
+                
+        except Exception as e:
+            log_message(f"[Quick Sync] Error during quick sync: {e}")
+            return {"status": "error", "error": str(e)}
 
 
 # Singleton instance

@@ -808,6 +808,31 @@
             }
         }
 
+        async function quickSyncChannelGroup(groupId) {
+            try {
+                const response = await fetch(`/api/channels/quick_sync_channel_group/${groupId}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({})
+                });
+
+                const result = await response.json();
+                if (result.status === 'started') {
+                    if (result.process === 'quick_sync_group_queued') {
+                        alert(`✅ Quick sync started for group "${result.group_name}"! Created ${result.jobs_created} jobs in queue.`);
+                    } else if (result.process === 'quick_sync_group_fallback') {
+                        alert(`✅ Quick sync started for group "${result.group_name}" with ${result.channels_count} channels (fallback method).`);
+                    } else {
+                        alert(`✅ Quick sync started for group "${result.group_name}" with ${result.channels_count} channels.`);
+                    }
+                } else {
+                    alert('Error: ' + (result.error || result.message || 'Unknown error'));
+                }
+            } catch (error) {
+                alert('Request failed: ' + error);
+            }
+        }
+
         async function toggleIncludeInLikes(groupId, currentState) {
             try {
                 const newState = !currentState;
@@ -848,6 +873,36 @@
                     alert('✅ Channel sync started in background');
                 } else {
                     alert('Error: ' + (result.message || 'Unknown error'));
+                }
+            } catch (error) {
+                alert('Request failed: ' + error);
+            }
+        }
+
+        async function quickSyncChannel(channelId) {
+            try {
+                const response = await fetch(`/api/channels/quick_sync_channel/${channelId}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({})
+                });
+
+                const result = await response.json();
+                if (result.status === 'started') {
+                    if (result.process === 'quick_sync_queued') {
+                        alert(`✅ Quick sync job created! Job #${result.job_id} added to queue for channel "${result.channel_name}".`);
+                    } else if (result.new_videos !== undefined) {
+                        // Fallback immediate execution
+                        alert(`✅ Quick sync started! Found ${result.new_videos} new videos to download.`);
+                    } else {
+                        alert(`✅ Quick sync job created for channel "${result.channel_name}".`);
+                    }
+                } else if (result.status === 'up_to_date') {
+                    alert('✅ Channel is up to date. No new videos to download.');
+                } else if (result.status === 'no_metadata') {
+                    alert('⚠️ No metadata found for this channel. Please run full sync first to extract metadata.');
+                } else {
+                    alert('Error: ' + (result.error || result.message || 'Unknown error'));
                 }
             } catch (error) {
                 alert('Request failed: ' + error);
@@ -961,22 +1016,28 @@
                                 </svg>
                                 ${group.include_in_likes ? 'Disable' : 'Enable'} Likes
                             </button>
-                            ${group.channel_count > 0 ? `
-                                <button class="btn btn-success" onclick="syncChannelGroup(${group.id})">
-                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                        <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 15.64-8.13M22 12.5a10 10 0 0 1-15.64 8.13"/>
-                                    </svg>
-                                    Sync All
-                                </button>
-                            ` : `
-                                <button class="btn btn-danger" onclick="deleteEmptyChannelGroup(${group.id}, '${group.name}')">
-                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                        <polyline points="3,6 5,6 21,6"></polyline>
-                                        <path d="m19,6v14a2,2 0 0,1-2,2H7a2,2 0 0,1-2-2V6m3,0V4a2,2 0 0,1,2-2h4a2,2 0 0,1,2,2v2"></path>
-                                    </svg>
-                                    Delete Empty Group
-                                </button>
-                            `}
+                                        ${group.channel_count > 0 ? `
+                <button class="btn btn-success" onclick="syncChannelGroup(${group.id})">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 15.64-8.13M22 12.5a10 10 0 0 1-15.64 8.13"/>
+                    </svg>
+                    Sync All
+                </button>
+                <button class="btn btn-success" onclick="quickSyncChannelGroup(${group.id})" title="Quick sync all channels - only download new videos">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+                    </svg>
+                    Quick Sync All
+                </button>
+            ` : `
+                <button class="btn btn-danger" onclick="deleteEmptyChannelGroup(${group.id}, '${group.name}')">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="3,6 5,6 21,6"></polyline>
+                        <path d="m19,6v14a2,2 0 0,1-2,2H7a2,2 0 0,1-2-2V6m3,0V4a2,2 0 0,1,2-2h4a2,2 0 0,1,2,2v2"></path>
+                    </svg>
+                    Delete Empty Group
+                </button>
+            `}
                         </div>
                     </div>
                     <div class="channels-list collapsed" id="channels-${group.id}">
@@ -1029,6 +1090,12 @@
                                 <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 15.64-8.13M22 12.5a10 10 0 0 1-15.64 8.13"/>
                             </svg>
                             Sync
+                        </button>
+                        <button class="btn btn-success" onclick="quickSyncChannel(${channel.id})" title="Quick sync - only download new videos">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+                            </svg>
+                            Quick Sync
                         </button>
                         <button class="btn btn-accent" onclick="refreshChannelStats(${channel.id})">
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">

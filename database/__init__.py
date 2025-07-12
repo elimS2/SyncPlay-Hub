@@ -84,6 +84,12 @@ delete_youtube_metadata = database_core.delete_youtube_metadata
 search_youtube_metadata = database_core.search_youtube_metadata
 get_youtube_metadata_stats = database_core.get_youtube_metadata_stats
 
+# Quick Sync functions
+get_latest_downloaded_track_date = database_core.get_latest_downloaded_track_date
+get_channel_latest_video_metadata = database_core.get_channel_latest_video_metadata
+is_track_already_downloaded = database_core.is_track_already_downloaded
+get_video_publication_date = database_core.get_video_publication_date
+
 # Migration utilities
 migrate_existing_playlist_associations = database_core.migrate_existing_playlist_associations
 
@@ -152,6 +158,12 @@ __all__ = [
     'delete_youtube_metadata',
     'search_youtube_metadata',
     'get_youtube_metadata_stats',
+    
+    # Quick Sync functions
+    'get_latest_downloaded_track_date',
+    'get_channel_latest_video_metadata',
+    'is_track_already_downloaded',
+    'get_video_publication_date',
     
     # Migration utilities
     'migrate_existing_playlist_associations',

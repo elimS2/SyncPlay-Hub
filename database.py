@@ -1,6 +1,6 @@
 import sqlite3
 from pathlib import Path
-from typing import Iterator, Optional, Union
+from typing import Iterator, Optional, Union, List, Dict
 
 def _load_env_config() -> dict:
     """Load configuration from .env file."""
@@ -1431,3 +1431,155 @@ def get_youtube_metadata_stats(conn: sqlite3.Connection) -> dict:
         'top_channels': [dict(row) for row in top_channels],
         'recent_additions': recent_count
     } 
+
+
+# ---------- Quick Sync Functions ----------
+
+def get_latest_downloaded_track_date(conn: sqlite3.Connection, channel_id: int) -> Optional[str]:
+    """Get the publication date of the latest downloaded track for a channel.
+    
+    Args:
+        conn: Database connection
+        channel_id: Channel ID
+        
+    Returns:
+        Publication date string (YYYY-MM-DD) or None if no tracks found
+    """
+    cur = conn.cursor()
+    
+    # Get channel info to match tracks
+    cur.execute("SELECT name, url, channel_group_id FROM channels WHERE id = ?", (channel_id,))
+    channel_info = cur.fetchone()
+    if not channel_info:
+        return None
+    
+    channel_name, channel_url, group_id = channel_info
+    
+    # Get group name
+    cur.execute("SELECT name FROM channel_groups WHERE id = ?", (group_id,))
+    group_info = cur.fetchone()
+    group_name = group_info[0] if group_info else None
+    
+    # Find tracks belonging to this channel by checking relpath pattern
+    # Channel tracks are stored in: GroupName/Channel-ChannelName/
+    channel_path_pattern = f"{group_name}/Channel-{channel_name}/%" if group_name else f"Channel-{channel_name}/%"
+    
+    cur.execute("""
+        SELECT published_date 
+        FROM tracks 
+        WHERE relpath LIKE ? 
+        AND published_date IS NOT NULL 
+        ORDER BY published_date DESC 
+        LIMIT 1
+    """, (channel_path_pattern,))
+    
+    result = cur.fetchone()
+    return result[0] if result else None
+
+
+def get_channel_latest_video_metadata(conn: sqlite3.Connection, channel_url: str, limit: int = 50) -> List[Dict]:
+    """Get latest video metadata for a channel from YouTube metadata table.
+    
+    Args:
+        conn: Database connection
+        channel_url: YouTube channel URL
+        limit: Maximum number of videos to return
+        
+    Returns:
+        List of video metadata dictionaries sorted by publication date (newest first)
+    """
+    cur = conn.cursor()
+    
+    # Extract channel identifier from URL for metadata search
+    if '@' in channel_url:
+        channel_name_search = channel_url.split('@')[1].split('/')[0]
+        search_pattern = f'%@{channel_name_search}%'
+    elif '/channel/' in channel_url:
+        channel_id_search = channel_url.split('/channel/')[1].split('/')[0]
+        search_pattern = f'%{channel_id_search}%'
+    elif '/c/' in channel_url:
+        channel_name_search = channel_url.split('/c/')[1].split('/')[0]
+        search_pattern = f'%{channel_name_search}%'
+    else:
+        search_pattern = f'%{channel_url}%'
+    
+    cur.execute("""
+        SELECT youtube_id, title, timestamp, release_timestamp, duration, availability, live_status
+        FROM youtube_video_metadata 
+        WHERE (channel_url LIKE ? OR channel LIKE ?)
+        AND availability != 'private'
+        AND availability != 'premium_only'
+        AND availability != 'subscriber_only'
+        ORDER BY COALESCE(release_timestamp, timestamp) DESC
+        LIMIT ?
+    """, (search_pattern, search_pattern, limit))
+    
+    results = cur.fetchall()
+    
+    # Convert to list of dictionaries
+    videos = []
+    for row in results:
+        videos.append({
+            'youtube_id': row[0],
+            'title': row[1],
+            'timestamp': row[2],
+            'release_timestamp': row[3],
+            'duration': row[4],
+            'availability': row[5],
+            'live_status': row[6]
+        })
+    
+    return videos
+
+
+def is_track_already_downloaded(conn: sqlite3.Connection, video_id: str) -> bool:
+    """Check if a track with given video ID is already downloaded.
+    
+    Args:
+        conn: Database connection
+        video_id: YouTube video ID
+        
+    Returns:
+        True if track is already downloaded, False otherwise
+    """
+    cur = conn.cursor()
+    cur.execute("SELECT 1 FROM tracks WHERE video_id = ? LIMIT 1", (video_id,))
+    return cur.fetchone() is not None
+
+
+def get_video_publication_date(conn: sqlite3.Connection, video_id: str) -> Optional[str]:
+    """Get publication date for a video from YouTube metadata.
+    
+    Args:
+        conn: Database connection
+        video_id: YouTube video ID
+        
+    Returns:
+        Publication date string (YYYY-MM-DD) or None if not found
+    """
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT release_timestamp, timestamp 
+        FROM youtube_video_metadata 
+        WHERE youtube_id = ?
+    """, (video_id,))
+    
+    result = cur.fetchone()
+    if not result:
+        return None
+    
+    release_timestamp, timestamp = result
+    
+    # Use release_timestamp if available, otherwise use timestamp
+    video_timestamp = release_timestamp if release_timestamp else timestamp
+    
+    if video_timestamp:
+        try:
+            from datetime import datetime
+            # Convert timestamp to date string
+            date_obj = datetime.fromtimestamp(video_timestamp)
+            return date_obj.strftime('%Y-%m-%d')
+        except (ValueError, OSError):
+            return None
+    
+    return None 
