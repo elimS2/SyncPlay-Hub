@@ -300,7 +300,8 @@ def api_tracks_by_likes(like_count):
         conn = get_connection()
         
         # Get tracks with exactly like_count likes, including all statistics and metadata
-        # Exclude deleted tracks
+        # Exclude deleted tracks and only include tracks from groups with include_in_likes=true
+        # Connect tracks to channel groups through YouTube metadata -> channels -> channel_groups
         query = """
         SELECT 
             t.video_id,
@@ -322,8 +323,11 @@ def api_tracks_by_likes(like_count):
             (t.play_likes - (SELECT COUNT(*) FROM play_history ph WHERE ph.video_id = t.video_id AND ph.event = 'dislike')) as net_likes
         FROM tracks t
         LEFT JOIN youtube_video_metadata ym ON ym.youtube_id = t.video_id
+        LEFT JOIN channels ch ON (ch.url = ym.channel_url OR ch.url LIKE '%' || ym.channel || '%' OR ym.channel_url LIKE '%' || ch.url || '%')
+        LEFT JOIN channel_groups cg ON cg.id = ch.channel_group_id
         WHERE (t.play_likes - (SELECT COUNT(*) FROM play_history ph WHERE ph.video_id = t.video_id AND ph.event = 'dislike')) = ?
             AND t.video_id NOT IN (SELECT video_id FROM deleted_tracks)
+            AND (cg.include_in_likes = 1)
         ORDER BY COALESCE(ym.title, t.name)
         """
         
@@ -375,7 +379,8 @@ def api_like_stats():
     try:
         conn = get_connection()
         
-        # Get distribution of net likes (likes - dislikes), excluding deleted tracks
+        # Get distribution of net likes (likes - dislikes), excluding deleted tracks and only including tracks from groups with include_in_likes=true
+        # Connect tracks to channel groups through YouTube metadata -> channels -> channel_groups
         query = """
         SELECT 
             (t.play_likes - (SELECT COUNT(*) FROM play_history ph WHERE ph.video_id = t.video_id AND ph.event = 'dislike')) as net_likes,
@@ -383,8 +388,11 @@ def api_like_stats():
             GROUP_CONCAT(SUBSTR(COALESCE(ym.title, t.name), 1, 30) || '...', ' • ') as sample_tracks
         FROM tracks t
         LEFT JOIN youtube_video_metadata ym ON ym.youtube_id = t.video_id
+        LEFT JOIN channels ch ON (ch.url = ym.channel_url OR ch.url LIKE '%' || ym.channel || '%' OR ym.channel_url LIKE '%' || ch.url || '%')
+        LEFT JOIN channel_groups cg ON cg.id = ch.channel_group_id
         WHERE (t.play_likes - (SELECT COUNT(*) FROM play_history ph WHERE ph.video_id = t.video_id AND ph.event = 'dislike')) >= 0 
             AND t.video_id NOT IN (SELECT video_id FROM deleted_tracks)
+            AND (cg.include_in_likes = 1)
         GROUP BY net_likes
         ORDER BY net_likes
         """

@@ -54,6 +54,7 @@ def api_create_channel_group():
         name = data.get('name', '').strip()
         behavior_type = data.get('behavior_type', 'music')
         auto_delete_enabled = data.get('auto_delete_enabled', False)
+        include_in_likes = data.get('include_in_likes', True)
         play_order = data.get('play_order', 'random')
         
         # Validate required fields
@@ -77,15 +78,88 @@ def api_create_channel_group():
             name=name,
             behavior_type=behavior_type,
             auto_delete_enabled=auto_delete_enabled,
+            include_in_likes=include_in_likes,
             play_order=play_order
         )
         conn.close()
         
-        log_message(f"[Channels] Created channel group: {name} (ID: {group_id}, type: {behavior_type})")
+        log_message(f"[Channels] Created channel group: {name} (ID: {group_id}, type: {behavior_type}, include_in_likes: {include_in_likes})")
         return jsonify({"status": "ok", "group_id": group_id, "message": f"Channel group '{name}' created successfully"})
         
     except Exception as e:
         log_message(f"[Channels] Error creating channel group: {e}")
+        return jsonify({"status": "error", "error": str(e)}), 500
+
+@channels_groups_bp.route("/update_channel_group/<int:group_id>", methods=["POST"])
+def api_update_channel_group(group_id: int):
+    """Update channel group settings."""
+    try:
+        data = request.get_json() or {}
+        
+        # Get current group info
+        conn = get_connection()
+        group = db.get_channel_group_by_id(conn, group_id)
+        if not group:
+            conn.close()
+            return jsonify({"status": "error", "error": "Channel group not found"}), 404
+        
+        # Collect fields to update
+        update_fields = {}
+        
+        # Update name if provided
+        if 'name' in data:
+            name = data.get('name', '').strip()
+            if not name:
+                conn.close()
+                return jsonify({"status": "error", "error": "Group name cannot be empty"}), 400
+            update_fields['name'] = name
+        
+        # Update behavior_type if provided
+        if 'behavior_type' in data:
+            behavior_type = data.get('behavior_type')
+            valid_behaviors = ['music', 'news', 'education', 'podcasts']
+            if behavior_type not in valid_behaviors:
+                conn.close()
+                return jsonify({"status": "error", "error": f"Invalid behavior type. Must be one of: {valid_behaviors}"}), 400
+            update_fields['behavior_type'] = behavior_type
+        
+        # Update play_order if provided
+        if 'play_order' in data:
+            play_order = data.get('play_order')
+            valid_orders = ['random', 'newest_first', 'oldest_first']
+            if play_order not in valid_orders:
+                conn.close()
+                return jsonify({"status": "error", "error": f"Invalid play order. Must be one of: {valid_orders}"}), 400
+            update_fields['play_order'] = play_order
+        
+        # Update auto_delete_enabled if provided
+        if 'auto_delete_enabled' in data:
+            update_fields['auto_delete_enabled'] = bool(data.get('auto_delete_enabled', False))
+        
+        # Update include_in_likes if provided
+        if 'include_in_likes' in data:
+            update_fields['include_in_likes'] = bool(data.get('include_in_likes', True))
+        
+        # Update folder_path if provided
+        if 'folder_path' in data:
+            update_fields['folder_path'] = data.get('folder_path')
+        
+        # Perform update
+        if update_fields:
+            updated = db.update_channel_group(conn, group_id, **update_fields)
+            if updated:
+                log_message(f"[Channels] Updated channel group {group_id}: {update_fields}")
+                conn.close()
+                return jsonify({"status": "ok", "message": f"Channel group updated successfully"})
+            else:
+                conn.close()
+                return jsonify({"status": "error", "error": "Failed to update channel group"}), 500
+        else:
+            conn.close()
+            return jsonify({"status": "error", "error": "No fields to update"}), 400
+            
+    except Exception as e:
+        log_message(f"[Channels] Error updating channel group: {e}")
         return jsonify({"status": "error", "error": str(e)}), 500
 
 @channels_groups_bp.route("/delete_channel_group/<int:group_id>", methods=["POST"])

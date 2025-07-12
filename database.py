@@ -107,6 +107,7 @@ def _ensure_schema(conn: sqlite3.Connection):
             behavior_type TEXT NOT NULL DEFAULT 'music',
             play_order TEXT NOT NULL DEFAULT 'random',
             auto_delete_enabled BOOLEAN DEFAULT 0,
+            include_in_likes BOOLEAN DEFAULT 1,
             folder_path TEXT,
             created_at TEXT DEFAULT (datetime('now')),
             updated_at TEXT DEFAULT (datetime('now'))
@@ -241,6 +242,13 @@ def _ensure_schema(conn: sqlite3.Connection):
         cur.execute("ALTER TABLE playlists ADD COLUMN last_sync_ts TEXT")
     if "source_url" not in cols:
         cur.execute("ALTER TABLE playlists ADD COLUMN source_url TEXT")
+    conn.commit()
+
+    # Add new include_in_likes column to channel_groups table
+    cur.execute("PRAGMA table_info(channel_groups)")
+    channel_groups_cols = {row[1] for row in cur.fetchall()}
+    if "include_in_likes" not in channel_groups_cols:
+        cur.execute("ALTER TABLE channel_groups ADD COLUMN include_in_likes BOOLEAN DEFAULT 1")
     conn.commit()
 
     # Ensure valid event types include new channel events
@@ -935,7 +943,7 @@ def migrate_existing_playlist_associations(conn: sqlite3.Connection, dry_run: bo
 
 def create_channel_group(conn: sqlite3.Connection, name: str, behavior_type: str = 'music', 
                         play_order: str = 'random', auto_delete_enabled: bool = False, 
-                        folder_path: str = None) -> int:
+                        include_in_likes: bool = True, folder_path: str = None) -> int:
     """Create a new channel group.
     
     Args:
@@ -944,6 +952,7 @@ def create_channel_group(conn: sqlite3.Connection, name: str, behavior_type: str
         behavior_type: Type of behavior ('music', 'news', 'education', 'podcasts')
         play_order: Play order ('random', 'chronological_newest', 'chronological_oldest')
         auto_delete_enabled: Whether to auto-delete tracks after finish
+        include_in_likes: Whether to include tracks from this group in likes playlists
         folder_path: Path to the group folder
         
     Returns:
@@ -952,10 +961,10 @@ def create_channel_group(conn: sqlite3.Connection, name: str, behavior_type: str
     cur = conn.cursor()
     cur.execute(
         """
-        INSERT INTO channel_groups (name, behavior_type, play_order, auto_delete_enabled, folder_path)
-        VALUES (?, ?, ?, ?, ?)
+        INSERT INTO channel_groups (name, behavior_type, play_order, auto_delete_enabled, include_in_likes, folder_path)
+        VALUES (?, ?, ?, ?, ?, ?)
         """,
-        (name, behavior_type, play_order, auto_delete_enabled, folder_path)
+        (name, behavior_type, play_order, auto_delete_enabled, include_in_likes, folder_path)
     )
     conn.commit()
     return cur.lastrowid
@@ -967,13 +976,13 @@ def get_channel_groups(conn: sqlite3.Connection):
     cur.execute("""
         SELECT 
             cg.id, cg.name, cg.behavior_type, cg.play_order, 
-            cg.auto_delete_enabled, cg.folder_path, cg.created_at,
+            cg.auto_delete_enabled, cg.include_in_likes, cg.folder_path, cg.created_at,
             COUNT(c.id) as channel_count,
             COALESCE(SUM(c.track_count), 0) as total_tracks
         FROM channel_groups cg
         LEFT JOIN channels c ON c.channel_group_id = cg.id AND c.enabled = 1
         GROUP BY cg.id, cg.name, cg.behavior_type, cg.play_order, 
-                 cg.auto_delete_enabled, cg.folder_path, cg.created_at
+                 cg.auto_delete_enabled, cg.include_in_likes, cg.folder_path, cg.created_at
         ORDER BY cg.name
     """)
     rows = cur.fetchall()
@@ -987,10 +996,11 @@ def get_channel_groups(conn: sqlite3.Connection):
             'behavior_type': row[2],
             'play_order': row[3],
             'auto_delete_enabled': bool(row[4]),
-            'folder_path': row[5],
-            'created_at': row[6],
-            'channel_count': row[7],
-            'total_tracks': row[8]
+            'include_in_likes': bool(row[5]),
+            'folder_path': row[6],
+            'created_at': row[7],
+            'channel_count': row[8],
+            'total_tracks': row[9]
         })
     return groups
 
@@ -1000,6 +1010,43 @@ def get_channel_group_by_id(conn: sqlite3.Connection, group_id: int):
     cur = conn.cursor()
     cur.execute("SELECT * FROM channel_groups WHERE id = ?", (group_id,))
     return cur.fetchone()
+
+
+def update_channel_group(conn: sqlite3.Connection, group_id: int, **kwargs):
+    """Update channel group settings.
+    
+    Args:
+        conn: Database connection
+        group_id: ID of the group to update
+        **kwargs: Fields to update (name, behavior_type, play_order, auto_delete_enabled, include_in_likes, folder_path)
+    
+    Returns:
+        True if group was updated, False if not found
+    """
+    cur = conn.cursor()
+    
+    # Check if group exists
+    if not get_channel_group_by_id(conn, group_id):
+        return False
+    
+    # Build update query dynamically
+    valid_fields = {'name', 'behavior_type', 'play_order', 'auto_delete_enabled', 'include_in_likes', 'folder_path'}
+    update_fields = {k: v for k, v in kwargs.items() if k in valid_fields}
+    
+    if not update_fields:
+        return False
+    
+    # Add updated_at timestamp
+    update_fields['updated_at'] = 'datetime("now")'
+    
+    set_clause = ', '.join([f'{k} = ?' if k != 'updated_at' else f'{k} = {v}' for k, v in update_fields.items()])
+    values = [v for k, v in update_fields.items() if k != 'updated_at']
+    values.append(group_id)
+    
+    cur.execute(f"UPDATE channel_groups SET {set_clause} WHERE id = ?", values)
+    conn.commit()
+    
+    return cur.rowcount > 0
 
 
 def delete_channel_group(conn: sqlite3.Connection, group_id: int) -> bool:
