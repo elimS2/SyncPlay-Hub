@@ -139,8 +139,8 @@
 
         .trash-stats-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-            gap: 20px;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 15px;
             align-items: center;
         }
 
@@ -452,16 +452,27 @@
                       <polyline points="3,6 5,6 21,6"></polyline>
                       <path d="m19,6v14a2,2 0 0,1-2,2H7a2,2 0 0,1-2-2V6m3,0V4a2,2 0 0,1,2-2h4a2,2 0 0,1,2,2v2"></path>
                     </svg>
-                    Trash Statistics
+                    Trash Statistics & Disk Usage
                 </h3>
+                <div style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 15px;">
+                    <span id="storagePath">Loading storage path...</span>
+                </div>
                 <div class="trash-stats-grid">
                     <div class="stat-item">
                         <div class="stat-value" id="trashSize">Loading...</div>
-                        <div class="stat-label">Total Size</div>
+                        <div class="stat-label">Trash Size</div>
                     </div>
                     <div class="stat-item">
                         <div class="stat-value" id="trashFiles">Loading...</div>
                         <div class="stat-label">Files Count</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="diskFree">Loading...</div>
+                        <div class="stat-label">Free Space</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="diskUsed">Loading...</div>
+                        <div class="stat-label">Disk Used</div>
                     </div>
                     <div class="stat-item">
                         <button id="clearTrashBtn" class="btn btn-danger">
@@ -927,6 +938,17 @@
                     document.getElementById('trashSize').textContent = data.formatted_size;
                     document.getElementById('trashFiles').textContent = data.total_files;
                     
+                    // Update disk space information
+                    if (data.disk_info) {
+                        document.getElementById('diskFree').textContent = data.disk_info.free_formatted;
+                        document.getElementById('diskUsed').textContent = data.disk_info.used_formatted + ' (' + data.disk_info.used_percentage.toFixed(1) + '%)';
+                        document.getElementById('storagePath').textContent = 'Storage: ' + data.disk_info.storage_path;
+                    } else {
+                        document.getElementById('diskFree').textContent = 'Unknown';
+                        document.getElementById('diskUsed').textContent = 'Unknown';
+                        document.getElementById('storagePath').textContent = 'Storage path unavailable';
+                    }
+                    
                     // Update button state based on trash content
                     const clearBtn = document.getElementById('clearTrashBtn');
                     if (data.total_files === 0) {
@@ -954,11 +976,17 @@
                     console.error('Error:', data.error);
                     document.getElementById('trashSize').textContent = 'Error';
                     document.getElementById('trashFiles').textContent = 'Error';
+                    document.getElementById('diskFree').textContent = 'Error';
+                    document.getElementById('diskUsed').textContent = 'Error';
+                    document.getElementById('storagePath').textContent = 'Error loading storage path';
                 }
             } catch (error) {
                 console.error('Network error:', error);
                 document.getElementById('trashSize').textContent = 'Error';
                 document.getElementById('trashFiles').textContent = 'Error';
+                document.getElementById('diskFree').textContent = 'Error';
+                document.getElementById('diskUsed').textContent = 'Error';
+                document.getElementById('storagePath').textContent = 'Error loading storage path';
             }
         }
 

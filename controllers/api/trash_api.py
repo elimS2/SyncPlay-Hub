@@ -89,7 +89,7 @@ def api_restore_track():
 
 @trash_bp.route("/trash_stats")
 def api_get_trash_stats():
-    """Get trash folder statistics (size and file count)."""
+    """Get trash folder statistics (size and file count) and disk space info."""
     try:
         root_dir = get_root_dir()
         if not root_dir:
@@ -97,13 +97,51 @@ def api_get_trash_stats():
         
         trash_dir = root_dir.parent / "Trash"
         
+        # Get disk usage for the storage directory
+        try:
+            disk_usage = shutil.disk_usage(str(root_dir))
+            disk_total = disk_usage.total
+            disk_free = disk_usage.free
+            disk_used = disk_total - disk_free
+            
+            # Format disk space values
+            disk_total_formatted = _format_file_size(disk_total)
+            disk_free_formatted = _format_file_size(disk_free)
+            disk_used_formatted = _format_file_size(disk_used)
+            
+            # Calculate used percentage
+            disk_used_percentage = (disk_used / disk_total) * 100 if disk_total > 0 else 0
+            
+            log_message(f"[Trash] Disk usage: {disk_used_formatted} / {disk_total_formatted} ({disk_used_percentage:.1f}% used)")
+            
+        except Exception as e:
+            log_message(f"[Trash] Warning: Could not get disk usage: {e}")
+            # Set default values if disk usage cannot be retrieved
+            disk_total = 0
+            disk_free = 0
+            disk_used = 0
+            disk_total_formatted = "Unknown"
+            disk_free_formatted = "Unknown"
+            disk_used_formatted = "Unknown"
+            disk_used_percentage = 0
+        
         if not trash_dir.exists():
             return jsonify({
                 "status": "ok",
                 "total_size": 0,
                 "total_files": 0,
                 "formatted_size": "0 B",
-                "trash_path": str(trash_dir)
+                "trash_path": str(trash_dir),
+                "disk_info": {
+                    "total": disk_total,
+                    "free": disk_free,
+                    "used": disk_used,
+                    "total_formatted": disk_total_formatted,
+                    "free_formatted": disk_free_formatted,
+                    "used_formatted": disk_used_formatted,
+                    "used_percentage": disk_used_percentage,
+                    "storage_path": str(root_dir)
+                }
             })
         
         total_size = 0
@@ -130,7 +168,17 @@ def api_get_trash_stats():
             "total_size": total_size,
             "total_files": total_files,
             "formatted_size": formatted_size,
-            "trash_path": str(trash_dir)
+            "trash_path": str(trash_dir),
+            "disk_info": {
+                "total": disk_total,
+                "free": disk_free,
+                "used": disk_used,
+                "total_formatted": disk_total_formatted,
+                "free_formatted": disk_free_formatted,
+                "used_formatted": disk_used_formatted,
+                "used_percentage": disk_used_percentage,
+                "storage_path": str(root_dir)
+            }
         })
         
     except Exception as e:
