@@ -78,7 +78,7 @@ const cDislike = document.getElementById('cDislike');
   let tickTimer=null;
 
   // Playback speed control
-  const speedOptions = [0.5, 0.75, 1, 1.25, 1.5, 2];
+  const speedOptions = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2, 2.5];
   let currentSpeedIndex = 2; // Default to 1x (index 2)
 
   const playlistRel = typeof PLAYLIST_REL !== 'undefined' ? PLAYLIST_REL : '';

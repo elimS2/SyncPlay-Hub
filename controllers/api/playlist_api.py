@@ -550,7 +550,7 @@ def api_save_playback_speed():
         return jsonify({"status": "error", "message": "missing relpath or speed"}), 400
 
     # Validate speed value
-    valid_speeds = [0.5, 0.75, 1, 1.25, 1.5, 2]
+    valid_speeds = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2, 2.5]
     if speed not in valid_speeds:
         return jsonify({"status": "error", "message": f"invalid speed, must be one of: {valid_speeds}"}), 400
 
