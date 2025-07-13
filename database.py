@@ -354,12 +354,13 @@ def link_track_playlist(conn: sqlite3.Connection, track_id: int, playlist_id: in
         conn.commit()
 
 
-def iter_tracks_with_playlists(conn: sqlite3.Connection, search_query: str = None) -> Iterator[sqlite3.Row]:
+def iter_tracks_with_playlists(conn: sqlite3.Connection, search_query: str = None, include_deleted: bool = False) -> Iterator[sqlite3.Row]:
     """Yield tracks with aggregated playlist names, using YouTube metadata title if available.
     
     Args:
         conn: Database connection
         search_query: Optional search query to filter tracks by title (case-insensitive)
+        include_deleted: Whether to include deleted tracks in results (default: False)
     """
     base_query = """
         SELECT t.*, 
@@ -382,7 +383,11 @@ def iter_tracks_with_playlists(conn: sqlite3.Connection, search_query: str = Non
     
     # Get all tracks first
     for row in conn.execute(base_query):
-        # If no search query, yield all tracks
+        # Apply deleted filter
+        if not include_deleted and row['is_deleted']:
+            continue
+            
+        # If no search query, yield matching tracks
         if not search_query:
             yield row
         else:

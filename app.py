@@ -225,9 +225,10 @@ def tracks_page():
     """DB Tracks Page with optional search functionality."""
     from flask import request
     search_query = request.args.get("search", "").strip()
+    include_deleted = request.args.get("include_deleted") == "1"
     
     conn = get_connection()
-    tracks = list(iter_tracks_with_playlists(conn, search_query if search_query else None))
+    tracks = list(iter_tracks_with_playlists(conn, search_query if search_query else None, include_deleted))
     conn.close()
     
     # Calculate uptime for server info
@@ -240,7 +241,8 @@ def tracks_page():
         "uptime": uptime_str
     }
     
-    return render_template("tracks.html", tracks=tracks, search_query=search_query, server_info=server_info)
+    return render_template("tracks.html", tracks=tracks, search_query=search_query, 
+                         include_deleted=include_deleted, server_info=server_info)
 
 @app.route("/history")
 @app.route("/events")

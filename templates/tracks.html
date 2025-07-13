@@ -109,6 +109,59 @@
       background: var(--bg-hover);
     }
     
+    .checkbox-label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+      font-size: 14px;
+      color: var(--text-primary);
+      user-select: none;
+      white-space: nowrap;
+    }
+    
+    .checkbox-label input[type="checkbox"] {
+      width: 18px;
+      height: 18px;
+      border: 2px solid var(--border);
+      border-radius: 4px;
+      background: var(--bg-card);
+      cursor: pointer;
+      position: relative;
+      margin: 0;
+      appearance: none;
+      transition: all 0.2s ease;
+    }
+    
+    .checkbox-label input[type="checkbox"]:checked {
+      background: var(--accent);
+      border-color: var(--accent);
+    }
+    
+    .checkbox-label input[type="checkbox"]:checked::after {
+      content: '✓';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      color: white;
+      font-size: 12px;
+      font-weight: bold;
+    }
+    
+    .checkbox-label input[type="checkbox"]:focus {
+      outline: none;
+      box-shadow: 0 0 0 2px rgba(97, 218, 251, 0.2);
+    }
+    
+    .checkbox-label input[type="checkbox"]:hover:not(:checked) {
+      border-color: var(--accent);
+    }
+    
+    .checkbox-text {
+      font-weight: 500;
+    }
+    
     .search-results {
       margin-top: 15px;
       color: var(--text-secondary);
@@ -229,10 +282,16 @@
       .search-form {
         flex-direction: column;
         align-items: stretch;
+        gap: 15px;
       }
       
       .search-input {
         max-width: none;
+      }
+      
+      .checkbox-label {
+        justify-content: center;
+        padding: 8px 0;
       }
       
       .table-container {
@@ -274,6 +333,16 @@
             placeholder="Search tracks by title..." 
             class="search-input"
           />
+          <label class="checkbox-label">
+            <input 
+              type="checkbox" 
+              name="include_deleted" 
+              value="1" 
+              {% if include_deleted %}checked{% endif %}
+              onchange="this.form.submit()"
+            />
+            <span class="checkbox-text">Show deleted tracks</span>
+          </label>
           <button type="submit" class="btn btn-primary">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <circle cx="11" cy="11" r="8"></circle>
@@ -281,7 +350,7 @@
             </svg>
             Search
           </button>
-          {% if search_query %}
+          {% if search_query or include_deleted %}
           <a href="/tracks" class="btn btn-secondary">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <line x1="18" y1="6" x2="6" y2="18"></line>
