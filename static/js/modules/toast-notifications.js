@@ -191,18 +191,9 @@ function showKeepAwakeToast(message) {
 }
 
 // Export functions for use by other modules
-if (typeof module !== 'undefined' && module.exports) {
-  // Node.js environment
-  module.exports = {
-    showToast,
-    showVolumeToast,
-    showKeepAwakeToast
-  };
-} else {
-  // Browser environment - attach to window object
-  window.ToastNotifications = {
-    showToast,
-    showVolumeToast,
-    showKeepAwakeToast
-  };
-} 
+// Browser environment - attach to window object
+window.ToastNotifications = {
+  showToast,
+  showVolumeToast,
+  showKeepAwakeToast
+}; 

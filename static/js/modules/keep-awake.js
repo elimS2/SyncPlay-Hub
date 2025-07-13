@@ -10,8 +10,10 @@ let keepAwakeInterval = null;
 let hiddenVideo = null;
 let webRTCConnection = null;
 
-// Import toast notifications
-const showKeepAwakeToast = window.ToastNotifications ? window.ToastNotifications.showKeepAwakeToast : null;
+// Import toast notifications (use global reference)
+function getShowKeepAwakeToast() {
+  return window.showKeepAwakeToast || (window.ToastNotifications && window.ToastNotifications.showKeepAwakeToast) || null;
+}
 
 function initCSSKeepAwake() {
   // Create a continuously animating invisible element
@@ -394,13 +396,15 @@ function updateKeepAwakeStatus() {
     indicator.addEventListener('click', () => {
       if (keepAwakeActive) {
         stopKeepAwake();
-        showKeepAwakeToast('Screen keep awake disabled');
+        const toast = getShowKeepAwakeToast();
+    if (toast) toast('Screen keep awake disabled');
       } else if (keepAwakeMethod === 'fullscreen') {
         // Request fullscreen mode
         requestFullscreenKeepAwake();
       } else {
         requestWakeLock();
-        showKeepAwakeToast('Screen keep awake enabled');
+                  const toast = getShowKeepAwakeToast();
+          if (toast) toast('Screen keep awake enabled');
       }
     });
     
@@ -462,9 +466,11 @@ function requestFullscreenKeepAwake() {
     document.exitFullscreen().then(() => {
       keepAwakeActive = false;
       updateKeepAwakeStatus();
-      showKeepAwakeToast('Exited fullscreen mode');
+              const toast = getShowKeepAwakeToast();
+        if (toast) toast('Exited fullscreen mode');
     }).catch(() => {
-      showKeepAwakeToast('Failed to exit fullscreen');
+              const toast = getShowKeepAwakeToast();
+        if (toast) toast('Failed to exit fullscreen');
     });
   } else {
     // Enter fullscreen
@@ -478,14 +484,16 @@ function requestFullscreenKeepAwake() {
       requestFullscreen.call(element).then(() => {
         keepAwakeActive = true;
         updateKeepAwakeStatus();
-        showKeepAwakeToast('Fullscreen mode activated - screen will stay awake');
+        const toast = getShowKeepAwakeToast();
+      if (toast) toast('Fullscreen mode activated - screen will stay awake');
         
         // Listen for fullscreen changes
         const handleFullscreenChange = () => {
           if (!document.fullscreenElement) {
             keepAwakeActive = false;
             updateKeepAwakeStatus();
-            showKeepAwakeToast('Fullscreen exited - screen may sleep');
+            const toast = getShowKeepAwakeToast();
+            if (toast) toast('Fullscreen exited - screen may sleep');
             document.removeEventListener('fullscreenchange', handleFullscreenChange);
             document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
             document.removeEventListener('mozfullscreenchange', handleFullscreenChange);
@@ -499,10 +507,12 @@ function requestFullscreenKeepAwake() {
         document.addEventListener('msfullscreenchange', handleFullscreenChange);
         
       }).catch(() => {
-        showKeepAwakeToast('Fullscreen request failed');
+        const toast = getShowKeepAwakeToast();
+      if (toast) toast('Fullscreen request failed');
       });
     } else {
-      showKeepAwakeToast('Fullscreen not supported');
+              const toast = getShowKeepAwakeToast();
+        if (toast) toast('Fullscreen not supported');
       keepAwakeMethod = 'none';
       updateKeepAwakeStatus();
     }

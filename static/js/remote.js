@@ -11,53 +11,30 @@
 const SERVER_IP = window.SERVER_IP || "localhost";
 const SERVER_PORT = window.SERVER_PORT || "8000";
 
-// Wake Lock state management (shared across modules)
-let wakeLock = null;
-let wakeLockSupported = false;
-let keepAwakeMethod = 'none';
-let keepAwakeActive = false;
-let keepAwakeInterval = null;
-let hiddenVideo = null;
-let webRTCConnection = null;
+// Wake Lock state will be managed by keep-awake module
 
 // ==============================
 // MODULE IMPORTS & SETUP
 // ==============================
 
-// Toast notifications must be available globally for other modules
-let showVolumeToast, showKeepAwakeToast, showToast;
+// Toast notifications will be loaded from modules
 
-// Volume control functions
-let initHardwareVolumeControl, adjustVolume;
+// Volume control functions will be loaded from modules
 
-// Keep awake functions
-let requestWakeLock, initKeepAwakeHandlers;
+// Keep awake functions will be loaded from modules
 
-// Core remote control class
-let RemoteControl;
+// Remote control class will be loaded from modules
 
 // Load modules dynamically (for browser environment)
 async function loadModules() {
   try {
-    // Import toast notifications module
-    if (typeof window.ToastNotifications !== 'undefined') {
-      ({ showVolumeToast, showKeepAwakeToast, showToast } = window.ToastNotifications);
-    }
+    // Toast notifications module will be available via window.ToastNotifications
     
-    // Import volume control module
-    if (typeof window.VolumeControl !== 'undefined') {
-      ({ initHardwareVolumeControl, adjustVolume } = window.VolumeControl);
-    }
+    // Volume control module will be available via window.VolumeControl
     
-    // Import keep awake module
-    if (typeof window.KeepAwake !== 'undefined') {
-      ({ requestWakeLock, initKeepAwakeHandlers } = window.KeepAwake);
-    }
+    // Keep awake module will be available via window.KeepAwake
     
-    // Import remote control module
-    if (typeof window.RemoteControl !== 'undefined') {
-      RemoteControl = window.RemoteControl;
-    }
+    // Remote control module will be available via window.RemoteControl
     
     console.log('📱 All modules loaded successfully');
     return true;
@@ -81,15 +58,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     return;
   }
   
-  // Make toast functions globally available for cross-module usage
-  if (showVolumeToast) window.showVolumeToast = showVolumeToast;
-  if (showKeepAwakeToast) window.showKeepAwakeToast = showKeepAwakeToast;
-  if (showToast) window.showToast = showToast;
+  // Toast functions are now available via window.ToastNotifications
   
   // Initialize core remote control
-  if (RemoteControl) {
+  if (window.RemoteControl) {
     console.log('📱 Initializing Remote Control...');
-    const remoteControl = new RemoteControl();
+    const remoteControl = new window.RemoteControl();
     
     // Store reference for cross-module communication
     document.querySelector('.remote-container').remoteControlInstance = remoteControl;
@@ -101,18 +75,18 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
   
   // Initialize keep awake system early for immediate screen protection
-  if (initKeepAwakeHandlers) {
+  if (window.KeepAwake && window.KeepAwake.initKeepAwakeHandlers) {
     console.log('📱 Initializing Keep Awake handlers...');
-    initKeepAwakeHandlers();
+    window.KeepAwake.initKeepAwakeHandlers();
     console.log('📱 Keep Awake handlers initialized');
   } else {
     console.warn('📱 Keep Awake module not available');
   }
   
   // Initialize hardware volume control last
-  if (initHardwareVolumeControl) {
+  if (window.VolumeControl && window.VolumeControl.initHardwareVolumeControl) {
     console.log('📱 Initializing Hardware Volume Control...');
-    initHardwareVolumeControl();
+    window.VolumeControl.initHardwareVolumeControl();
     console.log('📱 Hardware Volume Control initialized');
   } else {
     console.warn('📱 Volume Control module not available');
@@ -128,26 +102,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 // Export global configuration for modules
 window.REMOTE_CONFIG = {
   SERVER_IP,
-  SERVER_PORT,
-  // Wake Lock state (for keep-awake module coordination)
-  getWakeLockState: () => ({
-    wakeLock,
-    wakeLockSupported,
-    keepAwakeMethod,
-    keepAwakeActive,
-    keepAwakeInterval,
-    hiddenVideo,
-    webRTCConnection
-  }),
-  setWakeLockState: (state) => {
-    if (state.wakeLock !== undefined) wakeLock = state.wakeLock;
-    if (state.wakeLockSupported !== undefined) wakeLockSupported = state.wakeLockSupported;
-    if (state.keepAwakeMethod !== undefined) keepAwakeMethod = state.keepAwakeMethod;
-    if (state.keepAwakeActive !== undefined) keepAwakeActive = state.keepAwakeActive;
-    if (state.keepAwakeInterval !== undefined) keepAwakeInterval = state.keepAwakeInterval;
-    if (state.hiddenVideo !== undefined) hiddenVideo = state.hiddenVideo;
-    if (state.webRTCConnection !== undefined) webRTCConnection = state.webRTCConnection;
-  }
+  SERVER_PORT
 };
 
 // ==============================

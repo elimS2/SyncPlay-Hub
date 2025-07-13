@@ -379,7 +379,9 @@ def api_delete_track():
             log_message(f"[Delete] ERROR: Target path: {target_path}")
             return jsonify({"status": "error", "error": f"Failed to move file to trash: {e}"}), 500
         
-        # Record deletion in database
+        # Record deletion in database with full path information
+        full_source_path = str(full_file_path)
+        full_target_path = str(target_file)
         db.record_track_deletion(
             conn, 
             video_id, 
@@ -388,13 +390,8 @@ def api_delete_track():
             deletion_reason='manual_delete',
             channel_group=channel_folder,
             trash_path=trash_path,
-            additional_data=f"deleted_from_playlist_ui"
+            additional_data=f"deleted_from_playlist_ui,move_from:{full_source_path},move_to:{full_target_path}"
         )
-        
-        # Record deletion event in play_history with full path information
-        full_source_path = str(full_file_path)
-        full_target_path = str(target_file)
-        record_event(conn, video_id, 'removed', additional_data=f'manual_delete_move_from:{full_source_path}_to:{full_target_path}')
         
         conn.close()
         

@@ -1,249 +1,30 @@
+// Импорт общих утилит
+import { shuffle, smartShuffle, detectChannelGroup, smartChannelShuffle, getGroupPlaybackInfo, orderByPublishDate as utilsOrderByPublishDate, formatTime, updateSpeedDisplay as utilsUpdateSpeedDisplay, showNotification, handleVolumeWheel as utilsHandleVolumeWheel, stopTick as utilsStopTick, stopPlayback as utilsStopPlayback, playIndex as utilsPlayIndex, updateMuteIcon as utilsUpdateMuteIcon, nextTrack as utilsNextTrack, prevTrack as utilsPrevTrack, sendStreamEvent as utilsSendStreamEvent, startTick as utilsStartTick, reportEvent as utilsReportEvent, triggerAutoDeleteCheck as utilsTriggerAutoDeleteCheck, recordSeekEvent, saveVolumeToDatabase as utilsSaveVolumeToDatabase, loadSavedVolume as utilsLoadSavedVolume, performKeyboardSeek as utilsPerformKeyboardSeek, syncLikeButtonsWithRemote as utilsSyncLikeButtonsWithRemote, syncLikesAfterAction as utilsSyncLikesAfterAction, setupLikeSyncHandlers as utilsSetupLikeSyncHandlers, togglePlayback as utilsTogglePlayback, showFsControls as utilsShowFsControls, updateFsVisibility as utilsUpdateFsVisibility, syncRemoteState as utilsSyncRemoteState, setupGlobalTooltip as utilsSetupGlobalTooltip, pollRemoteCommands as utilsPollRemoteCommands, cyclePlaybackSpeed as utilsCyclePlaybackSpeed, executeRemoteCommand as utilsExecuteRemoteCommand, deleteTrack as utilsDeleteTrack, initializeGoogleCastIntegration as utilsInitializeGoogleCastIntegration, castLoad as utilsCastLoad, loadTrack as utilsLoadTrack, setupMediaEndedHandler, setupMediaPlayPauseHandlers, setupMediaTimeUpdateHandler, setupMediaSeekedHandler, setupKeyboardHandler, setupProgressClickHandler, setupMediaSessionAPI, setupPlaylistToggleHandler, setupDeleteCurrentHandler, setupLikeDislikeHandlers, setupYouTubeHandler, setupFullscreenHandlers, setupSimpleControlHandlers, setupStreamHandler, setupBeforeUnloadHandler, setupAutoPlayInitialization, setupRemoteControlOverrides, setupRemoteControlInitialization } from '/static/js/modules/player-utils.js';
+
 async function fetchTracks(playlistPath = '') {
   const endpoint = playlistPath ? `/api/tracks/${encodeURI(playlistPath)}` : '/api/tracks';
   const res = await fetch(endpoint);
   return await res.json();
 }
 
-function shuffle(array) {
-  for (let i = array.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [array[i], array[j]] = [array[j], array[i]];
-  }
-}
+// shuffle() теперь импортируется из player-utils.js
 
 // ===== SMART CHANNEL PLAYBACK LOGIC =====
 
-function smartShuffle(list){
-   const now = new Date();
-   const group1=[];const group2=[];const group3=[];const group4=[];const group5=[];const group6=[];
+// smartShuffle() теперь импортируется из player-utils.js
 
-   const getWeekOfYear=(d)=>{
-     const onejan=new Date(d.getFullYear(),0,1);
-     return Math.ceil((((d - onejan)/86400000)+onejan.getDay()+1)/7);
-   };
+// detectChannelGroup() теперь импортируется из player-utils.js
 
-   for(const t of list){
-      if(!t.last_play){group1.push(t);continue;}
-      const tsStr = t.last_play.replace(' ', 'T')+'Z';
-      const ts=new Date(tsStr);
-      if(ts.getFullYear()<now.getFullYear()){group2.push(t);continue;}
-      if(ts.getMonth()<now.getMonth()){group3.push(t);continue;}
-      if(getWeekOfYear(ts)<getWeekOfYear(now)){group4.push(t);continue;}
-      if(ts.getDate()<now.getDate()){group5.push(t);continue;}
-      group6.push(t);
-   }
+// smartChannelShuffle() теперь импортируется из player-utils.js
 
-   const all=[group1,group2,group3,group4,group5,group6].flatMap(arr=>{shuffle(arr);return arr;});
-   return all;
-}
-
-function detectChannelGroup(track) {
-  /**
-   * Detect channel group from file path
-   * Returns: { type: 'music'|'news'|'education'|'podcasts'|'playlist', group: string, isChannel: boolean }
-   */
-  if (!track || !track.relpath) {
-    return { type: 'playlist', group: 'Unknown', isChannel: false };
-  }
-  
-  const path = track.relpath.toLowerCase();
-  
-  // Check for channel group patterns: Music/Channel-Artist/, News/Channel-News/, etc.
-  const channelGroupMatch = path.match(/^(music|news|education|podcasts)\/channel-([^\/]+)\//);
-  if (channelGroupMatch) {
-    const groupType = channelGroupMatch[1];
-    const channelName = channelGroupMatch[2];
-    return { 
-      type: groupType, 
-      group: `${groupType.charAt(0).toUpperCase() + groupType.slice(1)} Channels`,
-      channel: channelName,
-      isChannel: true 
-    };
-  }
-  
-  // Check for direct channel folders: Channel-Artist/
-  const directChannelMatch = path.match(/^channel-([^\/]+)\//);
-  if (directChannelMatch) {
-    const channelName = directChannelMatch[1];
-    return { 
-      type: 'music', // Default to music for direct channels
-      group: 'Channels',
-      channel: channelName,
-      isChannel: true 
-    };
-  }
-  
-  // Regular playlist
-  const playlistMatch = path.match(/^([^\/]+)\//);
-  if (playlistMatch) {
-    const playlistName = playlistMatch[1];
-    return { 
-      type: 'playlist', 
-      group: playlistName,
-      isChannel: false 
-    };
-  }
-  
-  return { type: 'playlist', group: 'Unknown', isChannel: false };
-}
-
-function smartChannelShuffle(tracks) {
-  /**
-   * Smart shuffle based on channel groups:
-   * - Music: Random shuffle with repeat
-   * - News: Chronological newest-first (by filename/date)
-   * - Education: Sequential oldest-first
-   * - Podcasts: Sequential newest-first
-   * - Playlists: Smart shuffle (existing logic)
-   */
-  
-  if (!tracks || tracks.length === 0) return [];
-  
-  // Group tracks by channel group
-  const groups = {};
-  tracks.forEach(track => {
-    const detection = detectChannelGroup(track);
-    const key = `${detection.type}:${detection.group}`;
-    if (!groups[key]) {
-      groups[key] = { tracks: [], detection: detection };
-    }
-    groups[key].tracks.push(track);
-  });
-  
-  // Process each group according to its type
-  const processedTracks = [];
-  
-  Object.values(groups).forEach(group => {
-    const { tracks: groupTracks, detection } = group;
-    let orderedTracks = [...groupTracks];
-    
-    switch (detection.type) {
-      case 'music':
-        // Random shuffle for music
-        shuffle(orderedTracks);
-        console.log(`🎵 Music group "${detection.group}": ${orderedTracks.length} tracks shuffled randomly`);
-        break;
-        
-      case 'news':
-        // Chronological newest-first for news
-        orderedTracks.sort((a, b) => {
-          // Try to extract date from filename or use last_play as fallback
-          const aTime = a.last_play || a.name;
-          const bTime = b.last_play || b.name;
-          return bTime.localeCompare(aTime); // Newest first
-        });
-        console.log(`📰 News group "${detection.group}": ${orderedTracks.length} tracks ordered newest-first`);
-        break;
-        
-      case 'education':
-        // Sequential oldest-first for education
-        orderedTracks.sort((a, b) => {
-          const aTime = a.last_play || a.name;
-          const bTime = b.last_play || b.name;
-          return aTime.localeCompare(bTime); // Oldest first
-        });
-        console.log(`🎓 Education group "${detection.group}": ${orderedTracks.length} tracks ordered oldest-first`);
-        break;
-        
-      case 'podcasts':
-        // Sequential newest-first for podcasts
-        orderedTracks.sort((a, b) => {
-          const aTime = a.last_play || a.name;
-          const bTime = b.last_play || b.name;
-          return bTime.localeCompare(aTime); // Newest first
-        });
-        console.log(`🎙️ Podcast group "${detection.group}": ${orderedTracks.length} tracks ordered newest-first`);
-        break;
-        
-      case 'playlist':
-      default:
-        // Use existing smart shuffle logic for playlists
-        orderedTracks = smartShuffle(groupTracks);
-        console.log(`📋 Playlist "${detection.group}": ${orderedTracks.length} tracks smart shuffled`);
-        break;
-    }
-    
-    processedTracks.push(...orderedTracks);
-  });
-  
-  return processedTracks;
-}
-
+// orderByPublishDate() теперь импортируется из player-utils.js
+// Wrapper function для совместимости с существующим кодом
 function orderByPublishDate(tracks) {
-  /**
-   * Sort tracks by YouTube publish date in ascending order (oldest first)
-   * Uses youtube_timestamp, youtube_release_timestamp, or youtube_release_year
-   */
-  if (!tracks || tracks.length === 0) return [];
-
-  const orderedTracks = [...tracks];
-  
-  orderedTracks.sort((a, b) => {
-    // Get publish dates for comparison
-    const getPublishTimestamp = (track) => {
-      // Priority: youtube_timestamp > youtube_release_timestamp > youtube_release_year > fallback to 0
-      if (track.youtube_timestamp && track.youtube_timestamp > 0) {
-        return track.youtube_timestamp;
-      }
-      if (track.youtube_release_timestamp && track.youtube_release_timestamp > 0) {
-        return track.youtube_release_timestamp;
-      }
-      if (track.youtube_release_year && track.youtube_release_year > 0) {
-        // Convert year to approximate timestamp (January 1st of that year)
-        return new Date(`${track.youtube_release_year}-01-01`).getTime() / 1000;
-      }
-      // Fallback for tracks without date info - put them at the beginning
-      return 0;
-    };
-
-    const aTime = getPublishTimestamp(a);
-    const bTime = getPublishTimestamp(b);
-    
-    // Sort ascending (oldest first)
-    return aTime - bTime;
-  });
-
-  console.log(`📅 Tracks ordered by publish date (oldest first): ${orderedTracks.length} tracks`);
-  
-  // Debug log first few tracks to verify sorting
-  if (orderedTracks.length > 0) {
-    console.log('📅 First few tracks by date:');
-    orderedTracks.slice(0, 3).forEach((track, idx) => {
-      const date = track.youtube_timestamp ? new Date(track.youtube_timestamp * 1000).toLocaleDateString() :
-                   track.youtube_release_timestamp ? new Date(track.youtube_release_timestamp * 1000).toLocaleDateString() :
-                   track.youtube_release_year ? track.youtube_release_year : 'Unknown';
-      console.log(`  ${idx + 1}. ${track.name} (${date})`);
-    });
-  }
-
-  return orderedTracks;
+  // Используем схему 'regular' для обычных плейлистов (youtube_timestamp, youtube_release_timestamp, youtube_release_year)
+  return utilsOrderByPublishDate(tracks, 'regular');
 }
 
-function getGroupPlaybackInfo(tracks) {
-  /**
-   * Get playback information for current track mix
-   */
-  if (!tracks || tracks.length === 0) return null;
-  
-  const groups = {};
-  tracks.forEach(track => {
-    const detection = detectChannelGroup(track);
-    const key = `${detection.type}:${detection.group}`;
-    if (!groups[key]) {
-      groups[key] = { count: 0, detection: detection };
-    }
-    groups[key].count++;
-  });
-  
-  const groupInfo = Object.values(groups).map(group => ({
-    type: group.detection.type,
-    group: group.detection.group,
-    count: group.count,
-    isChannel: group.detection.isChannel
-  }));
-  
-  return groupInfo;
-}
+// getGroupPlaybackInfo() теперь импортируется из player-utils.js
 
 // ===== END SMART CHANNEL PLAYBACK LOGIC =====
 
@@ -435,176 +216,20 @@ const cDislike = document.getElementById('cDislike');
 
 
   // ---- Google Cast Integration ----
-  console.log('🔄 CAST DEBUG: Starting Google Cast integration setup...');
-  
-  let castContext = null;
-  let pendingCastTrack=null;
-
-  // Step 1: Check if Cast button element exists in DOM
-  console.log('🔍 CAST DEBUG: Step 1 - Looking for Cast button element...');
-  const castBtn = document.getElementById('castBtn');
-  if(castBtn){
-      console.log('✅ CAST DEBUG: Cast button element found!', castBtn);
-      castBtn.style.display='inline-flex';
-      console.log('✅ CAST DEBUG: Cast button made visible with display: inline-flex');
-      
-      // Add click handler for cast button
-      castBtn.onclick = () => {
-          console.log('🔘 CAST DEBUG: Cast button clicked!');
-          if(!castContext) {
-              console.warn('❌ CAST DEBUG: Cast context not available when button clicked');
-              return;
-          }
-          
-          console.log('🔄 CAST DEBUG: Checking current cast session...');
-          const currentSession = castContext.getCurrentSession();
-          if(currentSession) {
-              console.log('🛑 CAST DEBUG: Active session found, ending it...');
-              currentSession.endSession(false);
-              console.log('✅ CAST DEBUG: Cast session ended');
-          } else {
-              console.log('🚀 CAST DEBUG: No active session, requesting new session...');
-              castContext.requestSession().then(() => {
-                  console.log('✅ CAST DEBUG: Cast session started successfully!');
-                  // Load current track if available
-                  if(currentIndex >= 0 && currentIndex < queue.length) {
-                      console.log('🎵 CAST DEBUG: Loading current track to cast device...');
-                      castLoad(queue[currentIndex]);
-                  } else {
-                      console.log('ℹ️ CAST DEBUG: No current track to load');
-                  }
-              }).catch(err => {
-                  console.warn('❌ CAST DEBUG: Cast session failed:', err);
-              });
-          }
-      };
-      console.log('✅ CAST DEBUG: Click handler attached to Cast button');
-  }else{
-      console.error('❌ CAST DEBUG: Cast button element NOT FOUND in DOM!');
-      console.log('🔍 CAST DEBUG: Available button elements:', 
-          Array.from(document.querySelectorAll('button')).map(btn => btn.id || btn.className));
-  }
-
-  // Step 2: Set up Cast API callback
-  console.log('🔄 CAST DEBUG: Step 2 - Setting up Cast API availability callback...');
-  window.__onGCastApiAvailable = function(isAvailable){
-      console.log('📡 CAST DEBUG: Cast API callback triggered, isAvailable=', isAvailable);
-      
-      if(isAvailable){
-          console.log('✅ CAST DEBUG: Cast API is available, initializing...');
-          try {
-              console.log('🔄 CAST DEBUG: Getting Cast context instance...');
-              castContext = cast.framework.CastContext.getInstance();
-              console.log('✅ CAST DEBUG: Cast context obtained:', castContext);
-              
-              console.log('🔄 CAST DEBUG: Setting Cast context options...');
-              castContext.setOptions({
-                  receiverApplicationId: chrome.cast.media.DEFAULT_MEDIA_RECEIVER_APP_ID,
-                  autoJoinPolicy: chrome.cast.AutoJoinPolicy.ORIGIN_SCOPED
-              });
-              console.log('✅ CAST DEBUG: Cast context options set successfully');
-              
-              // Double-check button visibility after API load
-              const castBtn = document.getElementById('castBtn');
-              if(castBtn){
-                  castBtn.style.display='inline-flex';
-                  castBtn.style.visibility='visible';
-                  console.log('✅ CAST DEBUG: Cast button double-checked and made visible after API load');
-                  console.log('🎯 CAST DEBUG: Cast button final styles:', {
-                      display: castBtn.style.display,
-                      visibility: castBtn.style.visibility,
-                      offsetWidth: castBtn.offsetWidth,
-                      offsetHeight: castBtn.offsetHeight
-                  });
-              }else{
-                  console.error('❌ CAST DEBUG: Cast button element NOT FOUND after API load!');
-              }
-              
-              // Set up session state change listener
-              console.log('🔄 CAST DEBUG: Setting up session state change listener...');
-              castContext.addEventListener(cast.framework.CastContextEventType.SESSION_STATE_CHANGED, (e) => {
-                  console.log('🔄 CAST DEBUG: Session state changed:', e.sessionState);
-                  if((e.sessionState === cast.framework.SessionState.SESSION_STARTED || 
-                      e.sessionState === cast.framework.SessionState.SESSION_RESUMED) && pendingCastTrack){
-                      console.log('🎵 CAST DEBUG: Loading pending track after session start...');
-                      castLoad(pendingCastTrack);
-                      pendingCastTrack = null;
-                  }
-              });
-              console.log('✅ CAST DEBUG: Session state change listener attached');
-              
-              console.log('🎉 CAST DEBUG: Google Cast integration fully initialized!');
-              
-          } catch (error) {
-              console.error('❌ CAST DEBUG: Error initializing Cast API:', error);
-              console.error('❌ CAST DEBUG: Error stack:', error.stack);
-          }
-      } else {
-          console.warn('❌ CAST DEBUG: Cast API is NOT available');
-          console.log('ℹ️ CAST DEBUG: Possible reasons: no Cast devices, API blocked, network issues');
-      }
-  };
-  
-  console.log('✅ CAST DEBUG: Cast API callback function set up successfully');
+  // Используем централизованную функцию инициализации Cast
+  const castState = utilsInitializeGoogleCastIntegration({ 
+    currentIndex, 
+    queue, 
+    castLoad: (track) => castLoad(track) 
+  });
+  let castContext = castState.castContext;
+  let pendingCastTrack = castState.pendingCastTrack;
 
   function castLoad(track){
-      console.log('🎵 CAST DEBUG: castLoad() called for track:', track.name);
-      
-      if(!castContext) {
-          console.warn('❌ CAST DEBUG: No cast context available for loading track');
-          return;
-      }
-      
-      console.log('🔄 CAST DEBUG: Getting current cast session...');
-      const session = castContext.getCurrentSession();
-      if(!session){
-          console.log('📝 CAST DEBUG: No active session, saving track as pending');
-          pendingCastTrack=track;
-          return;
-      }
-      
-      console.log('✅ CAST DEBUG: Active cast session found, preparing media...');
-      let absUrl = new URL(track.url, window.location.href).href;
-      console.log('🔗 CAST DEBUG: Original URL:', track.url);
-      console.log('🔗 CAST DEBUG: Absolute URL:', absUrl);
-      
-      // if hostname is localhost, replace with current local IP (taken from location)
-      if (absUrl.includes('localhost')) {
-          console.log('🔄 CAST DEBUG: Localhost detected, replacing with server IP...');
-          if (typeof SERVER_IP !== 'undefined' && SERVER_IP) {
-              absUrl = absUrl.replace('localhost', SERVER_IP);
-              console.log('✅ CAST DEBUG: Replaced with SERVER_IP:', SERVER_IP);
-          } else {
-              absUrl = absUrl.replace('localhost', window.location.hostname);
-              console.log('✅ CAST DEBUG: Replaced with hostname:', window.location.hostname);
-          }
-          console.log('🔗 CAST DEBUG: Final URL for casting:', absUrl);
-      }
-      
-      const ext = absUrl.split('.').pop().toLowerCase();
-      const mimeMap = {mp4:'video/mp4', webm:'video/webm', mkv:'video/x-matroska', mov:'video/quicktime', mp3:'audio/mpeg', m4a:'audio/mp4', opus:'audio/ogg', flac:'audio/flac'};
-      const mime = mimeMap[ext] || 'video/mp4';
-      console.log('🎬 CAST DEBUG: File extension:', ext, 'MIME type:', mime);
-      
-      console.log('🔄 CAST DEBUG: Creating media info object...');
-      const mediaInfo = new chrome.cast.media.MediaInfo(absUrl, mime);
-      mediaInfo.metadata = new chrome.cast.media.GenericMediaMetadata();
-      mediaInfo.metadata.title = track.name;
-      console.log('📝 CAST DEBUG: Media info created:', {
-          contentId: mediaInfo.contentId,
-          contentType: mediaInfo.contentType,
-          title: mediaInfo.metadata.title
+      return utilsCastLoad(track, {
+          castContext,
+          setPendingCastTrack: (t) => { pendingCastTrack = t; }
       });
-      
-      console.log('🚀 CAST DEBUG: Sending load request to cast device...');
-      const request = new chrome.cast.media.LoadRequest(mediaInfo);
-      session.loadMedia(request)
-          .then(() => {
-              console.log('✅ CAST DEBUG: Media loaded successfully on cast device!');
-          })
-          .catch(error => {
-              console.error('❌ CAST DEBUG: Failed to load media on cast device:', error);
-          });
   }
 
   if(window.cast && castContext){
@@ -780,122 +405,31 @@ const cDislike = document.getElementById('cDislike');
     setupGlobalTooltip();
   }
   
+  // setupGlobalTooltip() теперь импортируется из player-utils.js
+  // Wrapper function для совместимости с существующим кодом
   function setupGlobalTooltip() {
-    // Remove existing tooltip if any
-    const existingTooltip = document.getElementById('global-tooltip');
-    if (existingTooltip) {
-      existingTooltip.remove();
-    }
-    
-    // Create global tooltip element
-    const tooltip = document.createElement('div');
-    tooltip.id = 'global-tooltip';
-    tooltip.className = 'custom-tooltip';
-    tooltip.style.display = 'none';
-    document.body.appendChild(tooltip);
-    
-    // Add event listeners to all tracks with tooltip data
-    const trackItems = listElem.querySelectorAll('li[data-tooltip-html]');
-    
-    trackItems.forEach(item => {
-      item.addEventListener('mouseenter', (e) => {
-        const tooltipHTML = item.getAttribute('data-tooltip-html');
-        tooltip.innerHTML = tooltipHTML;
-        tooltip.style.display = 'block';
-        
-        // Position tooltip intelligently
-        const rect = item.getBoundingClientRect();
-        const tooltipRect = tooltip.getBoundingClientRect();
-        const windowWidth = window.innerWidth;
-        const windowHeight = window.innerHeight;
-        
-        let left, top;
-        
-        // Check if there's enough space on the right
-        if (rect.right + tooltipRect.width + 20 <= windowWidth) {
-          // Show on the right
-          left = rect.right + 10;
-        } else {
-          // Show on the left
-          left = rect.left - tooltipRect.width - 10;
-        }
-        
-        // Ensure tooltip doesn't go off screen horizontally
-        if (left < 10) left = 10;
-        if (left + tooltipRect.width > windowWidth - 10) {
-          left = windowWidth - tooltipRect.width - 10;
-        }
-        
-        // Position vertically
-        top = rect.top;
-        
-        // Ensure tooltip doesn't go off screen vertically
-        if (top + tooltipRect.height > windowHeight - 10) {
-          top = windowHeight - tooltipRect.height - 10;
-        }
-        if (top < 10) top = 10;
-        
-        tooltip.style.position = 'fixed';
-        tooltip.style.left = left + 'px';
-        tooltip.style.top = top + 'px';
-      });
-      
-      item.addEventListener('mouseleave', () => {
-        tooltip.style.display = 'none';
-      });
-    });
+    return utilsSetupGlobalTooltip(listElem);
   }
 
   function loadTrack(idx, autoplay=false){
-    if(idx<0 || idx>=queue.length) return;
-    currentIndex=idx;
-    const track=queue[currentIndex];
-    media.src=track.url;
-    if(autoplay){media.play();}else{media.load();}
-    
-    // Preserve playback speed when loading new track
-    media.playbackRate = speedOptions[currentSpeedIndex];
-    
-    if('mediaSession' in navigator){
-        navigator.mediaSession.metadata = new MediaMetadata({
-            title: track.name,
-            artist: '',
-            album: '',
-        });
-    }
-    castLoad(track);
-    renderList();
-    // reset like state visual
-    likedCurrent=false;
-    cLike.classList.remove('like-active');
-    cLike.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>';
-    cDislike.classList.remove('dislike-active');
-    cDislike.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3z"></path></svg>';
-    // report play start once per track
-    reportEvent(track.video_id, 'start');
-    sendStreamEvent({action:'seek', idx: currentIndex, paused: media.paused, position: media.currentTime});
+    return utilsLoadTrack(idx, autoplay, {
+        queue, currentIndex, setCurrentIndex: (newIdx) => { currentIndex = newIdx; },
+        media, speedOptions, currentSpeedIndex, castLoad, renderList,
+        cLike, cDislike, reportEvent, sendStreamEvent
+    });
   }
 
   function playIndex(idx){
-    loadTrack(idx,true);
+    utilsPlayIndex(idx, loadTrack);
   }
 
-  media.addEventListener('ended', () => {
-    // capture current track before any change
-    const finishedTrack = queue[currentIndex];
-
-    // report finish first
-    if (finishedTrack) {
-      reportEvent(finishedTrack.video_id, 'finish');
-      
-      // Trigger auto-delete check for channel content
-      triggerAutoDeleteCheck(finishedTrack);
-    }
-
-    // then move to next track if available
-    if (currentIndex + 1 < queue.length) {
-      playIndex(currentIndex + 1);
-    }
+  // Setup media ended handler using centralized function
+  setupMediaEndedHandler(media, {
+    queue,
+    currentIndex: () => currentIndex,
+    reportEvent,
+    triggerAutoDeleteCheck,
+    playIndex
   });
 
   shuffleBtn.onclick = async () => {
@@ -947,189 +481,53 @@ const cDislike = document.getElementById('cDislike');
 
   // Functions for control actions
   function stopPlayback() {
-    media.pause();
-    media.currentTime = 0;
+    utilsStopPlayback(media);
   }
 
   function nextTrack() {
-    if (currentIndex + 1 < queue.length) {
-      // send event for current track before switching
-      if(currentIndex>=0){ reportEvent(queue[currentIndex].video_id,'next'); }
-      playIndex(currentIndex + 1);
-      sendStreamEvent({action:'next', idx: currentIndex, paused: media.paused, position:0});
-    }
+    utilsNextTrack(currentIndex, queue, reportEvent, playIndex, sendStreamEvent, media);
   }
 
   function prevTrack() {
-    if (currentIndex - 1 >= 0) {
-      if(currentIndex>=0){ reportEvent(queue[currentIndex].video_id,'prev'); }
-      playIndex(currentIndex - 1);
-      sendStreamEvent({action:'prev', idx: currentIndex, paused: media.paused, position: media.currentTime});
-    }
+    utilsPrevTrack(currentIndex, queue, reportEvent, playIndex, sendStreamEvent, media);
   }
 
+  // togglePlayback() теперь импортируется из player-utils.js
+  // Wrapper function для совместимости с существующим кодом
   function togglePlayback() {
-    if (media.paused) {
-      media.play();
-      sendStreamEvent({action:'play', position: media.currentTime, paused:false});
-      startTick();
-    } else {
-      media.pause();
-      sendStreamEvent({action:'pause', position: media.currentTime, paused:true});
-    }
+    return utilsTogglePlayback({ media, sendStreamEvent, startTick });
   }
 
-  deleteCurrentBtn.onclick = async () => {
-    // Check if there's a current track
-    if (currentIndex < 0 || currentIndex >= queue.length) {
-      showNotification('❌ No active track to delete', 'error');
-      return;
-    }
-    
-    const currentTrack = queue[currentIndex];
-    
-    // Confirm deletion
-    const confirmMessage = `Delete current track "${currentTrack.name.replace(/\s*\[.*?\]$/, '')}" from playlist?\n\nTrack will be moved to trash and can be restored.`;
-    if (!confirm(confirmMessage)) {
-      return;
-    }
-    
-    console.log(`🗑️ Deleting current track: ${currentTrack.name} (${currentTrack.video_id})`);
-    
-    try {
-      // CRITICAL: First pause and clear media source to release file lock
-      media.pause();
-      const currentTime = media.currentTime; // Save position for potential restore
-      media.src = ''; // This releases the file lock
-      media.load(); // Ensure the media element is properly reset
-      
-      console.log('🔓 Media file released, proceeding with deletion...');
-      
-      // Give a small delay to ensure file is fully released
-      await new Promise(resolve => setTimeout(resolve, 200));
-      
-      // Send delete request to API
-      const response = await fetch('/api/channels/delete_track', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          video_id: currentTrack.video_id
-        })
-      });
-      
-      const result = await response.json();
-      
-      if (result.status === 'ok') {
-        console.log(`✅ Current track deleted successfully: ${result.message}`);
-        
-        // Remove track from current queue
-        queue.splice(currentIndex, 1);
-        
-        // Also remove from original tracks array
-        const originalIndex = tracks.findIndex(t => t.video_id === currentTrack.video_id);
-        if (originalIndex !== -1) {
-          tracks.splice(originalIndex, 1);
-        }
-        
-        // Handle playback continuation
-        if (queue.length > 0) {
-          // Stay at the same index if possible, or go to first track
-          const nextIndex = currentIndex < queue.length ? currentIndex : 0;
-          console.log(`🎵 Auto-continuing to next track at index ${nextIndex}`);
-          playIndex(nextIndex);
-        } else {
-          // No tracks left
-          currentIndex = -1;
-          showNotification('📭 Playlist is empty - all tracks deleted', 'info');
-        }
-        
-        // Update the list display
-        renderList();
-        
-        // Show success message
-        showNotification(`✅ Track deleted: ${result.message}`, 'success');
-        
-      } else {
-        console.error('❌ Failed to delete current track:', result.error);
-        showNotification(`❌ Deletion error: ${result.error}`, 'error');
-        
-        // On failure, try to restore playback of the same track
-        console.log('🔄 Attempting to restore playback after deletion failure...');
-        try {
-          loadTrack(currentIndex, true);
-          if (currentTime && isFinite(currentTime)) {
-            setTimeout(() => {
-              media.currentTime = currentTime; // Restore position
-            }, 500);
-          }
-        } catch (restoreError) {
-          console.warn('⚠️ Could not restore playback:', restoreError);
-        }
-      }
-      
-    } catch (error) {
-      console.error('❌ Error deleting current track:', error);
-      showNotification(`❌ Network error: ${error.message}`, 'error');
-      
-      // On error, try to restore playback
-      console.log('🔄 Attempting to restore playback after network error...');
-      try {
-        loadTrack(currentIndex, true);
-        if (currentTime && isFinite(currentTime)) {
-          setTimeout(() => {
-            media.currentTime = currentTime; // Restore position
-          }, 500);
-        }
-      } catch (restoreError) {
-        console.warn('⚠️ Could not restore playback:', restoreError);
-      }
-    }
-  };
+  // Setup delete current button handler using centralized function
+  setupDeleteCurrentHandler(deleteCurrentBtn, {
+    currentIndex: () => currentIndex,
+    queue,
+    tracks,
+    media,
+    playIndex,
+    renderList,
+    showNotification,
+    loadTrack,
+    getCurrentIndex: () => currentIndex,
+    setCurrentIndex: (newIdx) => { currentIndex = newIdx; }
+  }, 'regular');
 
-  fullBtn.onclick = () => {
-    if (!document.fullscreenElement) {
-      wrapper.requestFullscreen?.() || wrapper.webkitRequestFullscreen?.();
-    } else {
-      document.exitFullscreen?.() || document.webkitExitFullscreen?.();
-    }
-  };
-
-  cPrev.onclick = () => prevTrack();
-  cNext.onclick = () => nextTrack();
+  // Setup fullscreen and control handlers using centralized functions
+  setupFullscreenHandlers(fullBtn, cFull, wrapper);
+  setupSimpleControlHandlers(cPrev, cNext, media, prevTrack, nextTrack, togglePlayback);
 
   // Speed control functionality
+  // updateSpeedDisplay() теперь импортируется из player-utils.js
   function updateSpeedDisplay() {
-    const speed = speedOptions[currentSpeedIndex];
-    if (speedLabel) {
-      speedLabel.textContent = `${speed}x`;
-    }
-    if (cSpeed) {
-      cSpeed.title = `Playback Speed: ${speed}x (click to change)`;
-    }
+    // Wrapper function для совместимости с существующим кодом
+    return utilsUpdateSpeedDisplay(currentSpeedIndex, speedOptions, speedLabel, cSpeed);
   }
 
+  // cyclePlaybackSpeed() теперь импортируется из player-utils.js
+  // Wrapper function для совместимости с существующим кодом
   async function cyclePlaybackSpeed() {
-    currentSpeedIndex = (currentSpeedIndex + 1) % speedOptions.length;
-    const newSpeed = speedOptions[currentSpeedIndex];
-    
-    if (media) {
-      media.playbackRate = newSpeed;
-    }
-    
-    updateSpeedDisplay();
-    
-    console.log(`⏩ Playback speed changed to ${newSpeed}x`);
-    
-    // Save the new speed to playlist settings
-    await savePlaylistSpeed(newSpeed);
-    
-    // Report speed change event if we have a current track
-    if (currentIndex >= 0 && currentIndex < queue.length) {
-      const track = queue[currentIndex];
-      reportEvent(track.video_id, 'speed_change', media.currentTime, { speed: newSpeed });
-    }
+    const context = { currentSpeedIndex, speedOptions, media, updateSpeedDisplay, reportEvent, currentIndex, queue };
+    currentSpeedIndex = await utilsCyclePlaybackSpeed(context, savePlaylistSpeed, 'regular');
   }
 
   // Initialize speed display
@@ -1143,112 +541,55 @@ const cDislike = document.getElementById('cDislike');
   // Use the main togglePlayback function for consistency
   cPlay.onclick = togglePlayback;
 
-  media.addEventListener('play', () => {
-    // Change to pause icon
-    cPlay.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>';
-    // Report play/resume event with current position
-    if(currentIndex >= 0 && currentIndex < queue.length) {
-      const track = queue[currentIndex];
-      reportEvent(track.video_id, 'play', media.currentTime);
-    }
-  });
-  media.addEventListener('pause', () => {
-    // Change to play icon
-    cPlay.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>';
-    // Report pause event with current position
-    if(currentIndex >= 0 && currentIndex < queue.length) {
-      const track = queue[currentIndex];
-      reportEvent(track.video_id, 'pause', media.currentTime);
-    }
+  // Setup media play/pause handlers using centralized function
+  setupMediaPlayPauseHandlers(media, {
+    cPlay,
+    queue,
+    currentIndex,
+    reportEvent
   });
 
-  function formatTime(s) {
-    if (!isFinite(s)) return '0:00';
-    const m = Math.floor(s / 60);
-    const sec = Math.floor(s % 60).toString().padStart(2, '0');
-    return `${m}:${sec}`;
-  }
+  // formatTime() теперь импортируется из player-utils.js
 
-  media.addEventListener('timeupdate', () => {
-    const percent = (media.currentTime / media.duration) * 100;
-    progressBar.style.width = `${percent}%`;
-    timeLabel.textContent = `${formatTime(media.currentTime)} / ${formatTime(media.duration)}`;
+  // Setup media timeupdate handler using centralized function
+  setupMediaTimeUpdateHandler(media, {
+    progressBar,
+    timeLabel,
+    formatTime
   });
 
   // Track seek events
   let lastSeekPosition = null;
-  let seekStartPosition = null;
+  const seekState = { seekStartPosition: null };
   
-  // Progress bar click handling with seek tracking
-  progressContainer.onclick = (e) => {
-    const rect = progressContainer.getBoundingClientRect();
-    const pos = (e.clientX - rect.left) / rect.width;
-    
-    // Store seek start position
-    seekStartPosition = media.currentTime;
-    
-    // Perform seek
-    media.currentTime = pos * media.duration;
-    
-    // Send stream event
-    sendStreamEvent({action:'seek', idx: currentIndex, paused: media.paused, position: media.currentTime});
-    
-    // Record seek event will happen in 'seeked' event listener
-  };
-  
-  // Listen for seek completion to record event
-  media.addEventListener('seeked', () => {
-    if (seekStartPosition !== null && currentIndex >= 0 && currentIndex < queue.length) {
-      const track = queue[currentIndex];
-      const seekTo = media.currentTime;
-      
-      // Only record meaningful seeks (> 1 second difference)
-      if (Math.abs(seekTo - seekStartPosition) >= 1.0) {
-        recordSeekEvent(track.video_id, seekStartPosition, seekTo, 'progress_bar');
-      }
-      
-      seekStartPosition = null; // Reset
-    }
+  // Setup progress container click handler using centralized function
+  setupProgressClickHandler(progressContainer, media, {
+    currentIndex: () => currentIndex,
+    sendStreamEvent,
+    seekState
   });
   
-  // Function to record seek events
-  async function recordSeekEvent(video_id, seek_from, seek_to, source) {
-    try {
-      const payload = {
-        video_id: video_id,
-        seek_from: seek_from,
-        seek_to: seek_to,
-        source: source
-      };
-      
-      const response = await fetch('/api/seek', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        const direction = data.direction;
-        const distance = Math.round(data.distance);
-        console.log(`⏩ Seek ${direction}: ${Math.round(seek_from)}s → ${Math.round(seek_to)}s (${distance}s) via ${source}`);
-      }
-    } catch (error) {
-      console.warn('⚠️ Failed to record seek event:', error);
-    }
-  }
+  // Setup media seeked handler using centralized function
+  setupMediaSeekedHandler(media, {
+    queue,
+    currentIndex: () => currentIndex,
+    recordSeekEvent,
+    seekState
+  });
+  
+  // recordSeekEvent() теперь импортируется из player-utils.js
 
-  cFull.onclick = () => {
-    if (!document.fullscreenElement) {
-      wrapper.requestFullscreen?.() || wrapper.webkitRequestFullscreen?.();
-    } else {
-      document.exitFullscreen?.() || document.webkitExitFullscreen?.();
-    }
-  };
+  // cFull.onclick теперь обрабатывается в setupFullscreenHandlers()
 
   // Volume wheel control variables - defined early for scope access
   let volumeWheelTimeout = null;
   let isVolumeWheelActive = false;
+  
+  // Object для передачи состояния в handleVolumeWheel
+  const volumeState = {
+    isVolumeWheelActive: false,
+    volumeWheelTimeout: null
+  };
   
   // Volume logic
   cMute.onclick = () => {
@@ -1269,47 +610,21 @@ const cDislike = document.getElementById('cDislike');
   
   if (cVol) {
     
-    // Function to handle volume wheel adjustment
+    // handleVolumeWheel() теперь импортируется из player-utils.js
     function handleVolumeWheel(e) {
-      e.preventDefault(); // Prevent page scroll
-      e.stopPropagation(); // Stop event bubbling
+      // Wrapper function для совместимости с существующим кодом
+      // Update local state for backward compatibility
+      volumeState.isVolumeWheelActive = true;
+      clearTimeout(volumeState.volumeWheelTimeout);
+      volumeState.volumeWheelTimeout = setTimeout(() => {
+        volumeState.isVolumeWheelActive = false;
+      }, 2000);
       
-      // Block remote volume commands while user is using wheel
-      isVolumeWheelActive = true;
-      clearTimeout(volumeWheelTimeout);
-      volumeWheelTimeout = setTimeout(() => {
-        isVolumeWheelActive = false;
-      }, 2000); // 2 second cooldown
+      // Также обновляем старые переменные для совместимости
+      isVolumeWheelActive = volumeState.isVolumeWheelActive;
+      volumeWheelTimeout = volumeState.volumeWheelTimeout;
       
-      const currentVolume = parseFloat(cVol.value);
-      const step = 0.01; // 1% step
-      
-      let newVolume;
-      if (e.deltaY < 0) {
-        // Wheel up - increase volume
-        newVolume = Math.min(1.0, currentVolume + step);
-      } else {
-        // Wheel down - decrease volume
-        newVolume = Math.max(0.0, currentVolume - step);
-      }
-      
-      // Check if we have an actual change
-      if (Math.abs(newVolume - currentVolume) < 0.001) {
-        return;
-      }
-      
-      // Update slider and media volume
-      cVol.value = newVolume;
-      media.volume = newVolume;
-      media.muted = media.volume === 0;
-      updateMuteIcon();
-      
-      // Force visual update
-      cVol.dispatchEvent(new Event('input', { bubbles: true }));
-      
-      saveVolumeToDatabase(media.volume);
-      
-      console.log(`🎚️ Volume wheel control: ${Math.round(currentVolume * 100)}% → ${Math.round(newVolume * 100)}%`);
+      return utilsHandleVolumeWheel(e, cVol, media, updateMuteIcon, saveVolumeToDatabase, volumeState);
     }
     
     // Add wheel event listeners for cross-browser compatibility
@@ -1323,542 +638,169 @@ const cDislike = document.getElementById('cDislike');
   }
   
   function updateMuteIcon() {
-    if (media.muted || media.volume === 0) {
-      cMute.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M16.5 12c0-1.77-1.02-3.29-2.5-4.03v2.21l2.45 2.45c.03-.2.05-.41.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06c1.38-.31 2.63-.95 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4L9.91 6.09 12 8.18V4z"/></svg>';
-    } else {
-      cMute.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z"/></svg>';
-    }
+    utilsUpdateMuteIcon(media, cMute);
   }
   
   // Save volume to database with debouncing
   let volumeSaveTimeout = null;
   let lastSavedVolume = null;
   
+  // saveVolumeToDatabase() теперь импортируется из player-utils.js
+  // Wrapper function для совместимости с существующим кодом
   async function saveVolumeToDatabase(volume) {
-    clearTimeout(volumeSaveTimeout);
-    volumeSaveTimeout = setTimeout(async () => {
-      try {
-        const currentTrack = currentIndex >= 0 && currentIndex < queue.length ? queue[currentIndex] : null;
-        const payload = {
-          volume: volume,
-          volume_from: lastSavedVolume || 1.0,
-          video_id: currentTrack ? currentTrack.video_id : 'system',
-          position: media.currentTime || null,
-          source: 'web'
-        };
-        
-        await fetch('/api/volume/set', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
-        
-        console.log(`💾 Volume saved: ${Math.round((lastSavedVolume || 1.0) * 100)}% → ${Math.round(volume * 100)}%`);
-        if (currentTrack) {
-          console.log(`🎵 Track: ${currentTrack.name} at ${Math.round(media.currentTime)}s`);
-        }
-        
-        lastSavedVolume = volume;
-      } catch (error) {
-        console.warn('⚠️ Failed to save volume:', error);
-      }
-    }, 500); // Debounce by 500ms to avoid excessive API calls
+    const context = {
+      currentIndex,
+      queue,
+      media,
+      state: { volumeSaveTimeout, lastSavedVolume }
+    };
+    await utilsSaveVolumeToDatabase(volume, context);
+    
+    // Update local state after save
+    volumeSaveTimeout = context.state.volumeSaveTimeout;
+    lastSavedVolume = context.state.lastSavedVolume;
   }
 
-  // Load saved volume on page load
+  // loadSavedVolume() теперь импортируется из player-utils.js
+  // Wrapper function для совместимости с существующим кодом
   async function loadSavedVolume() {
-    try {
-      const response = await fetch('/api/volume/get');
-      const data = await response.json();
-      
-      if (data.volume !== undefined) {
-        media.volume = data.volume;
-        cVol.value = data.volume;
-        lastSavedVolume = data.volume; // Set initial saved volume
-        console.log(`🔊 Loaded saved volume: ${data.volume_percent}%`);
-      } else {
-        // Default volume if no saved setting
-        media.volume = 1.0;
-        cVol.value = 1.0;
-        lastSavedVolume = 1.0; // Set default as saved volume
-        console.log('🔊 Using default volume: 100%');
-      }
-    } catch (error) {
-      console.warn('⚠️ Failed to load saved volume, using default:', error);
-      media.volume = 1.0;
-      cVol.value = 1.0;
-      lastSavedVolume = 1.0; // Set default as saved volume
-    }
+    const state = { lastSavedVolume };
+    await utilsLoadSavedVolume(media, cVol, state, updateMuteIcon);
     
-    updateMuteIcon();
+    // Update local state after load
+    lastSavedVolume = state.lastSavedVolume;
   }
   
   // Load saved volume immediately
   loadSavedVolume();
 
-  // auto smart-shuffle and start playback on first load
-  if (queue.length > 0) {
-      playIndex(0);
-      // Force sync after initial load
-      setTimeout(syncRemoteState, 500);
-  } else {
-      renderList();
-  }
+  // Setup auto-play initialization using centralized function
+  setupAutoPlayInitialization(queue, playIndex, renderList, syncRemoteState);
 
-  // Keyboard shortcuts: ← prev, → next, Space play/pause, Arrow Up/Down for seek
-  document.addEventListener('keydown', (e) => {
-    switch (e.code) {
-      case 'ArrowRight':
-        if (e.shiftKey) {
-          // Shift + Right = Seek forward 10 seconds
-          e.preventDefault();
-          performKeyboardSeek(10);
-        } else {
-          nextTrack();
-        }
-        break;
-      case 'ArrowLeft':
-        if (e.shiftKey) {
-          // Shift + Left = Seek backward 10 seconds
-          e.preventDefault();
-          performKeyboardSeek(-10);
-        } else {
-          prevTrack();
-        }
-        break;
-      case 'ArrowUp':
-        e.preventDefault();
-        performKeyboardSeek(30); // Seek forward 30 seconds
-        break;
-      case 'ArrowDown':
-        e.preventDefault();
-        performKeyboardSeek(-30); // Seek backward 30 seconds
-        break;
-      case 'Space':
-        e.preventDefault();
-        togglePlayback();
-        break;
-    }
+  // Setup keyboard handler using centralized function
+  setupKeyboardHandler({
+    performKeyboardSeek,
+    nextTrack,
+    prevTrack,
+    togglePlayback
   });
   
-  // Function to perform keyboard seek
+  // performKeyboardSeek() теперь импортируется из player-utils.js
+  // Wrapper function для совместимости с существующим кодом
   function performKeyboardSeek(offsetSeconds) {
-    if (currentIndex < 0 || currentIndex >= queue.length || !media.duration) return;
-    
-    const seekFrom = media.currentTime;
-    const seekTo = Math.max(0, Math.min(media.duration, seekFrom + offsetSeconds));
-    
-    if (Math.abs(seekTo - seekFrom) >= 1.0) {
-      media.currentTime = seekTo;
-      const track = queue[currentIndex];
-      recordSeekEvent(track.video_id, seekFrom, seekTo, 'keyboard');
-    }
+    const context = { currentIndex, queue, media, recordSeekEvent };
+    return utilsPerformKeyboardSeek(offsetSeconds, context);
   }
 
+  // showFsControls() теперь импортируется из player-utils.js
+  // Wrapper function для совместимости с существующим кодом
   function showFsControls(){
-     if(!document.fullscreenElement) return;
-     customControls.classList.remove('hidden');
-     controlBar.classList.remove('hidden');
-     clearTimeout(fsTimer);
-     fsTimer = setTimeout(()=>{
-        if(document.fullscreenElement){
-           customControls.classList.add('hidden');
-           controlBar.classList.add('hidden');
-        }
-     },3000);
+    return utilsShowFsControls({ customControls, controlBar, fsTimer });
   }
 
+  // updateFsVisibility() теперь импортируется из player-utils.js
+  // Wrapper function для совместимости с существующим кодом
   function updateFsVisibility(){
-     if(document.fullscreenElement){
-        listElem.style.display='none';
-        showFsControls();
-        // mouse move to reveal controls
-        wrapper.addEventListener('mousemove', showFsControls);
-     }else{
-        listElem.style.display='';
-        customControls.classList.remove('hidden');
-        controlBar.classList.remove('hidden');
-        wrapper.removeEventListener('mousemove', showFsControls);
-        clearTimeout(fsTimer);
-     }
+    return utilsUpdateFsVisibility({ listElem, customControls, controlBar, wrapper, fsTimer });
   }
   document.addEventListener('fullscreenchange', updateFsVisibility);
   updateFsVisibility();
 
-  // ---- Media Session API ----
-  if ('mediaSession' in navigator) {
-      navigator.mediaSession.setActionHandler('previoustrack', () => prevTrack());
-      navigator.mediaSession.setActionHandler('nexttrack', () => nextTrack());
-      navigator.mediaSession.setActionHandler('play', () => media.play());
-      navigator.mediaSession.setActionHandler('pause', () => media.pause());
-  }
+  // Setup Media Session API using centralized function
+  setupMediaSessionAPI({
+    prevTrack,
+    nextTrack,
+    media
+  });
 
-  // Clicking on the video toggles play/pause
-  media.addEventListener('click', togglePlayback);
+  // media click handler теперь обрабатывается в setupSimpleControlHandlers()
 
-  // Playlist collapse/expand
-  toggleListBtn.onclick = () => {
-      playlistPanel.classList.toggle('collapsed');
-      toggleListBtn.textContent = playlistPanel.classList.contains('collapsed') ? '☰ Show playlist' : '☰ Hide playlist';
-  };
+  // Setup playlist toggle handler using centralized function
+  setupPlaylistToggleHandler(toggleListBtn, playlistPanel);
 
-  cLike.onclick = ()=>{
-     if(currentIndex<0||currentIndex>=queue.length) return;
-     const track=queue[currentIndex];
-     reportEvent(track.video_id,'like', media.currentTime);
-     likedCurrent = true;
-     cLike.classList.add('like-active');
-     // Change to filled heart (same icon, but red styling via CSS class)
-     cLike.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>';
-  };
-
-  cDislike.onclick = ()=>{
-     if(currentIndex<0||currentIndex>=queue.length) return;
-     const track=queue[currentIndex];
-     reportEvent(track.video_id,'dislike', media.currentTime);
-     cDislike.classList.add('dislike-active');
-     // Change to filled dislike (same icon, but purple styling via CSS class)
-     cDislike.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3z"></path></svg>';
-  };
-
-  cYoutube.onclick = ()=>{
-     if(currentIndex<0||currentIndex>=queue.length) return;
-     const track=queue[currentIndex];
-     if(track.video_id){
-        const youtubeUrl = `https://www.youtube.com/watch?v=${track.video_id}`;
-        window.open(youtubeUrl, '_blank');
-     }else{
-        console.warn('No video_id found for current track');
-     }
-  };
+  // Setup like/dislike and YouTube handlers using centralized functions
+  setupLikeDislikeHandlers(cLike, cDislike, {
+    currentIndex: () => currentIndex,
+    queue,
+    media,
+    reportEvent,
+    likedCurrent
+  });
+  
+  setupYouTubeHandler(cYoutube, {
+    currentIndex: () => currentIndex,
+    queue
+  });
 
   async function reportEvent(videoId, event, position=null){
-     if(!videoId) return;
-     try{
-        await fetch('/api/event', {
-           method:'POST',
-           headers:{'Content-Type':'application/json'},
-           body: JSON.stringify({video_id: videoId, event, position})
-        });
-     }catch(err){
-        console.warn('event report failed', err);
-     }
+    await utilsReportEvent(videoId, event, position);
   }
 
   async function triggerAutoDeleteCheck(track) {
-    /**
-     * Trigger auto-delete check for finished track if it's from a channel.
-     */
-    try {
-      if (!track || !track.video_id) return;
-      
-      // Detect if this is channel content
-      const detection = detectChannelGroup(track);
-      if (!detection.isChannel) {
-        console.log(`🚫 Auto-delete skip: ${track.video_id} is not from a channel`);
-        return;
-      }
-      
-      const finishPosition = media.currentTime || media.duration || 0;
-      
-      console.log(`🗑️ Auto-delete check triggered for ${track.video_id} from ${detection.group} (${finishPosition.toFixed(1)}s)`);
-      
-      // The auto-delete service will handle the actual deletion logic
-      // This just logs that the finish event occurred for a channel track
-      
-    } catch (err) {
-      console.warn('triggerAutoDeleteCheck error:', err);
-     }
+    await utilsTriggerAutoDeleteCheck(track, detectChannelGroup, media);
   }
 
   async function sendStreamEvent(payload){
-     if(!streamIdLeader) return;
-     try{
-        await fetch(`/api/stream_event/${streamIdLeader}`, {
-          method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)
-        });
-     }catch(err){console.warn('stream_event failed', err);}
+    await utilsSendStreamEvent(payload, streamIdLeader);
   }
 
   function startTick(){
-     if(tickTimer||!streamIdLeader) return;
-     tickTimer = setInterval(()=>{
-        if(!streamIdLeader) return;
-        sendStreamEvent({action:'tick', idx: currentIndex, position: media.currentTime, paused: media.paused});
-     },1500);
+    tickTimer = utilsStartTick(tickTimer, streamIdLeader, sendStreamEvent, currentIndex, media);
   }
-  function stopTick(){ if(tickTimer){clearInterval(tickTimer);tickTimer=null;} }
+  function stopTick() { 
+    tickTimer = utilsStopTick(tickTimer); 
+  }
 
-  streamBtn.onclick = async ()=>{
-     if(streamIdLeader){
-        alert('Stream already running. Share this URL:\n'+window.location.origin+'/stream/'+streamIdLeader);
-        return;
-     }
-     const title = prompt('Stream title:', document.title);
-     if(title===null) return;
-     try{
-        const body = {
-           title,
-           queue,
-           idx: currentIndex,
-           paused: media.paused,
-           position: media.currentTime
-        };
-        const res = await fetch('/api/create_stream', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body)});
-        const data = await res.json();
-        streamIdLeader = data.id;
-        streamBtn.textContent = 'Streaming…';
-        streamBtn.disabled = true;
-        if(!media.paused){
-           sendStreamEvent({action:'play', position: media.currentTime, paused:false});
-           startTick();
-        }
-        const overlay=document.getElementById('shareOverlay');
-        const linkEl=document.getElementById('shareLink');
-        linkEl.href=data.url;linkEl.textContent=data.url;
-        overlay.style.display='block';
-        const copyBtn=document.getElementById('copyLinkBtn');
-        copyBtn.onclick=()=> {
-           if(!media.paused){ sendStreamEvent({action:'play'});} // notify listeners to start
-           navigator.clipboard.writeText(data.url).catch(()=>{});
-        };
-        document.getElementById('closeShare').onclick=()=> overlay.style.display='none';
-     }catch(err){alert('Stream creation failed: '+err);}  
-  };
+  // Setup stream handler using centralized function
+  setupStreamHandler(streamBtn, {
+    streamIdLeader: () => streamIdLeader,
+    queue,
+    currentIndex: () => currentIndex,
+    media,
+    sendStreamEvent,
+    startTick
+  });
 
-  // stop tick when window unload
-  window.addEventListener('beforeunload',()=> stopTick());
+  // Setup beforeunload handler using centralized function
+  setupBeforeUnloadHandler(stopTick);
 
   // ==============================
   // REMOTE CONTROL SYNCHRONIZATION
   // ==============================
   
-  // Sync player state with remote control API
+  // syncRemoteState() теперь импортируется из player-utils.js
+  // Wrapper function для совместимости с существующим кодом
   async function syncRemoteState() {
-    try {
-      const currentTrack = currentIndex >= 0 && currentIndex < queue.length ? queue[currentIndex] : null;
-      
-      // Get current like/dislike button states
-      const likeButton = document.getElementById('cLike');
-      const dislikeButton = document.getElementById('cDislike');
-      const likeActive = likeButton ? likeButton.classList.contains('like-active') : false;
-      const dislikeActive = dislikeButton ? dislikeButton.classList.contains('dislike-active') : false;
-      
-      const playerState = {
-        current_track: currentTrack,
-        playing: !media.paused && currentTrack !== null,
-        volume: media.volume,
-        progress: media.currentTime || 0,
-        playlist: queue,
-        current_index: currentIndex,
-        last_update: Date.now() / 1000,
-        player_type: 'regular',
-        player_source: window.location.pathname,
-        like_active: likeActive,
-        dislike_active: dislikeActive
-      };
-      
-      console.log('🎮 Syncing remote state:', {
-        track: currentTrack?.name || 'No track',
-        playing: playerState.playing,
-        progress: Math.floor(playerState.progress),
-        index: currentIndex
-      });
-      
-      // Update the global PLAYER_STATE via internal API call
-      const response = await fetch('/api/remote/sync_internal', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(playerState)
-      });
-      
-      if (!response.ok) {
-        console.warn('Remote sync failed with status:', response.status);
-      }
-    } catch(err) {
-      console.warn('Remote sync failed:', err);
-    }
+    return await utilsSyncRemoteState('regular', { currentIndex, queue, media });
   }
   
-  // Listen for remote control commands
+  // pollRemoteCommands() теперь импортируется из player-utils.js
+  // Wrapper function для совместимости с существующим кодом
   async function pollRemoteCommands() {
-    try {
-      const response = await fetch('/api/remote/commands');
-      if (response.ok) {
-        const commands = await response.json();
-        for (const command of commands) {
-          await executeRemoteCommand(command);
-        }
-      }
-    } catch(err) {
-      console.warn('Remote polling failed:', err);
-    }
+    return await utilsPollRemoteCommands(executeRemoteCommand, false);
   }
   
-  // Execute remote control commands
+  // executeRemoteCommand() теперь импортируется из player-utils.js
+  // Wrapper function для совместимости с существующим кодом
   async function executeRemoteCommand(command) {
-    console.log('🎮 [Remote] Executing command:', command.type);
-    
-    try {
-      switch(command.type) {
-        case 'play':
-          console.log('🎮 [Remote] Toggle play/pause');
-          if (media.paused) {
-            await media.play();
-          } else {
-            media.pause();
-          }
-          break;
-          
-        case 'next':
-          console.log('🎮 [Remote] Next track');
-          nextTrack();
-          // Reset like buttons when track changes
-          setTimeout(() => {
-            const likeBtn = document.getElementById('cLike');
-            const dislikeBtn = document.getElementById('cDislike');
-            if (likeBtn) likeBtn.classList.remove('like-active');
-            if (dislikeBtn) dislikeBtn.classList.remove('dislike-active');
-          }, 100);
-          break;
-          
-        case 'prev':
-          console.log('🎮 [Remote] Previous track');
-          prevTrack();
-          // Reset like buttons when track changes
-          setTimeout(() => {
-            const likeBtn = document.getElementById('cLike');
-            const dislikeBtn = document.getElementById('cDislike');
-            if (likeBtn) likeBtn.classList.remove('like-active');
-            if (dislikeBtn) dislikeBtn.classList.remove('dislike-active');
-          }, 100);
-          break;
-          
-        case 'stop':
-          console.log('🎮 [Remote] Stop playback');
-          stopPlayback();
-          break;
-          
-        case 'volume':
-          if (command.volume !== undefined) {
-            if (isVolumeWheelActive) {
-              break;
-            }
-            console.log('🎮 [Remote] Set volume:', Math.round(command.volume * 100) + '%');
-            media.volume = command.volume;
-            cVol.value = command.volume;
-            updateMuteIcon();
-            // Note: Volume is already saved by the remote API endpoint
-          }
-          break;
-          
-        case 'shuffle':
-          console.log('🎮 [Remote] Shuffle playlist');
-          shuffleBtn.click();
-          break;
-          
-        case 'like':
-          console.log('🎮 [Remote] Like track');
-          cLike.click();
-          break;
-          
-        case 'dislike':
-          console.log('🎮 [Remote] Dislike track');
-          cDislike.click();
-          break;
-          
-        case 'youtube':
-          console.log('🎮 [Remote] Open YouTube');
-          cYoutube.click();
-          break;
-          
-        case 'fullscreen':
-          console.log('🎮 [Remote] Toggle fullscreen');
-          cFull.click();
-          break;
-          
-        default:
-          console.warn('🎮 [Remote] Unknown command:', command.type);
-      }
-      
-      // Sync state after command execution
-      setTimeout(syncRemoteState, 200);
-      
-      // Sync like buttons with remote state
-      setTimeout(syncLikeButtonsWithRemote, 300);
-    } catch (error) {
-      console.error('🎮 [Remote] Error executing command:', error);
-    }
+    const context = {
+      media, nextTrack, prevTrack, stopPlayback, togglePlayback, 
+      isVolumeWheelActive, cVol, updateMuteIcon,
+      syncRemoteState, syncLikeButtonsWithRemote
+      // Кнопки больше не нужны - используется унифицированный getElementById
+    };
+    return await utilsExecuteRemoteCommand(command, context, 'regular');
   }
   
-  // Function to sync like buttons with remote state
+  // syncLikeButtonsWithRemote() теперь импортируется из player-utils.js
+  // Wrapper function для совместимости с существующим кодом
   async function syncLikeButtonsWithRemote() {
-    try {
-      const response = await fetch('/api/remote/status');
-      if (response.ok) {
-        const status = await response.json();
-        
-        const likeButton = document.getElementById('cLike');
-        const dislikeButton = document.getElementById('cDislike');
-        
-        if (likeButton && status.like_active !== undefined) {
-          if (status.like_active) {
-            likeButton.classList.add('like-active');
-          } else {
-            likeButton.classList.remove('like-active');
-          }
-        }
-        
-        if (dislikeButton && status.dislike_active !== undefined) {
-          if (status.dislike_active) {
-            dislikeButton.classList.add('dislike-active');
-          } else {
-            dislikeButton.classList.remove('dislike-active');
-          }
-        }
-      }
-    } catch (error) {
-      console.warn('Failed to sync like buttons with remote:', error);
-    }
+    return await utilsSyncLikeButtonsWithRemote();
   }
   
-  // Enhanced event listeners for remote sync
-  media.addEventListener('play', syncRemoteState);
-  media.addEventListener('pause', syncRemoteState);
-  media.addEventListener('loadeddata', syncRemoteState);
-  media.addEventListener('timeupdate', () => {
-    // Sync every 2 seconds during playback
-    if (!media.paused && Math.floor(media.currentTime) % 2 === 0) {
-      syncRemoteState();
-    }
-  });
-  
-  // Override existing functions to include remote sync
-  const originalPlayIndex = playIndex;
-  window.playIndex = function(idx) {
-    originalPlayIndex.call(this, idx);
-    setTimeout(syncRemoteState, 200);
-  };
-  
-  const originalTogglePlayback = togglePlayback;
-  window.togglePlayback = function() {
-    originalTogglePlayback.call(this);
-    setTimeout(syncRemoteState, 200);
-  };
-  
-  // Initial state sync after everything is loaded
-  setTimeout(() => {
-    if (currentIndex >= 0) {
-      syncRemoteState();
-    }
-    // Start periodic sync every 3 seconds
-    setInterval(syncRemoteState, 3000);
-  }, 1000);
-  
-  // Periodic remote command polling (every 1 second)
-  setInterval(pollRemoteCommands, 1000);
-  
-  console.log('🎮 Remote control synchronization initialized');
+  // Setup remote control using centralized functions
+  setupRemoteControlOverrides(playIndex, togglePlayback, syncRemoteState);
+  setupRemoteControlInitialization(media, syncRemoteState, pollRemoteCommands, { currentIndex: () => currentIndex });
   
   // Initial render of the playlist after all functions are defined
   console.log('🎵 Initializing playlist render...');
@@ -1880,214 +822,35 @@ const cDislike = document.getElementById('cDislike');
     console.log(`⚡ Speed display updated to show current speed: ${speedOptions[currentSpeedIndex]}x`);
   }
 
-  // Function to delete a track
+  // deleteTrack() теперь импортируется из player-utils.js
+  // Wrapper function для совместимости с существующим кодом
   async function deleteTrack(track, trackIndex) {
-    try {
-      // Confirm deletion
-      const confirmMessage = `Delete track "${track.name.replace(/\s*\[.*?\]$/, '')}" from playlist?\n\nTrack will be moved to trash and can be restored.`;
-      if (!confirm(confirmMessage)) {
-        return;
-      }
-      
-      console.log(`🗑️ Deleting track: ${track.name} (${track.video_id})`);
-      
-      // CRITICAL: If this is the currently playing track, pause and release file lock
-      let wasCurrentTrack = false;
-      let currentTime = 0;
-      
-      if (trackIndex === currentIndex && !media.paused) {
-        wasCurrentTrack = true;
-        console.log('🔓 Deleting currently playing track - releasing file lock...');
-        
-        // Pause and clear media source to release file lock
-        media.pause();
-        currentTime = media.currentTime; // Save position for potential restore
-        media.src = ''; // This releases the file lock
-        media.load(); // Ensure the media element is properly reset
-        
-        console.log('🔓 Media file released, proceeding with deletion...');
-        
-        // Give a small delay to ensure file is fully released
-        await new Promise(resolve => setTimeout(resolve, 200));
-      }
-      
-      // Send delete request to API
-      const response = await fetch('/api/channels/delete_track', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          video_id: track.video_id
-        })
-      });
-      
-      const result = await response.json();
-      
-      if (result.status === 'ok') {
-        console.log(`✅ Track deleted successfully: ${result.message}`);
-        
-        // Remove track from current queue
-        queue.splice(trackIndex, 1);
-        
-        // Also remove from original tracks array
-        const originalIndex = tracks.findIndex(t => t.video_id === track.video_id);
-        if (originalIndex !== -1) {
-          tracks.splice(originalIndex, 1);
-        }
-        
-        // Adjust current index if needed
-        if (trackIndex < currentIndex) {
-          currentIndex--;
-        } else if (trackIndex === currentIndex) {
-          // If we deleted the currently playing track
-          if (queue.length > 0) {
-            // Play the next track or the first one if we were at the end
-            const nextIndex = trackIndex < queue.length ? trackIndex : 0;
-            playIndex(nextIndex);
-          } else {
-            // No tracks left
-            currentIndex = -1;
-            showNotification('📭 Playlist is empty - all tracks deleted', 'info');
-          }
-        }
-        
-        // Update the list display
-        renderList();
-        
-        // Show success message
-        showNotification(`✅ Track deleted: ${result.message}`, 'success');
-        
-      } else {
-        console.error('❌ Failed to delete track:', result.error);
-        showNotification(`❌ Deletion error: ${result.error}`, 'error');
-        
-        // On failure, try to restore playback if it was the current track
-        if (wasCurrentTrack) {
-          console.log('🔄 Attempting to restore playback after deletion failure...');
-          try {
-            loadTrack(currentIndex, true);
-            if (currentTime && isFinite(currentTime)) {
-              setTimeout(() => {
-                media.currentTime = currentTime; // Restore position
-              }, 500);
-            }
-          } catch (restoreError) {
-            console.warn('⚠️ Could not restore playback:', restoreError);
-          }
-        }
-      }
-      
-    } catch (error) {
-      console.error('❌ Error deleting track:', error);
-      showNotification(`❌ Network error: ${error.message}`, 'error');
-    }
+    const context = {
+      queue, tracks, currentIndex, media, playIndex, renderList, 
+      showNotification, loadTrack,
+      getCurrentIndex: () => currentIndex,
+      setCurrentIndex: (newIdx) => { currentIndex = newIdx; }
+    };
+    return await utilsDeleteTrack(track, trackIndex, context); // Используется универсальная логика с file locks
   }
 
-  // Function to show notifications
-  function showNotification(message, type = 'info') {
-    // Create notification element
-    const notification = document.createElement('div');
-    notification.className = `notification notification-${type}`;
-    notification.textContent = message;
-    notification.style.cssText = `
-      position: fixed;
-      top: 20px;
-      right: 20px;
-      padding: 12px 20px;
-      border-radius: 6px;
-      color: white;
-      font-weight: 500;
-      z-index: 10000;
-      max-width: 400px;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-      transition: opacity 0.3s ease, transform 0.3s ease;
-      transform: translateX(100%);
-    `;
-    
-    // Set background color based on type
-    if (type === 'success') {
-      notification.style.backgroundColor = '#4caf50';
-    } else if (type === 'error') {
-      notification.style.backgroundColor = '#f44336';
-    } else {
-      notification.style.backgroundColor = '#2196f3';
-    }
-    
-    // Add to document
-    document.body.appendChild(notification);
-    
-    // Animate in
-    setTimeout(() => {
-      notification.style.transform = 'translateX(0)';
-    }, 100);
-    
-    // Auto remove after 5 seconds
-    setTimeout(() => {
-      notification.style.opacity = '0';
-      notification.style.transform = 'translateX(100%)';
-      setTimeout(() => {
-        if (notification.parentNode) {
-          notification.parentNode.removeChild(notification);
-        }
-      }, 300);
-    }, 5000);
-  }
+  // showNotification() теперь импортируется из player-utils.js
 
   // ==============================
   // LIKE SYNCHRONIZATION
   // ==============================
   
-  // Function to sync likes after like/dislike actions (session-based only)
+  // syncLikesAfterAction() теперь импортируется из player-utils.js
+  // Wrapper function для совместимости с существующим кодом
   async function syncLikesAfterAction(video_id, action) {
-    console.log(`🎵 [Like Sync] Syncing likes after ${action} for ${video_id}`);
-    
-    // Just sync remote state to update remote control
-    setTimeout(async () => {
-      await syncRemoteState();
-    }, 200);
+    return await utilsSyncLikesAfterAction(video_id, action, syncRemoteState);
   }
   
-  // Override existing like/dislike button handlers to include sync
+  // setupLikeSyncHandlers() теперь импортируется из player-utils.js
+  // Wrapper function для совместимости с существующим кодом
   function setupLikeSyncHandlers() {
-    const likeButton = document.getElementById('cLike');
-    const dislikeButton = document.getElementById('cDislike');
-    
-    if (likeButton) {
-      // Store original handler
-      const originalLikeHandler = likeButton.onclick;
-      
-      likeButton.onclick = async function(e) {
-        // Call original handler
-        if (originalLikeHandler) {
-          originalLikeHandler.call(this, e);
-        }
-        
-        // Sync likes after action
-        const currentTrack = currentIndex >= 0 && currentIndex < queue.length ? queue[currentIndex] : null;
-        if (currentTrack && currentTrack.video_id) {
-          await syncLikesAfterAction(currentTrack.video_id, 'like');
-        }
-      };
-    }
-    
-    if (dislikeButton) {
-      // Store original handler
-      const originalDislikeHandler = dislikeButton.onclick;
-      
-      dislikeButton.onclick = async function(e) {
-        // Call original handler
-        if (originalDislikeHandler) {
-          originalDislikeHandler.call(this, e);
-        }
-        
-        // Sync likes after action
-        const currentTrack = currentIndex >= 0 && currentIndex < queue.length ? queue[currentIndex] : null;
-        if (currentTrack && currentTrack.video_id) {
-          await syncLikesAfterAction(currentTrack.video_id, 'dislike');
-        }
-      };
-    }
+    const context = { currentIndex, queue, syncLikesAfterAction };
+    return utilsSetupLikeSyncHandlers(context);
   }
   
   // Initialize like sync when page loads

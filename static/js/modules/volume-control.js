@@ -3,14 +3,9 @@
  * Handles hardware volume buttons, Android gestures, and volume adjustments
  */
 
-// Import toast notifications
-let showVolumeToast;
-if (typeof module !== 'undefined' && module.exports) {
-  // Node.js environment
-  ({ showVolumeToast } = require('./toast-notifications'));
-} else {
-  // Browser environment - will be set by main remote.js
-  showVolumeToast = window.showVolumeToast;
+// Import toast notifications (use global reference)
+function getShowVolumeToast() {
+  return window.showVolumeToast || (window.ToastNotifications && window.ToastNotifications.showVolumeToast) || null;
 }
 
 // Hardware volume buttons control
@@ -144,7 +139,8 @@ function initAndroidGestureControl() {
         volumeSlider.value = newVolume;
         volumeValue.textContent = newVolume + '%';
         
-        showVolumeToast(newVolume);
+        const toast = getShowVolumeToast();
+      if (toast) toast(newVolume);
       }
     }
   }, { passive: false });
@@ -270,28 +266,17 @@ function adjustVolume(delta) {
   });
   
   // Show volume feedback
-  showVolumeToast(newVolume);
+      const toast = getShowVolumeToast();
+    if (toast) toast(newVolume);
   
   console.log('📱 Volume adjusted to:', newVolume + '%');
 }
 
-// Export functions
-if (typeof module !== 'undefined' && module.exports) {
-  // Node.js environment
-  module.exports = {
-    initHardwareVolumeControl,
-    initAndroidGestureControl,
-    addAndroidInstructions,
-    handleVolumeKeys,
-    adjustVolume
-  };
-} else {
-  // Browser environment
-  window.VolumeControl = {
-    initHardwareVolumeControl,
-    initAndroidGestureControl,
-    addAndroidInstructions,
-    handleVolumeKeys,
-    adjustVolume
-  };
-} 
+// Export functions for browser environment
+window.VolumeControl = {
+  initHardwareVolumeControl,
+  initAndroidGestureControl,
+  addAndroidInstructions,
+  handleVolumeKeys,
+  adjustVolume
+}; 

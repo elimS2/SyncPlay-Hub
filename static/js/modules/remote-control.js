@@ -3,14 +3,9 @@
  * Core class for managing remote control functionality and player synchronization
  */
 
-// Import dependencies
-let showVolumeToast;
-if (typeof module !== 'undefined' && module.exports) {
-  // Node.js environment
-  ({ showVolumeToast } = require('./toast-notifications'));
-} else {
-  // Browser environment - will be set by main remote.js
-  showVolumeToast = window.showVolumeToast;
+// Import dependencies (use global reference)
+function getShowVolumeToast() {
+  return window.showVolumeToast || (window.ToastNotifications && window.ToastNotifications.showVolumeToast) || null;
 }
 
 class RemoteControl {
@@ -129,7 +124,8 @@ class RemoteControl {
       }
       
       this.sendCommand('volume', payload);
-      showVolumeToast(newVolume);
+      const toast = getShowVolumeToast();
+      if (toast) toast(newVolume);
     });
 
     this.volumeDownBtn.addEventListener('click', () => {
@@ -149,7 +145,8 @@ class RemoteControl {
       }
       
       this.sendCommand('volume', payload);
-      showVolumeToast(newVolume);
+      const toast = getShowVolumeToast();
+      if (toast) toast(newVolume);
     });
 
     // Add touch and gesture support for volume
@@ -394,11 +391,5 @@ class RemoteControl {
   }
 }
 
-// Export class
-if (typeof module !== 'undefined' && module.exports) {
-  // Node.js environment
-  module.exports = { RemoteControl };
-} else {
-  // Browser environment
-  window.RemoteControl = RemoteControl;
-} 
+// Export class for browser environment
+window.RemoteControl = RemoteControl; 
