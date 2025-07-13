@@ -236,6 +236,21 @@
             font-size: 12px;
         }
 
+        /* Priority selector */
+        .priority-select {
+            padding: 4px 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 12px;
+            background: white;
+            cursor: pointer;
+        }
+
+        .priority-select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
         /* Pagination */
         .pagination {
             display: flex;
@@ -943,7 +958,18 @@
                         <td>#${job.id}</td>
                         <td>${formatJobType(job.job_type)}</td>
                         <td><span class="status-badge status-${job.status}">${job.status}</span></td>
-                        <td><span class="priority-badge priority-${getPriorityName(job.priority)}">${getPriorityName(job.priority)}</span></td>
+                        <td>
+                            ${job.status === 'pending' || job.status === 'retrying' ? 
+                                `<select class="priority-select" onchange="updateJobPriority(${job.id}, this.value)">
+                                    <option value="0" ${job.priority === 0 ? 'selected' : ''}>Low</option>
+                                    <option value="5" ${job.priority === 5 ? 'selected' : ''}>Normal</option>
+                                    <option value="10" ${job.priority === 10 ? 'selected' : ''}>High</option>
+                                    <option value="15" ${job.priority === 15 ? 'selected' : ''}>Urgent</option>
+                                    <option value="20" ${job.priority === 20 ? 'selected' : ''}>Critical</option>
+                                </select>` : 
+                                `<span class="priority-badge priority-${getPriorityName(job.priority)}">${getPriorityName(job.priority)}</span>`
+                            }
+                        </td>
                         <td>${createdAt}</td>
                         <td>${duration}</td>
                         <td>${worker}</td>
@@ -1223,6 +1249,44 @@
                 }
             } catch (error) {
                 showToast('Error cancelling job: ' + error.message, 'error');
+            }
+        }
+
+        async function updateJobPriority(jobId, newPriority) {
+            try {
+                const priorityNames = {
+                    '0': 'LOW',
+                    '5': 'NORMAL',
+                    '10': 'HIGH',
+                    '15': 'URGENT',
+                    '20': 'CRITICAL'
+                };
+
+                const response = await fetch(`/api/jobs/${jobId}/priority`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        priority: priorityNames[newPriority]
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.status === 'ok') {
+                    showToast(`Job #${jobId} priority updated to ${priorityNames[newPriority].toLowerCase()}`);
+                    loadQueueStatus();
+                    loadJobs();
+                } else {
+                    showToast('Error updating job priority: ' + data.error, 'error');
+                    // Reload jobs to reset the dropdown to original value
+                    loadJobs();
+                }
+            } catch (error) {
+                showToast('Error updating job priority: ' + error.message, 'error');
+                // Reload jobs to reset the dropdown to original value
+                loadJobs();
             }
         }
 

@@ -848,6 +848,42 @@ class JobQueueService:
                 
                 return cursor.rowcount > 0
     
+    def update_job_priority(self, job_id: int, new_priority: JobPriority) -> bool:
+        """Update job priority. Only pending and retrying jobs can have their priority changed."""
+        with self._lock:
+            # Check if job is currently running
+            if job_id in self._running_jobs:
+                return False
+            
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+                
+                # Check job status
+                cursor.execute("""
+                    SELECT status FROM job_queue WHERE id = ?
+                """, (job_id,))
+                
+                row = cursor.fetchone()
+                if not row:
+                    return False
+                
+                status = row[0]
+                
+                # Only allow priority change for pending and retrying jobs
+                if status not in ['pending', 'retrying']:
+                    return False
+                
+                # Update job priority
+                cursor.execute("""
+                    UPDATE job_queue 
+                    SET priority = ?
+                    WHERE id = ? AND status IN ('pending', 'retrying')
+                """, (new_priority.value, job_id))
+                
+                conn.commit()
+                
+                return cursor.rowcount > 0
+    
     def get_queue_stats(self) -> Dict[str, Any]:
         """Get queue statistics."""
         try:

@@ -255,6 +255,58 @@ def api_retry_job(job_id: int):
         log_message(f"[Jobs API] Error retrying job {job_id}: {e}")
         return jsonify({"status": "error", "error": str(e)}), 500
 
+@jobs_bp.route("/jobs/<int:job_id>/priority", methods=["POST"])
+def api_update_job_priority(job_id: int):
+    """Update job priority."""
+    try:
+        data = request.get_json() or {}
+        
+        # Validate required fields
+        priority_str = data.get('priority')
+        if not priority_str:
+            return jsonify({"status": "error", "error": "priority is required"}), 400
+        
+        # Convert priority to enum
+        try:
+            priority_enum = JobPriority[priority_str.upper()]
+        except KeyError:
+            return jsonify({"status": "error", "error": f"Invalid priority: {priority_str}"}), 400
+        
+        # Get job queue service
+        service = get_job_queue_service()
+        
+        # Update job priority
+        success = service.update_job_priority(job_id, priority_enum)
+        
+        if success:
+            log_message(f"[Jobs API] Updated job #{job_id} priority to {priority_str}")
+            return jsonify({
+                "status": "ok",
+                "message": f"Job #{job_id} priority updated to {priority_str}"
+            })
+        else:
+            # Get job to check why it failed
+            job = service.get_job(job_id)
+            if not job:
+                return jsonify({
+                    "status": "error",
+                    "error": "Job not found"
+                }), 404
+            elif job.status.value not in ['pending', 'retrying']:
+                return jsonify({
+                    "status": "error",
+                    "error": f"Cannot change priority of job with status '{job.status.value}'"
+                }), 400
+            else:
+                return jsonify({
+                    "status": "error",
+                    "error": "Failed to update job priority"
+                }), 500
+        
+    except Exception as e:
+        log_message(f"[Jobs API] Error updating job {job_id} priority: {e}")
+        return jsonify({"status": "error", "error": str(e)}), 500
+
 @jobs_bp.route("/jobs/<int:job_id>", methods=["DELETE"])
 def api_cancel_job(job_id: int):
     """Cancel a pending or running job."""
