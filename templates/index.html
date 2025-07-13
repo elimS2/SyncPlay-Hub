@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>Local YouTube Playlist Player</title>
   <!-- Favicon using emoji -->
   <link rel="icon" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='0.9em' font-size='90'>🎵</text></svg>">
@@ -432,6 +433,185 @@
       
       .tooltip-section {
         border-top: 1px solid rgba(0, 0, 0, 0.1);
+      }
+    }
+
+    /* Mobile Responsive Styles */
+    @media (max-width: 768px) {
+      body {
+        margin: 10px;
+        font-size: 14px;
+      }
+      
+      /* Playlist panel mobile adaptations */
+      .player-container {
+        flex-direction: column;
+        gap: 8px;
+      }
+      
+      .playlist-panel {
+        width: 100% !important;
+        max-height: 40vh;
+        order: 2;
+        margin: 0;
+      }
+      
+      .playlist-panel.collapsed {
+        width: 100% !important;
+        height: 0;
+        margin: 0;
+      }
+      
+      #videoWrapper {
+        order: 1;
+      }
+      
+      /* Control bar mobile optimizations */
+      .control-bar {
+        flex-wrap: wrap;
+        gap: 4px;
+        padding: 8px 0;
+      }
+      
+      .modern-btn {
+        padding: 8px 10px;
+        font-size: 12px;
+        min-width: auto;
+      }
+      
+      .modern-btn span {
+        display: none;
+      }
+      
+      .modern-btn svg {
+        width: 18px;
+        height: 18px;
+      }
+      
+      /* Hide less important buttons on mobile */
+      #fullBtn,
+      #castBtn {
+        display: none;
+      }
+      
+      /* Custom controls mobile adaptations */
+      .controls {
+        padding: 4px 8px;
+        flex-wrap: wrap;
+      }
+      
+      .ctrl-btn {
+        width: 36px;
+        height: 36px;
+        font-size: 16px;
+        margin: 0 2px;
+      }
+      
+      .ctrl-btn svg {
+        width: 16px;
+        height: 16px;
+      }
+      
+      /* Progress bar mobile optimizations */
+      .progress {
+        height: 10px;
+        margin: 0 6px;
+      }
+      
+      .progress:hover {
+        height: 14px;
+      }
+      
+      .time {
+        font-size: 11px;
+        margin-right: 4px;
+      }
+      
+      /* Volume slider mobile */
+      .vol-slider {
+        width: 60px;
+        margin-left: 4px;
+      }
+      
+      /* Video player mobile */
+      #player {
+        max-height: calc(50vh - 60px);
+      }
+      
+      /* Tracklist mobile */
+      #tracklist {
+        height: calc(40vh - 60px);
+        font-size: 13px;
+      }
+      
+      #tracklist li {
+        padding: 8px 4px;
+        border-bottom: 1px solid rgba(255,255,255,0.1);
+      }
+      
+      /* Tooltip mobile */
+      .custom-tooltip {
+        max-width: 250px;
+        font-size: 11px;
+        padding: 8px;
+      }
+      
+      /* Speed control mobile */
+      #cSpeed {
+        min-width: 50px;
+        padding: 6px 8px;
+      }
+      
+      #speedLabel {
+        font-size: 10px;
+      }
+    }
+
+    /* Extra small mobile devices */
+    @media (max-width: 480px) {
+      body {
+        margin: 5px;
+      }
+      
+      .control-bar {
+        gap: 2px;
+      }
+      
+      .modern-btn {
+        padding: 6px 8px;
+      }
+      
+      .ctrl-btn {
+        width: 32px;
+        height: 32px;
+        margin: 0 1px;
+      }
+      
+      .vol-slider {
+        width: 50px;
+      }
+      
+      .time {
+        font-size: 10px;
+      }
+      
+      #tracklist {
+        font-size: 12px;
+      }
+      
+      /* Hide additional buttons on very small screens */
+      #cDislike,
+      #cYoutube {
+        display: none;
+      }
+      
+      /* Make progress bar more touch-friendly */
+      .progress {
+        height: 12px;
+      }
+      
+      .progress:hover {
+        height: 16px;
       }
     }
   </style>
