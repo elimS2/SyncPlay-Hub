@@ -1096,7 +1096,16 @@ export async function cyclePlaybackSpeed(context, savePlaylistSpeed = null, play
         media.playbackRate = newSpeed;
     }
     
-    updateSpeedDisplay();
+    // Update display with new speed index - need to check if updateSpeedDisplay expects parameters
+    if (updateSpeedDisplay.length > 0) {
+        // Function expects parameters - call with correct new index
+        const speedLabel = document.getElementById('speedLabel');
+        const cSpeed = document.getElementById('cSpeed');
+        updateSpeedDisplay(newSpeedIndex, speedOptions, speedLabel, cSpeed);
+    } else {
+        // Function is a wrapper - caller must update currentSpeedIndex first
+        updateSpeedDisplay();
+    }
     
     const logPrefix = playerType === 'virtual' ? '⏩ [Virtual]' : '⏩';
     console.log(`${logPrefix} Playback speed changed to ${newSpeed}x`);

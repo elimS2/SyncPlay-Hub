@@ -443,7 +443,9 @@ const cDislike = document.getElementById('cDislike');
   // Wrapper function для совместимости с существующим кодом
   async function cyclePlaybackSpeed() {
     const context = { currentSpeedIndex, speedOptions, media, updateSpeedDisplay, reportEvent, currentIndex, queue };
-    currentSpeedIndex = await utilsCyclePlaybackSpeed(context, null, 'virtual');
+    const newSpeedIndex = await utilsCyclePlaybackSpeed(context, null, 'virtual');
+    currentSpeedIndex = newSpeedIndex;
+    updateSpeedDisplay(); // Update display after index is updated
   }
 
   // Initialize speed display
