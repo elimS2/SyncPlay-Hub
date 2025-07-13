@@ -77,10 +77,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Initialize keep awake system early for immediate screen protection
   if (window.KeepAwake && window.KeepAwake.initKeepAwakeHandlers) {
     console.log('📱 Initializing Keep Awake handlers...');
+    console.log('📱 Available Keep Awake methods:', Object.keys(window.KeepAwake));
     window.KeepAwake.initKeepAwakeHandlers();
     console.log('📱 Keep Awake handlers initialized');
   } else {
     console.warn('📱 Keep Awake module not available');
+    console.warn('📱 window.KeepAwake:', window.KeepAwake);
   }
   
   // Initialize hardware volume control last

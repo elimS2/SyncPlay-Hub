@@ -124,7 +124,7 @@ const cDislike = document.getElementById('cDislike');
       return utilsCastLoad(track, {
           castContext,
           setPendingCastTrack: (t) => { pendingCastTrack = t; }
-      });
+          });
   }
 
   if(window.cast && castContext){
@@ -669,7 +669,7 @@ const cDislike = document.getElementById('cDislike');
   // Setup stream handler using centralized function
   setupStreamHandler(streamBtn, {
     streamIdLeader: () => streamIdLeader,
-    queue,
+           queue,
     currentIndex: () => currentIndex,
     media,
     sendStreamEvent,

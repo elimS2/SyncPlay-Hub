@@ -685,4 +685,17 @@ function tryVideoKeepAwake() {
     }
     return false;
   }
-} 
+}
+
+// Export functions for browser environment
+window.KeepAwake = {
+  initKeepAwakeHandlers,
+  requestWakeLock,
+  stopKeepAwake,
+  updateKeepAwakeStatus,
+  requestFullscreenKeepAwake,
+  tryVideoKeepAwake,
+  tryPeriodicKeepAwake,
+  initCSSKeepAwake,
+  initWebRTCKeepAwake
+}; 
