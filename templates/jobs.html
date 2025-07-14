@@ -185,6 +185,45 @@
             margin-bottom: 20px;
         }
 
+        /* Collapsible sections */
+        .collapsible-header {
+            cursor: pointer;
+            user-select: none;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            transition: background-color 0.2s;
+        }
+
+        .collapsible-header:hover {
+            background: var(--accent-hover);
+        }
+
+        .collapse-icon {
+            font-size: 0.8rem;
+            transition: transform 0.2s;
+        }
+
+        .collapse-icon.collapsed {
+            transform: rotate(-90deg);
+        }
+
+        .collapsible-content {
+            max-height: 1000px;
+            overflow: hidden;
+            transition: max-height 0.3s ease-out, padding 0.3s ease-out;
+        }
+
+        .collapsible-content.collapsed {
+            max-height: 0;
+            padding-top: 0;
+            padding-bottom: 0;
+        }
+
+        .collapsible-content.collapsed * {
+            visibility: hidden;
+        }
+
         .form-group {
             display: flex;
             flex-direction: column;
@@ -597,11 +636,13 @@
 
                 <!-- Job Creation -->
                 <div class="card">
-                    <div class="card-header">
-                        ➕ Create New Job
+                    <div class="card-header collapsible-header" onclick="toggleCollapse('jobCreationContent')">
+                        <span>➕ Create New Job</span>
+                        <span class="collapse-icon collapsed">▼</span>
                     </div>
-                    <div class="card-body">
-                        <form id="jobForm" class="job-form">
+                    <div id="jobCreationContent" class="collapsible-content collapsed">
+                        <div class="card-body">
+                            <form id="jobForm" class="job-form">
                             <div class="form-group">
                                 <label for="jobType">Job Type *</label>
                                 <select id="jobType" name="job_type" required>
@@ -638,6 +679,7 @@
                                 </button>
                             </div>
                         </form>
+                        </div>
                     </div>
                 </div>
 
@@ -1453,6 +1495,16 @@
         function toggleSidebar() {
             const sidebar = document.querySelector('.sidebar');
             sidebar.classList.toggle('open');
+        }
+
+        // Collapsible sections toggle
+        function toggleCollapse(contentId) {
+            const content = document.getElementById(contentId);
+            const header = content.previousElementSibling;
+            const icon = header.querySelector('.collapse-icon');
+            
+            content.classList.toggle('collapsed');
+            icon.classList.toggle('collapsed');
         }
         
         // Close sidebar when clicking outside on mobile
