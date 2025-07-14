@@ -345,15 +345,85 @@
             display: flex;
             justify-content: center;
             align-items: center;
-            gap: 10px;
+            gap: 15px;
             margin-top: 20px;
             padding: 20px;
+            flex-wrap: wrap;
+        }
+
+        /* Top pagination styling */
+        #topPaginationContainer {
+            margin-top: 10px;
+            margin-bottom: 10px;
+            background: var(--bg-card);
+            border-radius: 8px;
+            border: 1px solid var(--border);
+        }
+
+        /* Bottom pagination styling */
+        #paginationContainer {
+            margin-top: 20px;
+            margin-bottom: 10px;
+        }
+
+        /* Pagination groups */
+        .pagination-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .pagination-group.primary {
+            order: 2;
+            gap: 12px;
+        }
+
+        .pagination-group.secondary {
+            order: 1;
+            gap: 8px;
+        }
+
+        .pagination-group.tertiary {
+            order: 3;
+            gap: 8px;
         }
 
         .pagination .btn {
-            padding: 8px 16px;
+            padding: 10px 16px;
             font-size: 14px;
-            min-width: 40px;
+            min-width: 44px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            white-space: nowrap;
+        }
+
+        /* Primary navigation buttons (Previous/Next) */
+        .pagination .btn.primary-nav {
+            background: var(--accent);
+            color: white;
+            font-weight: 600;
+            min-width: 100px;
+        }
+
+        .pagination .btn.primary-nav:hover {
+            background: var(--accent-hover);
+            transform: translateY(-2px);
+            box-shadow: var(--shadow);
+        }
+
+        /* Secondary navigation buttons (First/Last) */
+        .pagination .btn.secondary-nav {
+            background: var(--bg-card);
+            color: var(--text-secondary);
+            border: 1px solid var(--border);
+            min-width: 80px;
+        }
+
+        .pagination .btn.secondary-nav:hover {
+            background: var(--bg-hover);
+            color: var(--text-primary);
         }
 
         .pagination .btn:disabled {
@@ -365,28 +435,73 @@
         .pagination .btn:disabled:hover {
             transform: none;
             box-shadow: none;
+            background: var(--bg-card);
+        }
+
+        .pagination .btn:active {
+            transform: translateY(1px);
+        }
+
+        .pagination .btn.primary-nav:active {
+            background: var(--accent);
+            transform: translateY(1px);
+        }
+
+        .pagination .btn.secondary-nav:active {
+            background: var(--bg-hover);
+            transform: translateY(1px);
         }
 
         .pagination-info {
             font-size: 14px;
             color: var(--text-secondary);
-            margin: 0 15px;
+            margin: 0 20px;
+            padding: 10px 15px;
+            background: var(--bg-card);
+            border-radius: 6px;
+            border: 1px solid var(--border);
+            font-weight: 500;
+            order: 2;
         }
 
         .pagination-jump {
             display: flex;
             align-items: center;
-            gap: 5px;
+            gap: 8px;
+            order: 4;
+            margin-left: 20px;
+            padding: 8px 12px;
+            background: var(--bg-card);
+            border-radius: 6px;
+            border: 1px solid var(--border);
+        }
+
+        .pagination-jump label {
+            font-size: 13px;
+            color: var(--text-secondary);
+            font-weight: 500;
         }
 
         .pagination-jump input {
-            width: 60px;
-            padding: 6px;
-            border: 2px solid var(--border);
+            width: 50px;
+            padding: 6px 8px;
+            border: 1px solid var(--border);
             border-radius: 4px;
             text-align: center;
-            background: var(--bg-card);
+            background: var(--bg-primary);
             color: var(--text-primary);
+            font-size: 13px;
+        }
+
+        .pagination-jump input:focus {
+            outline: none;
+            border-color: var(--accent);
+        }
+
+        .pagination-jump .btn {
+            padding: 6px 12px;
+            min-width: 50px;
+            font-size: 13px;
         }
 
         /* Filters */
@@ -472,6 +587,61 @@
 
             .card.status-card .card-body {
                 padding: 8px 12px;
+            }
+
+            /* Mobile pagination */
+            .pagination {
+                flex-direction: column;
+                gap: 12px;
+                padding: 15px;
+            }
+
+            #topPaginationContainer {
+                margin-top: 5px;
+                margin-bottom: 5px;
+                padding: 10px;
+            }
+
+            #paginationContainer {
+                margin-top: 15px;
+                margin-bottom: 5px;
+            }
+
+            .pagination-group {
+                justify-content: center;
+            }
+
+            .pagination-group.primary {
+                order: 1;
+            }
+
+            .pagination-group.secondary {
+                order: 2;
+            }
+
+            .pagination-info {
+                order: 1;
+                margin: 0;
+            }
+
+            .pagination-jump {
+                order: 3;
+                margin-left: 0;
+                justify-content: center;
+            }
+
+            .pagination .btn {
+                padding: 12px 16px;
+                min-width: 80px;
+                font-size: 14px;
+            }
+
+            .pagination .btn.primary-nav {
+                min-width: 110px;
+            }
+
+            .pagination .btn.secondary-nav {
+                min-width: 90px;
             }
         }
 
@@ -733,6 +903,41 @@
                             </button>
                         </div>
 
+                        <!-- Top Pagination -->
+                        <div id="topPaginationContainer" class="pagination" style="display: none;">
+                            <!-- Secondary navigation (First/Last) -->
+                            <div class="pagination-group secondary">
+                                <button id="topFirstPageBtn" class="btn secondary-nav" onclick="goToFirstPage()" title="Go to first page">
+                                    ⏮️ First
+                                </button>
+                                <button id="topLastPageBtn" class="btn secondary-nav" onclick="goToLastPage()" title="Go to last page">
+                                    Last ⏭️
+                                </button>
+                            </div>
+                            
+                            <!-- Primary navigation (Previous/Next) -->
+                            <div class="pagination-group primary">
+                                <button id="topPrevPageBtn" class="btn primary-nav" onclick="goToPreviousPage()" title="Go to previous page">
+                                    ⬅️ Previous
+                                </button>
+                                
+                                <div class="pagination-info">
+                                    <span id="topPaginationInfo">Page 1 of 1</span>
+                                </div>
+                                
+                                <button id="topNextPageBtn" class="btn primary-nav" onclick="goToNextPage()" title="Go to next page">
+                                    Next ➡️
+                                </button>
+                            </div>
+                            
+                            <!-- Page jump controls -->
+                            <div class="pagination-jump">
+                                <label for="topPageJumpInput">Go to page:</label>
+                                <input type="number" id="topPageJumpInput" min="1" placeholder="1" title="Enter page number">
+                                <button class="btn btn-primary" onclick="jumpToPage('top')" title="Jump to page">Go</button>
+                            </div>
+                        </div>
+
                         <!-- Jobs Table -->
                         <div id="jobsContainer">
                             <div class="loading">
@@ -743,20 +948,36 @@
 
                         <!-- Pagination -->
                         <div id="paginationContainer" class="pagination" style="display: none;">
-                            <button id="firstPageBtn" class="btn btn-primary" onclick="goToFirstPage()">First</button>
-                            <button id="prevPageBtn" class="btn btn-primary" onclick="goToPreviousPage()">Previous</button>
-                            
-                            <div class="pagination-info">
-                                <span id="paginationInfo">Page 1 of 1</span>
+                            <!-- Secondary navigation (First/Last) -->
+                            <div class="pagination-group secondary">
+                                <button id="firstPageBtn" class="btn secondary-nav" onclick="goToFirstPage()" title="Go to first page">
+                                    ⏮️ First
+                                </button>
+                                <button id="lastPageBtn" class="btn secondary-nav" onclick="goToLastPage()" title="Go to last page">
+                                    Last ⏭️
+                                </button>
                             </div>
                             
-                            <button id="nextPageBtn" class="btn btn-primary" onclick="goToNextPage()">Next</button>
-                            <button id="lastPageBtn" class="btn btn-primary" onclick="goToLastPage()">Last</button>
+                            <!-- Primary navigation (Previous/Next) -->
+                            <div class="pagination-group primary">
+                                <button id="prevPageBtn" class="btn primary-nav" onclick="goToPreviousPage()" title="Go to previous page">
+                                    ⬅️ Previous
+                                </button>
+                                
+                                <div class="pagination-info">
+                                    <span id="paginationInfo">Page 1 of 1</span>
+                                </div>
+                                
+                                <button id="nextPageBtn" class="btn primary-nav" onclick="goToNextPage()" title="Go to next page">
+                                    Next ➡️
+                                </button>
+                            </div>
                             
+                            <!-- Page jump controls -->
                             <div class="pagination-jump">
-                                <span>Go to:</span>
-                                <input type="number" id="pageJumpInput" min="1" placeholder="1">
-                                <button class="btn btn-primary" onclick="jumpToPage()">Go</button>
+                                <label for="pageJumpInput">Go to page:</label>
+                                <input type="number" id="pageJumpInput" min="1" placeholder="1" title="Enter page number">
+                                <button class="btn btn-primary" onclick="jumpToPage('bottom')" title="Jump to page">Go</button>
                             </div>
                         </div>
                     </div>
@@ -819,8 +1040,12 @@
             
             // Enter key support for page jump
             document.addEventListener('keydown', function(e) {
-                if (e.key === 'Enter' && document.activeElement.id === 'pageJumpInput') {
-                    jumpToPage();
+                if (e.key === 'Enter') {
+                    if (document.activeElement.id === 'pageJumpInput') {
+                        jumpToPage('bottom');
+                    } else if (document.activeElement.id === 'topPageJumpInput') {
+                        jumpToPage('top');
+                    }
                 }
             });
 
@@ -1189,37 +1414,61 @@
         function updatePaginationControls() {
             const totalPages = Math.ceil(totalJobs / jobsPerPage);
             const paginationContainer = document.getElementById('paginationContainer');
+            const topPaginationContainer = document.getElementById('topPaginationContainer');
             
             // Show/hide pagination based on whether we have multiple pages
             if (totalPages <= 1) {
                 paginationContainer.style.display = 'none';
+                topPaginationContainer.style.display = 'none';
                 return;
             }
             
             paginationContainer.style.display = 'flex';
+            topPaginationContainer.style.display = 'flex';
             
-            // Update buttons state
-            const firstBtn = document.getElementById('firstPageBtn');
-            const prevBtn = document.getElementById('prevPageBtn');
-            const nextBtn = document.getElementById('nextPageBtn');
-            const lastBtn = document.getElementById('lastPageBtn');
+            // Update buttons state for both pagination blocks
+            const buttons = [
+                { first: 'firstPageBtn', prev: 'prevPageBtn', next: 'nextPageBtn', last: 'lastPageBtn' },
+                { first: 'topFirstPageBtn', prev: 'topPrevPageBtn', next: 'topNextPageBtn', last: 'topLastPageBtn' }
+            ];
             
-            firstBtn.disabled = currentPage === 1;
-            prevBtn.disabled = currentPage === 1;
-            nextBtn.disabled = currentPage === totalPages;
-            lastBtn.disabled = currentPage === totalPages;
+            buttons.forEach(btnSet => {
+                const firstBtn = document.getElementById(btnSet.first);
+                const prevBtn = document.getElementById(btnSet.prev);
+                const nextBtn = document.getElementById(btnSet.next);
+                const lastBtn = document.getElementById(btnSet.last);
+                
+                firstBtn.disabled = currentPage === 1;
+                prevBtn.disabled = currentPage === 1;
+                nextBtn.disabled = currentPage === totalPages;
+                lastBtn.disabled = currentPage === totalPages;
+            });
             
-            // Update pagination info
+            // Update pagination info for both blocks
             const paginationInfo = document.getElementById('paginationInfo');
-            paginationInfo.textContent = `Page ${currentPage} of ${totalPages} (${totalJobs} jobs)`;
+            const topPaginationInfo = document.getElementById('topPaginationInfo');
+            const infoText = `Page ${currentPage} of ${totalPages} (${totalJobs} jobs)`;
             
-            // Update page jump input
+            paginationInfo.textContent = infoText;
+            topPaginationInfo.textContent = infoText;
+            
+            // Update page jump input for both blocks
             const pageJumpInput = document.getElementById('pageJumpInput');
+            const topPageJumpInput = document.getElementById('topPageJumpInput');
+            
             pageJumpInput.max = totalPages;
             pageJumpInput.value = currentPage;
+            topPageJumpInput.max = totalPages;
+            topPageJumpInput.value = currentPage;
         }
         
         function goToFirstPage() {
+            // Add confirmation if jumping more than 3 pages
+            if (currentPage > 4) {
+                if (!confirm(`Are you sure you want to go to the first page? (Current page: ${currentPage})`)) {
+                    return;
+                }
+            }
             currentPage = 1;
             loadJobs();
         }
@@ -1241,12 +1490,20 @@
         
         function goToLastPage() {
             const totalPages = Math.ceil(totalJobs / jobsPerPage);
+            // Add confirmation if jumping more than 3 pages
+            if (currentPage < totalPages - 3) {
+                if (!confirm(`Are you sure you want to go to the last page? (Current page: ${currentPage}, Last page: ${totalPages})`)) {
+                    return;
+                }
+            }
             currentPage = totalPages;
             loadJobs();
         }
         
-        function jumpToPage() {
-            const pageJumpInput = document.getElementById('pageJumpInput');
+        function jumpToPage(source = 'bottom') {
+            const pageJumpInput = source === 'top' ? 
+                document.getElementById('topPageJumpInput') : 
+                document.getElementById('pageJumpInput');
             const targetPage = parseInt(pageJumpInput.value);
             const totalPages = Math.ceil(totalJobs / jobsPerPage);
             
