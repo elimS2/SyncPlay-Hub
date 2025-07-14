@@ -320,7 +320,17 @@ def api_tracks_by_likes(like_count):
             ym.release_timestamp,
             ym.release_year,
             (SELECT COUNT(*) FROM play_history ph WHERE ph.video_id = t.video_id AND ph.event = 'dislike') as play_dislikes,
-            (t.play_likes - (SELECT COUNT(*) FROM play_history ph WHERE ph.video_id = t.video_id AND ph.event = 'dislike')) as net_likes
+            (t.play_likes - (SELECT COUNT(*) FROM play_history ph WHERE ph.video_id = t.video_id AND ph.event = 'dislike')) as net_likes,
+            ym.title as youtube_title,
+            ym.channel,
+            ym.duration as youtube_duration,
+            ym.duration_string as youtube_duration_string,
+            ym.view_count as youtube_view_count,
+            ym.uploader,
+            ym.channel_url,
+            ym.uploader_url,
+            ym.uploader_id,
+            ym.updated_at as youtube_metadata_updated
         FROM tracks t
         LEFT JOIN youtube_video_metadata ym ON ym.youtube_id = t.video_id
         LEFT JOIN channels ch ON (ch.url = ym.channel_url OR ch.url LIKE '%' || ym.channel || '%' OR ym.channel_url LIKE '%' || ch.url || '%')
@@ -354,8 +364,42 @@ def api_tracks_by_likes(like_count):
                 "release_year": row[14],
                 "play_dislikes": row[15] or 0,  # Dislike count from play_history
                 "net_likes": row[16] or 0,  # Net likes (likes - dislikes)
-                "url": f"/media/{row[2]}"  # Use relpath, not video_id
+                "url": f"/media/{row[2]}",  # Use relpath, not video_id
+                
+                # Add YouTube metadata fields for tooltips (matching scan_tracks format)
+                "youtube_title": row[17],
+                "youtube_channel": row[18],
+                "youtube_duration": row[19],
+                "youtube_duration_string": row[20],
+                "youtube_view_count": row[21],
+                "youtube_uploader": row[22],
+                "youtube_channel_url": row[23],
+                "youtube_uploader_url": row[24],
+                "youtube_uploader_id": row[25],
+                "youtube_metadata_updated": row[26],
+                
+                # Add properly named timestamp fields for compatibility
+                "youtube_timestamp": row[12],
+                "youtube_release_timestamp": row[13],
+                "youtube_release_year": row[14]
             }
+            
+            # Add channel handle (@channelname) info - same logic as scan_tracks
+            channel_handle = None
+            if row[23] and '@' in row[23]:  # channel_url
+                url_parts = row[23].split('@')
+                if len(url_parts) > 1:
+                    channel_handle = '@' + url_parts[1].split('/')[0]
+            elif row[24] and '@' in row[24]:  # uploader_url
+                url_parts = row[24].split('@')
+                if len(url_parts) > 1:
+                    channel_handle = '@' + url_parts[1].split('/')[0]
+            elif row[25] and row[25].startswith('@'):  # uploader_id
+                channel_handle = row[25]
+            
+            if channel_handle:
+                track["youtube_channel_handle"] = channel_handle
+            
             tracks.append(track)
         
         conn.close()
