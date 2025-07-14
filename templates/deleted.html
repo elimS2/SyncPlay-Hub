@@ -807,10 +807,19 @@
 
                 const data = await response.json();
                 if (data.status === 'ok') {
-                    showSuccess(`Track restored successfully using ${method === 'file_restore' ? 'file restoration' : 're-download'}`);
+                    let successMessage = `Track restored successfully using ${method === 'file_restore' ? 'file restoration' : 're-download'}`;
+                    if (method === 'redownload' && data.job_id) {
+                        successMessage += `\n\nDownload job #${data.job_id} created and added to queue.`;
+                        successMessage += `\nCheck the Jobs page to monitor download progress.`;
+                    }
+                    showSuccess(successMessage);
+                    loadDeletedTracks(); // Refresh the list
+                } else if (data.status === 'placeholder') {
+                    // Handle placeholder response for methods not fully implemented
+                    showSuccess(data.message + '\n\n' + (data.note || ''));
                     loadDeletedTracks(); // Refresh the list
                 } else {
-                    showError('Restore failed: ' + (data.message || 'Unknown error'));
+                    showError('Restore failed: ' + (data.message || data.error || 'Unknown error'));
                 }
             } catch (error) {
                 showError('Network error: ' + error.message);
@@ -830,36 +839,90 @@
                 return;
             }
 
-            let successCount = 0;
-            let errorCount = 0;
+            try {
+                // Show loading state
+                const restoreButtons = document.querySelectorAll('#bulkRestoreFileBtn, #bulkRestoreRedownloadBtn');
+                restoreButtons.forEach(btn => {
+                    btn.disabled = true;
+                    btn.innerHTML = `
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                          <circle cx="12" cy="12" r="10"></circle>
+                          <path d="M12 6v6l4 2"></path>
+                        </svg>
+                        Processing...
+                    `;
+                });
 
-            for (const trackId of selectedTrackIds) {
-                try {
-                    const response = await fetch('/api/restore_track', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ track_id: trackId, method: method })
-                    });
+                const response = await fetch('/api/bulk_restore_tracks', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        track_ids: selectedTrackIds, 
+                        method: method 
+                    })
+                });
 
-                    const data = await response.json();
-                    if (data.status === 'ok') {
-                        successCount++;
-                    } else {
-                        errorCount++;
+                const data = await response.json();
+                
+                if (data.status === 'ok') {
+                    const { total_successful, total_failed, successful_jobs, failed_tracks } = data;
+                    
+                    if (total_successful > 0) {
+                        let successMessage = `Successfully restored ${total_successful} tracks`;
+                        if (method === 'redownload') {
+                            successMessage += `\n\n${total_successful} download jobs created and added to queue.`;
+                            successMessage += `\nCheck the Jobs page to monitor download progress.`;
+                        }
+                        showSuccess(successMessage);
                     }
-                } catch (error) {
-                    errorCount++;
+                    
+                    if (total_failed > 0) {
+                        let errorMessage = `Failed to restore ${total_failed} tracks`;
+                        if (failed_tracks.length > 0) {
+                            errorMessage += '\n\nErrors:';
+                            failed_tracks.slice(0, 5).forEach(failure => {
+                                errorMessage += `\n- Track ${failure.track_id}: ${failure.error}`;
+                            });
+                            if (failed_tracks.length > 5) {
+                                errorMessage += `\n... and ${failed_tracks.length - 5} more errors`;
+                            }
+                        }
+                        showError(errorMessage);
+                    }
+                    
+                    // Refresh the list
+                    loadDeletedTracks();
+                    
+                } else {
+                    showError('Bulk restore failed: ' + (data.error || 'Unknown error'));
                 }
+                
+            } catch (error) {
+                showError('Network error: ' + error.message);
+            } finally {
+                // Restore button states
+                const restoreButtons = document.querySelectorAll('#bulkRestoreFileBtn, #bulkRestoreRedownloadBtn');
+                restoreButtons.forEach(btn => {
+                    btn.disabled = false;
+                });
+                
+                // Restore original button content
+                document.getElementById('bulkRestoreFileBtn').innerHTML = `
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"></path>
+                    </svg>
+                    Restore Selected (File)
+                `;
+                
+                document.getElementById('bulkRestoreRedownloadBtn').innerHTML = `
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                      <polyline points="7,10 12,15 17,10"></polyline>
+                      <line x1="12" y1="15" x2="12" y2="3"></line>
+                    </svg>
+                    Restore Selected (Re-download)
+                `;
             }
-
-            if (successCount > 0) {
-                showSuccess(`Successfully restored ${successCount} tracks`);
-            }
-            if (errorCount > 0) {
-                showError(`Failed to restore ${errorCount} tracks`);
-            }
-
-            loadDeletedTracks(); // Refresh the list
         }
 
         async function bulkDeletePermanent() {

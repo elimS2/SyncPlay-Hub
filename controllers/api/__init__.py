@@ -19,6 +19,7 @@ from .jobs_api import jobs_bp
 from .backup_api import backup_bp
 from .metadata_api import metadata_bp
 from .cleanup_api import cleanup_bp
+from .trash_api import trash_bp
 
 # Create main API blueprint
 api_bp = Blueprint('api', __name__, url_prefix='/api')
@@ -37,6 +38,7 @@ api_bp.register_blueprint(jobs_bp)
 api_bp.register_blueprint(backup_bp)
 api_bp.register_blueprint(metadata_bp)
 api_bp.register_blueprint(cleanup_bp)
+api_bp.register_blueprint(trash_bp)
 
 def init_api_router(root_dir):
     """Initialize the API router with root directory."""

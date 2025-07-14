@@ -414,8 +414,10 @@ def record_event(conn: sqlite3.Connection, video_id: str, event: str, position: 
         - removed                                                –  file deletion during library sync
         - backup_created                                         –  database backup creation
         - channel_downloaded                                     –  channel content downloaded
+        - track_restored                                         –  track restoration from deleted tracks
+        - bulk_track_restore                                     –  bulk track restoration operation
     """
-    valid = {"start", "finish", "next", "prev", "like", "dislike", "play", "pause", "volume_change", "seek", "playlist_added", "removed", "backup_created", "channel_downloaded"}
+    valid = {"start", "finish", "next", "prev", "like", "dislike", "play", "pause", "volume_change", "seek", "playlist_added", "removed", "backup_created", "channel_downloaded", "track_restored", "bulk_track_restore"}
     if event not in valid:
         return
     cur = conn.cursor()
@@ -451,6 +453,12 @@ def record_event(conn: sqlite3.Connection, video_id: str, event: str, position: 
         # no per-track counters, only history log
         pass
     elif event == "backup_created":
+        # no per-track counters, only history log
+        pass
+    elif event == "track_restored":
+        # no per-track counters, only history log
+        pass
+    elif event == "bulk_track_restore":
         # no per-track counters, only history log
         pass
     if set_parts:

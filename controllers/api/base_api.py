@@ -142,4 +142,27 @@ def api_event():
     conn = get_connection()
     record_event(conn, video_id, ev, position=pos)
     conn.close()
-    return jsonify({"status": "ok"}) 
+    return jsonify({"status": "ok"})
+
+@base_bp.route("/event_types")
+def api_event_types():
+    """Get all available event types from the database."""
+    try:
+        conn = get_connection()
+        cursor = conn.cursor()
+        
+        # Get all unique event types from play_history table
+        cursor.execute("SELECT DISTINCT event FROM play_history ORDER BY event")
+        event_types = [row[0] for row in cursor.fetchall()]
+        
+        conn.close()
+        
+        log_message(f"[Events] Retrieved {len(event_types)} unique event types: {event_types}")
+        return jsonify({
+            "status": "ok",
+            "event_types": event_types
+        })
+        
+    except Exception as e:
+        log_message(f"[Events] Error retrieving event types: {e}")
+        return jsonify({"status": "error", "error": str(e)}), 500 

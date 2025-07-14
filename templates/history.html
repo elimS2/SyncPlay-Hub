@@ -240,6 +240,9 @@
     .event-playlist_added { color: #8bc34a; font-weight: bold; }
     .event-removed { color: var(--error); }
     .event-backup_created { color: #607d8b; }
+    .event-channel_downloaded { color: #4caf50; font-weight: bold; }
+    .event-track_restored { color: #00e676; font-weight: bold; }
+    .event-bulk_track_restore { color: #1de9b6; font-weight: bold; }
     
     .position-time { font-family: monospace; color: var(--text-secondary); font-size: 12px; }
     .volume-info { font-family: monospace; color: #ffeb3b; font-size: 12px; }
@@ -331,55 +334,9 @@
       <div class="filter-row">
         <div class="filter-group">
           <label>Event Types</label>
-          <div class="event-types">
-            <label class="event-type-checkbox" for="filter-start">
-              <input type="checkbox" id="filter-start" {% if not filters.event_types_filter_applied or (filters.event_types and 'start' in filters.event_types) %}checked{% endif %}>
-              <span>Start</span>
-            </label>
-            <label class="event-type-checkbox" for="filter-finish">
-              <input type="checkbox" id="filter-finish" {% if not filters.event_types_filter_applied or (filters.event_types and 'finish' in filters.event_types) %}checked{% endif %}>
-              <span>Finish</span>
-            </label>
-            <label class="event-type-checkbox" for="filter-play">
-              <input type="checkbox" id="filter-play" {% if not filters.event_types_filter_applied or (filters.event_types and 'play' in filters.event_types) %}checked{% endif %}>
-              <span>Play</span>
-            </label>
-            <label class="event-type-checkbox" for="filter-pause">
-              <input type="checkbox" id="filter-pause" {% if not filters.event_types_filter_applied or (filters.event_types and 'pause' in filters.event_types) %}checked{% endif %}>
-              <span>Pause</span>
-            </label>
-            <label class="event-type-checkbox" for="filter-next">
-              <input type="checkbox" id="filter-next" {% if not filters.event_types_filter_applied or (filters.event_types and 'next' in filters.event_types) %}checked{% endif %}>
-              <span>Next</span>
-            </label>
-            <label class="event-type-checkbox" for="filter-prev">
-              <input type="checkbox" id="filter-prev" {% if not filters.event_types_filter_applied or (filters.event_types and 'prev' in filters.event_types) %}checked{% endif %}>
-              <span>Previous</span>
-            </label>
-            <label class="event-type-checkbox" for="filter-like">
-              <input type="checkbox" id="filter-like" {% if not filters.event_types_filter_applied or (filters.event_types and 'like' in filters.event_types) %}checked{% endif %}>
-              <span>Like</span>
-            </label>
-            <label class="event-type-checkbox" for="filter-dislike">
-              <input type="checkbox" id="filter-dislike" {% if not filters.event_types_filter_applied or (filters.event_types and 'dislike' in filters.event_types) %}checked{% endif %}>
-              <span>Dislike</span>
-            </label>
-            <label class="event-type-checkbox" for="filter-volume_change">
-              <input type="checkbox" id="filter-volume_change" {% if not filters.event_types_filter_applied or (filters.event_types and 'volume_change' in filters.event_types) %}checked{% endif %}>
-              <span>Volume</span>
-            </label>
-            <label class="event-type-checkbox" for="filter-seek">
-              <input type="checkbox" id="filter-seek" {% if not filters.event_types_filter_applied or (filters.event_types and 'seek' in filters.event_types) %}checked{% endif %}>
-              <span>Seek</span>
-            </label>
-            <label class="event-type-checkbox" for="filter-playlist_added">
-              <input type="checkbox" id="filter-playlist_added" {% if not filters.event_types_filter_applied or (filters.event_types and 'playlist_added' in filters.event_types) %}checked{% endif %}>
-              <span>Playlist</span>
-            </label>
-            <label class="event-type-checkbox" for="filter-removed">
-              <input type="checkbox" id="filter-removed" {% if not filters.event_types_filter_applied or (filters.event_types and 'removed' in filters.event_types) %}checked{% endif %}>
-              <span>Removed</span>
-            </label>
+          <div class="event-types" id="event-types-container">
+            <!-- Event type checkboxes will be populated dynamically -->
+            <div class="loading-events">Loading event types...</div>
           </div>
         </div>
       </div>
@@ -533,6 +490,10 @@
         <div><span class="event-seek">🔵 seek</span> - Position changed (seek/scrub)</div>
         <div><span class="event-playlist_added">🟢 playlist_added</span> - Track added/discovered in playlist</div>
         <div><span class="event-removed">🔴 removed</span> - Track deleted from library/playlist</div>
+        <div><span class="event-backup_created">🔘 backup_created</span> - Database backup created</div>
+        <div><span class="event-channel_downloaded">🟢 channel_downloaded</span> - Channel content downloaded</div>
+        <div><span class="event-track_restored">🟢 track_restored</span> - Track restored from deleted tracks</div>
+        <div><span class="event-bulk_track_restore">🟢 bulk_track_restore</span> - Bulk track restoration operation</div>
       </div>
       <div style="margin-top:10px;font-size:12px;color:#aaa;">
         <strong>Volume Sources:</strong> web (main player), remote (mobile control), gesture (swipe control)<br>
@@ -623,19 +584,89 @@
       filterTimeout = setTimeout(applyFilters, 500); // 500ms delay
     }
     
+    // Load event types dynamically
+    async function loadEventTypes() {
+      try {
+        const response = await fetch('/api/event_types');
+        const data = await response.json();
+        
+        if (data.status === 'ok') {
+          const container = document.getElementById('event-types-container');
+          container.innerHTML = '';
+          
+          // Create checkboxes for each event type
+          const filterApplied = {{ filters.event_types_filter_applied | tojson }};
+          const selectedTypes = {{ filters.event_types | tojson }};
+          
+          data.event_types.forEach(eventType => {
+            const isChecked = !filterApplied || (selectedTypes && selectedTypes.includes(eventType));
+            
+            const label = document.createElement('label');
+            label.className = 'event-type-checkbox';
+            label.setAttribute('for', `filter-${eventType}`);
+            
+            const checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.id = `filter-${eventType}`;
+            checkbox.checked = isChecked;
+            
+            const span = document.createElement('span');
+            span.textContent = getEventDisplayName(eventType);
+            
+            label.appendChild(checkbox);
+            label.appendChild(span);
+            container.appendChild(label);
+          });
+          
+          // Add event listeners to new checkboxes
+          document.querySelectorAll('.event-type-checkbox input[type="checkbox"]').forEach(cb => {
+            cb.addEventListener('change', applyFilters);
+          });
+          
+          // Update checkbox styling
+          updateCheckboxStyling();
+          
+        } else {
+          console.error('Failed to load event types:', data.error);
+          document.getElementById('event-types-container').innerHTML = '<div class="error">Failed to load event types</div>';
+        }
+      } catch (error) {
+        console.error('Error loading event types:', error);
+        document.getElementById('event-types-container').innerHTML = '<div class="error">Error loading event types</div>';
+      }
+    }
+    
+    // Get display name for event type
+    function getEventDisplayName(eventType) {
+      const displayNames = {
+        'start': 'Start',
+        'finish': 'Finish',
+        'play': 'Play',
+        'pause': 'Pause',
+        'next': 'Next',
+        'prev': 'Previous',
+        'like': 'Like',
+        'dislike': 'Dislike',
+        'volume_change': 'Volume',
+        'seek': 'Seek',
+        'playlist_added': 'Playlist',
+        'removed': 'Removed',
+        'backup_created': 'Backup',
+        'channel_downloaded': 'Channel',
+        'track_restored': 'Track Restored',
+        'bulk_track_restore': 'Bulk Restore'
+      };
+      return displayNames[eventType] || eventType;
+    }
+    
     // Event listeners
     document.addEventListener('DOMContentLoaded', function() {
-      // Checkbox filter listeners (immediate)
-      document.querySelectorAll('.event-type-checkbox input[type="checkbox"]').forEach(cb => {
-        cb.addEventListener('change', applyFilters);
-      });
+      // Load event types first
+      loadEventTypes();
       
       // Text filter listeners (debounced)
       document.getElementById('filter-track').addEventListener('input', debounceFilter);
       document.getElementById('filter-video-id').addEventListener('input', debounceFilter);
-      
-      // Initialize checkbox styling
-      updateCheckboxStyling();
     });
   </script>
 </body>
