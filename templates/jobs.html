@@ -4,54 +4,50 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Job Queue Management</title>
+    
+    <!-- Include Sidebar Styles -->
+    {% include 'sidebar_styles.html' %}
+    
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
+        /* Override main-content for jobs page */
+        .main-content {
+            padding: 20px;
         }
-
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            line-height: 1.6;
-            color: #333;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-        }
-
-        .container {
+        
+        /* Jobs page specific styles */
+        .jobs-container {
             max-width: 1400px;
             margin: 0 auto;
-            padding: 20px;
         }
 
         .header {
             text-align: center;
             margin-bottom: 30px;
-            color: white;
+            color: var(--text-primary);
         }
 
         .header h1 {
             font-size: 2.5rem;
             margin-bottom: 10px;
-            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
         }
 
         .header p {
             font-size: 1.1rem;
             opacity: 0.9;
+            color: var(--text-secondary);
         }
 
         .card {
-            background: white;
+            background: var(--bg-secondary);
             border-radius: 12px;
-            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+            box-shadow: var(--shadow);
             margin-bottom: 20px;
             overflow: hidden;
+            border: 1px solid var(--border);
         }
 
         .card-header {
-            background: linear-gradient(45deg, #667eea, #764ba2);
+            background: var(--accent);
             color: white;
             padding: 20px;
             font-size: 1.2rem;
@@ -71,12 +67,12 @@
         }
 
         .status-item {
-            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            background: var(--accent);
             color: white;
             padding: 20px;
             border-radius: 10px;
             text-align: center;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            box-shadow: var(--shadow);
         }
 
         .status-item h3 {
@@ -107,31 +103,62 @@
             align-items: center;
             gap: 8px;
             transition: all 0.2s;
+            font-family: inherit;
+            font-size: 14px;
         }
 
         .btn-primary {
-            background: linear-gradient(45deg, #667eea, #764ba2);
+            background: var(--accent);
             color: white;
+        }
+
+        .btn-primary:hover {
+            background: var(--accent-hover);
+            transform: translateY(-2px);
+            box-shadow: var(--shadow);
         }
 
         .btn-success {
-            background: linear-gradient(45deg, #56ab2f, #a8e6cf);
+            background: var(--success);
             color: white;
+        }
+
+        .btn-success:hover {
+            opacity: 0.9;
+            transform: translateY(-2px);
+            box-shadow: var(--shadow);
         }
 
         .btn-warning {
-            background: linear-gradient(45deg, #f093fb, #f5576c);
+            background: var(--warning);
             color: white;
+        }
+
+        .btn-warning:hover {
+            opacity: 0.9;
+            transform: translateY(-2px);
+            box-shadow: var(--shadow);
         }
 
         .btn-danger {
-            background: linear-gradient(45deg, #fc466b, #3f5efb);
+            background: var(--error);
             color: white;
         }
 
-        .btn:hover {
+        .btn-danger:hover {
+            opacity: 0.9;
             transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+            box-shadow: var(--shadow);
+        }
+
+        .btn-secondary {
+            background: var(--bg-card);
+            color: var(--text-primary);
+            border: 1px solid var(--border);
+        }
+
+        .btn-secondary:hover {
+            background: var(--bg-hover);
         }
 
         /* Job Creation Form */
@@ -150,24 +177,26 @@
         .form-group label {
             margin-bottom: 5px;
             font-weight: 600;
-            color: #555;
+            color: var(--text-primary);
         }
 
         .form-group input,
         .form-group select,
         .form-group textarea {
             padding: 10px;
-            border: 2px solid #e1e5e9;
+            border: 2px solid var(--border);
             border-radius: 6px;
             font-size: 14px;
             transition: border-color 0.2s;
+            background: var(--bg-card);
+            color: var(--text-primary);
         }
 
         .form-group input:focus,
         .form-group select:focus,
         .form-group textarea:focus {
             outline: none;
-            border-color: #667eea;
+            border-color: var(--accent);
         }
 
         /* Jobs Table */
@@ -181,17 +210,21 @@
         .jobs-table td {
             padding: 12px;
             text-align: left;
-            border-bottom: 1px solid #e1e5e9;
+            border-bottom: 1px solid var(--border);
         }
 
         .jobs-table th {
-            background: #f8f9fa;
+            background: var(--bg-card);
             font-weight: 600;
-            color: #555;
+            color: var(--text-primary);
         }
 
         .jobs-table tr:hover {
-            background: #f8f9fa;
+            background: var(--bg-hover);
+        }
+
+        .jobs-table td {
+            color: var(--text-primary);
         }
 
         /* Status badges */
@@ -203,13 +236,13 @@
             text-transform: uppercase;
         }
 
-        .status-pending { background: #ffeaa7; color: #2d3436; }
-        .status-running { background: #74b9ff; color: white; }
-        .status-completed { background: #00b894; color: white; }
-        .status-failed { background: #e17055; color: white; }
-        .status-cancelled { background: #636e72; color: white; }
-        .status-timeout { background: #e84393; color: white; }
-        .status-retrying { background: #a29bfe; color: white; }
+        .status-pending { background: var(--warning); color: white; }
+        .status-running { background: var(--accent); color: white; }
+        .status-completed { background: var(--success); color: white; }
+        .status-failed { background: var(--error); color: white; }
+        .status-cancelled { background: var(--text-muted); color: white; }
+        .status-timeout { background: var(--error); color: white; }
+        .status-retrying { background: var(--accent); color: white; }
 
         /* Priority badges */
         .priority-badge {
@@ -219,11 +252,11 @@
             font-weight: 600;
         }
 
-        .priority-low { background: #ddd; color: #555; }
-        .priority-normal { background: #74b9ff; color: white; }
-        .priority-high { background: #fdcb6e; color: #2d3436; }
-        .priority-urgent { background: #e17055; color: white; }
-        .priority-critical { background: #d63031; color: white; }
+        .priority-low { background: var(--text-muted); color: white; }
+        .priority-normal { background: var(--accent); color: white; }
+        .priority-high { background: var(--warning); color: white; }
+        .priority-urgent { background: var(--error); color: white; }
+        .priority-critical { background: var(--error); color: white; }
 
         /* Job actions */
         .job-actions {
@@ -239,16 +272,17 @@
         /* Priority selector */
         .priority-select {
             padding: 4px 8px;
-            border: 1px solid #ddd;
+            border: 1px solid var(--border);
             border-radius: 4px;
             font-size: 12px;
-            background: white;
+            background: var(--bg-card);
+            color: var(--text-primary);
             cursor: pointer;
         }
 
         .priority-select:focus {
             outline: none;
-            border-color: #667eea;
+            border-color: var(--accent);
         }
 
         /* Pagination */
@@ -280,7 +314,7 @@
 
         .pagination-info {
             font-size: 14px;
-            color: #666;
+            color: var(--text-secondary);
             margin: 0 15px;
         }
 
@@ -293,9 +327,11 @@
         .pagination-jump input {
             width: 60px;
             padding: 6px;
-            border: 2px solid #e1e5e9;
+            border: 2px solid var(--border);
             border-radius: 4px;
             text-align: center;
+            background: var(--bg-card);
+            color: var(--text-primary);
         }
 
         /* Filters */
@@ -314,18 +350,20 @@
 
         .filter-group label {
             font-weight: 600;
-            color: #555;
+            color: var(--text-primary);
         }
 
         .filter-group select {
             padding: 8px 12px;
-            border: 2px solid #e1e5e9;
+            border: 2px solid var(--border);
             border-radius: 6px;
+            background: var(--bg-card);
+            color: var(--text-primary);
         }
 
         /* Responsive */
         @media (max-width: 768px) {
-            .container {
+            .jobs-container {
                 padding: 10px;
             }
 
@@ -351,12 +389,12 @@
         .loading {
             text-align: center;
             padding: 40px;
-            color: #666;
+            color: var(--text-secondary);
         }
 
         .spinner {
-            border: 4px solid #f3f3f3;
-            border-top: 4px solid #667eea;
+            border: 4px solid var(--border);
+            border-top: 4px solid var(--accent);
             border-radius: 50%;
             width: 40px;
             height: 40px;
@@ -374,11 +412,11 @@
             position: fixed;
             top: 20px;
             right: 20px;
-            background: #00b894;
+            background: var(--success);
             color: white;
             padding: 15px 20px;
             border-radius: 8px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            box-shadow: var(--shadow);
             z-index: 1000;
             opacity: 0;
             transform: translateX(100%);
@@ -391,7 +429,7 @@
         }
 
         .toast.error {
-            background: #e17055;
+            background: var(--error);
         }
 
         /* Modal */
@@ -407,10 +445,12 @@
         }
 
         .modal-content {
-            background-color: white;
+            background-color: var(--bg-secondary);
+            color: var(--text-primary);
             margin: 5% auto;
             padding: 20px;
             border-radius: 10px;
+            border: 1px solid var(--border);
             width: 90%;
             max-width: 800px;
             max-height: 80vh;
@@ -426,6 +466,7 @@
 
         .modal-header h2 {
             margin: 0;
+            color: var(--text-primary);
         }
 
         .close {
@@ -435,16 +476,17 @@
             font-weight: bold;
             cursor: pointer;
             margin-left: auto;
+            color: var(--text-secondary);
         }
 
         .close:hover {
-            color: #999;
+            color: var(--text-primary);
         }
 
         /* Job logs display */
         .log-content {
-            background: #2d3748;
-            color: #e2e8f0;
+            background: var(--bg-primary);
+            color: var(--text-primary);
             padding: 15px;
             border-radius: 6px;
             font-family: 'Courier New', monospace;
@@ -453,6 +495,7 @@
             overflow-y: auto;
             white-space: pre-wrap;
             margin-bottom: 15px;
+            border: 1px solid var(--border);
         }
 
         .back-button {
@@ -471,151 +514,158 @@
     </style>
 </head>
 <body>
-    <div class="container">
-        <a href="/" class="back-button">
-            ← Back to Home
-        </a>
+    <!-- Mobile Menu Button -->
+    <button class="mobile-menu-btn" onclick="toggleSidebar()">☰</button>
+    
+    <div class="layout">
+        <!-- Include Sidebar -->
+        {% include 'sidebar.html' %}
 
-        <div class="header">
-            <h1>🔄 Job Queue Management</h1>
-            <p>Monitor and manage background tasks</p>
-        </div>
-
-        <!-- Queue Status -->
-        <div class="card">
-            <div class="card-header">
-                📊 Queue Status
-            </div>
-            <div class="card-body">
-                <div class="status-grid" id="statusGrid">
-                    <div class="loading">
-                        <div class="spinner"></div>
-                        Loading queue status...
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Job Creation -->
-        <div class="card">
-            <div class="card-header">
-                ➕ Create New Job
-            </div>
-            <div class="card-body">
-                <form id="jobForm" class="job-form">
-                    <div class="form-group">
-                        <label for="jobType">Job Type *</label>
-                        <select id="jobType" name="job_type" required>
-                            <option value="">Select job type...</option>
-                            <option value="channel_download">Channel Download</option>
-                            <option value="metadata_extraction">Metadata Extraction</option>
-                            <option value="playlist_download">Playlist Download</option>
-                            <option value="single_video_download">Single Video Download</option>
-                            <option value="file_cleanup">File Cleanup</option>
-                            <option value="database_cleanup">Database Cleanup</option>
-                            <option value="log_cleanup">Log Cleanup</option>
-                        </select>
-                    </div>
-
-                    <div class="form-group">
-                        <label for="priority">Priority</label>
-                        <select id="priority" name="priority">
-                            <option value="low">Low</option>
-                            <option value="normal" selected>Normal</option>
-                            <option value="high">High</option>
-                            <option value="urgent">Urgent</option>
-                            <option value="critical">Critical</option>
-                        </select>
-                    </div>
-
-                    <!-- Dynamic parameters based on job type -->
-                    <div id="jobParameters" style="grid-column: 1 / -1;">
-                        <p style="color: #666; font-style: italic;">Select a job type to see available parameters</p>
-                    </div>
-
-                    <div class="form-group" style="grid-column: 1 / -1;">
-                        <button type="submit" class="btn btn-primary">
-                            🚀 Create Job
-                        </button>
-                    </div>
-                </form>
-            </div>
-        </div>
-
-        <!-- Job Filters -->
-        <div class="card">
-            <div class="card-header">
-                🔍 Job List
-            </div>
-            <div class="card-body">
-                <div class="filters">
-                    <div class="filter-group">
-                        <label for="statusFilter">Status:</label>
-                        <select id="statusFilter">
-                            <option value="">All</option>
-                            <option value="pending">Pending</option>
-                            <option value="running">Running</option>
-                            <option value="completed">Completed</option>
-                            <option value="failed">Failed</option>
-                            <option value="cancelled">Cancelled</option>
-                            <option value="timeout">Timeout</option>
-                            <option value="retrying">Retrying</option>
-                        </select>
-                    </div>
-
-                    <div class="filter-group">
-                        <label for="typeFilter">Type:</label>
-                        <select id="typeFilter">
-                            <option value="">All</option>
-                            <option value="channel_download">Channel Download</option>
-                            <option value="metadata_extraction">Metadata Extraction</option>
-                            <option value="playlist_download">Playlist Download</option>
-                            <option value="single_video_download">Single Video</option>
-                            <option value="file_cleanup">File Cleanup</option>
-                            <option value="database_cleanup">Database Cleanup</option>
-                            <option value="log_cleanup">Log Cleanup</option>
-                        </select>
-                    </div>
-
-                    <div class="filter-group">
-                        <label for="limitFilter">Limit:</label>
-                        <select id="limitFilter">
-                            <option value="10">10</option>
-                            <option value="25">25</option>
-                            <option value="50">50</option>
-                            <option value="100" selected>100</option>
-                        </select>
-                    </div>
-
-                    <button id="refreshJobs" class="btn btn-primary">
-                        🔄 Refresh
-                    </button>
+        <!-- Main Content -->
+        <div class="main-content">
+            <div class="jobs-container">
+                                 <div class="header">
+                    <h1>🔄 Job Queue Management</h1>
+                    <p>Monitor and manage background tasks</p>
                 </div>
 
-                <!-- Jobs Table -->
-                <div id="jobsContainer">
-                    <div class="loading">
-                        <div class="spinner"></div>
-                        Loading jobs...
+                <!-- Queue Status -->
+                <div class="card">
+                    <div class="card-header">
+                        📊 Queue Status
+                    </div>
+                    <div class="card-body">
+                        <div class="status-grid" id="statusGrid">
+                            <div class="loading">
+                                <div class="spinner"></div>
+                                Loading queue status...
+                            </div>
+                        </div>
                     </div>
                 </div>
 
-                <!-- Pagination -->
-                <div id="paginationContainer" class="pagination" style="display: none;">
-                    <button id="firstPageBtn" class="btn btn-primary" onclick="goToFirstPage()">First</button>
-                    <button id="prevPageBtn" class="btn btn-primary" onclick="goToPreviousPage()">Previous</button>
-                    
-                    <div class="pagination-info">
-                        <span id="paginationInfo">Page 1 of 1</span>
+                <!-- Job Creation -->
+                <div class="card">
+                    <div class="card-header">
+                        ➕ Create New Job
                     </div>
-                    
-                    <button id="nextPageBtn" class="btn btn-primary" onclick="goToNextPage()">Next</button>
-                    <button id="lastPageBtn" class="btn btn-primary" onclick="goToLastPage()">Last</button>
-                    
-                    <div class="pagination-jump">
-                        <span>Go to:</span>
-                        <input type="number" id="pageJumpInput" min="1" placeholder="1">
-                        <button class="btn btn-primary" onclick="jumpToPage()">Go</button>
+                    <div class="card-body">
+                        <form id="jobForm" class="job-form">
+                            <div class="form-group">
+                                <label for="jobType">Job Type *</label>
+                                <select id="jobType" name="job_type" required>
+                                    <option value="">Select job type...</option>
+                                    <option value="channel_download">Channel Download</option>
+                                    <option value="metadata_extraction">Metadata Extraction</option>
+                                    <option value="playlist_download">Playlist Download</option>
+                                    <option value="single_video_download">Single Video Download</option>
+                                    <option value="file_cleanup">File Cleanup</option>
+                                    <option value="database_cleanup">Database Cleanup</option>
+                                    <option value="log_cleanup">Log Cleanup</option>
+                                </select>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="priority">Priority</label>
+                                <select id="priority" name="priority">
+                                    <option value="low">Low</option>
+                                    <option value="normal" selected>Normal</option>
+                                    <option value="high">High</option>
+                                    <option value="urgent">Urgent</option>
+                                    <option value="critical">Critical</option>
+                                </select>
+                            </div>
+
+                            <!-- Dynamic parameters based on job type -->
+                            <div id="jobParameters" style="grid-column: 1 / -1;">
+                                <p style="color: #666; font-style: italic;">Select a job type to see available parameters</p>
+                            </div>
+
+                            <div class="form-group" style="grid-column: 1 / -1;">
+                                <button type="submit" class="btn btn-primary">
+                                    🚀 Create Job
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- Job Filters -->
+                <div class="card">
+                    <div class="card-header">
+                        🔍 Job List
+                    </div>
+                    <div class="card-body">
+                        <div class="filters">
+                            <div class="filter-group">
+                                <label for="statusFilter">Status:</label>
+                                <select id="statusFilter">
+                                    <option value="">All</option>
+                                    <option value="pending">Pending</option>
+                                    <option value="running">Running</option>
+                                    <option value="completed">Completed</option>
+                                    <option value="failed">Failed</option>
+                                    <option value="cancelled">Cancelled</option>
+                                    <option value="timeout">Timeout</option>
+                                    <option value="retrying">Retrying</option>
+                                </select>
+                            </div>
+
+                            <div class="filter-group">
+                                <label for="typeFilter">Type:</label>
+                                <select id="typeFilter">
+                                    <option value="">All</option>
+                                    <option value="channel_download">Channel Download</option>
+                                    <option value="metadata_extraction">Metadata Extraction</option>
+                                    <option value="playlist_download">Playlist Download</option>
+                                    <option value="single_video_download">Single Video</option>
+                                    <option value="file_cleanup">File Cleanup</option>
+                                    <option value="database_cleanup">Database Cleanup</option>
+                                    <option value="log_cleanup">Log Cleanup</option>
+                                </select>
+                            </div>
+
+                            <div class="filter-group">
+                                <label for="limitFilter">Limit:</label>
+                                <select id="limitFilter">
+                                    <option value="10">10</option>
+                                    <option value="25">25</option>
+                                    <option value="50">50</option>
+                                    <option value="100" selected>100</option>
+                                </select>
+                            </div>
+
+                            <button id="refreshJobs" class="btn btn-primary">
+                                🔄 Refresh
+                            </button>
+                        </div>
+
+                        <!-- Jobs Table -->
+                        <div id="jobsContainer">
+                            <div class="loading">
+                                <div class="spinner"></div>
+                                Loading jobs...
+                            </div>
+                        </div>
+
+                        <!-- Pagination -->
+                        <div id="paginationContainer" class="pagination" style="display: none;">
+                            <button id="firstPageBtn" class="btn btn-primary" onclick="goToFirstPage()">First</button>
+                            <button id="prevPageBtn" class="btn btn-primary" onclick="goToPreviousPage()">Previous</button>
+                            
+                            <div class="pagination-info">
+                                <span id="paginationInfo">Page 1 of 1</span>
+                            </div>
+                            
+                            <button id="nextPageBtn" class="btn btn-primary" onclick="goToNextPage()">Next</button>
+                            <button id="lastPageBtn" class="btn btn-primary" onclick="goToLastPage()">Last</button>
+                            
+                            <div class="pagination-jump">
+                                <span>Go to:</span>
+                                <input type="number" id="pageJumpInput" min="1" placeholder="1">
+                                <button class="btn btn-primary" onclick="jumpToPage()">Go</button>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -1347,6 +1397,28 @@
         window.addEventListener('beforeunload', () => {
             if (refreshInterval) clearInterval(refreshInterval);
         });
+
+        // Mobile sidebar toggle
+        function toggleSidebar() {
+            const sidebar = document.querySelector('.sidebar');
+            sidebar.classList.toggle('open');
+        }
+        
+        // Close sidebar when clicking outside on mobile
+        document.addEventListener('click', function(event) {
+            const sidebar = document.querySelector('.sidebar');
+            const menuBtn = document.querySelector('.mobile-menu-btn');
+            
+            if (window.innerWidth <= 768 && 
+                !sidebar.contains(event.target) && 
+                !menuBtn.contains(event.target) && 
+                sidebar.classList.contains('open')) {
+                sidebar.classList.remove('open');
+            }
+        });
     </script>
+            </div>
+        </div>
+    </div>
 </body>
 </html> 
