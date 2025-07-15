@@ -403,6 +403,76 @@
             padding: 40px;
         }
 
+        /* Pagination Styles */
+        .pagination-container {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 20px;
+            padding: 20px;
+            background: var(--bg-card);
+            border-radius: 8px;
+            border: 1px solid var(--border);
+        }
+
+        .pagination-info {
+            font-size: 14px;
+            color: var(--text-secondary);
+        }
+
+        .pagination-controls {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .pagination-pages {
+            display: flex;
+            gap: 4px;
+        }
+
+        .pagination-pages button {
+            min-width: 40px;
+            height: 40px;
+            border: 1px solid var(--border);
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .pagination-pages button:hover {
+            background: var(--bg-hover);
+            border-color: var(--accent-color);
+        }
+
+        .pagination-pages button.active {
+            background: var(--accent-color);
+            color: white;
+            border-color: var(--accent-color);
+        }
+
+        .pagination-pages button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .pagination-settings {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 14px;
+        }
+
+        .pagination-settings select {
+            padding: 6px 12px;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+        }
+
         @media (max-width: 768px) {
             .main-content {
                 margin-left: 0;
@@ -421,6 +491,23 @@
             .results-info {
                 margin-left: 0;
                 text-align: center;
+            }
+            
+            .pagination-container {
+                flex-direction: column;
+                gap: 16px;
+            }
+            
+            .pagination-controls {
+                order: 1;
+            }
+            
+            .pagination-info {
+                order: 2;
+            }
+            
+            .pagination-settings {
+                order: 3;
             }
         }
     </style>
@@ -595,6 +682,39 @@
                 </table>
             </div>
 
+            <!-- Pagination Controls -->
+            <div class="pagination-container" id="paginationContainer" style="display: none;">
+                <div class="pagination-info">
+                    <span id="paginationInfo">Showing 0 - 0 of 0 tracks</span>
+                </div>
+                <div class="pagination-controls">
+                    <button id="prevPageBtn" class="btn btn-secondary" onclick="goToPage(currentPage - 1)" disabled>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="15,18 9,12 15,6"></polyline>
+                        </svg>
+                        Previous
+                    </button>
+                    <div class="pagination-pages" id="paginationPages">
+                        <!-- Page buttons will be dynamically generated -->
+                    </div>
+                    <button id="nextPageBtn" class="btn btn-secondary" onclick="goToPage(currentPage + 1)" disabled>
+                        Next
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="9,18 15,12 9,6"></polyline>
+                        </svg>
+                    </button>
+                </div>
+                <div class="pagination-settings">
+                    <label for="perPageSelect">Items per page:</label>
+                    <select id="perPageSelect" onchange="changePerPage(this.value)">
+                        <option value="25">25</option>
+                        <option value="50" selected>50</option>
+                        <option value="100">100</option>
+                        <option value="200">200</option>
+                    </select>
+                </div>
+            </div>
+
             <!-- Empty State -->
             <div id="emptyState" class="empty-state" style="display: none;">
                 <div class="empty-state-icon">🎉</div>
@@ -608,19 +728,36 @@
         // Global state
         let deletedTracks = [];
         let filteredTracks = [];
+        let currentPage = 1;
+        let perPage = 50;
+        let totalCount = 0;
+        let totalPages = 1;
+        let pagination = {};
 
         // Initialize page
         document.addEventListener('DOMContentLoaded', function() {
+            // Set initial per_page value
+            document.getElementById('perPageSelect').value = perPage;
+            
             loadDeletedTracks();
             loadTrashStats();
             setupEventListeners();
         });
 
         function setupEventListeners() {
-            // Filter change listeners
-            document.getElementById('channelGroupFilter').addEventListener('change', applyFilters);
+            // Filter change listeners that require API reload
+            document.getElementById('channelGroupFilter').addEventListener('change', function() {
+                currentPage = 1;
+                loadDeletedTracks();
+            });
+            
+            document.getElementById('timePeriodFilter').addEventListener('change', function() {
+                currentPage = 1;
+                loadDeletedTracks();
+            });
+
+            // Filter change listeners that work on client side
             document.getElementById('deletionReasonFilter').addEventListener('change', applyFilters);
-            document.getElementById('timePeriodFilter').addEventListener('change', applyFilters);
             document.getElementById('trackSearchFilter').addEventListener('input', debounce(applyFilters, 300));
 
             // Bulk action listeners
@@ -645,13 +782,50 @@
 
         async function loadDeletedTracks() {
             try {
-                const response = await fetch('/api/deleted_tracks');
+                // Build query parameters
+                const params = new URLSearchParams({
+                    page: currentPage.toString(),
+                    per_page: perPage.toString()
+                });
+                
+                // Add optional filters
+                const channelGroupFilter = document.getElementById('channelGroupFilter').value;
+                const timePeriodFilter = document.getElementById('timePeriodFilter').value;
+                
+                if (channelGroupFilter) {
+                    params.append('channel_group', channelGroupFilter);
+                }
+                
+                if (timePeriodFilter) {
+                    let daysBack = null;
+                    switch (timePeriodFilter) {
+                        case '1day':
+                            daysBack = 1;
+                            break;
+                        case '1week':
+                            daysBack = 7;
+                            break;
+                        case '1month':
+                            daysBack = 30;
+                            break;
+                    }
+                    if (daysBack) {
+                        params.append('days_back', daysBack.toString());
+                    }
+                }
+                
+                const response = await fetch(`/api/deleted_tracks?${params}`);
                 const data = await response.json();
                 
                 if (data.status === 'ok') {
                     deletedTracks = data.tracks;
+                    pagination = data.pagination;
+                    totalCount = pagination.total_count;
+                    totalPages = pagination.total_pages;
+                    
                     populateChannelGroupFilter(data.channel_groups);
                     applyFilters();
+                    renderPagination();
                 } else {
                     console.error('Error:', data.message);
                     showError('Failed to load deleted tracks: ' + (data.message || 'Unknown error'));
@@ -673,43 +847,13 @@
         }
 
         function applyFilters() {
-            const channelGroupFilter = document.getElementById('channelGroupFilter').value;
             const deletionReasonFilter = document.getElementById('deletionReasonFilter').value;
-            const timePeriodFilter = document.getElementById('timePeriodFilter').value;
             const trackSearchFilter = document.getElementById('trackSearchFilter').value.toLowerCase();
 
             filteredTracks = deletedTracks.filter(track => {
-                // Channel group filter
-                if (channelGroupFilter && track.channel_group !== channelGroupFilter) {
-                    return false;
-                }
-
                 // Deletion reason filter
                 if (deletionReasonFilter && track.deletion_reason !== deletionReasonFilter) {
                     return false;
-                }
-
-                // Time period filter
-                if (timePeriodFilter) {
-                    const deletedDate = new Date(track.deleted_at);
-                    const now = new Date();
-                    let cutoffDate = new Date();
-
-                    switch (timePeriodFilter) {
-                        case '1day':
-                            cutoffDate.setDate(now.getDate() - 1);
-                            break;
-                        case '1week':
-                            cutoffDate.setDate(now.getDate() - 7);
-                            break;
-                        case '1month':
-                            cutoffDate.setMonth(now.getMonth() - 1);
-                            break;
-                    }
-
-                    if (deletedDate < cutoffDate) {
-                        return false;
-                    }
                 }
 
                 // Track search filter
@@ -722,6 +866,91 @@
 
             renderTracksTable();
             updateResultsCount();
+        }
+
+        // Pagination functions
+        function goToPage(page) {
+            if (page < 1 || page > totalPages) return;
+            currentPage = page;
+            loadDeletedTracks();
+        }
+
+        function changePerPage(newPerPage) {
+            perPage = parseInt(newPerPage);
+            currentPage = 1; // Reset to first page
+            loadDeletedTracks();
+        }
+
+        function renderPagination() {
+            const paginationContainer = document.getElementById('paginationContainer');
+            const paginationInfo = document.getElementById('paginationInfo');
+            const paginationPages = document.getElementById('paginationPages');
+            const prevBtn = document.getElementById('prevPageBtn');
+            const nextBtn = document.getElementById('nextPageBtn');
+            
+            if (totalCount === 0) {
+                paginationContainer.style.display = 'none';
+                return;
+            }
+            
+            paginationContainer.style.display = 'flex';
+            
+            // Update pagination info
+            const startItem = (currentPage - 1) * perPage + 1;
+            const endItem = Math.min(currentPage * perPage, totalCount);
+            paginationInfo.textContent = `Showing ${startItem} - ${endItem} of ${totalCount} tracks`;
+            
+            // Update prev/next buttons
+            prevBtn.disabled = !pagination.has_prev;
+            nextBtn.disabled = !pagination.has_next;
+            
+            // Generate page buttons
+            paginationPages.innerHTML = '';
+            
+            const maxVisiblePages = 5;
+            let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
+            let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
+            
+            if (endPage - startPage + 1 < maxVisiblePages) {
+                startPage = Math.max(1, endPage - maxVisiblePages + 1);
+            }
+            
+            // Add first page and ellipsis if needed
+            if (startPage > 1) {
+                addPageButton(1);
+                if (startPage > 2) {
+                    addEllipsis();
+                }
+            }
+            
+            // Add visible pages
+            for (let i = startPage; i <= endPage; i++) {
+                addPageButton(i);
+            }
+            
+            // Add ellipsis and last page if needed
+            if (endPage < totalPages) {
+                if (endPage < totalPages - 1) {
+                    addEllipsis();
+                }
+                addPageButton(totalPages);
+            }
+        }
+
+        function addPageButton(page) {
+            const button = document.createElement('button');
+            button.textContent = page;
+            button.onclick = () => goToPage(page);
+            button.className = page === currentPage ? 'active' : '';
+            document.getElementById('paginationPages').appendChild(button);
+        }
+
+        function addEllipsis() {
+            const ellipsis = document.createElement('span');
+            ellipsis.textContent = '...';
+            ellipsis.style.padding = '0 8px';
+            ellipsis.style.color = 'var(--text-secondary)';
+            document.getElementById('paginationPages').appendChild(ellipsis);
         }
 
         function renderTracksTable() {
@@ -774,8 +1003,14 @@
         function updateResultsCount() {
             const count = filteredTracks.length;
             const total = deletedTracks.length;
-            document.getElementById('resultsCount').textContent = 
-                count === total ? `${total} tracks` : `${count} of ${total} tracks`;
+            const resultsCount = document.getElementById('resultsCount');
+            if (resultsCount) {
+                if (count === total) {
+                    resultsCount.textContent = `${total} tracks on page (${totalCount} total)`;
+                } else {
+                    resultsCount.textContent = `${count} of ${total} tracks shown (${totalCount} total)`;
+                }
+            }
         }
 
         function updateBulkActionButtons() {

@@ -1215,20 +1215,29 @@ def record_track_deletion(conn: sqlite3.Connection, video_id: str, original_name
 
 
 def get_deleted_tracks(conn: sqlite3.Connection, channel_group: str = None, 
-                      days_back: int = 30, limit: int = 100):
-    """Get deleted tracks for restoration interface.
+                      days_back: int = None, page: int = 1, per_page: int = 50):
+    """Get deleted tracks for restoration interface with pagination.
     
     Args:
         conn: Database connection
         channel_group: Filter by channel group name
-        days_back: How many days back to search
-        limit: Maximum number of results
+        days_back: How many days back to search (None = all time)
+        page: Page number (1-based)
+        per_page: Number of results per page
         
     Returns:
-        List of deleted tracks with restoration info
+        Tuple of (tracks_list, total_count)
     """
     cur = conn.cursor()
     
+    # Base query for counting total results
+    count_query = """
+        SELECT COUNT(*) 
+        FROM deleted_tracks dt
+        WHERE 1=1
+    """
+    
+    # Base query for getting results
     query = """
         SELECT 
             dt.*,
@@ -1238,19 +1247,39 @@ def get_deleted_tracks(conn: sqlite3.Connection, channel_group: str = None,
                 ELSE 're_download'
             END as restoration_method
         FROM deleted_tracks dt
-        WHERE dt.deleted_at >= datetime('now', '-{} days')
-    """.format(days_back)
+        WHERE 1=1
+    """
     
     params = []
-    if channel_group:
-        query += " AND dt.channel_group = ?"
-        params.append(channel_group)
+    count_params = []
     
-    query += " ORDER BY dt.deleted_at DESC LIMIT ?"
-    params.append(limit)
+    # Add date filter if specified
+    if days_back is not None:
+        date_filter = " AND dt.deleted_at >= datetime('now', '-{} days')".format(days_back)
+        query += date_filter
+        count_query += date_filter
+    
+    # Add channel group filter if specified
+    if channel_group:
+        group_filter = " AND dt.channel_group = ?"
+        query += group_filter
+        count_query += group_filter
+        params.append(channel_group)
+        count_params.append(channel_group)
+    
+    # Get total count
+    cur.execute(count_query, count_params)
+    total_count = cur.fetchone()[0]
+    
+    # Add ordering and pagination
+    offset = (page - 1) * per_page
+    query += " ORDER BY dt.deleted_at DESC LIMIT ? OFFSET ?"
+    params.extend([per_page, offset])
     
     cur.execute(query, params)
-    return cur.fetchall()
+    tracks = cur.fetchall()
+    
+    return tracks, total_count
 
 
 def restore_deleted_track(conn: sqlite3.Connection, deleted_track_id: int):

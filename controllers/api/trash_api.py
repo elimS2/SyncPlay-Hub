@@ -13,10 +13,37 @@ trash_bp = Blueprint('trash', __name__)
 
 @trash_bp.route("/deleted_tracks")
 def api_get_deleted_tracks():
-    """Get deleted tracks for restoration page."""
+    """Get deleted tracks for restoration page with pagination.
+    
+    Query parameters:
+        - page: Page number (default: 1)
+        - per_page: Number of results per page (default: 50)
+        - days_back: How many days back to search (None = all time)
+        - channel_group: Filter by channel group name
+    """
     try:
+        # Get query parameters
+        page = request.args.get('page', 1, type=int)
+        per_page = request.args.get('per_page', 50, type=int)
+        days_back = request.args.get('days_back', type=int)  # None by default
+        channel_group = request.args.get('channel_group')
+        
+        # Validate parameters
+        if page <= 0:
+            page = 1
+        if per_page <= 0 or per_page > 200:  # Limit max per_page to prevent abuse
+            per_page = 50
+        if days_back is not None and days_back <= 0:
+            days_back = None
+        
         conn = get_connection()
-        deleted_tracks_raw = db.get_deleted_tracks(conn)
+        deleted_tracks_raw, total_count = db.get_deleted_tracks(
+            conn, 
+            channel_group=channel_group, 
+            days_back=days_back, 
+            page=page, 
+            per_page=per_page
+        )
         
         # Convert SQLite Row objects to dictionaries for JSON serialization
         deleted_tracks = []
@@ -24,8 +51,16 @@ def api_get_deleted_tracks():
             track_dict = dict(row)
             deleted_tracks.append(track_dict)
         
+        # Calculate pagination info
+        import math
+        total_pages = math.ceil(total_count / per_page) if total_count > 0 else 1
+        has_next = page < total_pages
+        has_prev = page > 1
+        
         # DEBUG: Add restoration analysis for each track
         log_message(f"[Restore] DEBUG: Analyzing {len(deleted_tracks)} deleted tracks for restoration")
+        log_message(f"[Restore] DEBUG: Pagination - page: {page}, per_page: {per_page}, total: {total_count}, total_pages: {total_pages}")
+        log_message(f"[Restore] DEBUG: Search parameters - days_back: {days_back}, channel_group: {channel_group}")
         
         for i, track in enumerate(deleted_tracks):
             if i < 5:  # Only log first 5 tracks to avoid spam
@@ -82,10 +117,25 @@ def api_get_deleted_tracks():
         conn.close()
         
         log_message(f"[Restore] Retrieved {len(deleted_tracks)} deleted tracks and {len(channel_groups)} channel groups")
+        log_message(f"[Restore] Parameters used: page={page}, per_page={per_page}, days_back={days_back}, channel_group={channel_group}")
         return jsonify({
             "status": "ok", 
             "tracks": deleted_tracks,
-            "channel_groups": channel_groups
+            "channel_groups": channel_groups,
+            "pagination": {
+                "current_page": page,
+                "per_page": per_page,
+                "total_count": total_count,
+                "total_pages": total_pages,
+                "has_next": has_next,
+                "has_prev": has_prev
+            },
+            "params": {
+                "page": page,
+                "per_page": per_page,
+                "days_back": days_back,
+                "channel_group": channel_group
+            }
         })
         
     except Exception as e:
