@@ -139,7 +139,7 @@
 
         .trash-stats-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
             gap: 15px;
             align-items: center;
         }
@@ -566,6 +566,10 @@
                     <div class="stat-item">
                         <div class="stat-value" id="trashFiles">Loading...</div>
                         <div class="stat-label">Files Count</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="storageSize">Loading...</div>
+                        <div class="stat-label">Storage Size</div>
                     </div>
                     <div class="stat-item">
                         <div class="stat-value" id="diskFree">Loading...</div>
@@ -1311,6 +1315,7 @@ Local (${timezone}): ${localTime}`;
                     
                     // Update disk space information
                     if (data.disk_info) {
+                        document.getElementById('storageSize').textContent = data.disk_info.storage_size_formatted || 'Unknown';
                         document.getElementById('diskFree').textContent = data.disk_info.free_formatted;
                         document.getElementById('diskUsed').textContent = data.disk_info.used_formatted + ' (' + data.disk_info.used_percentage.toFixed(1) + '%)';
                         const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
@@ -1321,6 +1326,7 @@ Local (${timezone}): ${localTime}`;
                         
                         document.getElementById('storagePath').textContent = `Storage: ${data.disk_info.storage_path} • Timezone: ${timezone} (UTC${offsetString})`;
                     } else {
+                        document.getElementById('storageSize').textContent = 'Unknown';
                         document.getElementById('diskFree').textContent = 'Unknown';
                         document.getElementById('diskUsed').textContent = 'Unknown';
                         document.getElementById('storagePath').textContent = 'Storage path unavailable';
@@ -1353,6 +1359,7 @@ Local (${timezone}): ${localTime}`;
                     console.error('Error:', data.error);
                     document.getElementById('trashSize').textContent = 'Error';
                     document.getElementById('trashFiles').textContent = 'Error';
+                    document.getElementById('storageSize').textContent = 'Error';
                     document.getElementById('diskFree').textContent = 'Error';
                     document.getElementById('diskUsed').textContent = 'Error';
                     document.getElementById('storagePath').textContent = 'Error loading storage path';
@@ -1361,6 +1368,7 @@ Local (${timezone}): ${localTime}`;
                 console.error('Network error:', error);
                 document.getElementById('trashSize').textContent = 'Error';
                 document.getElementById('trashFiles').textContent = 'Error';
+                document.getElementById('storageSize').textContent = 'Error';
                 document.getElementById('diskFree').textContent = 'Error';
                 document.getElementById('diskUsed').textContent = 'Error';
                 document.getElementById('storagePath').textContent = 'Error loading storage path';

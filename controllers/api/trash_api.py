@@ -640,6 +640,29 @@ def api_get_trash_stats():
             disk_used_formatted = "Unknown"
             disk_used_percentage = 0
         
+        # Calculate storage directory size
+        storage_size = 0
+        storage_files = 0
+        try:
+            for file_path in root_dir.rglob("*"):
+                if file_path.is_file():
+                    try:
+                        file_size = file_path.stat().st_size
+                        storage_size += file_size
+                        storage_files += 1
+                    except (OSError, PermissionError) as e:
+                        log_message(f"[Trash] Warning: Could not access storage file {file_path}: {e}")
+                        continue
+            
+            storage_size_formatted = _format_file_size(storage_size)
+            log_message(f"[Trash] Storage size: {storage_files} files, {storage_size_formatted}")
+            
+        except Exception as e:
+            log_message(f"[Trash] Warning: Could not calculate storage size: {e}")
+            storage_size = 0
+            storage_files = 0
+            storage_size_formatted = "Unknown"
+        
         if not trash_dir.exists():
             return jsonify({
                 "status": "ok",
@@ -655,7 +678,10 @@ def api_get_trash_stats():
                     "free_formatted": disk_free_formatted,
                     "used_formatted": disk_used_formatted,
                     "used_percentage": disk_used_percentage,
-                    "storage_path": str(root_dir)
+                    "storage_path": str(root_dir),
+                    "storage_size": storage_size,
+                    "storage_files": storage_files,
+                    "storage_size_formatted": storage_size_formatted
                 }
             })
         
@@ -692,7 +718,10 @@ def api_get_trash_stats():
                 "free_formatted": disk_free_formatted,
                 "used_formatted": disk_used_formatted,
                 "used_percentage": disk_used_percentage,
-                "storage_path": str(root_dir)
+                "storage_path": str(root_dir),
+                "storage_size": storage_size,
+                "storage_files": storage_files,
+                "storage_size_formatted": storage_size_formatted
             }
         })
         
