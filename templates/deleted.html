@@ -1315,22 +1315,20 @@ Local (${timezone}): ${localTime}`;
                     
                     // Update disk space information
                     if (data.disk_info) {
-                        document.getElementById('storageSize').textContent = data.disk_info.storage_size_formatted || 'Unknown';
-                        document.getElementById('diskFree').textContent = data.disk_info.free_formatted;
-                        document.getElementById('diskUsed').textContent = data.disk_info.used_formatted + ' (' + data.disk_info.used_percentage.toFixed(1) + '%)';
-                        const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-                        const offset = new Date().getTimezoneOffset();
-                        const offsetHours = Math.floor(Math.abs(offset) / 60);
-                        const offsetMinutes = Math.abs(offset) % 60;
-                        const offsetString = `${offset <= 0 ? '+' : '-'}${offsetHours.toString().padStart(2, '0')}:${offsetMinutes.toString().padStart(2, '0')}`;
-                        
-                        document.getElementById('storagePath').textContent = `Storage: ${data.disk_info.storage_path} • Timezone: ${timezone} (UTC${offsetString})`;
-                    } else {
-                        document.getElementById('storageSize').textContent = 'Unknown';
-                        document.getElementById('diskFree').textContent = 'Unknown';
-                        document.getElementById('diskUsed').textContent = 'Unknown';
-                        document.getElementById('storagePath').textContent = 'Storage path unavailable';
-                    }
+                                            document.getElementById('storageSize').textContent = data.disk_info.storage_size_formatted || 'Unknown';
+                    document.getElementById('diskFree').textContent = data.disk_info.free_formatted;
+                    document.getElementById('diskUsed').textContent = data.disk_info.used_formatted + ' (' + data.disk_info.used_percentage.toFixed(1) + '%)';
+                    
+                    // Display both storage and trash paths
+                    const storagePath = data.disk_info.storage_path || 'Unknown';
+                    const trashPath = data.trash_path || 'Unknown';
+                    document.getElementById('storagePath').textContent = `Storage: ${storagePath} • Trash: ${trashPath}`;
+                } else {
+                    document.getElementById('storageSize').textContent = 'Unknown';
+                    document.getElementById('diskFree').textContent = 'Unknown';
+                    document.getElementById('diskUsed').textContent = 'Unknown';
+                    document.getElementById('storagePath').textContent = 'Storage and trash paths unavailable';
+                }
                     
                     // Update button state based on trash content
                     const clearBtn = document.getElementById('clearTrashBtn');
