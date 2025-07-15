@@ -84,26 +84,15 @@ const cDislike = document.getElementById('cDislike');
   const playlistRel = typeof PLAYLIST_REL !== 'undefined' ? PLAYLIST_REL : '';
   let tracks = await fetchTracks(playlistRel);
 
-  let queue = smartChannelShuffle([...tracks]);
+  let queue = smartShuffle([...tracks]);
   let currentIndex = -1;
   
-  // Log playback info
-  const playbackInfo = getGroupPlaybackInfo(tracks);
-  if (playbackInfo && playbackInfo.length > 0) {
-    console.log('🎯 Smart Playback Info:');
-    playbackInfo.forEach(info => {
-      const icon = info.type === 'music' ? '🎵' : 
-                   info.type === 'news' ? '📰' : 
-                   info.type === 'education' ? '🎓' : 
-                   info.type === 'podcasts' ? '🎙️' : '📋';
-      console.log(`  ${icon} ${info.group}: ${info.count} tracks (${info.isChannel ? 'Channel' : 'Playlist'})`);
-    });
-  }
+  console.log('🧠 Applied smart shuffle for virtual playlist (grouped by last play time)');
 
   if (tracks.length === 0) {
     console.warn('❌ No tracks loaded - check API endpoint');
   } else if (queue.length === 0) {
-    console.warn('❌ Queue is empty - check smartChannelShuffle function');
+    console.warn('❌ Queue is empty - check playlist loading or shuffle function');
   } else {
     console.log('✅ Data looks good, rendering playlist...');
     renderList();
@@ -251,22 +240,9 @@ const cDislike = document.getElementById('cDislike');
   };
 
   smartShuffleBtn.onclick = ()=>{
-     // Smart channel-aware shuffle
-     queue = smartChannelShuffle([...tracks]);
-     console.log('🧠 Smart channel shuffle applied');
-     
-     // Log playback info
-     const playbackInfo = getGroupPlaybackInfo(tracks);
-     if (playbackInfo && playbackInfo.length > 0) {
-       console.log('🎯 Updated Playback Info:');
-       playbackInfo.forEach(info => {
-         const icon = info.type === 'music' ? '🎵' : 
-                      info.type === 'news' ? '📰' : 
-                      info.type === 'education' ? '🎓' : 
-                      info.type === 'podcasts' ? '🎙️' : '📋';
-         console.log(`  ${icon} ${info.group}: ${info.count} tracks (${info.isChannel ? 'Channel' : 'Playlist'})`);
-       });
-     }
+     // Smart shuffle based on last play time (always same logic for all playlists)
+     queue = smartShuffle([...tracks]);
+     console.log('🧠 Smart shuffle applied (grouped by last play time)');
      
      playIndex(0);
   };
