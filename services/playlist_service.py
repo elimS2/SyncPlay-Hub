@@ -111,6 +111,7 @@ def scan_tracks(scan_root: Path) -> List[dict]:
                 "url": url_for("media", filename=str(rel_to_root).replace("\\", "/")),
                 "video_id": video_id,
                 "last_play": _get_last_play_ts(video_id) if video_id else None,
+                "size_bytes": file.stat().st_size,  # Add file size for tooltip
             }
             
             # Add track statistics if video_id exists

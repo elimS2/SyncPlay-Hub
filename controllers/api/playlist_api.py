@@ -330,7 +330,8 @@ def api_tracks_by_likes(like_count):
             ym.channel_url,
             ym.uploader_url,
             ym.uploader_id,
-            ym.updated_at as youtube_metadata_updated
+            ym.updated_at as youtube_metadata_updated,
+            t.size_bytes
         FROM tracks t
         LEFT JOIN youtube_video_metadata ym ON ym.youtube_id = t.video_id
         LEFT JOIN channels ch ON (ch.url = ym.channel_url OR ch.url LIKE '%' || ym.channel || '%' OR ym.channel_url LIKE '%' || ch.url || '%')
@@ -377,6 +378,7 @@ def api_tracks_by_likes(like_count):
                 "youtube_uploader_url": row[24],
                 "youtube_uploader_id": row[25],
                 "youtube_metadata_updated": row[26],
+                "size_bytes": row[27] or 0,  # Add file size for tooltip
                 
                 # Add properly named timestamp fields for compatibility
                 "youtube_timestamp": row[12],

@@ -971,6 +971,22 @@ export async function syncRemoteState(playerType = 'regular', context) {
 // ==============================
 
 /**
+ * Форматирует размер файла в байтах в читаемый формат
+ * @param {number} bytes - размер файла в байтах
+ * @returns {string} форматированный размер файла
+ */
+export function formatFileSize(bytes) {
+  if (!bytes || bytes === 0) return '0 B';
+  
+  const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(1024));
+  
+  if (i === 0) return bytes + ' ' + sizes[i];
+  
+  return (bytes / Math.pow(1024, i)).toFixed(1) + ' ' + sizes[i];
+}
+
+/**
  * Создает HTML для тултипа трека со всеми метаданными и статистикой
  * @param {Object} track - данные трека
  * @returns {string} HTML содержимое тултипа
@@ -1047,6 +1063,12 @@ export function createTrackTooltipHTML(track) {
     const seconds = duration % 60;
     const durationStr = `${minutes}:${seconds.toString().padStart(2, '0')}`;
     tooltipHTML += `<div class="tooltip-row"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12,6 12,12 16,14"></polyline></svg><strong>Duration:</strong> ${durationStr}</div>`;
+  }
+  
+  // Add file size info
+  if (track.size_bytes) {
+    const fileSize = formatFileSize(track.size_bytes);
+    tooltipHTML += `<div class="tooltip-row"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14,2 14,8 20,8"></polyline></svg><strong>File Size:</strong> ${fileSize}</div>`;
   }
   
   // Add last play date info
