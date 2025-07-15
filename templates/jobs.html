@@ -1383,7 +1383,15 @@
             `;
 
             jobs.forEach(job => {
-                const createdAt = job.created_at ? new Date(job.created_at).toLocaleString() : 'Unknown';
+                const createdAt = job.created_at ? new Date(job.created_at + 'Z').toLocaleString(undefined, {
+                    year: 'numeric',
+                    month: '2-digit',
+                    day: '2-digit',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit',
+                    hour12: false
+                }) : 'Unknown';
                 const duration = job.elapsed_time ? formatDuration(job.elapsed_time) : '-';
                 const worker = job.worker_id || '-';
 
@@ -1593,8 +1601,24 @@
                             <div><strong>Status:</strong> <span class="status-badge status-${job.status}">${job.status}</span></div>
                             <div><strong>Priority:</strong> <span class="priority-badge priority-${getPriorityName(job.priority)}">${getPriorityName(job.priority)}</span></div>
                             <div><strong>Retries:</strong> ${job.retry_count}/${job.max_retries}</div>
-                            <div><strong>Created:</strong> ${job.created_at ? new Date(job.created_at).toLocaleString() : 'Unknown'}</div>
-                            <div><strong>Started:</strong> ${job.started_at ? new Date(job.started_at).toLocaleString() : 'Not started'}</div>
+                                                    <div><strong>Created:</strong> ${job.created_at ? new Date(job.created_at + 'Z').toLocaleString(undefined, {
+                            year: 'numeric',
+                            month: '2-digit',
+                            day: '2-digit',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                            second: '2-digit',
+                            hour12: false
+                        }) : 'Unknown'}</div>
+                        <div><strong>Started:</strong> ${job.started_at ? new Date(job.started_at + 'Z').toLocaleString(undefined, {
+                            year: 'numeric',
+                            month: '2-digit',
+                            day: '2-digit',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                            second: '2-digit',
+                            hour12: false
+                        }) : 'Not started'}</div>
                             <div><strong>Duration:</strong> ${job.elapsed_time ? formatDuration(job.elapsed_time) : 'N/A'}</div>
                             <div><strong>Worker:</strong> ${job.worker_id || 'Not assigned'}</div>
                         </div>

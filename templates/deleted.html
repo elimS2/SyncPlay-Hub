@@ -473,6 +473,17 @@
             color: var(--text-primary);
         }
 
+        /* Tooltip styles */
+        .tooltip-time {
+            cursor: help;
+            border-bottom: 1px dotted currentColor;
+            text-decoration: none;
+        }
+
+        .tooltip-time:hover {
+            border-bottom-color: var(--accent-color);
+        }
+
         @media (max-width: 768px) {
             .main-content {
                 margin-left: 0;
@@ -530,6 +541,9 @@
                     Deleted Tracks
                 </h1>
                 <div class="subtitle">Restore your accidentally deleted music</div>
+                <div class="subtitle" style="font-size: 0.9rem; color: var(--text-muted);" id="timezoneInfo">
+                    Loading timezone info...
+                </div>
             </div>
 
             <!-- Trash Statistics Section -->
@@ -739,10 +753,27 @@
             // Set initial per_page value
             document.getElementById('perPageSelect').value = perPage;
             
+            // Display timezone information
+            displayTimezoneInfo();
+            
             loadDeletedTracks();
             loadTrashStats();
             setupEventListeners();
         });
+
+        function displayTimezoneInfo() {
+            const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+            const offset = new Date().getTimezoneOffset();
+            const offsetHours = Math.floor(Math.abs(offset) / 60);
+            const offsetMinutes = Math.abs(offset) % 60;
+            const offsetString = `${offset <= 0 ? '+' : '-'}${offsetHours.toString().padStart(2, '0')}:${offsetMinutes.toString().padStart(2, '0')}`;
+            
+            document.getElementById('timezoneInfo').innerHTML = `
+                <span style="opacity: 0.7;">All times shown in your local timezone: </span>
+                <span style="font-weight: 500;">${timezone} (UTC${offsetString})</span>
+                <span style="opacity: 0.7;"> • Hover over times for details</span>
+            `;
+        }
 
         function setupEventListeners() {
             // Filter change listeners that require API reload
@@ -1197,26 +1228,65 @@
         }
 
         function formatDate(dateString) {
-            return new Date(dateString).toLocaleString();
+            // SQLite datetime returns UTC time, ensure JavaScript interprets it as UTC
+            // Adding 'Z' tells JavaScript this is UTC time, which gets converted to local timezone
+            const utcDate = new Date(dateString + 'Z');
+            
+            // Create tooltip with both UTC and local time
+            const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+            const utcTime = dateString; // Original time from database
+            const localTime = utcDate.toLocaleString(undefined, {
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit',
+                hour12: false
+            });
+            const tooltip = `Database UTC: ${utcTime}
+Local (${timezone}): ${localTime}`;
+            
+            return `<span class="tooltip-time" title="${tooltip}">${localTime}</span>`;
         }
 
         function formatRelativeDate(dateString) {
-            const date = new Date(dateString);
+            // SQLite datetime returns UTC time, ensure JavaScript interprets it as UTC
+            // Adding 'Z' tells JavaScript this is UTC time, which gets converted to local timezone
+            const date = new Date(dateString + 'Z');
             const now = new Date();
             const diffMs = now - date;
             const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
             const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
             const diffMinutes = Math.floor(diffMs / (1000 * 60));
 
+            // Create tooltip with both UTC and local time
+            const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+            const utcTime = dateString; // Original time from database
+            const localTime = date.toLocaleString(undefined, {
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit',
+                hour12: false
+            });
+            const tooltip = `Database UTC: ${utcTime}
+Local (${timezone}): ${localTime}`;
+
+            let relativeText;
             if (diffDays > 0) {
-                return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
+                relativeText = `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
             } else if (diffHours > 0) {
-                return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
+                relativeText = `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
             } else if (diffMinutes > 0) {
-                return `${diffMinutes} minute${diffMinutes > 1 ? 's' : ''} ago`;
+                relativeText = `${diffMinutes} minute${diffMinutes > 1 ? 's' : ''} ago`;
             } else {
-                return 'Just now';
+                relativeText = 'Just now';
             }
+
+            return `<span title="${tooltip}" style="cursor: help;">${relativeText}</span>`;
         }
 
         function showSuccess(message) {
@@ -1243,7 +1313,13 @@
                     if (data.disk_info) {
                         document.getElementById('diskFree').textContent = data.disk_info.free_formatted;
                         document.getElementById('diskUsed').textContent = data.disk_info.used_formatted + ' (' + data.disk_info.used_percentage.toFixed(1) + '%)';
-                        document.getElementById('storagePath').textContent = 'Storage: ' + data.disk_info.storage_path;
+                        const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+                        const offset = new Date().getTimezoneOffset();
+                        const offsetHours = Math.floor(Math.abs(offset) / 60);
+                        const offsetMinutes = Math.abs(offset) % 60;
+                        const offsetString = `${offset <= 0 ? '+' : '-'}${offsetHours.toString().padStart(2, '0')}:${offsetMinutes.toString().padStart(2, '0')}`;
+                        
+                        document.getElementById('storagePath').textContent = `Storage: ${data.disk_info.storage_path} • Timezone: ${timezone} (UTC${offsetString})`;
                     } else {
                         document.getElementById('diskFree').textContent = 'Unknown';
                         document.getElementById('diskUsed').textContent = 'Unknown';
