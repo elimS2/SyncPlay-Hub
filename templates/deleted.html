@@ -541,9 +541,6 @@
                     Deleted Tracks
                 </h1>
                 <div class="subtitle">Restore your accidentally deleted music</div>
-                <div class="subtitle" style="font-size: 0.9rem; color: var(--text-muted);" id="timezoneInfo">
-                    Loading timezone info...
-                </div>
             </div>
 
             <!-- Trash Statistics Section -->
@@ -757,27 +754,12 @@
             // Set initial per_page value
             document.getElementById('perPageSelect').value = perPage;
             
-            // Display timezone information
-            displayTimezoneInfo();
-            
             loadDeletedTracks();
             loadTrashStats();
             setupEventListeners();
         });
 
-        function displayTimezoneInfo() {
-            const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-            const offset = new Date().getTimezoneOffset();
-            const offsetHours = Math.floor(Math.abs(offset) / 60);
-            const offsetMinutes = Math.abs(offset) % 60;
-            const offsetString = `${offset <= 0 ? '+' : '-'}${offsetHours.toString().padStart(2, '0')}:${offsetMinutes.toString().padStart(2, '0')}`;
-            
-            document.getElementById('timezoneInfo').innerHTML = `
-                <span style="opacity: 0.7;">All times shown in your local timezone: </span>
-                <span style="font-weight: 500;">${timezone} (UTC${offsetString})</span>
-                <span style="opacity: 0.7;"> • Hover over times for details</span>
-            `;
-        }
+
 
         function setupEventListeners() {
             // Filter change listeners that require API reload
