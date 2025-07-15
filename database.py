@@ -1402,6 +1402,166 @@ def get_youtube_metadata_by_id(conn: sqlite3.Connection, youtube_id: str) -> Opt
     return cur.fetchone()
 
 
+def get_youtube_metadata_batch(conn: sqlite3.Connection, video_ids: List[str]) -> Dict[str, sqlite3.Row]:
+    """Get YouTube metadata for multiple video IDs in single query for performance optimization"""
+    if not video_ids:
+        return {}
+    
+    # Remove duplicates while preserving order
+    unique_ids = list(dict.fromkeys(video_ids))
+    
+    placeholders = ','.join(['?' for _ in unique_ids])
+    query = f"SELECT * FROM youtube_video_metadata WHERE youtube_id IN ({placeholders})"
+    
+    cur = conn.cursor()
+    cur.execute(query, unique_ids)
+    
+    result = {}
+    for row in cur.fetchall():
+        result[row['youtube_id']] = row
+    
+    return result
+
+
+def get_track_stats_batch(conn: sqlite3.Connection, video_ids: List[str]) -> Dict[str, dict]:
+    """Get track statistics for multiple video IDs in single query for performance optimization"""
+    if not video_ids:
+        return {}
+    
+    # Remove duplicates while preserving order
+    unique_ids = list(dict.fromkeys(video_ids))
+    
+    # Get basic stats from tracks table
+    placeholders = ','.join(['?' for _ in unique_ids])
+    tracks_query = f"""
+        SELECT video_id, play_starts, play_finishes, play_nexts, play_prevs, play_likes 
+        FROM tracks 
+        WHERE video_id IN ({placeholders})
+    """
+    
+    cur = conn.cursor()
+    cur.execute(tracks_query, unique_ids)
+    
+    result = {}
+    for row in cur.fetchall():
+        result[row['video_id']] = {
+            "play_starts": row['play_starts'] or 0,
+            "play_finishes": row['play_finishes'] or 0,
+            "play_nexts": row['play_nexts'] or 0,
+            "play_prevs": row['play_prevs'] or 0,
+            "play_likes": row['play_likes'] or 0,
+            "play_dislikes": 0  # Will be updated below
+        }
+    
+    # Get dislike counts from play_history table
+    dislikes_query = f"""
+        SELECT video_id, COUNT(*) as dislike_count 
+        FROM play_history 
+        WHERE video_id IN ({placeholders}) AND event='dislike'
+        GROUP BY video_id
+    """
+    
+    cur.execute(dislikes_query, unique_ids)
+    
+    for row in cur.fetchall():
+        video_id = row['video_id']
+        if video_id in result:
+            result[video_id]["play_dislikes"] = row['dislike_count'] or 0
+        else:
+            # Track exists in play_history but not in tracks table
+            result[video_id] = {
+                "play_starts": 0,
+                "play_finishes": 0,
+                "play_nexts": 0,
+                "play_prevs": 0,
+                "play_likes": 0,
+                "play_dislikes": row['dislike_count'] or 0
+            }
+    
+    # Add default stats for video_ids not found in database
+    for video_id in unique_ids:
+        if video_id not in result:
+            result[video_id] = {
+                "play_starts": 0,
+                "play_finishes": 0,
+                "play_nexts": 0,
+                "play_prevs": 0,
+                "play_likes": 0,
+                "play_dislikes": 0
+            }
+    
+    return result
+
+
+def get_last_play_timestamps_batch(conn: sqlite3.Connection, video_ids: List[str]) -> Dict[str, Optional[str]]:
+    """Get last play timestamps for multiple video IDs in single query for performance optimization"""
+    if not video_ids:
+        return {}
+    
+    # Remove duplicates while preserving order
+    unique_ids = list(dict.fromkeys(video_ids))
+    
+    placeholders = ','.join(['?' for _ in unique_ids])
+    query = f"""
+        SELECT video_id, last_start_ts, last_finish_ts 
+        FROM tracks 
+        WHERE video_id IN ({placeholders})
+    """
+    
+    cur = conn.cursor()
+    cur.execute(query, unique_ids)
+    
+    result = {}
+    for row in cur.fetchall():
+        video_id = row['video_id']
+        ts1 = row['last_start_ts']
+        ts2 = row['last_finish_ts']
+        
+        # Return latest timestamp
+        if ts1 and ts2:
+            result[video_id] = ts1 if ts1 > ts2 else ts2
+        else:
+            result[video_id] = ts1 or ts2
+    
+    # Add None for video_ids not found in database
+    for video_id in unique_ids:
+        if video_id not in result:
+            result[video_id] = None
+    
+    return result
+
+
+def get_dislike_counts_batch(conn: sqlite3.Connection, video_ids: List[str]) -> Dict[str, int]:
+    """Get dislike counts for multiple video IDs in single query for performance optimization"""
+    if not video_ids:
+        return {}
+    
+    # Remove duplicates while preserving order
+    unique_ids = list(dict.fromkeys(video_ids))
+    
+    placeholders = ','.join(['?' for _ in unique_ids])
+    query = f"""
+        SELECT video_id, COUNT(*) as dislike_count 
+        FROM play_history 
+        WHERE video_id IN ({placeholders}) AND event='dislike'
+        GROUP BY video_id
+    """
+    
+    cur = conn.cursor()
+    cur.execute(query, unique_ids)
+    
+    result = {}
+    for row in cur.fetchall():
+        result[row['video_id']] = row['dislike_count'] or 0
+    
+    # Add 0 for video_ids not found in database
+    for video_id in unique_ids:
+        if video_id not in result:
+            result[video_id] = 0
+    
+    return result
+
+
 def get_youtube_metadata_by_playlist(conn: sqlite3.Connection, playlist_id: str) -> Iterator[sqlite3.Row]:
     """Get all YouTube video metadata for a specific playlist"""
     cur = conn.cursor()

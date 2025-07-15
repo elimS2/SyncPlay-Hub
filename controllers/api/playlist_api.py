@@ -144,7 +144,6 @@ def api_add_playlist():
                     # Update status to finalizing
                     update_download_status(task_id, "updating database")
                     
-                    # Update DB after download
                     from scan_to_db import scan as scan_library  # local import
                     scan_library(root_dir)
                     success_msg = f"[DONE]  {datetime.datetime.now():%Y-%m-%d %H:%M:%S}  Successfully downloaded {title}"
@@ -297,11 +296,11 @@ def api_link_playlist():
 def api_tracks_by_likes(like_count):
     """Get all tracks that have exactly the specified number of likes."""
     try:
+        from database import get_dislike_counts_batch
         conn = get_connection()
         
-        # Get tracks with exactly like_count likes, including all statistics and metadata
-        # Exclude deleted tracks and only include tracks from groups with include_in_likes=true
-        # Connect tracks to channel groups through YouTube metadata -> channels -> channel_groups
+        # Step 1: Get all tracks with basic data (no subqueries for performance)
+        # Still filter by include_in_likes but calculate net_likes in code
         query = """
         SELECT 
             t.video_id,
@@ -319,8 +318,6 @@ def api_tracks_by_likes(like_count):
             ym.timestamp,
             ym.release_timestamp,
             ym.release_year,
-            (SELECT COUNT(*) FROM play_history ph WHERE ph.video_id = t.video_id AND ph.event = 'dislike') as play_dislikes,
-            (t.play_likes - (SELECT COUNT(*) FROM play_history ph WHERE ph.video_id = t.video_id AND ph.event = 'dislike')) as net_likes,
             ym.title as youtube_title,
             ym.channel,
             ym.duration as youtube_duration,
@@ -336,23 +333,41 @@ def api_tracks_by_likes(like_count):
         LEFT JOIN youtube_video_metadata ym ON ym.youtube_id = t.video_id
         LEFT JOIN channels ch ON (ch.url = ym.channel_url OR ch.url LIKE '%' || ym.channel || '%' OR ym.channel_url LIKE '%' || ch.url || '%')
         LEFT JOIN channel_groups cg ON cg.id = ch.channel_group_id
-        WHERE (t.play_likes - (SELECT COUNT(*) FROM play_history ph WHERE ph.video_id = t.video_id AND ph.event = 'dislike')) = ?
-            AND t.video_id NOT IN (SELECT video_id FROM deleted_tracks)
+        WHERE t.video_id NOT IN (SELECT video_id FROM deleted_tracks)
             AND (cg.include_in_likes = 1)
         ORDER BY COALESCE(ym.title, t.name)
         """
         
-        cursor = conn.execute(query, (like_count,))
-        tracks = []
+        cursor = conn.execute(query)
+        all_tracks = cursor.fetchall()
         
-        for row in cursor.fetchall():
+        # Step 2: Get all video IDs for batch processing
+        video_ids = [row[0] for row in all_tracks if row[0]]  # row[0] is video_id
+        
+        # Step 3: Get all dislike counts in one batch query
+        dislike_counts = get_dislike_counts_batch(conn, video_ids)
+        
+        # Step 4: Process tracks and filter by like_count
+        tracks = []
+        for row in all_tracks:
+            video_id = row[0]
+            play_likes = row[4] or 0
+            
+            # Calculate net likes (likes - dislikes)
+            play_dislikes = dislike_counts.get(video_id, 0)
+            net_likes = play_likes - play_dislikes
+            
+            # Filter by requested like count
+            if net_likes != like_count:
+                continue
+            
             # Convert to format expected by player.js
             track = {
-                "video_id": row[0],
+                "video_id": video_id,
                 "name": row[1],
                 "relpath": row[2],
                 "duration": row[3] or 0,
-                "play_likes": row[4] or 0,
+                "play_likes": play_likes,
                 "play_starts": row[5] or 0,
                 "play_finishes": row[6] or 0,
                 "play_nexts": row[7] or 0,
@@ -363,22 +378,22 @@ def api_tracks_by_likes(like_count):
                 "timestamp": row[12],  # YouTube publish timestamp
                 "release_timestamp": row[13],
                 "release_year": row[14],
-                "play_dislikes": row[15] or 0,  # Dislike count from play_history
-                "net_likes": row[16] or 0,  # Net likes (likes - dislikes)
+                "play_dislikes": play_dislikes,  # From batch query
+                "net_likes": net_likes,  # Calculated in code
                 "url": f"/media/{row[2]}",  # Use relpath, not video_id
                 
                 # Add YouTube metadata fields for tooltips (matching scan_tracks format)
-                "youtube_title": row[17],
-                "youtube_channel": row[18],
-                "youtube_duration": row[19],
-                "youtube_duration_string": row[20],
-                "youtube_view_count": row[21],
-                "youtube_uploader": row[22],
-                "youtube_channel_url": row[23],
-                "youtube_uploader_url": row[24],
-                "youtube_uploader_id": row[25],
-                "youtube_metadata_updated": row[26],
-                "size_bytes": row[27] or 0,  # Add file size for tooltip
+                "youtube_title": row[15],
+                "youtube_channel": row[16],
+                "youtube_duration": row[17],
+                "youtube_duration_string": row[18],
+                "youtube_view_count": row[19],
+                "youtube_uploader": row[20],
+                "youtube_channel_url": row[21],
+                "youtube_uploader_url": row[22],
+                "youtube_uploader_id": row[23],
+                "youtube_metadata_updated": row[24],
+                "size_bytes": row[25] or 0,  # Add file size for tooltip
                 
                 # Add properly named timestamp fields for compatibility
                 "youtube_timestamp": row[12],
@@ -388,16 +403,16 @@ def api_tracks_by_likes(like_count):
             
             # Add channel handle (@channelname) info - same logic as scan_tracks
             channel_handle = None
-            if row[23] and '@' in row[23]:  # channel_url
-                url_parts = row[23].split('@')
+            if row[21] and '@' in row[21]:  # channel_url
+                url_parts = row[21].split('@')
                 if len(url_parts) > 1:
                     channel_handle = '@' + url_parts[1].split('/')[0]
-            elif row[24] and '@' in row[24]:  # uploader_url
-                url_parts = row[24].split('@')
+            elif row[22] and '@' in row[22]:  # uploader_url
+                url_parts = row[22].split('@')
                 if len(url_parts) > 1:
                     channel_handle = '@' + url_parts[1].split('/')[0]
-            elif row[25] and row[25].startswith('@'):  # uploader_id
-                channel_handle = row[25]
+            elif row[23] and row[23].startswith('@'):  # uploader_id
+                channel_handle = row[23]
             
             if channel_handle:
                 track["youtube_channel_handle"] = channel_handle
@@ -406,7 +421,7 @@ def api_tracks_by_likes(like_count):
         
         conn.close()
         
-        log_message(f"[Virtual Playlist] Found {len(tracks)} tracks with {like_count} likes")
+        log_message(f"[Virtual Playlist] Found {len(tracks)} tracks with {like_count} likes (optimized)")
         
         return jsonify({
             "status": "ok",
@@ -423,37 +438,63 @@ def api_tracks_by_likes(like_count):
 def api_like_stats():
     """Get statistics about tracks grouped by like count."""
     try:
+        from database import get_dislike_counts_batch
         conn = get_connection()
         
-        # Get distribution of net likes (likes - dislikes), excluding deleted tracks and only including tracks from groups with include_in_likes=true
-        # Connect tracks to channel groups through YouTube metadata -> channels -> channel_groups
+        # Step 1: Get all tracks with basic data (no subqueries for performance)
         query = """
         SELECT 
-            (t.play_likes - (SELECT COUNT(*) FROM play_history ph WHERE ph.video_id = t.video_id AND ph.event = 'dislike')) as net_likes,
-            COUNT(*) as track_count,
-            GROUP_CONCAT(SUBSTR(COALESCE(ym.title, t.name), 1, 30) || '...', ' • ') as sample_tracks
+            t.video_id,
+            t.play_likes,
+            COALESCE(ym.title, t.name) as name
         FROM tracks t
         LEFT JOIN youtube_video_metadata ym ON ym.youtube_id = t.video_id
         LEFT JOIN channels ch ON (ch.url = ym.channel_url OR ch.url LIKE '%' || ym.channel || '%' OR ym.channel_url LIKE '%' || ch.url || '%')
         LEFT JOIN channel_groups cg ON cg.id = ch.channel_group_id
-        WHERE (t.play_likes - (SELECT COUNT(*) FROM play_history ph WHERE ph.video_id = t.video_id AND ph.event = 'dislike')) >= 0 
-            AND t.video_id NOT IN (SELECT video_id FROM deleted_tracks)
+        WHERE t.video_id NOT IN (SELECT video_id FROM deleted_tracks)
             AND (cg.include_in_likes = 1)
-        GROUP BY net_likes
-        ORDER BY net_likes
+        ORDER BY name
         """
         
         cursor = conn.execute(query)
-        like_stats = []
+        all_tracks = cursor.fetchall()
         
-        for row in cursor.fetchall():
-            net_likes = row[0] or 0
-            count = row[1]
-            sample = row[2] or ""
+        # Step 2: Get all video IDs for batch processing  
+        video_ids = [row[0] for row in all_tracks if row[0]]  # row[0] is video_id
+        
+        # Step 3: Get all dislike counts in one batch query
+        dislike_counts = get_dislike_counts_batch(conn, video_ids)
+        
+        # Step 4: Process tracks and group by net_likes
+        like_groups = {}  # net_likes -> list of track names
+        
+        for row in all_tracks:
+            video_id = row[0]
+            play_likes = row[1] or 0
+            track_name = row[2] or "Unknown"
+            
+            # Calculate net likes (likes - dislikes)
+            play_dislikes = dislike_counts.get(video_id, 0)
+            net_likes = play_likes - play_dislikes
+            
+            # Only include tracks with net_likes >= 0
+            if net_likes >= 0:
+                if net_likes not in like_groups:
+                    like_groups[net_likes] = []
+                
+                # Add track name (truncated for samples)
+                track_sample = track_name[:30] + "..." if len(track_name) > 30 else track_name
+                like_groups[net_likes].append(track_sample)
+        
+        # Step 5: Build response
+        like_stats = []
+        for net_likes in sorted(like_groups.keys()):
+            tracks_in_group = like_groups[net_likes]
+            count = len(tracks_in_group)
             
             # Limit sample to first 3 tracks
-            sample_parts = sample.split(" • ")[:3]
-            if len(sample_parts) == 3 and len(sample.split(" • ")) > 3:
+            sample_parts = tracks_in_group[:3]
+            if len(tracks_in_group) > 3:
                 sample_parts.append("...")
             
             like_stats.append({

@@ -70,7 +70,7 @@ def _get_track_stats(video_id: str) -> dict:
 
 def scan_tracks(scan_root: Path) -> List[dict]:
     """Scan a directory for media files and return track information, using YouTube metadata if available."""
-    from database import get_connection, get_youtube_metadata_by_id
+    from database import get_connection, get_youtube_metadata_batch, get_track_stats_batch, get_last_play_timestamps_batch
     
     # Get ROOT_DIR from global scope (set by init function)
     root_dir = globals().get('ROOT_DIR')
@@ -78,7 +78,10 @@ def scan_tracks(scan_root: Path) -> List[dict]:
         raise RuntimeError("ROOT_DIR not set. Call set_root_dir() first.")
     
     conn = get_connection()
-    tracks = []
+    
+    # Step 1: Scan all files and extract video IDs
+    files_data = []
+    video_ids = []
     
     for file in scan_root.rglob("*.*"):
         if file.suffix.lower() in {".mp3", ".m4a", ".opus", ".webm", ".flac", ".mp4", ".mkv", ".mov"} and file.is_file():
@@ -89,81 +92,97 @@ def scan_tracks(scan_root: Path) -> List[dict]:
             # Calculate path relative to ROOT_DIR (not scan_root)
             rel_to_root = file.relative_to(root_dir)
             
-            # Try to get YouTube metadata if video_id exists
-            display_name = file.stem  # Default to filename
-            youtube_metadata = None
-            if video_id:
-                try:
-                    metadata_row = get_youtube_metadata_by_id(conn, video_id)
-                    if metadata_row:
-                        title = metadata_row['title'] if 'title' in metadata_row.keys() else None
-                        if title:
-                            display_name = title
-                            youtube_metadata = metadata_row
-                except Exception as e:
-                    # If metadata lookup fails, keep using filename
-                    print(f"Warning: Failed to get YouTube metadata for {video_id}: {e}")
-                    pass
-            
-            track_data = {
-                "name": display_name,
-                "relpath": str(rel_to_root).replace("\\", "/"),
-                "url": url_for("media", filename=str(rel_to_root).replace("\\", "/")),
-                "video_id": video_id,
-                "last_play": _get_last_play_ts(video_id) if video_id else None,
-                "size_bytes": file.stat().st_size,  # Add file size for tooltip
+            file_data = {
+                'file': file,
+                'video_id': video_id,
+                'rel_path': str(rel_to_root).replace("\\", "/"),
+                'display_name': file.stem,  # Default to filename
+                'size_bytes': file.stat().st_size
             }
+            files_data.append(file_data)
             
-            # Add track statistics if video_id exists
             if video_id:
-                track_stats = _get_track_stats(video_id)
-                track_data.update(track_stats)
-            
-            # Add YouTube metadata if available
-            if youtube_metadata:
-                try:
-                    keys = youtube_metadata.keys()
-                    if 'title' in keys:
-                        track_data["youtube_title"] = youtube_metadata['title']
-                    if 'channel' in keys:
-                        track_data["youtube_channel"] = youtube_metadata['channel']
-                    if 'duration' in keys:
-                        track_data["youtube_duration"] = youtube_metadata['duration']
-                    if 'duration_string' in keys:
-                        track_data["youtube_duration_string"] = youtube_metadata['duration_string']
-                    if 'view_count' in keys:
-                        track_data["youtube_view_count"] = youtube_metadata['view_count']
-                    if 'uploader' in keys:
-                        track_data["youtube_uploader"] = youtube_metadata['uploader']
-                    # Add date fields for tooltip
-                    if 'timestamp' in keys:
-                        track_data["youtube_timestamp"] = youtube_metadata['timestamp']
-                    if 'release_timestamp' in keys:
-                        track_data["youtube_release_timestamp"] = youtube_metadata['release_timestamp']
-                    if 'release_year' in keys:
-                        track_data["youtube_release_year"] = youtube_metadata['release_year']
-                    # Add metadata sync information for tooltip
-                    if 'updated_at' in keys:
-                        track_data["youtube_metadata_updated"] = youtube_metadata['updated_at']
-                    # Add channel handle (@channelname) for tooltip
-                    channel_handle = None
-                    if 'channel_url' in keys and youtube_metadata['channel_url'] and '@' in youtube_metadata['channel_url']:
-                        url_parts = youtube_metadata['channel_url'].split('@')
-                        if len(url_parts) > 1:
-                            channel_handle = '@' + url_parts[1].split('/')[0]
-                    elif 'uploader_url' in keys and youtube_metadata['uploader_url'] and '@' in youtube_metadata['uploader_url']:
-                        url_parts = youtube_metadata['uploader_url'].split('@')
-                        if len(url_parts) > 1:
-                            channel_handle = '@' + url_parts[1].split('/')[0]
-                    elif 'uploader_id' in keys and youtube_metadata['uploader_id'] and youtube_metadata['uploader_id'].startswith('@'):
-                        channel_handle = youtube_metadata['uploader_id']
-                    
-                    if channel_handle:
-                        track_data["youtube_channel_handle"] = channel_handle
-                except Exception as e:
-                    print(f"Warning: Error processing YouTube metadata for {video_id}: {e}")
-            
-            tracks.append(track_data)
+                video_ids.append(video_id)
+    
+    # Step 2: Batch load all metadata, statistics, and timestamps
+    metadata_lookup = get_youtube_metadata_batch(conn, video_ids)
+    stats_lookup = get_track_stats_batch(conn, video_ids)
+    timestamps_lookup = get_last_play_timestamps_batch(conn, video_ids)
+    
+    # Step 3: Process tracks with O(1) lookups
+    tracks = []
+    for file_data in files_data:
+        video_id = file_data['video_id']
+        
+        # Get YouTube metadata if available
+        display_name = file_data['display_name']
+        youtube_metadata = None
+        if video_id and video_id in metadata_lookup:
+            metadata_row = metadata_lookup[video_id]
+            title = metadata_row['title'] if 'title' in metadata_row.keys() and metadata_row['title'] else None
+            if title:
+                display_name = title
+                youtube_metadata = metadata_row
+        
+        track_data = {
+            "name": display_name,
+            "relpath": file_data['rel_path'],
+            "url": url_for("media", filename=file_data['rel_path']),
+            "video_id": video_id,
+            "last_play": timestamps_lookup.get(video_id) if video_id else None,
+            "size_bytes": file_data['size_bytes'],
+        }
+        
+        # Add track statistics if video_id exists
+        if video_id and video_id in stats_lookup:
+            track_stats = stats_lookup[video_id]
+            track_data.update(track_stats)
+        
+        # Add YouTube metadata if available
+        if youtube_metadata:
+            try:
+                keys = youtube_metadata.keys()
+                if 'title' in keys:
+                    track_data["youtube_title"] = youtube_metadata['title']
+                if 'channel' in keys:
+                    track_data["youtube_channel"] = youtube_metadata['channel']
+                if 'duration' in keys:
+                    track_data["youtube_duration"] = youtube_metadata['duration']
+                if 'duration_string' in keys:
+                    track_data["youtube_duration_string"] = youtube_metadata['duration_string']
+                if 'view_count' in keys:
+                    track_data["youtube_view_count"] = youtube_metadata['view_count']
+                if 'uploader' in keys:
+                    track_data["youtube_uploader"] = youtube_metadata['uploader']
+                # Add date fields for tooltip
+                if 'timestamp' in keys:
+                    track_data["youtube_timestamp"] = youtube_metadata['timestamp']
+                if 'release_timestamp' in keys:
+                    track_data["youtube_release_timestamp"] = youtube_metadata['release_timestamp']
+                if 'release_year' in keys:
+                    track_data["youtube_release_year"] = youtube_metadata['release_year']
+                # Add metadata sync information for tooltip
+                if 'updated_at' in keys:
+                    track_data["youtube_metadata_updated"] = youtube_metadata['updated_at']
+                # Add channel handle (@channelname) for tooltip
+                channel_handle = None
+                if 'channel_url' in keys and youtube_metadata['channel_url'] and '@' in youtube_metadata['channel_url']:
+                    url_parts = youtube_metadata['channel_url'].split('@')
+                    if len(url_parts) > 1:
+                        channel_handle = '@' + url_parts[1].split('/')[0]
+                elif 'uploader_url' in keys and youtube_metadata['uploader_url'] and '@' in youtube_metadata['uploader_url']:
+                    url_parts = youtube_metadata['uploader_url'].split('@')
+                    if len(url_parts) > 1:
+                        channel_handle = '@' + url_parts[1].split('/')[0]
+                elif 'uploader_id' in keys and youtube_metadata['uploader_id'] and youtube_metadata['uploader_id'].startswith('@'):
+                    channel_handle = youtube_metadata['uploader_id']
+                
+                if channel_handle:
+                    track_data["youtube_channel_handle"] = channel_handle
+            except Exception as e:
+                print(f"Warning: Error processing YouTube metadata for {video_id}: {e}")
+        
+        tracks.append(track_data)
     
     conn.close()
     return tracks
