@@ -50,6 +50,9 @@ class NoSyncInternalFilter(logging.Filter):
             return False
         if 'GET /api/jobs?' in message and 'HTTP/1.1" 200 -' in message:
             return False
+        # Server info polling requests
+        if 'GET /api/server_info HTTP/1.1" 200 -' in message:
+            return False
         return True
 
 class AnsiCleaningStream:

@@ -9,7 +9,7 @@ import os
 import sys
 from pathlib import Path
 
-from flask import Flask, render_template, send_from_directory, abort
+from flask import Flask, render_template, send_from_directory, abort, jsonify
 
 # Import our new modules
 from utils.logging_utils import init_logging, setup_logging, log_message
@@ -205,6 +205,7 @@ def playlists_page():
     server_info = {
         "pid": os.getpid(),
         "start_time": SERVER_START_TIME.strftime("%Y-%m-%d %H:%M:%S"),
+        "current_time": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "uptime": uptime_str
     }
     active_downloads = get_active_downloads()
@@ -238,6 +239,7 @@ def tracks_page():
     server_info = {
         "pid": os.getpid(),
         "start_time": SERVER_START_TIME.strftime("%Y-%m-%d %H:%M:%S"),
+        "current_time": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "uptime": uptime_str
     }
     
@@ -294,6 +296,7 @@ def events_page():
     server_info = {
         'pid': os.getpid(),
         'start_time': SERVER_START_TIME.strftime('%Y-%m-%d %H:%M:%S'),
+        'current_time': datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
         'uptime': uptime_str
     }
     
@@ -308,6 +311,7 @@ def backups_page():
     server_info = {
         'pid': os.getpid(),
         'start_time': SERVER_START_TIME.strftime('%Y-%m-%d %H:%M:%S'),
+        'current_time': datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
         'uptime': uptime_str
     }
     
@@ -483,6 +487,7 @@ def deleted_tracks_page():
     server_info = {
         'pid': os.getpid(),
         'start_time': SERVER_START_TIME.strftime('%Y-%m-%d %H:%M:%S'),
+        'current_time': datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
         'uptime': uptime_str
     }
     
@@ -507,6 +512,7 @@ def settings_page():
     server_info = {
         'pid': os.getpid(),
         'start_time': SERVER_START_TIME.strftime('%Y-%m-%d %H:%M:%S'),
+        'current_time': datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
         'uptime': uptime_str
     }
     
@@ -553,6 +559,7 @@ def maintenance_page():
     server_info = {
         'pid': os.getpid(),
         'start_time': SERVER_START_TIME.strftime('%Y-%m-%d %H:%M:%S'),
+        'current_time': datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
         'uptime': uptime_str
     }
     
@@ -589,6 +596,21 @@ def _load_env_config():
             print(f"Warning: Failed to load .env file: {e}")
     
     return config
+
+@app.route("/api/server_info")
+def get_server_info():
+    """API endpoint to get current server information for dynamic updates."""
+    uptime = datetime.datetime.now() - SERVER_START_TIME
+    uptime_str = str(uptime).split('.')[0]  # Remove microseconds
+    
+    server_info = {
+        "pid": os.getpid(),
+        "start_time": SERVER_START_TIME.strftime("%Y-%m-%d %H:%M:%S"),
+        "current_time": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "uptime": uptime_str
+    }
+    
+    return jsonify(server_info)
 
 def main():
     """Main entry point."""

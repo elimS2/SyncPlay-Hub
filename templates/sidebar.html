@@ -3,8 +3,8 @@
   <div class="sidebar-header">
     <h1 class="sidebar-title">🎵 YouTube Player</h1>
     <div class="server-info">
-      PID: {{ server_info.pid if server_info else 'N/A' }} | Started: {{ server_info.start_time if server_info else 'N/A' }}<br>
-      Uptime: {{ server_info.uptime if server_info else 'N/A' }}
+      PID: <span id="server-pid">{{ server_info.pid if server_info else 'N/A' }}</span> | Started: <span id="server-start-time">{{ server_info.start_time if server_info else 'N/A' }}</span><br>
+      Current: <span id="server-current-time">{{ server_info.current_time if server_info else 'N/A' }}</span> | Uptime: <span id="server-uptime">{{ server_info.uptime if server_info else 'N/A' }}</span>
     </div>
   </div>
   
@@ -212,5 +212,31 @@ document.addEventListener('DOMContentLoaded', function() {
       dropdown.classList.add('open');
     }
   }
+});
+
+// Dynamic server info updates
+function updateServerInfo() {
+  fetch('/api/server_info')
+    .then(response => response.json())
+    .then(data => {
+      const currentTimeElement = document.getElementById('server-current-time');
+      const uptimeElement = document.getElementById('server-uptime');
+      
+      if (currentTimeElement) {
+        currentTimeElement.textContent = data.current_time;
+      }
+      if (uptimeElement) {
+        uptimeElement.textContent = data.uptime;
+      }
+    })
+    .catch(error => {
+      console.log('Failed to update server info:', error);
+    });
+}
+
+// Update server info every second
+document.addEventListener('DOMContentLoaded', function() {
+  updateServerInfo(); // Initial update
+  setInterval(updateServerInfo, 1000); // Update every second
 });
 </script> 
