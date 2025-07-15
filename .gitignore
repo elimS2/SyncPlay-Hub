@@ -18,3 +18,4 @@ syncplay_hub.pid
 
 # Environment files (contain sensitive paths)
 .env 
+result.json

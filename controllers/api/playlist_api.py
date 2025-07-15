@@ -331,7 +331,19 @@ def api_tracks_by_likes(like_count):
             t.size_bytes
         FROM tracks t
         LEFT JOIN youtube_video_metadata ym ON ym.youtube_id = t.video_id
-        LEFT JOIN channels ch ON (ch.url = ym.channel_url OR ch.url LIKE '%' || ym.channel || '%' OR ym.channel_url LIKE '%' || ch.url || '%')
+        LEFT JOIN channels ch ON (
+            ch.url = ym.channel_url OR 
+            ch.url LIKE '%' || ym.channel || '%' OR 
+            ym.channel_url LIKE '%' || ch.url || '%' OR
+            -- NEW: Match @channelname format from uploader_id and uploader_url
+            (ym.uploader_id IS NOT NULL AND (
+                ch.url LIKE '%' || ym.uploader_id || '%' OR
+                ch.url LIKE '%' || REPLACE(ym.uploader_id, '@', '') || '%'
+            )) OR
+            (ym.uploader_url IS NOT NULL AND (
+                ch.url LIKE '%' || REPLACE(REPLACE(ym.uploader_url, 'https://www.youtube.com/', ''), '/videos', '') || '%'
+            ))
+        )
         LEFT JOIN channel_groups cg ON cg.id = ch.channel_group_id
         WHERE t.video_id NOT IN (SELECT video_id FROM deleted_tracks)
             AND (cg.include_in_likes = 1)
@@ -449,7 +461,19 @@ def api_like_stats():
             COALESCE(ym.title, t.name) as name
         FROM tracks t
         LEFT JOIN youtube_video_metadata ym ON ym.youtube_id = t.video_id
-        LEFT JOIN channels ch ON (ch.url = ym.channel_url OR ch.url LIKE '%' || ym.channel || '%' OR ym.channel_url LIKE '%' || ch.url || '%')
+        LEFT JOIN channels ch ON (
+            ch.url = ym.channel_url OR 
+            ch.url LIKE '%' || ym.channel || '%' OR 
+            ym.channel_url LIKE '%' || ch.url || '%' OR
+            -- NEW: Match @channelname format from uploader_id and uploader_url
+            (ym.uploader_id IS NOT NULL AND (
+                ch.url LIKE '%' || ym.uploader_id || '%' OR
+                ch.url LIKE '%' || REPLACE(ym.uploader_id, '@', '') || '%'
+            )) OR
+            (ym.uploader_url IS NOT NULL AND (
+                ch.url LIKE '%' || REPLACE(REPLACE(ym.uploader_url, 'https://www.youtube.com/', ''), '/videos', '') || '%'
+            ))
+        )
         LEFT JOIN channel_groups cg ON cg.id = ch.channel_group_id
         WHERE t.video_id NOT IN (SELECT video_id FROM deleted_tracks)
             AND (cg.include_in_likes = 1)
