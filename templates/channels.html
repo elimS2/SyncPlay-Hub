@@ -89,6 +89,8 @@
             padding: 24px;
             margin-bottom: 24px;
             border: 1px solid var(--border-color);
+            position: relative;
+            z-index: 1;
         }
 
         .group-header {
@@ -151,18 +153,22 @@
         .channels-list {
             display: grid;
             gap: 12px;
-            overflow: visible;
+            overflow: hidden;
             transition: max-height 0.3s ease, opacity 0.3s ease;
         }
 
         .channels-list.collapsed {
             max-height: 0;
             opacity: 0;
+            overflow: hidden;
+            pointer-events: none;
         }
 
         .channels-list.expanded {
             max-height: none;
             opacity: 1;
+            overflow: visible;
+            pointer-events: auto;
         }
 
         .group-stats {
@@ -176,6 +182,8 @@
             gap: 8px;
             flex-wrap: wrap;
             align-items: center;
+            position: relative;
+            z-index: 10;
         }
 
         .btn {
@@ -195,6 +203,8 @@
             border: 1px solid rgba(255, 255, 255, 0.2);
             white-space: nowrap;
             flex-shrink: 0;
+            position: relative;
+            z-index: 20;
         }
 
         .btn:hover {
