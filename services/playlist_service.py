@@ -212,7 +212,7 @@ def list_playlists(root: Path) -> List[dict]:
         conn = get_connection()
         for row in conn.execute(
             """
-            SELECT p.id, p.relpath, p.track_count, p.last_sync_ts, p.source_url,
+            SELECT p.id, p.relpath, COUNT(t.id) AS dynamic_track_count, p.last_sync_ts, p.source_url,
                    COALESCE(SUM(t.play_starts + t.play_nexts + t.play_prevs + t.play_finishes),0) AS play_total,
                    COALESCE(SUM(t.play_likes),0) AS like_total,
                    COALESCE(SUM(CASE WHEN (t.last_start_ts IS NULL AND t.last_finish_ts IS NULL) OR 
@@ -223,7 +223,7 @@ def list_playlists(root: Path) -> List[dict]:
             GROUP BY p.id
             """):
             meta[row[1]] = {
-                "track_count": row[2],
+                "dynamic_track_count": row[2],
                 "last_sync_ts": row[3],
                 "source_url": row[4],
                 "play_total": row[5],
@@ -246,7 +246,7 @@ def list_playlists(root: Path) -> List[dict]:
             rel = d.name  # Just the folder name, like "TopMusic6"
             # In the original structure, playlists in DB are stored as folder name only
             dbinfo = meta.get(d.name)  # Look up by folder name only
-            count = dbinfo["track_count"] if dbinfo and dbinfo["track_count"] is not None else "?"
+            count = dbinfo["dynamic_track_count"] if dbinfo and dbinfo["dynamic_track_count"] is not None else "?"
             last_sync_str = dbinfo["last_sync_ts"][:16].replace("T", " ") if dbinfo and dbinfo["last_sync_ts"] else "-"
             has_source = bool(dbinfo and dbinfo["source_url"])
             playlists.append({
