@@ -1,5 +1,8 @@
 // Импорт общих утилит
-import { shuffle, smartShuffle, detectChannelGroup, smartChannelShuffle, getGroupPlaybackInfo, orderByPublishDate as utilsOrderByPublishDate, formatTime, updateSpeedDisplay as utilsUpdateSpeedDisplay, showNotification, handleVolumeWheel as utilsHandleVolumeWheel, stopTick as utilsStopTick, stopPlayback as utilsStopPlayback, playIndex as utilsPlayIndex, updateMuteIcon as utilsUpdateMuteIcon, nextTrack as utilsNextTrack, prevTrack as utilsPrevTrack, sendStreamEvent as utilsSendStreamEvent, startTick as utilsStartTick, reportEvent as utilsReportEvent, triggerAutoDeleteCheck as utilsTriggerAutoDeleteCheck, recordSeekEvent, saveVolumeToDatabase as utilsSaveVolumeToDatabase, loadSavedVolume as utilsLoadSavedVolume, performKeyboardSeek as utilsPerformKeyboardSeek, syncLikeButtonsWithRemote as utilsSyncLikeButtonsWithRemote, syncLikesAfterAction as utilsSyncLikesAfterAction, setupLikeSyncHandlers as utilsSetupLikeSyncHandlers, togglePlayback as utilsTogglePlayback, showFsControls as utilsShowFsControls, updateFsVisibility as utilsUpdateFsVisibility, syncRemoteState as utilsSyncRemoteState, setupGlobalTooltip as utilsSetupGlobalTooltip, createTrackTooltipHTML, pollRemoteCommands as utilsPollRemoteCommands, cyclePlaybackSpeed as utilsCyclePlaybackSpeed, executeRemoteCommand as utilsExecuteRemoteCommand, deleteTrack as utilsDeleteTrack, initializeGoogleCastIntegration as utilsInitializeGoogleCastIntegration, castLoad as utilsCastLoad, loadTrack as utilsLoadTrack, updateCurrentTrackTitle, setupMediaEndedHandler, setupMediaPlayPauseHandlers, setupMediaTimeUpdateHandler, setupMediaSeekedHandler, setupKeyboardHandler, setupProgressClickHandler, setupMediaSessionAPI, setupPlaylistToggleHandler, setupDeleteCurrentHandler, setupLikeDislikeHandlers, setupYouTubeHandler, setupFullscreenHandlers, setupSimpleControlHandlers, setupStreamHandler, setupBeforeUnloadHandler, setupAutoPlayInitialization, setupRemoteControlOverrides, setupRemoteControlInitialization } from '/static/js/modules/player-utils.js';
+import { shuffle, smartShuffle, detectChannelGroup, smartChannelShuffle, getGroupPlaybackInfo, orderByPublishDate as utilsOrderByPublishDate, formatTime, updateSpeedDisplay as utilsUpdateSpeedDisplay, showNotification, handleVolumeWheel as utilsHandleVolumeWheel, stopTick as utilsStopTick, stopPlayback as utilsStopPlayback, playIndex as utilsPlayIndex, updateMuteIcon as utilsUpdateMuteIcon, nextTrack as utilsNextTrack, prevTrack as utilsPrevTrack, sendStreamEvent as utilsSendStreamEvent, startTick as utilsStartTick, reportEvent as utilsReportEvent, triggerAutoDeleteCheck as utilsTriggerAutoDeleteCheck, recordSeekEvent, saveVolumeToDatabase as utilsSaveVolumeToDatabase, loadSavedVolume as utilsLoadSavedVolume, performKeyboardSeek as utilsPerformKeyboardSeek, syncLikeButtonsWithRemote as utilsSyncLikeButtonsWithRemote, syncLikesAfterAction as utilsSyncLikesAfterAction, setupLikeSyncHandlers as utilsSetupLikeSyncHandlers, togglePlayback as utilsTogglePlayback, showFsControls as utilsShowFsControls, updateFsVisibility as utilsUpdateFsVisibility, syncRemoteState as utilsSyncRemoteState, setupGlobalTooltip as utilsSetupGlobalTooltip, createTrackTooltipHTML, pollRemoteCommands as utilsPollRemoteCommands, cyclePlaybackSpeed as utilsCyclePlaybackSpeed, executeRemoteCommand as utilsExecuteRemoteCommand, deleteTrack as utilsDeleteTrack, initializeGoogleCastIntegration as utilsInitializeGoogleCastIntegration, castLoad as utilsCastLoad, loadTrack as utilsLoadTrack, setupMediaEndedHandler, setupMediaPlayPauseHandlers, setupMediaTimeUpdateHandler, setupMediaSeekedHandler, setupKeyboardHandler, setupProgressClickHandler, setupMediaSessionAPI, setupPlaylistToggleHandler, setupDeleteCurrentHandler, setupLikeDislikeHandlers, setupYouTubeHandler, setupFullscreenHandlers, setupSimpleControlHandlers, setupStreamHandler, setupBeforeUnloadHandler, setupAutoPlayInitialization, setupRemoteControlOverrides, setupRemoteControlInitialization } from '/static/js/modules/player-utils.js';
+
+// Импорт track title manager
+import { updateCurrentTrackTitle } from '/static/js/modules/track-title-manager.js';
 
 async function fetchTracks(playlistPath = '') {
   const endpoint = playlistPath ? `/api/tracks/${encodeURI(playlistPath)}` : '/api/tracks';
@@ -242,6 +245,7 @@ const cDislike = document.getElementById('cDislike');
   }
 
   function renderList() {
+    console.log(`🎵 [DEBUG] renderList called, queue length: ${queue.length}, currentIndex: ${currentIndex}`);
     listElem.innerHTML = '';
     queue.forEach((t, idx) => {
       const li = document.createElement('li');
@@ -323,11 +327,27 @@ const cDislike = document.getElementById('cDislike');
   }
 
   function loadTrack(idx, autoplay=false){
-    return utilsLoadTrack(idx, autoplay, {
-        queue, currentIndex, setCurrentIndex: (newIdx) => { currentIndex = newIdx; },
+    console.log(`🎵 [DEBUG] loadTrack called with idx: ${idx}, autoplay: ${autoplay}`);
+    console.log(`🎵 [DEBUG] queue length: ${queue.length}, currentIndex: ${currentIndex}`);
+    
+    const result = utilsLoadTrack(idx, autoplay, {
+        queue, currentIndex, setCurrentIndex: (newIdx) => { 
+          console.log(`🎵 [DEBUG] Setting currentIndex from ${currentIndex} to ${newIdx}`);
+          currentIndex = newIdx; 
+        },
         media, speedOptions, currentSpeedIndex, castLoad, renderList,
         cLike, cDislike, reportEvent, sendStreamEvent
     });
+    
+    // Update track title display
+    if (idx >= 0 && idx < queue.length) {
+      console.log(`🎵 [DEBUG] Updating track title for track: ${queue[idx].name}`);
+      updateCurrentTrackTitle(queue[idx]);
+    } else {
+      console.warn(`🎵 [DEBUG] Cannot update track title: idx=${idx}, queue.length=${queue.length}`);
+    }
+    
+    return result;
   }
 
   function playIndex(idx){
@@ -729,8 +749,10 @@ const cDislike = document.getElementById('cDislike');
     console.warn('❌ Queue is empty - check playlist loading or shuffle function');
   } else {
     console.log('✅ Data looks good, rendering playlist...');
+    console.log(`🎵 [DEBUG] Before renderList: tracks.length=${tracks.length}, queue.length=${queue.length}, currentIndex=${currentIndex}`);
     renderList();
     console.log('✅ Playlist rendered successfully');
+    console.log(`🎵 [DEBUG] After renderList: currentIndex=${currentIndex}`);
     
     // Update speed display to show saved speed
     updateSpeedDisplay();
@@ -739,6 +761,7 @@ const cDislike = document.getElementById('cDislike');
     // Initialize current track title display
     if (currentIndex >= 0 && currentIndex < queue.length) {
       const currentTrack = queue[currentIndex];
+      console.log(`🎵 [DEBUG] Initializing track title with track: ${currentTrack.name}`);
       updateCurrentTrackTitle(currentTrack);
       console.log('📝 Current track title display initialized');
       
@@ -748,6 +771,8 @@ const cDislike = document.getElementById('cDislike');
           window.updateTrackTitleWidth();
         }
       }, 200);
+    } else {
+      console.warn(`🎵 [DEBUG] Cannot initialize track title: currentIndex=${currentIndex}, queue.length=${queue.length}`);
     }
   }
 

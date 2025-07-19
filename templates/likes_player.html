@@ -6,6 +6,8 @@
   <title>❤️ {{ like_count }} Like{{ 's' if like_count != 1 else '' }} - Virtual Playlist</title>
   <!-- Favicon using emoji -->
   <link rel="icon" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='0.9em' font-size='90'>❤️</text></svg>">
+  <!-- Common player styles -->
+  <link rel="stylesheet" href="/static/css/player-common.css">
   <style>
     :root{
       --bg: rgba(0,0,0,.7);
@@ -58,107 +60,10 @@
     #tracklist li:hover {background: rgba(128,128,128,.2);}
     #tracklist li.playing { background: var(--playing-bg); color:var(--playing-text); font-weight:600; }
     button { margin-right: 10px; }
-    .controls{position:absolute;bottom:0;left:0;width:100%;display:flex;align-items:center;background:var(--bg);padding:6px 10px;box-sizing:border-box;transition:opacity .25s;}
-    .controls.hidden{opacity:0;pointer-events:none;}
+
     #controlBar.hidden{display:none;}
-    .left-group{display:flex;align-items:center;}
-    .ctrl-btn{
-      background:rgba(255,255,255,0.1);border:none;color:var(--text);font-size:20px;margin:0 4px;cursor:pointer;
-      display:inline-flex;align-items:center;justify-content:center;
-      width:40px;height:40px;border-radius:8px;
-      transition:all 0.2s ease;
-      backdrop-filter:blur(10px);
-      border:1px solid rgba(255,255,255,0.1);
-    }
-    .ctrl-btn:hover{
-      transform:translateY(-2px);
-      background:rgba(255,255,255,0.2);
-      box-shadow:0 4px 12px rgba(0,0,0,0.3);
-      border-color:rgba(255,255,255,0.3);
-    }
-    .ctrl-btn:active{
-      transform:translateY(0);
-      box-shadow:0 2px 6px rgba(0,0,0,0.2);
-    }
-    .ctrl-btn.like-active{
-      color:#e74c3c;
-    }
-    .ctrl-btn.like-active svg {
-      fill: #e74c3c;
-      stroke: #e74c3c;
-    }
-    .ctrl-btn.dislike-active{
-      color:#9b59b6;
-    }
-    .ctrl-btn.dislike-active svg {
-      fill: #9b59b6;
-      stroke: #9b59b6;
-    }
-    .progress{flex:1;height:6px;background:var(--progress-bg);margin:0 8px;border-radius:3px;cursor:pointer;}
-    .progress-bar{height:100%;width:0%;background:var(--progress-fill);border-radius:3px;}
-    .time{color:var(--text);font-size:12px;margin-right:8px;white-space:nowrap;}
-    .vol-slider{
-      width:80px;margin-left:8px;
-      -webkit-appearance:none;
-      height:4px;
-      border-radius:2px;
-      background:rgba(255,255,255,0.3);
-      outline:none;
-      transition:all 0.2s ease;
-    }
-    .vol-slider::-webkit-slider-thumb{
-      -webkit-appearance:none;
-      appearance:none;
-      width:16px;height:16px;
-      border-radius:50%;
-      background:var(--text);
-      cursor:pointer;
-      transition:all 0.2s ease;
-      box-shadow:0 2px 4px rgba(0,0,0,0.3);
-    }
-    .vol-slider::-webkit-slider-thumb:hover{
-      transform:scale(1.2);
-      background:#fff;
-    }
-    .vol-slider::-moz-range-thumb{
-      width:16px;height:16px;
-      border-radius:50%;
-      background:var(--text);
-      cursor:pointer;
-      border:none;
-      transition:all 0.2s ease;
-      box-shadow:0 2px 4px rgba(0,0,0,0.3);
-    }
-    .vol-slider::-moz-range-thumb:hover{
-      transform:scale(1.2);
-      background:#fff;
-    }
-    
-    /* Enhanced progress bar styling */
-    .progress{
-      flex:1;height:8px;background:rgba(255,255,255,0.2);
-      margin:0 12px;border-radius:4px;cursor:pointer;
-      transition:height 0.2s ease;
-      position:relative;
-      overflow:hidden;
-    }
-    .progress:hover{height:12px;}
-    .progress-bar{
-      height:100%;width:0%;
-      background:rgba(255,255,255,0.8);
-      border-radius:4px;
-      transition:all 0.2s ease;
-      position:relative;
-    }
-    .progress-bar::after{
-      content:'';
-      position:absolute;
-      top:0;right:0;
-      width:3px;height:100%;
-      background:rgba(255,255,255,1);
-      border-radius:2px;
-      box-shadow:0 0 6px rgba(255,255,255,0.6);
-    }
+
+
 
     /* Video container and responsive sizing */
     #player {
@@ -360,23 +265,7 @@
       }
     }
     
-    /* Speed control button styling */
-    #cSpeed {
-      display: flex;
-      align-items: center;
-      gap: 4px;
-      min-width: 60px;
-      padding: 8px 12px;
-    }
-    #cSpeed:hover {
-      background: rgba(97, 218, 251, 0.2);
-      border-color: rgba(97, 218, 251, 0.5);
-    }
-    #speedLabel {
-      font-size: 11px;
-      font-weight: 600;
-      letter-spacing: 0.5px;
-    }
+
 
     /* Virtual playlist specific styles */
 
@@ -736,6 +625,12 @@
         </button>
       </div>
     </div>
+    
+    <!-- Current track title display -->
+    <div id="currentTrackTitle">
+      <span id="currentTrackName">No track selected</span>
+    </div>
+    
     <div id="playlistPanel" class="playlist-panel">
       <ul id="tracklist" class="side-list"></ul>
     </div>
@@ -752,5 +647,13 @@
 
   <!-- Load specialized virtual player -->
   <script type="module" src="/static/player-virtual.js?v=3"></script>
+  
+  <!-- Initialize track title manager -->
+  <script type="module">
+    import { initializeTrackTitleManager } from '/static/js/modules/track-title-manager.js';
+    
+    // Initialize track title management system
+    initializeTrackTitleManager();
+  </script>
 </body>
 </html> 

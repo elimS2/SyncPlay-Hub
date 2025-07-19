@@ -1,0 +1,352 @@
+/* Common Player Styles - Shared across all player pages */
+
+/* Current track title display */
+#currentTrackTitle {
+  position: fixed;
+  bottom: 45px;
+  left: 0;
+  background: rgba(0, 0, 0, 0.8);
+  color: white;
+  padding: 4px 12px;
+  font-size: 21px;
+  font-weight: 500;
+  text-align: center;
+  z-index: 1001;
+  border-radius: 0;
+  backdrop-filter: blur(10px);
+  border: none;
+  display: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: opacity 0.3s ease;
+  /* Width will be set dynamically by JavaScript */
+}
+
+#currentTrackTitle.visible {
+  display: block;
+}
+
+#currentTrackName {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Light mode for track title */
+@media (prefers-color-scheme: light) {
+  #currentTrackTitle {
+    background: rgba(255, 255, 255, 0.9);
+    color: #333;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+  }
+}
+
+/* Player controls - unified positioning */
+.controls {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  display: flex;
+  align-items: center;
+  background: var(--bg);
+  padding: 6px 10px;
+  box-sizing: border-box;
+  transition: opacity 0.25s;
+  z-index: 1002;
+  /* Width will be set dynamically by JavaScript */
+}
+
+.controls.hidden {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s;
+}
+
+/* Control button styles */
+.ctrl-btn {
+  background: rgba(255,255,255,0.1);
+  border: none;
+  color: var(--text);
+  font-size: 20px;
+  margin: 0 4px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255,255,255,0.1);
+}
+
+.ctrl-btn:hover {
+  transform: translateY(-2px);
+  background: rgba(255,255,255,0.2);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  border-color: rgba(255,255,255,0.3);
+}
+
+.ctrl-btn:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+}
+
+.ctrl-btn.like-active {
+  color: #e74c3c;
+}
+
+.ctrl-btn.like-active svg {
+  fill: #e74c3c;
+  stroke: #e74c3c;
+}
+
+.ctrl-btn.dislike-active {
+  color: #9b59b6;
+}
+
+.ctrl-btn.dislike-active svg {
+  fill: #9b59b6;
+  stroke: #9b59b6;
+}
+
+/* Progress bar styles */
+.progress {
+  flex: 1;
+  height: 8px;
+  background: rgba(255,255,255,0.2);
+  margin: 0 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: height 0.2s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.progress:hover {
+  height: 12px;
+}
+
+.progress-bar {
+  height: 100%;
+  width: 0%;
+  background: rgba(255,255,255,0.8);
+  border-radius: 4px;
+  transition: all 0.2s ease;
+  position: relative;
+}
+
+.progress-bar::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 3px;
+  height: 100%;
+  background: rgba(255,255,255,1);
+  border-radius: 2px;
+  box-shadow: 0 0 6px rgba(255,255,255,0.6);
+}
+
+/* Time display */
+.time {
+  color: var(--text);
+  font-size: 12px;
+  margin-right: 8px;
+  white-space: nowrap;
+}
+
+/* Volume slider */
+.vol-slider {
+  width: 80px;
+  margin-left: 8px;
+  -webkit-appearance: none;
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(255,255,255,0.3);
+  outline: none;
+  transition: all 0.2s ease;
+}
+
+.vol-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--text);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+}
+
+.vol-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
+  background: #fff;
+}
+
+.vol-slider::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--text);
+  cursor: pointer;
+  border: none;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+}
+
+.vol-slider::-moz-range-thumb:hover {
+  transform: scale(1.2);
+  background: #fff;
+}
+
+/* Speed control button styling */
+#cSpeed {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 60px;
+  padding: 8px 12px;
+}
+
+#cSpeed:hover {
+  background: rgba(97, 218, 251, 0.2);
+  border-color: rgba(97, 218, 251, 0.5);
+}
+
+#speedLabel {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+
+/* Left group for controls */
+.left-group {
+  display: flex;
+  align-items: center;
+}
+
+/* Mobile Responsive Styles */
+@media (max-width: 768px) {
+  /* Current track title mobile */
+  #currentTrackTitle {
+    bottom: 45px;
+    padding: 3px 8px;
+    font-size: 21px;
+  }
+  
+  /* Controls mobile optimizations */
+  .controls {
+    padding: 4px 8px;
+    flex-wrap: wrap;
+  }
+  
+  .ctrl-btn {
+    width: 36px;
+    height: 36px;
+    font-size: 16px;
+    margin: 0 2px;
+  }
+  
+  .ctrl-btn svg {
+    width: 16px;
+    height: 16px;
+  }
+  
+  /* Progress bar mobile optimizations */
+  .progress {
+    height: 10px;
+    margin: 0 6px;
+  }
+  
+  .progress:hover {
+    height: 14px;
+  }
+  
+  .time {
+    font-size: 11px;
+    margin-right: 4px;
+  }
+  
+  /* Volume slider mobile */
+  .vol-slider {
+    width: 60px;
+    margin-left: 4px;
+  }
+  
+  /* Speed control mobile */
+  #cSpeed {
+    min-width: 50px;
+    padding: 6px 8px;
+  }
+  
+  #speedLabel {
+    font-size: 10px;
+  }
+}
+
+/* Extra small mobile devices */
+@media (max-width: 480px) {
+  /* Adjust track title for very small screens */
+  #currentTrackTitle {
+    bottom: 45px;
+    padding: 2px 6px;
+    font-size: 21px;
+  }
+  
+  .controls {
+    gap: 2px;
+  }
+  
+  .ctrl-btn {
+    width: 32px;
+    height: 32px;
+    margin: 0 1px;
+  }
+  
+  .vol-slider {
+    width: 50px;
+  }
+  
+  .time {
+    font-size: 10px;
+  }
+  
+  /* Hide additional buttons on very small screens */
+  #cDislike,
+  #cYoutube {
+    display: none;
+  }
+  
+  /* Make progress bar more touch-friendly */
+  .progress {
+    height: 12px;
+  }
+  
+  .progress:hover {
+    height: 16px;
+  }
+}
+
+/* Large screen adjustments */
+@media (min-width: 1920px) {
+  #currentTrackTitle {
+    bottom: 45px;
+    padding: 6px 16px;
+    font-size: 21px;
+  }
+}
+
+/* Ultra-wide screen adjustments */
+@media (min-width: 2560px) {
+  #currentTrackTitle {
+    bottom: 45px;
+    padding: 8px 20px;
+    font-size: 21px;
+  }
+} 

@@ -1744,33 +1744,10 @@ export function castLoad(track, castState) {
  * @param {boolean} autoplay - автоматически начать воспроизведение
  * @param {Object} context - контекст выполнения
  */
-/**
- * Updates the current track title display
- * @param {Object} track - Track object with name property
- */
-export function updateCurrentTrackTitle(track) {
-    const currentTrackTitle = document.getElementById('currentTrackTitle');
-    const currentTrackName = document.getElementById('currentTrackName');
-    
-    if (currentTrackTitle && currentTrackName) {
-        if (track && track.name) {
-            // Remove any metadata tags from the name (e.g., [1080p], [720p], etc.)
-            const displayName = track.name.replace(/\s*\[.*?\]$/, '');
-            currentTrackName.textContent = displayName;
-            currentTrackTitle.classList.add('visible');
-        } else {
-            currentTrackName.textContent = 'No track selected';
-            currentTrackTitle.classList.remove('visible');
-        }
-        
-        // Update width after content change
-        setTimeout(() => {
-            if (typeof window.updateTrackTitleWidth === 'function') {
-                window.updateTrackTitleWidth();
-            }
-        }, 50);
-    }
-}
+import { updateCurrentTrackTitle } from './track-title-manager.js';
+
+// Re-export updateCurrentTrackTitle for backward compatibility
+export { updateCurrentTrackTitle };
 
 export function loadTrack(idx, autoplay = false, context) {
     const { 
