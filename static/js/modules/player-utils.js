@@ -1202,7 +1202,11 @@ export async function pollRemoteCommands(executeRemoteCommand, verbose = false) 
             }
             
             for (const command of commands) {
-                await executeRemoteCommand(command);
+                try {
+                    await executeRemoteCommand(command);
+                } catch (error) {
+                    console.error('🎮 [Remote] Error executing command:', command.type, error);
+                }
             }
         } else if (verbose) {
             console.warn('🎮 [Virtual] Poll failed with status:', response.status);
@@ -1323,6 +1327,37 @@ export async function executeRemoteCommand(command, context, playerType = 'regul
                     cVol.value = command.volume;
                     updateMuteIcon();
                     // Note: Volume is already saved by the remote API endpoint
+                }
+                break;
+                
+            case 'delete':
+                console.log(`${logPrefix} Delete current track - checking button`);
+                const deleteButton = document.getElementById('deleteCurrentBtn');
+                console.log(`${logPrefix} deleteButton element:`, deleteButton);
+                if (deleteButton) {
+                    console.log(`${logPrefix} deleteCurrentBtn found, executing...`);
+                    try {
+                        // Check if this command came from remote control
+                        if (command.from_remote) {
+                            console.log(`${logPrefix} Command from remote - executing without confirmation`);
+                            // Use the stored function for deletion without confirmation
+                            if (deleteButton.executeDeleteWithoutConfirmation) {
+                                await deleteButton.executeDeleteWithoutConfirmation();
+                                console.log(`${logPrefix} Remote delete executed successfully`);
+                            } else {
+                                console.error(`${logPrefix} executeDeleteWithoutConfirmation function not found on button`);
+                            }
+                        } else {
+                            // Regular click (will show confirmation dialog)
+                            deleteButton.click();
+                        }
+                        console.log(`${logPrefix} deleteCurrentBtn execution completed`);
+                    } catch (error) {
+                        console.error(`${logPrefix} Error executing deleteCurrentBtn:`, error);
+                    }
+                } else {
+                    console.error(`${logPrefix} deleteCurrentBtn not found!`);
+                    console.log(`${logPrefix} Available buttons:`, document.querySelectorAll('button[id*="delete"]'));
                 }
                 break;
                 
@@ -2037,6 +2072,121 @@ export function setupPlaylistToggleHandler(toggleListBtn, playlistPanel) {
  * @param {Function} context.loadTrack - функция загрузки трека
  * @param {string} playerType - тип плеера ('regular' или 'virtual')
  */
+/**
+ * Выполняет удаление трека без подтверждения (для команд от пульта)
+ * @param {Object} context - контекст с необходимыми данными
+ * @param {string} playerType - тип плеера ('regular' или 'virtual')
+ */
+async function executeDeleteWithoutConfirmation(context, playerType = 'regular') {
+    // Get current index value (handle both direct values and functions)
+    const currentIndex = typeof context.currentIndex === 'function' ? context.currentIndex() : context.currentIndex;
+    
+    // Check if there's a current track
+    if (currentIndex < 0 || currentIndex >= context.queue.length) {
+        context.showNotification('❌ No active track to delete', 'error');
+        return;
+    }
+    
+    const currentTrack = context.queue[currentIndex];
+    
+    console.log(`🗑️ Deleting current track (remote command): ${currentTrack.name} (${currentTrack.video_id})`);
+    
+    try {
+        // CRITICAL: First pause and clear media source to release file lock
+        context.media.pause();
+        const currentTime = context.media.currentTime; // Save position for potential restore
+        context.media.src = ''; // This releases the file lock
+        context.media.load(); // Ensure the media element is properly reset
+        
+        console.log('🔓 Media file released, proceeding with deletion...');
+        
+        // Give a small delay to ensure file is fully released
+        await new Promise(resolve => setTimeout(resolve, 200));
+        
+        // Send delete request to API
+        const response = await fetch('/api/channels/delete_track', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                video_id: currentTrack.video_id
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (result.status === 'ok') {
+            const successMessage = playerType === 'regular' ? 
+                `✅ Current track deleted successfully: ${result.message}` : 
+                `✅ Track deleted successfully: ${result.message}`;
+            console.log(successMessage);
+            
+            // Remove track from current queue
+            context.queue.splice(currentIndex, 1);
+            
+            // Also remove from original tracks array
+            const originalIndex = context.tracks.findIndex(t => t.video_id === currentTrack.video_id);
+            if (originalIndex !== -1) {
+                context.tracks.splice(originalIndex, 1);
+            }
+            
+            // Handle playback continuation
+            if (context.queue.length > 0) {
+                // Stay at the same index if possible, or go to first track
+                const nextIndex = currentIndex < context.queue.length ? currentIndex : 0;
+                console.log(`🎵 Auto-continuing to next track at index ${nextIndex}`);
+                context.playIndex(nextIndex);
+            } else {
+                // No tracks left - note: cannot modify currentIndex directly as it might be a function result
+                context.showNotification('📭 Playlist is empty - all tracks deleted', 'info');
+            }
+            
+            // Update the list display
+            context.renderList();
+            
+            // Show success message
+            context.showNotification(`✅ Track deleted: ${result.message}`, 'success');
+            
+        } else {
+            const errorType = playerType === 'regular' ? 'current track' : 'track';
+            console.error(`❌ Failed to delete ${errorType}:`, result.error);
+            context.showNotification(`❌ Deletion error: ${result.error}`, 'error');
+            
+            // On failure, try to restore playback of the same track
+            console.log('🔄 Attempting to restore playback after deletion failure...');
+            try {
+                context.loadTrack(currentIndex, true);
+                if (currentTime && isFinite(currentTime)) {
+                    setTimeout(() => {
+                        context.media.currentTime = currentTime; // Restore position
+                    }, 500);
+                }
+            } catch (restoreError) {
+                console.warn('⚠️ Could not restore playback:', restoreError);
+            }
+        }
+        
+    } catch (error) {
+        const errorType = playerType === 'regular' ? 'current track' : 'track';
+        console.error(`❌ Error deleting ${errorType}:`, error);
+        context.showNotification(`❌ Network error: ${error.message}`, 'error');
+        
+        // On error, try to restore playback
+        console.log('🔄 Attempting to restore playback after network error...');
+        try {
+            context.loadTrack(currentIndex, true);
+            if (currentTime && isFinite(currentTime)) {
+                setTimeout(() => {
+                    context.media.currentTime = currentTime; // Restore position
+                }, 500);
+            }
+        } catch (restoreError) {
+            console.warn('⚠️ Could not restore playback:', restoreError);
+        }
+    }
+}
+
 export function setupDeleteCurrentHandler(deleteCurrentBtn, context, playerType = 'regular') {
     if (!deleteCurrentBtn) return;
 
@@ -2058,103 +2208,12 @@ export function setupDeleteCurrentHandler(deleteCurrentBtn, context, playerType 
             return;
         }
         
-        console.log(`🗑️ Deleting current track: ${currentTrack.name} (${currentTrack.video_id})`);
-        
-        try {
-            // CRITICAL: First pause and clear media source to release file lock
-            context.media.pause();
-            const currentTime = context.media.currentTime; // Save position for potential restore
-            context.media.src = ''; // This releases the file lock
-            context.media.load(); // Ensure the media element is properly reset
-            
-            console.log('🔓 Media file released, proceeding with deletion...');
-            
-            // Give a small delay to ensure file is fully released
-            await new Promise(resolve => setTimeout(resolve, 200));
-            
-            // Send delete request to API
-            const response = await fetch('/api/channels/delete_track', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    video_id: currentTrack.video_id
-                })
-            });
-            
-            const result = await response.json();
-            
-            if (result.status === 'ok') {
-                const successMessage = playerType === 'regular' ? 
-                    `✅ Current track deleted successfully: ${result.message}` : 
-                    `✅ Track deleted successfully: ${result.message}`;
-                console.log(successMessage);
-                
-                // Remove track from current queue
-                context.queue.splice(currentIndex, 1);
-                
-                // Also remove from original tracks array
-                const originalIndex = context.tracks.findIndex(t => t.video_id === currentTrack.video_id);
-                if (originalIndex !== -1) {
-                    context.tracks.splice(originalIndex, 1);
-                }
-                
-                // Handle playback continuation
-                if (context.queue.length > 0) {
-                    // Stay at the same index if possible, or go to first track
-                    const nextIndex = currentIndex < context.queue.length ? currentIndex : 0;
-                    console.log(`🎵 Auto-continuing to next track at index ${nextIndex}`);
-                    context.playIndex(nextIndex);
-                } else {
-                    // No tracks left - note: cannot modify currentIndex directly as it might be a function result
-                    context.showNotification('📭 Playlist is empty - all tracks deleted', 'info');
-                }
-                
-                // Update the list display
-                context.renderList();
-                
-                // Show success message
-                context.showNotification(`✅ Track deleted: ${result.message}`, 'success');
-                
-            } else {
-                const errorType = playerType === 'regular' ? 'current track' : 'track';
-                console.error(`❌ Failed to delete ${errorType}:`, result.error);
-                context.showNotification(`❌ Deletion error: ${result.error}`, 'error');
-                
-                // On failure, try to restore playback of the same track
-                console.log('🔄 Attempting to restore playback after deletion failure...');
-                try {
-                    context.loadTrack(currentIndex, true);
-                    if (currentTime && isFinite(currentTime)) {
-                        setTimeout(() => {
-                            context.media.currentTime = currentTime; // Restore position
-                        }, 500);
-                    }
-                } catch (restoreError) {
-                    console.warn('⚠️ Could not restore playback:', restoreError);
-                }
-            }
-            
-        } catch (error) {
-            const errorType = playerType === 'regular' ? 'current track' : 'track';
-            console.error(`❌ Error deleting ${errorType}:`, error);
-            context.showNotification(`❌ Network error: ${error.message}`, 'error');
-            
-            // On error, try to restore playback
-            console.log('🔄 Attempting to restore playback after network error...');
-            try {
-                context.loadTrack(currentIndex, true);
-                if (currentTime && isFinite(currentTime)) {
-                    setTimeout(() => {
-                        context.media.currentTime = currentTime; // Restore position
-                    }, 500);
-                }
-            } catch (restoreError) {
-                console.warn('⚠️ Could not restore playback:', restoreError);
-            }
-        }
+        // Execute deletion with confirmation
+        await executeDeleteWithoutConfirmation(context, playerType);
     };
+    
+    // Store the function reference for remote commands
+    deleteCurrentBtn.executeDeleteWithoutConfirmation = () => executeDeleteWithoutConfirmation(context, playerType);
 }
 
 /**

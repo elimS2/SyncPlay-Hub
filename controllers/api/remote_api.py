@@ -178,6 +178,25 @@ def api_remote_dislike():
     
     return jsonify({"status": "error", "message": "No current track"}), 400
 
+@remote_bp.route("/remote/delete", methods=["POST"])
+def api_remote_delete():
+    """Delete current track."""
+    global PLAYER_STATE, COMMAND_QUEUE
+    if PLAYER_STATE['current_track'] and 'video_id' in PLAYER_STATE['current_track']:
+        video_id = PLAYER_STATE['current_track']['video_id']
+        
+        # Add command to queue for player synchronization with remote flag
+        COMMAND_QUEUE.append({
+            'type': 'delete',
+            'timestamp': time.time(),
+            'from_remote': True  # Flag to indicate this came from remote control
+        })
+        
+        log_message(f"[Remote] Delete command queued for track: {PLAYER_STATE['current_track'].get('name', 'Unknown')}")
+        return jsonify({"status": "ok", "command": "queued"})
+    
+    return jsonify({"status": "error", "message": "No current track"}), 400
+
 @remote_bp.route("/remote/shuffle", methods=["POST"])
 def api_remote_shuffle():
     """Shuffle playlist."""

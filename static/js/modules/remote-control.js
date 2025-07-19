@@ -42,7 +42,7 @@ class RemoteControl {
     this.prevBtn = document.getElementById('prevBtn');
     this.playBtn = document.getElementById('playBtn');
     this.nextBtn = document.getElementById('nextBtn');
-    this.shuffleBtn = document.getElementById('shuffleBtn');
+    this.deleteBtn = document.getElementById('deleteBtn');
     this.likeBtn = document.getElementById('likeBtn');
     this.dislikeBtn = document.getElementById('dislikeBtn');
     this.youtubeBtn = document.getElementById('youtubeBtn');
@@ -63,7 +63,22 @@ class RemoteControl {
     this.prevBtn.addEventListener('click', () => this.sendCommand('prev'));
     this.playBtn.addEventListener('click', () => this.sendCommand('play'));
     this.nextBtn.addEventListener('click', () => this.sendCommand('next'));
-    this.shuffleBtn.addEventListener('click', () => this.sendCommand('shuffle'));
+    this.deleteBtn.addEventListener('click', async () => {
+        // Get current track info for confirmation
+        if (this.currentStatus && this.currentStatus.current_track) {
+            const trackName = this.currentStatus.current_track.name || 'Unknown track';
+            const confirmMessage = `Delete current track "${trackName.replace(/\s*\[.*?\]$/, '')}" from playlist?\n\nTrack will be moved to trash and can be restored.`;
+            
+            if (confirm(confirmMessage)) {
+                await this.sendCommand('delete');
+            }
+        } else {
+            // Fallback if no track info available
+            if (confirm('Delete current track from playlist?\n\nTrack will be moved to trash and can be restored.')) {
+                await this.sendCommand('delete');
+            }
+        }
+    });
     this.likeBtn.addEventListener('click', async () => {
       // Send command and wait for sync (no immediate toggle)
       await this.sendCommand('like');
