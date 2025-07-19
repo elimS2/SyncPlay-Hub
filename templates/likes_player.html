@@ -268,6 +268,37 @@
 
 
     /* Virtual playlist specific styles */
+    
+    /* Clickable track name styles */
+    .track-name-link {
+      color: var(--text);
+      text-decoration: none;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      border-bottom: 1px solid transparent;
+    }
+    
+    .track-name-link:hover {
+      color: #61dafb;
+      border-bottom-color: #61dafb;
+      text-decoration: none;
+    }
+    
+    .track-name-link:active {
+      transform: scale(0.98);
+    }
+    
+    /* Light mode track name link */
+    @media (prefers-color-scheme: light) {
+      .track-name-link {
+        color: var(--text);
+      }
+      
+      .track-name-link:hover {
+        color: #007acc;
+        border-bottom-color: #007acc;
+      }
+    }
 
     /* Mobile Responsive Styles */
     @media (max-width: 768px) {

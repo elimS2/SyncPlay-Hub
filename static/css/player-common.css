@@ -35,6 +35,42 @@
   white-space: nowrap;
 }
 
+/* Clickable track name link styles */
+.track-name-link {
+  color: inherit;
+  text-decoration: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border-bottom: 1px solid transparent;
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.track-name-link:hover {
+  color: #61dafb;
+  border-bottom-color: #61dafb;
+  text-decoration: none;
+}
+
+.track-name-link:active {
+  transform: scale(0.98);
+}
+
+/* Light mode track name link */
+@media (prefers-color-scheme: light) {
+  .track-name-link {
+    color: inherit;
+  }
+  
+  .track-name-link:hover {
+    color: #007acc;
+    border-bottom-color: #007acc;
+  }
+}
+
 /* Light mode for track title */
 @media (prefers-color-scheme: light) {
   #currentTrackTitle {

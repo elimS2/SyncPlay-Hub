@@ -15,7 +15,19 @@ export function updateCurrentTrackTitle(track) {
         if (track && track.name) {
             // Remove any metadata tags from the name (e.g., [1080p], [720p], etc.)
             const displayName = track.name.replace(/\s*\[.*?\]$/, '');
-            currentTrackName.textContent = displayName;
+            
+            // Create clickable link for track name
+            const trackLink = document.createElement('a');
+            trackLink.href = `/tracks?search=${encodeURIComponent(displayName)}`;
+            trackLink.target = '_blank';
+            trackLink.textContent = displayName;
+            trackLink.className = 'track-name-link';
+            trackLink.title = `Search for "${displayName}"`;
+            
+            // Clear existing content and add the link
+            currentTrackName.innerHTML = '';
+            currentTrackName.appendChild(trackLink);
+            
             currentTrackTitle.classList.add('visible');
         } else {
             currentTrackName.textContent = 'No track selected';
