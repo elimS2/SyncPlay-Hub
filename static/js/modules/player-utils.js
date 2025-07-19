@@ -1744,6 +1744,34 @@ export function castLoad(track, castState) {
  * @param {boolean} autoplay - автоматически начать воспроизведение
  * @param {Object} context - контекст выполнения
  */
+/**
+ * Updates the current track title display
+ * @param {Object} track - Track object with name property
+ */
+export function updateCurrentTrackTitle(track) {
+    const currentTrackTitle = document.getElementById('currentTrackTitle');
+    const currentTrackName = document.getElementById('currentTrackName');
+    
+    if (currentTrackTitle && currentTrackName) {
+        if (track && track.name) {
+            // Remove any metadata tags from the name (e.g., [1080p], [720p], etc.)
+            const displayName = track.name.replace(/\s*\[.*?\]$/, '');
+            currentTrackName.textContent = displayName;
+            currentTrackTitle.classList.add('visible');
+        } else {
+            currentTrackName.textContent = 'No track selected';
+            currentTrackTitle.classList.remove('visible');
+        }
+        
+        // Update width after content change
+        setTimeout(() => {
+            if (typeof window.updateTrackTitleWidth === 'function') {
+                window.updateTrackTitleWidth();
+            }
+        }, 50);
+    }
+}
+
 export function loadTrack(idx, autoplay = false, context) {
     const { 
         queue, currentIndex, setCurrentIndex, media, speedOptions, currentSpeedIndex,
@@ -1762,6 +1790,9 @@ export function loadTrack(idx, autoplay = false, context) {
     
     // Preserve playback speed when loading new track
     media.playbackRate = speedOptions[currentSpeedIndex];
+    
+    // Update current track title display
+    updateCurrentTrackTitle(track);
     
     if('mediaSession' in navigator){
         navigator.mediaSession.metadata = new MediaMetadata({
@@ -2003,6 +2034,13 @@ export function setupPlaylistToggleHandler(toggleListBtn, playlistPanel) {
   toggleListBtn.onclick = () => {
     playlistPanel.classList.toggle('collapsed');
     toggleListBtn.textContent = playlistPanel.classList.contains('collapsed') ? '☰ Show playlist' : '☰ Hide playlist';
+    
+    // Update track title and controls width after playlist toggle
+    setTimeout(() => {
+      if (typeof window.updateTrackTitleWidth === 'function') {
+        window.updateTrackTitleWidth();
+      }
+    }, 300); // Wait for CSS transition to complete
   };
 } 
 

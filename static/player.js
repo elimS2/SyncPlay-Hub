@@ -1,5 +1,5 @@
 // Импорт общих утилит
-import { shuffle, smartShuffle, detectChannelGroup, smartChannelShuffle, getGroupPlaybackInfo, orderByPublishDate as utilsOrderByPublishDate, formatTime, updateSpeedDisplay as utilsUpdateSpeedDisplay, showNotification, handleVolumeWheel as utilsHandleVolumeWheel, stopTick as utilsStopTick, stopPlayback as utilsStopPlayback, playIndex as utilsPlayIndex, updateMuteIcon as utilsUpdateMuteIcon, nextTrack as utilsNextTrack, prevTrack as utilsPrevTrack, sendStreamEvent as utilsSendStreamEvent, startTick as utilsStartTick, reportEvent as utilsReportEvent, triggerAutoDeleteCheck as utilsTriggerAutoDeleteCheck, recordSeekEvent, saveVolumeToDatabase as utilsSaveVolumeToDatabase, loadSavedVolume as utilsLoadSavedVolume, performKeyboardSeek as utilsPerformKeyboardSeek, syncLikeButtonsWithRemote as utilsSyncLikeButtonsWithRemote, syncLikesAfterAction as utilsSyncLikesAfterAction, setupLikeSyncHandlers as utilsSetupLikeSyncHandlers, togglePlayback as utilsTogglePlayback, showFsControls as utilsShowFsControls, updateFsVisibility as utilsUpdateFsVisibility, syncRemoteState as utilsSyncRemoteState, setupGlobalTooltip as utilsSetupGlobalTooltip, createTrackTooltipHTML, pollRemoteCommands as utilsPollRemoteCommands, cyclePlaybackSpeed as utilsCyclePlaybackSpeed, executeRemoteCommand as utilsExecuteRemoteCommand, deleteTrack as utilsDeleteTrack, initializeGoogleCastIntegration as utilsInitializeGoogleCastIntegration, castLoad as utilsCastLoad, loadTrack as utilsLoadTrack, setupMediaEndedHandler, setupMediaPlayPauseHandlers, setupMediaTimeUpdateHandler, setupMediaSeekedHandler, setupKeyboardHandler, setupProgressClickHandler, setupMediaSessionAPI, setupPlaylistToggleHandler, setupDeleteCurrentHandler, setupLikeDislikeHandlers, setupYouTubeHandler, setupFullscreenHandlers, setupSimpleControlHandlers, setupStreamHandler, setupBeforeUnloadHandler, setupAutoPlayInitialization, setupRemoteControlOverrides, setupRemoteControlInitialization } from '/static/js/modules/player-utils.js';
+import { shuffle, smartShuffle, detectChannelGroup, smartChannelShuffle, getGroupPlaybackInfo, orderByPublishDate as utilsOrderByPublishDate, formatTime, updateSpeedDisplay as utilsUpdateSpeedDisplay, showNotification, handleVolumeWheel as utilsHandleVolumeWheel, stopTick as utilsStopTick, stopPlayback as utilsStopPlayback, playIndex as utilsPlayIndex, updateMuteIcon as utilsUpdateMuteIcon, nextTrack as utilsNextTrack, prevTrack as utilsPrevTrack, sendStreamEvent as utilsSendStreamEvent, startTick as utilsStartTick, reportEvent as utilsReportEvent, triggerAutoDeleteCheck as utilsTriggerAutoDeleteCheck, recordSeekEvent, saveVolumeToDatabase as utilsSaveVolumeToDatabase, loadSavedVolume as utilsLoadSavedVolume, performKeyboardSeek as utilsPerformKeyboardSeek, syncLikeButtonsWithRemote as utilsSyncLikeButtonsWithRemote, syncLikesAfterAction as utilsSyncLikesAfterAction, setupLikeSyncHandlers as utilsSetupLikeSyncHandlers, togglePlayback as utilsTogglePlayback, showFsControls as utilsShowFsControls, updateFsVisibility as utilsUpdateFsVisibility, syncRemoteState as utilsSyncRemoteState, setupGlobalTooltip as utilsSetupGlobalTooltip, createTrackTooltipHTML, pollRemoteCommands as utilsPollRemoteCommands, cyclePlaybackSpeed as utilsCyclePlaybackSpeed, executeRemoteCommand as utilsExecuteRemoteCommand, deleteTrack as utilsDeleteTrack, initializeGoogleCastIntegration as utilsInitializeGoogleCastIntegration, castLoad as utilsCastLoad, loadTrack as utilsLoadTrack, updateCurrentTrackTitle, setupMediaEndedHandler, setupMediaPlayPauseHandlers, setupMediaTimeUpdateHandler, setupMediaSeekedHandler, setupKeyboardHandler, setupProgressClickHandler, setupMediaSessionAPI, setupPlaylistToggleHandler, setupDeleteCurrentHandler, setupLikeDislikeHandlers, setupYouTubeHandler, setupFullscreenHandlers, setupSimpleControlHandlers, setupStreamHandler, setupBeforeUnloadHandler, setupAutoPlayInitialization, setupRemoteControlOverrides, setupRemoteControlInitialization } from '/static/js/modules/player-utils.js';
 
 async function fetchTracks(playlistPath = '') {
   const endpoint = playlistPath ? `/api/tracks/${encodeURI(playlistPath)}` : '/api/tracks';
@@ -306,6 +306,12 @@ const cDislike = document.getElementById('cDislike');
       listElem.appendChild(li);
     });
     
+    // Update current track title display after rendering list
+    if (currentIndex >= 0 && currentIndex < queue.length) {
+      const currentTrack = queue[currentIndex];
+      updateCurrentTrackTitle(currentTrack);
+    }
+    
     // Create global tooltip system
     setupGlobalTooltip();
   }
@@ -347,6 +353,11 @@ const cDislike = document.getElementById('cDislike');
     await savePlaylistPreference('shuffle');
     
     playIndex(0);
+    // Update current track title after shuffle
+    if (currentIndex >= 0 && currentIndex < queue.length) {
+      const currentTrack = queue[currentIndex];
+      updateCurrentTrackTitle(currentTrack);
+    }
   };
 
   smartShuffleBtn.onclick = async ()=>{
@@ -358,6 +369,11 @@ const cDislike = document.getElementById('cDislike');
      await savePlaylistPreference('smart');
      
      playIndex(0);
+     // Update current track title after smart shuffle
+     if (currentIndex >= 0 && currentIndex < queue.length) {
+       const currentTrack = queue[currentIndex];
+       updateCurrentTrackTitle(currentTrack);
+     }
   };
 
   orderByDateBtn.onclick = async () => {
@@ -369,6 +385,11 @@ const cDislike = document.getElementById('cDislike');
     await savePlaylistPreference('order_by_date');
     
     playIndex(0);
+    // Update current track title after ordering by date
+    if (currentIndex >= 0 && currentIndex < queue.length) {
+      const currentTrack = queue[currentIndex];
+      updateCurrentTrackTitle(currentTrack);
+    }
   };
 
   // Functions for control actions
@@ -714,6 +735,20 @@ const cDislike = document.getElementById('cDislike');
     // Update speed display to show saved speed
     updateSpeedDisplay();
     console.log(`⚡ Speed display updated to show current speed: ${speedOptions[currentSpeedIndex]}x`);
+    
+    // Initialize current track title display
+    if (currentIndex >= 0 && currentIndex < queue.length) {
+      const currentTrack = queue[currentIndex];
+      updateCurrentTrackTitle(currentTrack);
+      console.log('📝 Current track title display initialized');
+      
+      // Update track title width after initialization
+      setTimeout(() => {
+        if (typeof window.updateTrackTitleWidth === 'function') {
+          window.updateTrackTitleWidth();
+        }
+      }, 200);
+    }
   }
 
   // deleteTrack() теперь импортируется из player-utils.js

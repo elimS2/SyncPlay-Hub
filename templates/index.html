@@ -58,7 +58,7 @@
     #tracklist li:hover {background: rgba(128,128,128,.2);}
     #tracklist li.playing { background: var(--playing-bg); color:var(--playing-text); font-weight:600; }
     button { margin-right: 10px; }
-    .controls{position:fixed;bottom:0;left:0;width:100%;display:flex;align-items:center;background:var(--bg);padding:6px 10px;box-sizing:border-box;transition:opacity .25s;z-index:1000;}
+    .controls{position:fixed;bottom:0;left:0;display:flex;align-items:center;background:var(--bg);padding:6px 10px;box-sizing:border-box;transition:opacity .25s;z-index:1002;/* Width will be set dynamically by JavaScript */}
     .controls.hidden{opacity:0;pointer-events:none;transition:opacity .25s;}
     #controlBar.hidden{display:none;}
     .left-group{display:flex;align-items:center;}
@@ -192,6 +192,50 @@
       max-height: calc(100vh - 280px); /* Adjusted for fixed controls */
       object-fit: contain; /* Maintain aspect ratio */
       background: #000;
+    }
+    
+    /* Current track title display */
+    #currentTrackTitle {
+      position: fixed;
+      bottom: 45px;
+      left: 0;
+      background: rgba(0, 0, 0, 0.8);
+      color: white;
+      padding: 4px 12px;
+      font-size: 21px;
+      font-weight: 500;
+      text-align: center;
+      z-index: 1001;
+      border-radius: 0;
+      backdrop-filter: blur(10px);
+      border: none;
+      display: none;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      transition: opacity 0.3s ease;
+      /* Width will be set dynamically by JavaScript */
+    }
+    
+    #currentTrackTitle.visible {
+      display: block;
+    }
+    
+    #currentTrackName {
+      display: inline-block;
+      max-width: 100%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    
+    /* Light mode for track title */
+    @media (prefers-color-scheme: light) {
+      #currentTrackTitle {
+        background: rgba(255, 255, 255, 0.9);
+        color: #333;
+        border: 1px solid rgba(0, 0, 0, 0.1);
+      }
     }
     
     #videoWrapper {
@@ -571,6 +615,13 @@
         max-height: calc(50vh - 60px);
       }
       
+      /* Current track title mobile */
+      #currentTrackTitle {
+        bottom: 45px;
+        padding: 3px 8px;
+        font-size: 21px;
+      }
+      
       /* Tracklist mobile */
       #tracklist {
         height: calc(40vh - 60px);
@@ -638,6 +689,13 @@
         display: none;
       }
       
+      /* Adjust track title for very small screens */
+      #currentTrackTitle {
+        bottom: 45px;
+        padding: 2px 6px;
+        font-size: 21px;
+      }
+      
       /* Make progress bar more touch-friendly */
       .progress {
         height: 12px;
@@ -662,6 +720,12 @@
       #player {
         max-height: calc(100vh - 300px);
       }
+      
+      #currentTrackTitle {
+        bottom: 45px;
+        padding: 6px 16px;
+        font-size: 21px;
+      }
     }
     
     /* Ultra-wide screen adjustments */
@@ -673,6 +737,12 @@
       
       #tracklist {
         height: calc(85vh - 20px);
+      }
+      
+      #currentTrackTitle {
+        bottom: 45px;
+        padding: 8px 20px;
+        font-size: 21px;
       }
     }
   </style>
@@ -758,6 +828,7 @@
   <div id="playerContainer" class="player-container" style="margin-top:10px; position:relative;">
     <div id="videoWrapper" style="position:relative; flex:1 1 auto;">
       <video id="player" style="width:100%;" playsinline></video>
+      
       <!-- custom control bar -->
       <div id="customControls" class="controls">
         <div class="left-group">
@@ -830,6 +901,12 @@
         </button>
       </div>
     </div>
+    
+    <!-- Current track title display -->
+    <div id="currentTrackTitle">
+      <span id="currentTrackName">No track selected</span>
+    </div>
+    
     <div id="playlistPanel" class="playlist-panel">
       <ul id="tracklist" class="side-list"></ul>
     </div>
@@ -881,6 +958,68 @@
     console.log('🔄 CAST DEBUG: Appending Cast API script to document head...');
     document.head.appendChild(castScript);
     console.log('✅ CAST DEBUG: Cast API script element added to DOM');
+    
+    // Function to update track title and controls width based on video width
+    function updateTrackTitleWidth() {
+      const videoWrapper = document.getElementById('videoWrapper');
+      const currentTrackTitle = document.getElementById('currentTrackTitle');
+      const controls = document.querySelector('.controls');
+      
+      if (videoWrapper && currentTrackTitle && controls) {
+        const videoWidth = videoWrapper.offsetWidth;
+        const videoLeft = videoWrapper.offsetLeft;
+        
+        // Set width to match video width and position to match video left
+        currentTrackTitle.style.width = videoWidth + 'px';
+        currentTrackTitle.style.left = videoLeft + 'px';
+        
+        controls.style.width = videoWidth + 'px';
+        controls.style.left = videoLeft + 'px';
+        
+        console.log('📏 Updated track title width:', videoWidth + 'px, left:', videoLeft + 'px');
+      }
+    }
+    
+    // Update width on window resize
+    window.addEventListener('resize', updateTrackTitleWidth);
+    
+    // Use ResizeObserver to watch for video wrapper and playlist panel size changes
+    if (window.ResizeObserver) {
+      const videoWrapper = document.getElementById('videoWrapper');
+      const playlistPanel = document.getElementById('playlistPanel');
+      
+      if (videoWrapper) {
+        const resizeObserver = new ResizeObserver(() => {
+          updateTrackTitleWidth();
+        });
+        resizeObserver.observe(videoWrapper);
+        console.log('👁️ ResizeObserver set up for video wrapper');
+      }
+      
+      if (playlistPanel) {
+        const playlistResizeObserver = new ResizeObserver(() => {
+          updateTrackTitleWidth();
+        });
+        playlistResizeObserver.observe(playlistPanel);
+        console.log('👁️ ResizeObserver set up for playlist panel');
+      }
+    }
+    
+    // Update width when playlist is toggled (backup method)
+    const toggleListBtn = document.getElementById('toggleListBtn');
+    if (toggleListBtn) {
+      const originalToggleListBtn = toggleListBtn.onclick;
+      toggleListBtn.onclick = function() {
+        if (originalToggleListBtn) {
+          originalToggleListBtn.call(this);
+        }
+        // Update width after playlist toggle animation
+        setTimeout(updateTrackTitleWidth, 300);
+      };
+    }
+    
+    // Initial width update
+    setTimeout(updateTrackTitleWidth, 100);
   </script>
 </body>
 </html> 
