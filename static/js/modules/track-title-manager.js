@@ -18,7 +18,7 @@ function generateSegments(trackName) {
     const separators = findSeparators(cleanName);
     
     // Split text by separators and generate segments
-    const segments = splitBySeparators(cleanName, separators);
+    const [segments, debugLog] = splitBySeparators(cleanName, separators);
     
     return segments;
 }
@@ -34,11 +34,12 @@ function splitBySeparators(text, separators) {
     
     if (separators.length === 0) {
         console.log('🔍 [DEBUG] No separators found, returning single segment');
-        return [{
+        return [[{
             text: text,
+            originalText: text, // Keep original for reconstruction
             searchQuery: text.trim(),
             isClickable: true
-        }];
+        }], ''];
     }
     
     const segments = [];
@@ -60,6 +61,7 @@ function splitBySeparators(text, separators) {
         if (beforeSeparator.trim()) {
             segments.push({
                 text: beforeSeparator,
+                originalText: beforeSeparator, // Keep original for reconstruction
                 searchQuery: cleanSearchQuery(beforeSeparator),
                 isClickable: true
             });
@@ -73,44 +75,115 @@ function splitBySeparators(text, separators) {
         
         console.log(`🔍 [DEBUG] Segment text: "${segmentText}" (${separator.index} to ${endIndex})`);
         
-        if (segmentText.trim()) {
-            const searchQuery = cleanSearchQuery(segmentText);
-            // Only add segment if it has a meaningful search query
-            if (searchQuery.trim()) {
-                // Split the segment into separator and content
-                const separatorPart = separator.separator;
-                const contentPart = segmentText.substring(separator.separator.length);
-                
-                // Add separator as non-clickable segment
-                if (separatorPart.trim()) {
-                    segments.push({
-                        text: separatorPart,
-                        searchQuery: null, // Separators are not clickable and don't need a search query
-                        isClickable: false
-                    });
-                    console.log(`🔍 [DEBUG] Added separator segment: "${separatorPart}" (non-clickable)`);
-                }
-                
-                // Add content as clickable segment
-                if (contentPart.trim()) {
-                    segments.push({
-                        text: contentPart,
-                        searchQuery: searchQuery,
-                        isClickable: true
-                    });
-                    console.log(`🔍 [DEBUG] Added content segment: "${contentPart}" with query: "${searchQuery}"`);
-                }
-            } else {
-                // If this segment would be empty, append it to the previous segment
-                if (segments.length > 0) {
-                    const lastSegment = segments[segments.length - 1];
-                    lastSegment.text += segmentText;
-                    console.log(`🔍 [DEBUG] Appended empty segment "${segmentText}" to previous segment: "${lastSegment.text}"`);
+                        if (segmentText.trim()) {
+                    const searchQuery = cleanSearchQuery(segmentText);
+                    // Only add segment if it has a meaningful search query
+                    if (searchQuery.trim()) {
+                        // Split the segment into separator and content
+                        const separatorPart = separator.separator;
+                        const contentPart = segmentText.substring(separator.separator.length);
+                        
+                        // Add separator as non-clickable segment
+                        if (separatorPart.trim()) {
+                            // Clean separator boundaries - remove only spaces, keep brackets
+                            const cleanSeparator = separatorPart
+                                .replace(/^\s+/, '') // Remove leading spaces only
+                                .replace(/\s+$/, ''); // Remove trailing spaces only
+                            
+                            if (cleanSeparator.trim()) {
+                                segments.push({
+                                    text: separatorPart, // Use original with spaces for display
+                                    originalText: separatorPart, // Keep original for reconstruction
+                                    searchQuery: null,
+                                    isClickable: false
+                                });
+                                console.log(`🔍 [DEBUG] Added separator segment: "${separatorPart}" (non-clickable)`);
+                            } else {
+                                // If separator becomes empty after cleaning, use original
+                                segments.push({
+                                    text: separatorPart,
+                                    originalText: separatorPart,
+                                    searchQuery: null,
+                                    isClickable: false
+                                });
+                                console.log(`🔍 [DEBUG] Added original separator segment: "${separatorPart}" (non-clickable)`);
+                            }
+                        }
+                        
+                        // Add content as clickable segment
+                        if (contentPart.trim()) {
+                            // Clean content boundaries - remove leading/trailing spaces and brackets
+                            const cleanContent = contentPart
+                                .replace(/^[\s()]+/, '') // Remove leading spaces and brackets
+                                .replace(/[\s()]+$/, ''); // Remove trailing spaces and brackets
+                            
+                            if (cleanContent.trim()) {
+                                segments.push({
+                                    text: contentPart, // Use original content with all spaces for display
+                                    originalText: contentPart, // Keep original for reconstruction
+                                    searchQuery: searchQuery,
+                                    isClickable: true
+                                });
+                                console.log(`🔍 [DEBUG] Added content segment: "${contentPart}" with query: "${searchQuery}"`);
+                            }
+                        }
+                    } else {
+                        // If this segment would be empty, check if it's just a separator
+                        if (segmentText.trim() === separator.separator.trim()) {
+                            // This is just a separator, add it as a separator segment
+                            const cleanSeparator = separator.separator
+                                .replace(/^\s+/, '') // Remove leading spaces only
+                                .replace(/\s+$/, ''); // Remove trailing spaces only
+                            
+                            if (cleanSeparator.trim()) {
+                                segments.push({
+                                    text: segmentText, // Use original with spaces for display
+                                    originalText: segmentText, // Use full segmentText for reconstruction
+                                    searchQuery: null,
+                                    isClickable: false
+                                });
+                                console.log(`🔍 [DEBUG] Added separator-only segment: "${segmentText}" (non-clickable)`);
+                            }
+                        } else {
+                            // If this segment would be empty, append it to the previous segment
+                            if (segments.length > 0) {
+                                const lastSegment = segments[segments.length - 1];
+                                lastSegment.text += segmentText;
+                                lastSegment.originalText += segmentText;
+                                console.log(`🔍 [DEBUG] Appended empty segment "${segmentText}" to previous segment: "${lastSegment.text}"`);
+                            } else {
+                                console.log(`🔍 [DEBUG] Skipped empty segment: "${segmentText}" (cleaned to: "${searchQuery}") - no previous segment to append to`);
+                            }
+                        }
+                    }
                 } else {
-                    console.log(`🔍 [DEBUG] Skipped empty segment: "${segmentText}" (cleaned to: "${searchQuery}") - no previous segment to append to`);
+                    // Handle case where segmentText is just whitespace or empty
+                    if (separator.separator.trim()) {
+                        // Clean separator boundaries - remove only spaces, keep brackets
+                        const cleanSeparator = separator.separator
+                            .replace(/^\s+/, '') // Remove leading spaces only
+                            .replace(/\s+$/, ''); // Remove trailing spaces only
+                        
+                        if (cleanSeparator.trim()) {
+                            segments.push({
+                                text: segmentText, // Use original with spaces for display
+                                originalText: segmentText, // Use full segmentText for reconstruction
+                                searchQuery: null,
+                                isClickable: false
+                            });
+                            console.log(`🔍 [DEBUG] Added separator-only segment: "${segmentText}" (non-clickable)`);
+                        } else {
+                            // If separator becomes empty after cleaning, use original
+                            segments.push({
+                                text: segmentText, // Use original with spaces for display
+                                originalText: segmentText, // Use full segmentText for reconstruction
+                                searchQuery: null,
+                                isClickable: false
+                            });
+                            console.log(`🔍 [DEBUG] Added original separator-only segment: "${segmentText}" (non-clickable)`);
+                        }
+                    }
                 }
-            }
-        }
         
         // Move to the end of current segment
         currentIndex = endIndex;
@@ -118,7 +191,7 @@ function splitBySeparators(text, separators) {
     }
     
     console.log('🔍 [DEBUG] Final segments:', segments);
-    return segments;
+    return [segments, ''];
 }
 
 /**
@@ -233,14 +306,23 @@ export function updateCurrentTrackTitle(track) {
     
     if (currentTrackTitle && currentTrackName) {
         if (track && track.name) {
+            console.log('🔍 [PRODUCTION] Processing track:', track.name);
+            
             // Parse track name into segments
             const segments = parseTrackName(track.name);
+            console.log('🔍 [PRODUCTION] Generated segments:', segments);
             
             // Clear existing content
             currentTrackName.innerHTML = '';
             
             // Create elements for each segment
             segments.forEach((segment, index) => {
+                console.log(`🔍 [UI] Creating segment ${index}:`, {
+                    text: segment.text,
+                    isClickable: segment.isClickable,
+                    searchQuery: segment.searchQuery
+                });
+                
                 if (segment.isClickable) {
                     // Create clickable link for clickable segments
                     const link = document.createElement('a');
@@ -262,6 +344,10 @@ export function updateCurrentTrackTitle(track) {
                     currentTrackName.appendChild(span);
                 }
             });
+            
+            // Debug final HTML
+            console.log('🔍 [UI] Final HTML content:', currentTrackName.innerHTML);
+            console.log('🔍 [UI] Final text content:', currentTrackName.textContent);
             
             // Add hover event listeners for group highlighting
             const clickableLinks = currentTrackName.querySelectorAll('.track-name-link');

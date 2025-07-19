@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Spacing Fix Test - v3.2</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #000;
+            color: #fff;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        .test-case {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #333;
+            border-radius: 8px;
+        }
+        .original {
+            color: #888;
+            margin-bottom: 10px;
+        }
+        .result {
+            font-size: 18px;
+            margin: 10px 0;
+        }
+        .debug {
+            background: #1a1a1a;
+            padding: 10px;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 12px;
+            margin: 10px 0;
+            white-space: pre-wrap;
+        }
+        .clickable {
+            color: #fff;
+            text-decoration: none;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            border-bottom: 1px solid transparent;
+            display: inline;
+            margin: 0;
+            padding: 0;
+        }
+        .clickable:hover {
+            color: var(--hover-color, #61dafb);
+            border-bottom-color: var(--hover-color, #61dafb);
+            text-decoration: none;
+            transform: scale(1.02);
+        }
+        .clickable:active {
+            transform: scale(0.98);
+        }
+        .separator {
+            color: #888;
+            cursor: default;
+            display: inline;
+            margin: 0;
+            padding: 0;
+            transition: color 0.2s ease;
+        }
+        .version {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            background: #333;
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-size: 12px;
+        }
+        .instructions {
+            background: #1a1a1a;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            border-left: 4px solid #61dafb;
+        }
+        .issue {
+            background: #2a1a1a;
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+            border-left: 4px solid #ff6b6b;
+        }
+    </style>
+</head>
+<body>
+    <div class="version">v3.2 SPACING FIX</div>
+    
+    <h1>🔧 Spacing Fix Test</h1>
+    
+    <div class="instructions">
+        <h3>🎯 Instructions:</h3>
+        <p><strong>Test the spacing and parentheses fix:</strong></p>
+        <ul>
+            <li>✅ Spaces should be separate gray separators</li>
+            <li>✅ Parentheses should be separate gray separators</li>
+            <li>✅ Only content should be clickable and underlined</li>
+            <li>✅ No spaces or brackets should be underlined</li>
+        </ul>
+    </div>
+    
+    <div class="issue">
+        <h3>🐛 Issue Being Fixed:</h3>
+        <p><strong>Problem:</strong> Spaces and parentheses are being included in clickable segments</p>
+        <p><strong>Example:</strong> "Eminem - Survival (Explicit)" - space after "Survival" and brackets around "Explicit" were being underlined</p>
+        <p><strong>Expected:</strong> Only "Eminem", "Survival", and "Explicit" should be clickable, everything else should be gray separators</p>
+    </div>
+    
+    <div id="testResults"></div>
+
+    <script>
+        // Copy the updated functions from track-title-manager.js
+        function findSeparators(text) {
+            const separators = [];
+            
+            // Find individual separators (dash, vertical bar)
+            const individualSeparators = /\s*[-–—|]\s*/g;
+            let match;
+            
+            while ((match = individualSeparators.exec(text)) !== null) {
+                separators.push({
+                    separator: match[0],
+                    index: match.index,
+                    endIndex: match.index + match[0].length,
+                    type: 'individual'
+                });
+            }
+            
+            // Find parentheses as separate separators
+            const parenthesesRegex = /[()]/g;
+            while ((match = parenthesesRegex.exec(text)) !== null) {
+                separators.push({
+                    separator: match[0],
+                    index: match.index,
+                    endIndex: match.index + match[0].length,
+                    type: 'parenthesis'
+                });
+            }
+            
+            // Sort separators by position
+            separators.sort((a, b) => a.index - b.index);
+            
+            // Remove overlapping separators (keep the first one)
+            const filteredSeparators = [];
+            for (let i = 0; i < separators.length; i++) {
+                const current = separators[i];
+                const overlaps = filteredSeparators.some(existing => 
+                    (current.index >= existing.index && current.index < existing.endIndex) ||
+                    (existing.index >= current.index && existing.index < current.endIndex)
+                );
+                
+                if (!overlaps) {
+                    filteredSeparators.push(current);
+                }
+            }
+            
+            return filteredSeparators;
+        }
+
+        function cleanSearchQuery(text) {
+            return text
+                .replace(/^[-–—()|\s]+/, '') // Remove leading separators and spaces
+                .replace(/[-–—()|\s]+$/, '') // Remove trailing separators and spaces
+                .replace(/\s+/g, ' ') // Replace multiple spaces with single space
+                .trim();
+        }
+
+        function splitBySeparators(text, separators) {
+            console.log('🔍 [DEBUG] splitBySeparators called with:', { text, separators });
+            
+            if (separators.length === 0) {
+                console.log('🔍 [DEBUG] No separators found, returning single segment');
+                return [{
+                    text: text,
+                    searchQuery: text.trim(),
+                    isClickable: true
+                }];
+            }
+            
+            const segments = [];
+            let currentIndex = 0;
+            
+            for (let i = 0; i < separators.length; i++) {
+                const separator = separators[i];
+                console.log(`🔍 [DEBUG] Processing separator ${i}:`, {
+                    separator: separator.separator,
+                    index: separator.index,
+                    endIndex: separator.endIndex,
+                    currentIndex
+                });
+                
+                // Get text before this separator
+                const beforeSeparator = text.substring(currentIndex, separator.index);
+                console.log(`🔍 [DEBUG] Text before separator: "${beforeSeparator}" (${currentIndex} to ${separator.index})`);
+                
+                if (beforeSeparator.trim()) {
+                    segments.push({
+                        text: beforeSeparator,
+                        searchQuery: cleanSearchQuery(beforeSeparator),
+                        isClickable: true
+                    });
+                    console.log(`🔍 [DEBUG] Added segment: "${beforeSeparator}"`);
+                }
+                
+                // Get text from separator to next separator (or end)
+                const nextSeparator = separators[i + 1];
+                const endIndex = nextSeparator ? nextSeparator.index : text.length;
+                const segmentText = text.substring(separator.index, endIndex);
+                
+                console.log(`🔍 [DEBUG] Segment text: "${segmentText}" (${separator.index} to ${endIndex})`);
+                
+                if (segmentText.trim()) {
+                    const searchQuery = cleanSearchQuery(segmentText);
+                    // Only add segment if it has a meaningful search query
+                    if (searchQuery.trim()) {
+                        // Split the segment into separator and content
+                        const separatorPart = separator.separator;
+                        const contentPart = segmentText.substring(separator.separator.length);
+                        
+                        // Add separator as non-clickable segment
+                        if (separatorPart.trim()) {
+                            segments.push({
+                                text: separatorPart,
+                                searchQuery: null, // Separators are not clickable and don't need a search query
+                                isClickable: false
+                            });
+                            console.log(`🔍 [DEBUG] Added separator segment: "${separatorPart}" (non-clickable)`);
+                        }
+                        
+                        // Add content as clickable segment
+                        if (contentPart.trim()) {
+                            segments.push({
+                                text: contentPart,
+                                searchQuery: searchQuery,
+                                isClickable: true
+                            });
+                            console.log(`🔍 [DEBUG] Added content segment: "${contentPart}" with query: "${searchQuery}"`);
+                        }
+                    } else {
+                        // If this segment would be empty, append it to the previous segment
+                        if (segments.length > 0) {
+                            const lastSegment = segments[segments.length - 1];
+                            lastSegment.text += segmentText;
+                            console.log(`🔍 [DEBUG] Appended empty segment "${segmentText}" to previous segment: "${lastSegment.text}"`);
+                        } else {
+                            console.log(`🔍 [DEBUG] Skipped empty segment: "${segmentText}" (cleaned to: "${searchQuery}") - no previous segment to append to`);
+                        }
+                    }
+                } else {
+                    // Handle case where segmentText is just whitespace or empty
+                    // Add separator as non-clickable segment
+                    if (separator.separator.trim()) {
+                        segments.push({
+                            text: separator.separator,
+                            searchQuery: null,
+                            isClickable: false
+                        });
+                        console.log(`🔍 [DEBUG] Added separator-only segment: "${separator.separator}" (non-clickable)`);
+                    }
+                }
+                
+                // Move to the end of current segment
+                currentIndex = endIndex;
+                console.log(`🔍 [DEBUG] Updated currentIndex to: ${currentIndex}`);
+            }
+            
+            console.log('🔍 [DEBUG] Final segments:', segments);
+            return segments;
+        }
+
+        function generateSegments(trackName) {
+            if (!trackName) return [];
+            
+            // Remove metadata tags from the end (e.g., [1080p], [720p], etc.)
+            const cleanName = trackName.replace(/\s*\[.*?\]$/, '');
+            
+            // Find all separators in the text
+            const separators = findSeparators(cleanName);
+            
+            // Split text by separators and generate segments
+            const segments = splitBySeparators(cleanName, separators);
+            
+            return segments;
+        }
+
+        function getHoverColor(index) {
+            const colors = [
+                '#61dafb', // Light blue
+                '#ff6b6b', // Red
+                '#4ecdc4', // Teal
+                '#45b7d1', // Blue
+                '#96ceb4', // Green
+                '#feca57', // Yellow
+                '#ff9ff3', // Pink
+                '#54a0ff', // Blue
+                '#5f27cd', // Purple
+                '#00d2d3', // Cyan
+                '#ff9f43', // Orange
+                '#10ac84', // Emerald
+                '#ee5a24', // Red-orange
+                '#575fcf', // Indigo
+                '#0abde3'  // Light blue
+            ];
+            
+            return colors[index % colors.length];
+        }
+
+        function createTrackTitleHTML(trackName) {
+            const segments = generateSegments(trackName);
+            const container = document.createElement('div');
+            
+            segments.forEach((segment, index) => {
+                if (segment.isClickable) {
+                    const link = document.createElement('a');
+                    link.href = '#';
+                    link.textContent = segment.text;
+                    link.className = 'clickable';
+                    link.title = `Search for "${segment.searchQuery}"`;
+                    
+                    // Add custom hover color
+                    const hoverColor = getHoverColor(index);
+                    link.style.setProperty('--hover-color', hoverColor);
+                    
+                    container.appendChild(link);
+                } else {
+                    const span = document.createElement('span');
+                    span.textContent = segment.text;
+                    span.className = 'separator';
+                    container.appendChild(span);
+                }
+            });
+            
+            // Add hover event listeners for group highlighting
+            const clickableLinks = container.querySelectorAll('.clickable');
+            clickableLinks.forEach((link, index) => {
+                const hoverColor = getHoverColor(index);
+                
+                link.addEventListener('mouseenter', () => {
+                    // Highlight all segments with their respective colors
+                    clickableLinks.forEach((otherLink, otherIndex) => {
+                        const otherColor = getHoverColor(otherIndex);
+                        otherLink.style.color = otherColor;
+                    });
+                });
+                
+                link.addEventListener('mouseleave', () => {
+                    // Reset all segments to default color
+                    clickableLinks.forEach((otherLink) => {
+                        otherLink.style.color = '';
+                    });
+                });
+            });
+            
+            return container;
+        }
+
+        function analyzeTestCase(trackName) {
+            const segments = generateSegments(trackName);
+            const reconstructed = segments.map(s => s.text).join('');
+            const clickableSegments = segments.filter(s => s.isClickable);
+            const separatorSegments = segments.filter(s => !s.isClickable);
+            
+            return {
+                original: trackName,
+                reconstructed,
+                segments: segments.length,
+                clickableSegments: clickableSegments.length,
+                separatorSegments: separatorSegments.length,
+                spacingMatch: reconstructed === trackName,
+                hasEmptyQueries: clickableSegments.some(s => !s.searchQuery || s.searchQuery.trim() === ''),
+                segments: segments
+            };
+        }
+
+        // Test cases focusing on spacing and parentheses issues
+        const testCases = [
+            "Eminem - Survival (Explicit)",
+            "Justin Bieber - Get Me (CHANGES: The Movement) ft. Kehlani",
+            "Khalid - Young Dumb & Broke ft. Rae Sremmurd & Lil Yachty (Remix) (Official Audio)",
+            "Billie Eilish - bitches broken hearts (Official Live Performance) | Vevo LIFT",
+            "The Weeknd - Blinding Lights (Official Video)",
+            "Dua Lipa - Don't Start Now (Official Music Video)",
+            "Post Malone - Circles (Official Music Video)",
+            "Ariana Grande - thank u, next (Official Video)"
+        ];
+
+        function runTests() {
+            const resultsContainer = document.getElementById('testResults');
+            
+            testCases.forEach((trackName, index) => {
+                const analysis = analyzeTestCase(trackName);
+                const resultHTML = createTrackTitleHTML(trackName);
+                
+                const testDiv = document.createElement('div');
+                testDiv.className = 'test-case';
+                testDiv.innerHTML = `
+                    <h3>Test Case ${index + 1}</h3>
+                    <div class="original"><strong>Original:</strong> ${trackName}</div>
+                    <div class="result"><strong>Result (hover to test):</strong></div>
+                    <div class="result">${resultHTML.outerHTML}</div>
+                    <div class="debug">
+<strong>Analysis:</strong>
+- Reconstructed: ${analysis.reconstructed}
+- Spacing Match: ${analysis.spacingMatch ? '✅' : '❌'}
+- Total Segments: ${analysis.segments}
+- Clickable Segments: ${analysis.clickableSegments}
+- Separator Segments: ${analysis.separatorSegments}
+- Has Empty Queries: ${analysis.hasEmptyQueries ? '❌' : '✅'}
+
+<strong>Segments:</strong>
+${analysis.segments.map((s, i) => `${i + 1}. "${s.text}" (${s.isClickable ? 'clickable' : 'separator'})${s.searchQuery ? ` - query: "${s.searchQuery}"` : ''}`).join('\n')}
+                    </div>
+                `;
+                
+                resultsContainer.appendChild(testDiv);
+            });
+        }
+
+        // Run tests when page loads
+        window.addEventListener('load', runTests);
+    </script>
+</body>
+</html> 

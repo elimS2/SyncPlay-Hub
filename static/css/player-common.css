@@ -43,7 +43,6 @@
   text-decoration: none;
   cursor: pointer;
   transition: all 0.2s ease;
-  border-bottom: 1px solid transparent;
   display: inline;
   margin: 0;
   padding: 0;
@@ -51,8 +50,9 @@
 
 .track-name-link:hover {
   color: var(--hover-color, #61dafb);
-  border-bottom-color: var(--hover-color, #61dafb);
-  text-decoration: none;
+  text-decoration: underline;
+  text-decoration-color: var(--hover-color, #61dafb);
+  text-underline-offset: 2px;
   transform: scale(1.02);
 }
 
@@ -67,7 +67,9 @@
 }
 
 #currentTrackName:hover .track-name-link:hover {
-  border-bottom-color: var(--hover-color, #61dafb);
+  text-decoration: underline;
+  text-decoration-color: var(--hover-color, #61dafb);
+  text-underline-offset: 2px;
 }
 
 /* Non-clickable separator styles */
@@ -96,7 +98,9 @@
   
   .track-name-link:hover {
     color: var(--hover-color, #007acc);
-    border-bottom-color: var(--hover-color, #007acc);
+    text-decoration: underline;
+    text-decoration-color: var(--hover-color, #007acc);
+    text-underline-offset: 2px;
   }
 }
 
