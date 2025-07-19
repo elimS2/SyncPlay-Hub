@@ -28,11 +28,11 @@
       }
     }
 
-    body { font-family: Arial, sans-serif; margin: 20px; background:var(--page-bg); color:var(--text);}
+    body { font-family: Arial, sans-serif; margin: 20px; padding-bottom: 80px; background:var(--page-bg); color:var(--text);}
     #tracklist {
       list-style: none;
       padding: 0;
-      height: calc(100vh - 140px); /* nearly full viewport height accounting for header/buttons */
+      height: calc(100vh - 200px); /* adjusted for fixed positioning */
       overflow-y: auto;
     }
     /* custom scrollbar styling */
@@ -58,8 +58,8 @@
     #tracklist li:hover {background: rgba(128,128,128,.2);}
     #tracklist li.playing { background: var(--playing-bg); color:var(--playing-text); font-weight:600; }
     button { margin-right: 10px; }
-    .controls{position:absolute;bottom:0;left:0;width:100%;display:flex;align-items:center;background:var(--bg);padding:6px 10px;box-sizing:border-box;transition:opacity .25s;}
-    .controls.hidden{opacity:0;pointer-events:none;}
+    .controls{position:fixed;bottom:0;left:0;width:100%;display:flex;align-items:center;background:var(--bg);padding:6px 10px;box-sizing:border-box;transition:opacity .25s;z-index:1000;}
+    .controls.hidden{opacity:0;pointer-events:none;transition:opacity .25s;}
     #controlBar.hidden{display:none;}
     .left-group{display:flex;align-items:center;}
     .ctrl-btn{
@@ -189,22 +189,32 @@
     /* Video container and responsive sizing */
     #player {
       width: 100%;
-      max-height: calc(100vh - 200px); /* Prevent vertical videos from exceeding viewport */
+      max-height: calc(100vh - 280px); /* Adjusted for fixed controls */
       object-fit: contain; /* Maintain aspect ratio */
       background: #000;
+    }
+    
+    #videoWrapper {
+      flex: 1;
+      min-width: 0;
     }
     
     /* fullscreen adjustments */
     #videoWrapper:fullscreen video{width:100%;height:100%;object-fit:contain;}
     #videoWrapper:-webkit-full-screen video{width:100%;height:100%;object-fit:contain;}
-    .player-container{display:flex;gap:12px;}
+    .player-container{
+      display:flex;
+      gap:12px;
+      align-items: flex-start;
+      min-height: calc(100vh - 200px);
+    }
     /* Playlist panel wrapper */
     .playlist-panel{
       display:flex;
       flex-direction:column;
       width:600px;
       max-height:70vh;
-      transition:width .3s ease;
+      transition: all .3s ease;
       /* Enhanced styling similar to tooltip */
       background: rgba(0, 0, 0, 0.9);
       border-radius: 8px;
@@ -219,6 +229,7 @@
       overflow:hidden;
       margin:0;
       padding:0;
+      opacity: 0;
     }
     .playlist-panel.collapsed .side-list{display:none;}
     .side-list{
@@ -356,6 +367,28 @@
       
       .modern-btn svg {
         margin: 0;
+      }
+      
+      /* Adjust playlist panel for mobile */
+      .playlist-panel {
+        width: 100%;
+        max-height: 50vh;
+        margin: 0;
+        border-radius: 0;
+      }
+      
+      .player-container {
+        flex-direction: column;
+        gap: 8px;
+      }
+      
+      #tracklist {
+        height: calc(50vh - 20px);
+      }
+      
+      /* Adjust video height for mobile */
+      #player {
+        max-height: calc(100vh - 320px);
       }
     }
     
@@ -612,6 +645,34 @@
       
       .progress:hover {
         height: 16px;
+      }
+    }
+    
+    /* Large screen adjustments */
+    @media (min-width: 1920px) {
+      .playlist-panel {
+        width: 800px;
+        max-height: 80vh;
+      }
+      
+      #tracklist {
+        height: calc(80vh - 20px);
+      }
+      
+      #player {
+        max-height: calc(100vh - 300px);
+      }
+    }
+    
+    /* Ultra-wide screen adjustments */
+    @media (min-width: 2560px) {
+      .playlist-panel {
+        width: 1000px;
+        max-height: 85vh;
+      }
+      
+      #tracklist {
+        height: calc(85vh - 20px);
       }
     }
   </style>
