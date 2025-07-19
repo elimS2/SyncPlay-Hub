@@ -5,6 +5,7 @@
   position: fixed;
   bottom: 45px;
   left: 0;
+  right: 0;
   background: rgba(0, 0, 0, 0.8);
   color: white;
   padding: 4px 12px;
@@ -21,6 +22,7 @@
   white-space: nowrap;
   transition: opacity 0.3s ease;
   /* Width will be set dynamically by JavaScript */
+  line-height: 1.2;
 }
 
 #currentTrackTitle.visible {
@@ -42,22 +44,49 @@
   cursor: pointer;
   transition: all 0.2s ease;
   border-bottom: 1px solid transparent;
-  display: inline-block;
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  display: inline;
+  margin: 0;
+  padding: 0;
 }
 
 .track-name-link:hover {
-  color: #61dafb;
-  border-bottom-color: #61dafb;
+  color: var(--hover-color, #61dafb);
+  border-bottom-color: var(--hover-color, #61dafb);
   text-decoration: none;
+  transform: scale(1.02);
 }
 
 .track-name-link:active {
   transform: scale(0.98);
 }
+
+/* Hover effect for all segments when any segment is hovered */
+#currentTrackName:hover .track-name-link {
+  color: var(--hover-color, #61dafb) !important;
+  transition: color 0.2s ease;
+}
+
+#currentTrackName:hover .track-name-link:hover {
+  border-bottom-color: var(--hover-color, #61dafb);
+}
+
+/* Non-clickable separator styles */
+#currentTrackName span {
+  color: #888 !important;
+  display: inline;
+  margin: 0;
+  padding: 0;
+  cursor: default;
+  transition: color 0.2s ease;
+}
+
+#currentTrackName span:hover {
+  color: #888 !important;
+  border-bottom: none;
+  transform: none;
+}
+
+
 
 /* Light mode track name link */
 @media (prefers-color-scheme: light) {
@@ -66,8 +95,8 @@
   }
   
   .track-name-link:hover {
-    color: #007acc;
-    border-bottom-color: #007acc;
+    color: var(--hover-color, #007acc);
+    border-bottom-color: var(--hover-color, #007acc);
   }
 }
 
