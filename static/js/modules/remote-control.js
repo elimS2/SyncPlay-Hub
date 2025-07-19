@@ -46,8 +46,6 @@ class RemoteControl {
     this.likeBtn = document.getElementById('likeBtn');
     this.dislikeBtn = document.getElementById('dislikeBtn');
     this.youtubeBtn = document.getElementById('youtubeBtn');
-    this.stopBtn = document.getElementById('stopBtn');
-    this.fullscreenBtn = document.getElementById('fullscreenBtn');
     
     // Volume controls
     this.volumeSlider = document.getElementById('volumeSlider');
@@ -85,8 +83,6 @@ class RemoteControl {
       }
     });
     this.youtubeBtn.addEventListener('click', () => this.sendCommand('youtube'));
-    this.stopBtn.addEventListener('click', () => this.sendCommand('stop'));
-    this.fullscreenBtn.addEventListener('click', () => this.sendCommand('fullscreen'));
     
     // Volume slider
     this.volumeSlider.addEventListener('input', (e) => {
