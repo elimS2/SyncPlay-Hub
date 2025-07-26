@@ -1,0 +1,69 @@
+/* Share Overlay Styles */
+#shareOverlay {
+  display: none;
+  position: fixed;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.8);
+  color: #fff;
+  padding: 10px 14px;
+  border-radius: 6px;
+  font-size: 14px;
+  z-index: 9999;
+}
+
+#shareLink {
+  color: #61dafb;
+  word-break: break-all;
+}
+
+#copyLinkBtn {
+  margin-left: 8px;
+}
+
+#closeShare {
+  margin-left: 4px;
+}
+
+/* Control Bar Styles */
+.control-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.modern-btn {
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Player Container Styles */
+.player-container {
+  margin-top: 10px;
+  position: relative;
+}
+
+#videoWrapper {
+  position: relative;
+  flex: 1 1 auto;
+}
+
+#player {
+  width: 100%;
+}
+
+/* Control Bar Layout */
+.control-bar > div:first-child {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.control-bar > span:last-child {
+  font-size: 16px;
+  color: var(--text);
+  font-weight: 500;
+} 

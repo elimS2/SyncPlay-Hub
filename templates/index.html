@@ -12,6 +12,8 @@
   <link rel="stylesheet" href="/static/css/index-player.css">
   <!-- Icons styles -->
   <link rel="stylesheet" href="/static/css/player-icons.css">
+  <!-- Index page specific styles -->
+  <link rel="stylesheet" href="/static/css/index.css">
   <script>
     // Local server IP injected by Flask for proper Cast functionality
     const SERVER_IP = "{{ server_ip }}";
@@ -20,14 +22,14 @@
   </script>
 </head>
 <body>
-  <div id="shareOverlay" style="display:none;position:fixed;top:20px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.8);color:#fff;padding:10px 14px;border-radius:6px;font-size:14px;z-index:9999;">
-    Stream URL: <a id="shareLink" href="#" target="_blank" style="color:#61dafb;word-break:break-all;"></a>
-    <button id="copyLinkBtn" style="margin-left:8px;">Copy</button>
-    <button id="closeShare" style="margin-left:4px;">✕</button>
+  <div id="shareOverlay">
+    Stream URL: <a id="shareLink" href="#" target="_blank"></a>
+    <button id="copyLinkBtn">Copy</button>
+    <button id="closeShare">✕</button>
   </div>
   <div id="controlBar" class="control-bar">
-    <div style="display:flex;align-items:center;gap:8px;">
-      <a href="/" class="modern-btn modern-btn-outline" style="text-decoration:none;display:inline-flex;align-items:center;gap:6px;">
+    <div>
+      <a href="/" class="modern-btn modern-btn-outline">
         <span class="icon icon-list"></span>
         <span>All Playlists</span>
       </a>
@@ -60,11 +62,11 @@
         <span>Playlist</span>
       </button>
     </div>
-    <span style="font-size:16px;color:var(--text);font-weight:500;">{{ playlist_name }}</span>
+    <span>{{ playlist_name }}</span>
   </div>
-  <div id="playerContainer" class="player-container" style="margin-top:10px; position:relative;">
-    <div id="videoWrapper" style="position:relative; flex:1 1 auto;">
-      <video id="player" style="width:100%;" playsinline></video>
+  <div id="playerContainer" class="player-container">
+    <div id="videoWrapper">
+      <video id="player" playsinline></video>
       
       <!-- custom control bar -->
       <div id="customControls" class="controls">
