@@ -69,6 +69,17 @@
         </a>
       </li>
       <li class="nav-item">
+        <a href="/deleted" class="nav-link {{ 'active' if request.endpoint == 'deleted' else '' }}">
+          <span class="nav-icon">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="3,6 5,6 21,6"></polyline>
+              <path d="m19,6v14a2,2 0 0,1-2,2H7a2,2 0 0,1-2-2V6m3,0V4a2,2 0 0,1,2-2h4a2,2 0 0,1,2,2v2"></path>
+            </svg>
+          </span>
+          Deleted Tracks
+        </a>
+      </li>
+      <li class="nav-item">
         <a href="/remote" class="nav-link {{ 'active' if request.endpoint == 'remote' else '' }}">
           <span class="nav-icon">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -82,7 +93,7 @@
       
       <!-- System Management Section -->
       <li class="nav-item nav-dropdown">
-        <a href="#" class="nav-link dropdown-toggle {{ 'active' if request.endpoint in ['settings', 'maintenance_page', 'deleted', 'files', 'logs', 'backups'] else '' }}" onclick="toggleDropdown(event)">
+        <a href="#" class="nav-link dropdown-toggle {{ 'active' if request.endpoint in ['settings', 'maintenance_page', 'files', 'logs', 'backups'] else '' }}" onclick="toggleDropdown(event)">
           <span class="nav-icon">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"></path>
@@ -120,17 +131,6 @@
                 </svg>
               </span>
               Maintenance
-            </a>
-          </li>
-          <li class="nav-subitem">
-            <a href="/deleted" class="nav-sublink {{ 'active' if request.endpoint == 'deleted' else '' }}">
-              <span class="nav-icon">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <polyline points="3,6 5,6 21,6"></polyline>
-                  <path d="m19,6v14a2,2 0 0,1-2,2H7a2,2 0 0,1-2-2V6m3,0V4a2,2 0 0,1,2-2h4a2,2 0 0,1,2,2v2"></path>
-                </svg>
-              </span>
-              Deleted Tracks
             </a>
           </li>
           <li class="nav-subitem">
