@@ -10,56 +10,7 @@
     {% include 'sidebar_styles.html' %}
     
     <style>
-        :root {
-            --bg-primary: #0a0a0a;
-            --bg-secondary: #1a1a1a;
-            --bg-card: #222;
-            --bg-hover: #333;
-            --text-primary: #fff;
-            --text-secondary: #aaa;
-            --text-muted: #666;
-            --accent-color: #61dafb;
-            --accent-hover: #4fa8c5;
-            --success: #4caf50;
-            --warning: #ff9800;
-            --error: #f44336;
-            --border: #333;
-            --shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
-        }
-
-        @media (prefers-color-scheme: light) {
-            :root {
-                --bg-primary: #f8f9fa;
-                --bg-secondary: #fff;
-                --bg-card: #fff;
-                --bg-hover: #f0f0f0;
-                --text-primary: #333;
-                --text-secondary: #666;
-                --text-muted: #999;
-                --accent-color: #0066cc;
-                --accent-hover: #0052a3;
-                --success: #28a745;
-                --warning: #fd7e14;
-                --error: #dc3545;
-                --border: #dee2e6;
-                --shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-            }
-        }
-
-        * {
-            box-sizing: border-box;
-        }
-
-        body {
-            display: flex;
-            background: var(--bg-primary);
-            color: var(--text-primary);
-            margin: 0;
-            padding: 0;
-            line-height: 1.6;
-            min-height: 100vh;
-        }
-
+        /* Page-specific styles for deleted tracks */
         .container {
             max-width: 1200px;
             margin: 0 auto;
@@ -103,8 +54,8 @@
             margin-top: 1rem;
         }
 
-        .nav-link {
-            color: var(--accent-color);
+        .page-nav-link {
+            color: var(--accent);
             text-decoration: none;
             display: flex;
             align-items: center;
@@ -117,9 +68,9 @@
             font-weight: 500;
         }
 
-        .nav-link:hover {
+        .page-nav-link:hover {
             background: rgba(255,255,255,0.1);
-            border-color: var(--accent-color);
+            border-color: var(--accent);
             transform: translateY(-1px);
         }
 
@@ -341,7 +292,7 @@
             display: inline-block;
             padding: 2px 8px;
             background: rgba(97, 218, 251, 0.1);
-            color: var(--accent-color);
+            color: var(--accent);
             border-radius: 12px;
             font-size: 0.8rem;
             font-weight: 500;
@@ -444,13 +395,13 @@
 
         .pagination-pages button:hover {
             background: var(--bg-hover);
-            border-color: var(--accent-color);
+            border-color: var(--accent);
         }
 
         .pagination-pages button.active {
-            background: var(--accent-color);
+            background: var(--accent);
             color: white;
-            border-color: var(--accent-color);
+            border-color: var(--accent);
         }
 
         .pagination-pages button:disabled {
@@ -481,7 +432,7 @@
         }
 
         .tooltip-time:hover {
-            border-bottom-color: var(--accent-color);
+            border-bottom-color: var(--accent);
         }
 
         @media (max-width: 768px) {
