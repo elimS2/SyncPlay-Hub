@@ -1,0 +1,543 @@
+/* Likes Player Styles */
+
+:root {
+  --bg: rgba(0,0,0,.7);
+  --text: #fff;
+  --progress-bg: #444;
+  --progress-fill: #fff;
+  --page-bg: #000;
+  --playing-bg: #333;
+  --playing-text: #fff;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --bg: rgba(255,255,255,.8);
+    --text: #000;
+    --progress-bg: #ccc;
+    --progress-fill: #000;
+    --page-bg: #fff;
+    --playing-bg: #e6e6e6;
+    --playing-text: #000;
+  }
+}
+
+body { 
+  font-family: Arial, sans-serif; 
+  margin: 20px; 
+  background: var(--page-bg); 
+  color: var(--text);
+}
+
+#tracklist {
+  list-style: none;
+  padding: 0;
+  height: calc(100vh - 140px); /* nearly full viewport height accounting for header/buttons */
+  overflow-y: auto;
+}
+
+/* Custom scrollbar styling */
+#tracklist::-webkit-scrollbar {
+  width: 8px;
+}
+
+#tracklist::-webkit-scrollbar-track {
+  background: var(--bg);
+}
+
+#tracklist::-webkit-scrollbar-thumb {
+  background: var(--progress-bg);
+  border-radius: 4px;
+}
+
+#tracklist:hover::-webkit-scrollbar-thumb {
+  background: var(--progress-fill);
+}
+
+/* Firefox */
+#tracklist {
+  scrollbar-width: thin;
+  scrollbar-color: var(--progress-fill) var(--bg);
+}
+
+#tracklist li { 
+  padding: 4px; 
+  cursor: pointer; 
+  color: var(--text); 
+}
+
+#tracklist li:hover {
+  background: rgba(128,128,128,.2);
+}
+
+#tracklist li.playing { 
+  background: var(--playing-bg); 
+  color: var(--playing-text); 
+  font-weight: 600; 
+}
+
+button { 
+  margin-right: 10px; 
+}
+
+#controlBar.hidden {
+  display: none;
+}
+
+/* Video container and responsive sizing */
+#player {
+  width: 100%;
+  max-height: calc(100vh - 200px); /* Prevent vertical videos from exceeding viewport */
+  object-fit: contain; /* Maintain aspect ratio */
+  background: #000;
+}
+
+/* Fullscreen adjustments */
+#videoWrapper:fullscreen video {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+#videoWrapper:-webkit-full-screen video {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.player-container {
+  display: flex;
+  gap: 12px;
+}
+
+/* Playlist panel wrapper */
+.playlist-panel {
+  display: flex;
+  flex-direction: column;
+  width: 600px;
+  max-height: 70vh;
+  transition: width .3s ease;
+  /* Enhanced styling similar to tooltip */
+  background: rgba(0, 0, 0, 0.9);
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  margin: 8px;
+  padding: 8px;
+}
+
+.playlist-panel.collapsed {
+  width: 0;
+  border: none;
+  overflow: hidden;
+  margin: 0;
+  padding: 0;
+}
+
+.playlist-panel.collapsed .side-list {
+  display: none;
+}
+
+.side-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  flex: 1 1 auto;
+  overflow-y: auto;
+}
+
+/* Light mode playlist panel */
+@media (prefers-color-scheme: light) {
+  .playlist-panel {
+    background: rgba(255, 255, 255, 0.95);
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  }
+}
+
+/* Control bar layout */
+.control-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 12px 0;
+}
+
+/* Modern Button Styles */
+.modern-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-decoration: none;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  position: relative;
+  overflow: hidden;
+}
+
+.modern-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+}
+
+.modern-btn:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.modern-btn-primary {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+}
+
+.modern-btn-secondary {
+  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+  color: white;
+}
+
+.modern-btn-accent {
+  background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+  color: white;
+}
+
+.modern-btn-success {
+  background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
+  color: white;
+}
+
+.modern-btn-danger {
+  background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
+  color: white;
+}
+
+.modern-btn-outline {
+  background: transparent;
+  color: var(--text);
+  border: 2px solid rgba(255,255,255,0.3);
+}
+
+.modern-btn-outline:hover {
+  background: rgba(255,255,255,0.1);
+  border-color: rgba(255,255,255,0.5);
+}
+
+/* Virtual playlist specific styles */
+.virtual-playlist-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.likes-badge {
+  background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-weight: bold;
+  color: white;
+  font-size: 18px;
+}
+
+/* Enhanced tooltip styles */
+#tracklist li {
+  position: relative;
+  white-space: pre-line;
+}
+
+/* Custom tooltip with SVG icons */
+.custom-tooltip {
+  position: fixed;
+  padding: 12px;
+  background: rgba(0, 0, 0, 0.9);
+  color: white;
+  border-radius: 8px;
+  font-size: 12px;
+  line-height: 1.4;
+  z-index: 1000;
+  max-width: 300px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  pointer-events: none;
+  display: none;
+  white-space: nowrap;
+}
+
+.tooltip-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.tooltip-section {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  margin-bottom: 6px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  padding-top: 8px;
+}
+
+.tooltip-row svg, .tooltip-section svg {
+  flex-shrink: 0;
+  opacity: 0.8;
+}
+
+.tooltip-row strong, .tooltip-section strong {
+  font-weight: 600;
+  margin-right: 4px;
+}
+
+/* Light mode tooltip */
+@media (prefers-color-scheme: light) {
+  .custom-tooltip {
+    background: rgba(255, 255, 255, 0.95);
+    color: #333;
+    border: 1px solid rgba(0, 0, 0, 0.1);
+  }
+  
+  .tooltip-section {
+    border-top: 1px solid rgba(0, 0, 0, 0.1);
+  }
+}
+
+/* Clickable track name styles */
+.track-name-link {
+  color: var(--text);
+  text-decoration: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border-bottom: 1px solid transparent;
+}
+
+.track-name-link:hover {
+  color: #61dafb;
+  border-bottom-color: #61dafb;
+  text-decoration: none;
+}
+
+.track-name-link:active {
+  transform: scale(0.98);
+}
+
+/* Light mode track name link */
+@media (prefers-color-scheme: light) {
+  .track-name-link {
+    color: var(--text);
+  }
+  
+  .track-name-link:hover {
+    color: #007acc;
+    border-bottom-color: #007acc;
+  }
+}
+
+/* Mobile Responsive Styles */
+@media (max-width: 768px) {
+  body {
+    margin: 10px;
+    font-size: 14px;
+  }
+  
+  /* Virtual playlist header mobile */
+  .virtual-playlist-header {
+    flex-direction: column;
+    gap: 8px;
+    text-align: center;
+    margin-bottom: 12px;
+  }
+  
+  .likes-badge {
+    font-size: 16px;
+  }
+  
+  /* Playlist panel mobile adaptations */
+  .player-container {
+    flex-direction: column;
+    gap: 8px;
+  }
+  
+  .playlist-panel {
+    width: 100% !important;
+    max-height: 40vh;
+    order: 2;
+    margin: 0;
+  }
+  
+  .playlist-panel.collapsed {
+    width: 100% !important;
+    height: 0;
+    margin: 0;
+  }
+  
+  #videoWrapper {
+    order: 1;
+  }
+  
+  /* Control bar mobile optimizations */
+  .control-bar {
+    flex-wrap: wrap;
+    gap: 4px;
+    padding: 8px 0;
+  }
+  
+  .modern-btn {
+    padding: 8px 10px;
+    font-size: 12px;
+    min-width: auto;
+  }
+  
+  .modern-btn span {
+    display: none;
+  }
+  
+  .modern-btn svg {
+    width: 18px;
+    height: 18px;
+  }
+  
+  /* Hide less important buttons on mobile */
+  #fullBtn,
+  #castBtn {
+    display: none;
+  }
+  
+  /* Custom controls mobile adaptations */
+  .controls {
+    padding: 4px 8px;
+    flex-wrap: wrap;
+  }
+  
+  .ctrl-btn {
+    width: 36px;
+    height: 36px;
+    font-size: 16px;
+    margin: 0 2px;
+  }
+  
+  .ctrl-btn svg {
+    width: 16px;
+    height: 16px;
+  }
+  
+  /* Progress bar mobile optimizations */
+  .progress {
+    height: 10px;
+    margin: 0 6px;
+  }
+  
+  .progress:hover {
+    height: 14px;
+  }
+  
+  .time {
+    font-size: 11px;
+    margin-right: 4px;
+  }
+  
+  /* Volume slider mobile */
+  .vol-slider {
+    width: 60px;
+    margin-left: 4px;
+  }
+  
+  /* Video player mobile */
+  #player {
+    max-height: calc(50vh - 60px);
+  }
+  
+  /* Tracklist mobile */
+  #tracklist {
+    height: calc(40vh - 60px);
+    font-size: 13px;
+  }
+  
+  #tracklist li {
+    padding: 8px 4px;
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+  }
+  
+  /* Tooltip mobile */
+  .custom-tooltip {
+    max-width: 250px;
+    font-size: 11px;
+    padding: 8px;
+  }
+  
+  /* Speed control mobile */
+  #cSpeed {
+    min-width: 50px;
+    padding: 6px 8px;
+  }
+  
+  #speedLabel {
+    font-size: 10px;
+  }
+}
+
+/* Extra small mobile devices */
+@media (max-width: 480px) {
+  body {
+    margin: 5px;
+  }
+  
+  .virtual-playlist-header a {
+    font-size: 14px;
+  }
+  
+  .likes-badge {
+    font-size: 14px;
+    padding: 3px 10px;
+  }
+  
+  .control-bar {
+    gap: 2px;
+  }
+  
+  .modern-btn {
+    padding: 6px 8px;
+  }
+  
+  .ctrl-btn {
+    width: 32px;
+    height: 32px;
+    margin: 0 1px;
+  }
+  
+  .vol-slider {
+    width: 50px;
+  }
+  
+  .time {
+    font-size: 10px;
+  }
+  
+  #tracklist {
+    font-size: 12px;
+  }
+  
+  /* Hide additional buttons on very small screens */
+  #cDislike,
+  #cYoutube {
+    display: none;
+  }
+  
+  /* Make progress bar more touch-friendly */
+  .progress {
+    height: 12px;
+  }
+  
+  .progress:hover {
+    height: 16px;
+  }
+} 
