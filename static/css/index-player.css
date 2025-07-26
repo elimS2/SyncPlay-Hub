@@ -177,6 +177,7 @@ button {
 /* Control bar layout */
 .control-bar {
   display: flex;
+  justify-content: space-between;
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;

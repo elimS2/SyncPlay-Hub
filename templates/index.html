@@ -25,39 +25,42 @@
     <button id="copyLinkBtn" style="margin-left:8px;">Copy</button>
     <button id="closeShare" style="margin-left:4px;">✕</button>
   </div>
-  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-    <a href="/" style="color:#61dafb;text-decoration:none;font-size:16px;">← All Playlists</a>
-    <span style="font-size:16px;color:var(--text);">{{ playlist_name }}</span>
-  </div>
   <div id="controlBar" class="control-bar">
-    <button id="shuffleBtn" class="modern-btn modern-btn-accent">
-      <span class="icon icon-shuffle"></span>
-      <span>Shuffle</span>
-    </button>
-    <button id="smartShuffleBtn" class="modern-btn modern-btn-accent">
-      <span class="icon icon-smart-shuffle"></span>
-      <span>Smart</span>
-    </button>
-    <button id="orderByDateBtn" class="modern-btn modern-btn-accent">
-      <span class="icon icon-order-by-date"></span>
-      <span>Order by Date</span>
-    </button>
-    <button id="deleteCurrentBtn" class="modern-btn modern-btn-danger">
-      <span class="icon icon-delete"></span>
-      <span>Delete</span>
-    </button>
-    <button id="streamBtn" class="modern-btn modern-btn-success">
-      <span class="icon icon-stream"></span>
-      <span>Stream</span>
-    </button>
-    <button id="fullBtn" class="modern-btn modern-btn-secondary">
-      <span class="icon icon-full"></span>
-      <span>Full</span>
-    </button>
-    <button id="toggleListBtn" class="modern-btn modern-btn-outline">
-      <span class="icon icon-list"></span>
-      <span>Playlist</span>
-    </button>
+    <div style="display:flex;align-items:center;gap:8px;">
+      <a href="/" class="modern-btn modern-btn-outline" style="text-decoration:none;display:inline-flex;align-items:center;gap:6px;">
+        <span class="icon icon-list"></span>
+        <span>All Playlists</span>
+      </a>
+      <button id="shuffleBtn" class="modern-btn modern-btn-accent">
+        <span class="icon icon-shuffle"></span>
+        <span>Shuffle</span>
+      </button>
+      <button id="smartShuffleBtn" class="modern-btn modern-btn-accent">
+        <span class="icon icon-smart-shuffle"></span>
+        <span>Smart</span>
+      </button>
+      <button id="orderByDateBtn" class="modern-btn modern-btn-accent">
+        <span class="icon icon-order-by-date"></span>
+        <span>Order by Date</span>
+      </button>
+      <button id="deleteCurrentBtn" class="modern-btn modern-btn-danger">
+        <span class="icon icon-delete"></span>
+        <span>Delete</span>
+      </button>
+      <button id="streamBtn" class="modern-btn modern-btn-success">
+        <span class="icon icon-stream"></span>
+        <span>Stream</span>
+      </button>
+      <button id="fullBtn" class="modern-btn modern-btn-secondary">
+        <span class="icon icon-full"></span>
+        <span>Full</span>
+      </button>
+      <button id="toggleListBtn" class="modern-btn modern-btn-outline">
+        <span class="icon icon-list"></span>
+        <span>Playlist</span>
+      </button>
+    </div>
+    <span style="font-size:16px;color:var(--text);font-weight:500;">{{ playlist_name }}</span>
   </div>
   <div id="playerContainer" class="player-container" style="margin-top:10px; position:relative;">
     <div id="videoWrapper" style="position:relative; flex:1 1 auto;">

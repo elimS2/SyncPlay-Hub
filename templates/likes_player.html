@@ -14,53 +14,56 @@
   <link rel="stylesheet" href="/static/css/player-icons.css">
 </head>
 <body>
-  <div class="virtual-playlist-header">
-    <a href="/likes" style="color:#61dafb;text-decoration:none;font-size:16px;">← Virtual Playlists</a>
-    <span style="font-size:20px;color:var(--text);">
+  <div id="controlBar" class="control-bar">
+    <div style="display:flex;align-items:center;gap:8px;">
+      <a href="/likes" class="modern-btn modern-btn-outline" style="text-decoration:none;display:inline-flex;align-items:center;gap:6px;">
+        <span class="icon icon-like"></span>
+        <span>Virtual Playlists</span>
+      </a>
+      <button id="prevBtn" class="modern-btn modern-btn-secondary" style="display: none;">
+        <span class="icon icon-prev"></span>
+        <span>Prev</span>
+      </button>
+      <button id="playBtn" class="modern-btn modern-btn-primary" style="display: none;">
+        <span class="icon icon-play"></span>
+        <span>Play</span>
+      </button>
+      <button id="nextBtn" class="modern-btn modern-btn-secondary" style="display: none;">
+        <span class="icon icon-next"></span>
+        <span>Next</span>
+      </button>
+      <button id="shuffleBtn" class="modern-btn modern-btn-accent">
+        <span class="icon icon-shuffle"></span>
+        <span>Shuffle</span>
+      </button>
+      <button id="smartShuffleBtn" class="modern-btn modern-btn-accent">
+        <span class="icon icon-smart-shuffle"></span>
+        <span>Smart</span>
+      </button>
+      <button id="orderByDateBtn" class="modern-btn modern-btn-accent">
+        <span class="icon icon-order-by-date"></span>
+        <span>Order by Date</span>
+      </button>
+      <button id="stopBtn" class="modern-btn modern-btn-danger" style="display: none;">
+        <span class="icon icon-stop"></span>
+        <span>Stop</span>
+      </button>
+      <button id="deleteCurrentBtn" class="modern-btn modern-btn-danger">
+        <span class="icon icon-delete"></span>
+        <span>Delete</span>
+      </button>
+      <button id="fullBtn" class="modern-btn modern-btn-secondary">
+        <span class="icon icon-full"></span>
+        <span>Full</span>
+      </button>
+      <button id="toggleListBtn" class="modern-btn modern-btn-outline">
+        <span class="icon icon-list"></span>
+        <span>Playlist</span>
+      </button>
+    </div>
+    <span style="font-size:20px;color:var(--text);font-weight:500;">
       ❤️ <span class="likes-badge">{{ like_count }}</span> like{{ 's' if like_count != 1 else '' }}
     </span>
-  </div>
-  <div id="controlBar" class="control-bar">
-    <button id="prevBtn" class="modern-btn modern-btn-secondary" style="display: none;">
-      <span class="icon icon-prev"></span>
-      <span>Prev</span>
-    </button>
-    <button id="playBtn" class="modern-btn modern-btn-primary" style="display: none;">
-      <span class="icon icon-play"></span>
-      <span>Play</span>
-    </button>
-    <button id="nextBtn" class="modern-btn modern-btn-secondary" style="display: none;">
-      <span class="icon icon-next"></span>
-      <span>Next</span>
-    </button>
-    <button id="shuffleBtn" class="modern-btn modern-btn-accent">
-      <span class="icon icon-shuffle"></span>
-      <span>Shuffle</span>
-    </button>
-    <button id="smartShuffleBtn" class="modern-btn modern-btn-accent">
-      <span class="icon icon-smart-shuffle"></span>
-      <span>Smart</span>
-    </button>
-    <button id="orderByDateBtn" class="modern-btn modern-btn-accent">
-      <span class="icon icon-order-by-date"></span>
-      <span>Order by Date</span>
-    </button>
-    <button id="stopBtn" class="modern-btn modern-btn-danger" style="display: none;">
-      <span class="icon icon-stop"></span>
-      <span>Stop</span>
-    </button>
-    <button id="deleteCurrentBtn" class="modern-btn modern-btn-danger">
-      <span class="icon icon-delete"></span>
-      <span>Delete</span>
-    </button>
-    <button id="fullBtn" class="modern-btn modern-btn-secondary">
-      <span class="icon icon-full"></span>
-      <span>Full</span>
-    </button>
-    <button id="toggleListBtn" class="modern-btn modern-btn-outline">
-      <span class="icon icon-list"></span>
-      <span>Playlist</span>
-    </button>
   </div>
   <div id="playerContainer" class="player-container" style="margin-top:10px; position:relative;">
     <div id="videoWrapper" style="position:relative; flex:1 1 auto;">
