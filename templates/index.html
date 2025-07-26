@@ -10,6 +10,8 @@
   <link rel="stylesheet" href="/static/css/player-common.css">
   <!-- Index player specific styles -->
   <link rel="stylesheet" href="/static/css/index-player.css">
+  <!-- Icons styles -->
+  <link rel="stylesheet" href="/static/css/player-icons.css">
   <script>
     // Local server IP injected by Flask for proper Cast functionality
     const SERVER_IP = "{{ server_ip }}";
@@ -29,63 +31,31 @@
   </div>
   <div id="controlBar" class="control-bar">
     <button id="shuffleBtn" class="modern-btn modern-btn-accent">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <polyline points="16,3 21,3 21,8"></polyline>
-        <line x1="4" y1="20" x2="21" y2="3"></line>
-        <polyline points="21,16 21,21 16,21"></polyline>
-        <line x1="15" y1="15" x2="21" y2="21"></line>
-        <line x1="4" y1="4" x2="9" y2="9"></line>
-      </svg>
+      <span class="icon icon-shuffle"></span>
       <span>Shuffle</span>
     </button>
     <button id="smartShuffleBtn" class="modern-btn modern-btn-accent">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path d="M12 2a3 3 0 0 1 3 3c0 1-1 3-3 3s-3-2-3-3a3 3 0 0 1 3-3Z"></path>
-        <path d="M19 11c-.64-.64-1.27-.68-2.5 0-2.5 1.4-6 1.4-8.5 0-.68-.68-1.26-.64-2.5 0-.64.64-.68 1.27 0 2.5 1.4 2.5 1.4 6 0 8.5-.68.68-.64 1.26 0 2.5.64.64 1.27.68 2.5 0 2.5-1.4 6-1.4 8.5 0 .68.68 1.26.64 2.5 0 .64-.64.68-1.27 0-2.5-1.4-2.5-1.4-6 0-8.5Z"></path>
-      </svg>
+      <span class="icon icon-smart-shuffle"></span>
       <span>Smart</span>
     </button>
     <button id="orderByDateBtn" class="modern-btn modern-btn-accent">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
-        <line x1="16" y1="2" x2="16" y2="6"></line>
-        <line x1="8" y1="2" x2="8" y2="6"></line>
-        <line x1="3" y1="10" x2="21" y2="10"></line>
-        <path d="M8 14l2 2 4-4"></path>
-      </svg>
+      <span class="icon icon-order-by-date"></span>
       <span>Order by Date</span>
     </button>
     <button id="deleteCurrentBtn" class="modern-btn modern-btn-danger">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <polyline points="3,6 5,6 21,6"></polyline>
-        <path d="M19,6V20a2,2 0 0,1 -2,2H7a2,2 0 0,1 -2,-2V6M8,6V4a2,2 0 0,1 2,-2h4a2,2 0 0,1 2,2V6"></path>
-        <line x1="10" y1="11" x2="10" y2="17"></line>
-        <line x1="14" y1="11" x2="14" y2="17"></line>
-      </svg>
+      <span class="icon icon-delete"></span>
       <span>Delete</span>
     </button>
     <button id="streamBtn" class="modern-btn modern-btn-success">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path d="M21.2 8.4c.5.38.8.97.8 1.6v4a2 2 0 0 1-.8 1.6l-7 5.25A2 2 0 0 1 11 19.25v-4.5a2 2 0 0 1 .8-1.6l7-5.25Z"></path>
-        <path d="M11 15V9a2 2 0 0 0-1.2-1.84l-6-2.7A2 2 0 0 0 1 6.3v11.4a2 2 0 0 0 2.8 1.84l6-2.7A2 2 0 0 0 11 15Z"></path>
-      </svg>
+      <span class="icon icon-stream"></span>
       <span>Stream</span>
     </button>
     <button id="fullBtn" class="modern-btn modern-btn-secondary">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path d="M8 3H5a2 2 0 0 0-2 2v3"></path>
-        <path d="M21 8V5a2 2 0 0 0-2-2h-3"></path>
-        <path d="M3 16v3a2 2 0 0 0 2 2h3"></path>
-        <path d="M16 21h3a2 2 0 0 0 2-2v-3"></path>
-      </svg>
+      <span class="icon icon-full"></span>
       <span>Full</span>
     </button>
     <button id="toggleListBtn" class="modern-btn modern-btn-outline">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <line x1="4" y1="6" x2="20" y2="6"></line>
-        <line x1="4" y1="12" x2="20" y2="12"></line>
-        <line x1="4" y1="18" x2="20" y2="18"></line>
-      </svg>
+      <span class="icon icon-list"></span>
       <span>Playlist</span>
     </button>
   </div>
@@ -97,71 +67,39 @@
       <div id="customControls" class="controls">
         <div class="left-group">
           <button id="cPrev" class="ctrl-btn" title="Previous">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <polygon points="19,20 9,12 19,4"></polygon>
-              <line x1="5" y1="19" x2="5" y2="5"></line>
-            </svg>
+            <span class="icon icon-prev"></span>
           </button>
           <button id="cPlay" class="ctrl-btn" title="Play/Pause">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <polygon points="5,3 19,12 5,21"></polygon>
-            </svg>
+            <span class="icon icon-play"></span>
           </button>
           <button id="cNext" class="ctrl-btn" title="Next">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <polygon points="5,4 15,12 5,20"></polygon>
-              <line x1="19" y1="5" x2="19" y2="19"></line>
-            </svg>
+            <span class="icon icon-next"></span>
           </button>
           <button id="cLike" class="ctrl-btn" title="Like">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
-            </svg>
+            <span class="icon icon-like"></span>
           </button>
           <button id="cDislike" class="ctrl-btn" title="Dislike">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3z"></path>
-            </svg>
+            <span class="icon icon-dislike"></span>
           </button>
           <button id="cYoutube" class="ctrl-btn" title="Open on YouTube">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M2.5 17a24.12 24.12 0 0 1 0-10 2 2 0 0 1 1.4-1.4 49.56 49.56 0 0 1 16.2 0A2 2 0 0 1 21.5 7a24.12 24.12 0 0 1 0 10 2 2 0 0 1-1.4 1.4 49.55 49.55 0 0 1-16.2 0A2 2 0 0 1 2.5 17"></path>
-              <polygon points="10,8 16,12 10,16"></polygon>
-            </svg>
+            <span class="icon icon-youtube"></span>
           </button>
           <button id="castBtn" class="ctrl-btn" title="Play on TV">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M2 8V6a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-6"></path>
-              <path d="M2 12a9 9 0 0 1 8 8"></path>
-              <path d="M2 16a5 5 0 0 1 4 4"></path>
-              <circle cx="2" cy="20" r="1"></circle>
-            </svg>
+            <span class="icon icon-cast"></span>
           </button>
           <button id="cMute" class="ctrl-btn" title="Mute/Unmute">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
-              <path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path>
-              <path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path>
-            </svg>
+            <span class="icon icon-volume"></span>
           </button>
           <input type="range" id="cVol" min="0" max="1" step="0.01" value="1" class="vol-slider" />
           <button id="cSpeed" class="ctrl-btn" title="Playback Speed: 1x">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <circle cx="12" cy="12" r="10"></circle>
-              <polyline points="12,6 12,12 16,14"></polyline>
-            </svg>
+            <span class="icon icon-clock"></span>
             <span id="speedLabel">1x</span>
           </button>
         </div>
         <div id="progressContainer" class="progress"><div id="progressBar" class="progress-bar"></div></div>
         <span id="timeLabel" class="time">0:00 / 0:00</span>
         <button id="cFull" class="ctrl-btn" title="Fullscreen">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M8 3H5a2 2 0 0 0-2 2v3"></path>
-            <path d="M21 8V5a2 2 0 0 0-2-2h-3"></path>
-            <path d="M3 16v3a2 2 0 0 0 2 2h3"></path>
-            <path d="M16 21h3a2 2 0 0 0 2-2v-3"></path>
-          </svg>
+          <span class="icon icon-full"></span>
         </button>
       </div>
     </div>
