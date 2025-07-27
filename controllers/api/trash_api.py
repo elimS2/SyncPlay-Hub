@@ -608,7 +608,7 @@ def api_restore_track():
                 if track_dict.get('restored_at') is not None:
                     log_message(f"[Restore] SUCCESS: Re-restored track {track_id} (was marked as restored but file was missing)")
                 else:
-                log_message(f"[Restore] Track {track_id} marked as restored (method: {restore_method})")
+                    log_message(f"[Restore] Track {track_id} marked as restored (method: {restore_method})")
                 
                 # Record event for file restoration
                 log_message(f"[Restore] DEBUG: Recording 'track_restored' event for file restoration, track {track_id}")

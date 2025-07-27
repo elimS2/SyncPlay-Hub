@@ -302,7 +302,7 @@ def api_tracks_by_likes(like_count):
         # Step 1: Get all tracks with basic data (no subqueries for performance)
         # Still filter by include_in_likes but calculate net_likes in code
         query = """
-        SELECT 
+        SELECT DISTINCT
             t.video_id,
             COALESCE(ym.title, t.name) as name,
             t.relpath,
@@ -458,7 +458,7 @@ def api_like_stats():
         
         # Step 1: Get all tracks with basic data (no subqueries for performance)
         query = """
-        SELECT 
+        SELECT DISTINCT
             t.video_id,
             t.play_likes,
             COALESCE(ym.title, t.name) as name
