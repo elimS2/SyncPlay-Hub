@@ -1,8 +1,3 @@
-/**
- * Общие утилиты для плееров
- * Централизованное управление дублирующимися методами
- */
-
 // Import functions moved to playlist-utils.js for backward compatibility
 import { shuffle, smartShuffle, smartChannelShuffle, getGroupPlaybackInfo, detectChannelGroup, orderByPublishDate, triggerAutoDeleteCheck, loadTrack } from './player/playlist-utils.js';
 
@@ -27,11 +22,6 @@ import { sendStreamEvent, reportEvent, recordSeekEvent, pollRemoteCommands, exec
 // Re-export for backward compatibility
 export { shuffle, smartShuffle, smartChannelShuffle, getGroupPlaybackInfo, detectChannelGroup, orderByPublishDate, triggerAutoDeleteCheck, loadTrack, formatTime, updateSpeedDisplay, showNotification, showFsControls, updateFsVisibility, createTrackTooltipHTML, setupGlobalTooltip, handleVolumeWheel, stopTick, stopPlayback, playIndex, updateMuteIcon, nextTrack, prevTrack, startTick, performKeyboardSeek, syncLikeButtonsWithRemote, syncLikesAfterAction, setupLikeSyncHandlers, togglePlayback, cyclePlaybackSpeed, deleteTrack, initializeGoogleCastIntegration, castLoad, setupMediaEndedHandler, setupMediaPlayPauseHandlers, setupMediaTimeUpdateHandler, setupMediaSeekedHandler, setupKeyboardHandler, setupProgressClickHandler, setupMediaSessionAPI, setupPlaylistToggleHandler, setupDeleteCurrentHandler, setupLikeDislikeHandlers, setupYouTubeHandler, setupFullscreenHandlers, setupSimpleControlHandlers, executeDeleteWithoutConfirmation, setupStreamHandler, setupBeforeUnloadHandler, setupAutoPlayInitialization, setupRemoteControlOverrides, setupRemoteControlInitialization, saveVolumeToDatabase, loadSavedVolume, syncRemoteState, formatFileSize, sendStreamEvent, reportEvent, recordSeekEvent, pollRemoteCommands, executeRemoteCommand };
 
-// ===== УТИЛИТЫ МАССИВОВ =====
-
-
-
-// ===== АНАЛИЗ КАНАЛОВ =====
 
 /**
  * Определяет тип канала/группы по пути файла
@@ -80,132 +70,6 @@ export { shuffle, smartShuffle, smartChannelShuffle, getGroupPlaybackInfo, detec
  */
 
 
-
-
-
-
-
-
-// ===== УПРАВЛЕНИЕ ВОСПРОИЗВЕДЕНИЕМ =====
-
-
-
-
-
-
-
-
-
-// ===== НАВИГАЦИЯ ПО ТРЕКАМ =====
-
-
-
-
-
-// ===== ПОТОКОВЫЕ СОБЫТИЯ =====
-
-
-
-
-
-// ===== ОБРАБОТКА СОБЫТИЙ =====
-
-
-
-
-
-// ===== УПРАВЛЕНИЕ НАСТРОЙКАМИ =====
-
-
-
-// ===== REMOTE CONTROL И СИНХРОНИЗАЦИЯ =====
-
-
-
-
-
-
-
-
-
-
-
-
-
-// ==============================
-// КОНТРОЛЬ ВОСПРОИЗВЕДЕНИЯ
-// ==============================
-
-
-
-// ==============================
-// ПОЛНОЭКРАННЫЙ РЕЖИМ
-// ==============================
-
-
-
-
-
-
-
-// ==============================
-// ПОЛЬЗОВАТЕЛЬСКИЙ ИНТЕРФЕЙС
-// ==============================
-
-
-
-
-
-
-
-
-
- 
-
-// ==============================
-// REMOTE CONTROL COMMANDS  
-// ==============================
-
-
-
-// ==============================
-// TRACK DELETION
-// ==============================
-
- 
-
-// ==============================
-// GOOGLE CAST INTEGRATION
-// ==============================
-
-
-
-
-
- 
-
-// ===================================
-// 11. EVENT HANDLERS & MEDIA CONTROLS
-// ===================================
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
- 
-
-// ===== 12. UI INTERACTIONS & CONTROL HANDLERS =====
-
 /**
  * Настраивает обработчик кнопки удаления текущего трека
  * @param {HTMLElement} deleteCurrentBtn - кнопка удаления
@@ -220,23 +84,3 @@ export { shuffle, smartShuffle, smartChannelShuffle, getGroupPlaybackInfo, detec
  * @param {Function} context.loadTrack - функция загрузки трека
  * @param {string} playerType - тип плеера ('regular' или 'virtual')
  */
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
