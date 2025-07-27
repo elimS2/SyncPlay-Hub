@@ -103,6 +103,24 @@ export {
     withErrorHandling 
 } from './error-handler.js';
 
+// Re-export from adaptive-layout.js
+export {
+    shouldShowPlaylistUnderVideo,
+    applyAdaptivePlaylistLayout,
+    setupAdaptiveLayout,
+    initializeAdaptiveLayout
+} from './adaptive-layout.js';
+
+// Re-export from playlist-layout-manager.js
+export {
+    LAYOUT_MODES,
+    applyLayoutMode,
+    cycleLayoutMode,
+    getCurrentLayoutMode,
+    setupLayoutToggleButton,
+    initializePlaylistLayoutManager
+} from './playlist-layout-manager.js';
+
 // Legacy compatibility - re-export everything from the original player-utils.js
 // This ensures existing imports continue to work during the transition
 export * from './player-utils.js'; 

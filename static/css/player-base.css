@@ -8,6 +8,8 @@
   --page-bg: #000;
   --playing-bg: #333;
   --playing-text: #fff;
+  --playlist-under-video-breakpoint: 1200px; /* Breakpoint for showing playlist under video */
+  --min-tracks-for-under-video: 5; /* Minimum tracks needed to show playlist under video */
 }
 
 @media (prefers-color-scheme: light) {
@@ -369,7 +371,7 @@ button {
 }
 
 /* Mobile Responsive Styles */
-@media (max-width: 768px) {
+@media (max-width: 767px) {
   body {
     margin: 10px;
     font-size: 14px;
@@ -568,27 +570,26 @@ button {
   }
 }
 
-/* Large screen optimizations */
-@media (min-width: 1920px) {
-  .playlist-panel {
-    width: 800px;
+/* Ultra large screen optimizations */
+@media (min-width: 2560px) {
+  .player-container {
+    gap: 32px;
+  }
+  
+  #playlistPanel {
+    max-height: 25vh;
   }
   
   #tracklist {
-    font-size: 16px;
+    height: calc(25vh - 80px);
+    max-height: 250px;
+    font-size: 18px;
   }
   
   #player {
-    max-height: calc(100vh - 300px);
-  }
-}
-
-@media (min-width: 2560px) {
-  .playlist-panel {
-    width: 1000px;
-  }
-  
-  #tracklist {
-    font-size: 18px;
+    max-height: calc(75vh - 200px);
+    min-height: 600px;
   }
 } 
+
+/* Manual playlist layout controls - these will be applied by JavaScript */ 

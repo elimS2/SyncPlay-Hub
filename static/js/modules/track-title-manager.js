@@ -439,15 +439,15 @@ export function initializeTrackTitleManager() {
         }
     }
     
-    // Update width when playlist is toggled (backup method)
-    const toggleListBtn = document.getElementById('toggleListBtn');
-    if (toggleListBtn) {
-        const originalToggleListBtn = toggleListBtn.onclick;
-        toggleListBtn.onclick = function() {
-            if (originalToggleListBtn) {
-                originalToggleListBtn.call(this);
+    // Update width when playlist layout changes (backup method)
+    const toggleLayoutBtn = document.getElementById('toggleLayoutBtn');
+    if (toggleLayoutBtn) {
+        const originalToggleLayoutBtn = toggleLayoutBtn.onclick;
+        toggleLayoutBtn.onclick = function() {
+            if (originalToggleLayoutBtn) {
+                originalToggleLayoutBtn.call(this);
             }
-            // Update width after playlist toggle animation
+            // Update width after playlist layout change animation
             setTimeout(updateTrackTitleWidth, 300);
         };
     }
