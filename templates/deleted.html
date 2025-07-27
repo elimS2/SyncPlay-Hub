@@ -376,7 +376,8 @@
                 }
 
                 // Track search filter
-                if (trackSearchFilter && !track.name.toLowerCase().includes(trackSearchFilter)) {
+                const displayName = track.display_name || track.original_name || '';
+                if (trackSearchFilter && !displayName.toLowerCase().includes(trackSearchFilter)) {
                     return false;
                 }
 
@@ -488,7 +489,7 @@
                         <input type="checkbox" class="track-checkbox" data-track-id="${track.id}" onchange="updateBulkActionButtons()">
                     </td>
                     <td>
-                        <div class="track-name">${escapeHtml(track.name)}</div>
+                        <div class="track-name">${escapeHtml(track.display_name || track.original_name)}</div>
                         <div class="track-meta">ID: ${track.video_id} • ${formatDate(track.deleted_at)}</div>
                     </td>
                     <td>

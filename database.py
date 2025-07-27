@@ -1245,8 +1245,10 @@ def get_deleted_tracks(conn: sqlite3.Connection, channel_group: str = None,
                 WHEN dt.trash_path IS NOT NULL AND dt.can_restore = 1 
                 THEN 'file_restore'
                 ELSE 're_download'
-            END as restoration_method
+            END as restoration_method,
+            COALESCE(ym.title, dt.original_name) AS display_name
         FROM deleted_tracks dt
+        LEFT JOIN youtube_video_metadata ym ON ym.youtube_id = dt.video_id
         WHERE 1=1
     """
     
