@@ -71,6 +71,10 @@
                         <div class="stat-label">Storage Size</div>
                     </div>
                     <div class="stat-item">
+                        <div class="stat-value" id="storageFiles">Loading...</div>
+                        <div class="stat-label">Storage Files</div>
+                    </div>
+                    <div class="stat-item">
                         <div class="stat-value" id="diskFree">Loading...</div>
                         <div class="stat-label">Free Space</div>
                     </div>
@@ -886,20 +890,22 @@ Local (${timezone}): ${localTime}`;
                     
                     // Update disk space information
                     if (data.disk_info) {
-                                            document.getElementById('storageSize').textContent = data.disk_info.storage_size_formatted || 'Unknown';
-                    document.getElementById('diskFree').textContent = data.disk_info.free_formatted;
-                    document.getElementById('diskUsed').textContent = data.disk_info.used_formatted + ' (' + data.disk_info.used_percentage.toFixed(1) + '%)';
-                    
-                    // Display both storage and trash paths
-                    const storagePath = data.disk_info.storage_path || 'Unknown';
-                    const trashPath = data.trash_path || 'Unknown';
-                    document.getElementById('storagePath').textContent = `Storage: ${storagePath} • Trash: ${trashPath}`;
-                } else {
-                    document.getElementById('storageSize').textContent = 'Unknown';
-                    document.getElementById('diskFree').textContent = 'Unknown';
-                    document.getElementById('diskUsed').textContent = 'Unknown';
-                    document.getElementById('storagePath').textContent = 'Storage and trash paths unavailable';
-                }
+                        document.getElementById('storageSize').textContent = data.disk_info.storage_size_formatted || 'Unknown';
+                        document.getElementById('storageFiles').textContent = data.disk_info.storage_files || 'Unknown';
+                        document.getElementById('diskFree').textContent = data.disk_info.free_formatted;
+                        document.getElementById('diskUsed').textContent = data.disk_info.used_formatted + ' (' + data.disk_info.used_percentage.toFixed(1) + '%)';
+                        
+                        // Display both storage and trash paths
+                        const storagePath = data.disk_info.storage_path || 'Unknown';
+                        const trashPath = data.trash_path || 'Unknown';
+                        document.getElementById('storagePath').textContent = `Storage: ${storagePath} • Trash: ${trashPath}`;
+                    } else {
+                        document.getElementById('storageSize').textContent = 'Unknown';
+                        document.getElementById('storageFiles').textContent = 'Unknown';
+                        document.getElementById('diskFree').textContent = 'Unknown';
+                        document.getElementById('diskUsed').textContent = 'Unknown';
+                        document.getElementById('storagePath').textContent = 'Storage and trash paths unavailable';
+                    }
                     
                     // Update button state based on trash content
                     const clearBtn = document.getElementById('clearTrashBtn');
@@ -929,6 +935,7 @@ Local (${timezone}): ${localTime}`;
                     document.getElementById('trashSize').textContent = 'Error';
                     document.getElementById('trashFiles').textContent = 'Error';
                     document.getElementById('storageSize').textContent = 'Error';
+                    document.getElementById('storageFiles').textContent = 'Error';
                     document.getElementById('diskFree').textContent = 'Error';
                     document.getElementById('diskUsed').textContent = 'Error';
                     document.getElementById('storagePath').textContent = 'Error loading storage path';
@@ -938,6 +945,7 @@ Local (${timezone}): ${localTime}`;
                 document.getElementById('trashSize').textContent = 'Error';
                 document.getElementById('trashFiles').textContent = 'Error';
                 document.getElementById('storageSize').textContent = 'Error';
+                document.getElementById('storageFiles').textContent = 'Error';
                 document.getElementById('diskFree').textContent = 'Error';
                 document.getElementById('diskUsed').textContent = 'Error';
                 document.getElementById('storagePath').textContent = 'Error loading storage path';
