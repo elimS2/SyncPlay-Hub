@@ -481,7 +481,7 @@ export async function deleteTrack(track, trackIndex, context) {
     
     try {
         // Confirm deletion
-        const confirmMessage = `Delete track "${track.name.replace(/\s*\[.*?\]$/, '')}" from playlist?\n\nTrack will be moved to trash and can be restored.`;
+        const confirmMessage = `Delete track "${track.name.replace(/\s*\[.*?\]$/, '')}" (${track.video_id}) from playlist?\n\nTrack will be moved to trash and can be restored.`;
         if (!confirm(confirmMessage)) {
             return;
         }
@@ -1065,7 +1065,7 @@ export function setupDeleteCurrentHandler(deleteCurrentBtn, context, playerType 
         
         if (currentIndex >= 0 && currentIndex < context.queue.length) {
             const currentTrack = context.queue[currentIndex];
-            deleteCurrentBtn.title = `Delete current track (YouTube ID: ${currentTrack.video_id})`;
+            deleteCurrentBtn.title = `Delete current track: ${currentTrack.name.replace(/\s*\[.*?\]$/, '')} (${currentTrack.video_id})`;
         } else {
             deleteCurrentBtn.title = 'Delete current track (no track playing)';
         }

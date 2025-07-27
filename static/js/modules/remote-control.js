@@ -67,7 +67,8 @@ class RemoteControl {
         // Get current track info for confirmation
         if (this.currentStatus && this.currentStatus.current_track) {
             const trackName = this.currentStatus.current_track.name || 'Unknown track';
-            const confirmMessage = `Delete current track "${trackName.replace(/\s*\[.*?\]$/, '')}" from playlist?\n\nTrack will be moved to trash and can be restored.`;
+            const videoId = this.currentStatus.current_track.video_id || 'Unknown ID';
+            const confirmMessage = `Delete current track "${trackName.replace(/\s*\[.*?\]$/, '')}" (${videoId}) from playlist?\n\nTrack will be moved to trash and can be restored.`;
             
             if (confirm(confirmMessage)) {
                 await this.sendCommand('delete');
