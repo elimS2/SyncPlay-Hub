@@ -4,6 +4,8 @@
  * Manages playlist display modes: hidden, under video, side by side
  */
 
+import { savePlaylistLayout, loadPlaylistLayout } from './playlist-preferences.js';
+
 // Layout modes
 export const LAYOUT_MODES = {
   HIDDEN: 'hidden',
@@ -13,12 +15,15 @@ export const LAYOUT_MODES = {
 
 // Current layout state
 let currentLayoutMode = LAYOUT_MODES.SIDE_BY_SIDE;
+let currentRelpath = null;
+let currentPlaylistType = 'regular';
 
 /**
  * Applies the specified layout mode
  * @param {string} mode - Layout mode to apply
+ * @param {boolean} skipSave - Skip saving preference (for initial load)
  */
-export function applyLayoutMode(mode) {
+export async function applyLayoutMode(mode, skipSave = false) {
   const playerContainer = document.querySelector('.player-container');
   const playlistPanel = document.getElementById('playlistPanel');
   const toggleLayoutBtn = document.getElementById('toggleLayoutBtn');
@@ -67,30 +72,36 @@ export function applyLayoutMode(mode) {
       return;
   }
   
-                // Update button text to show current mode
-              if (toggleLayoutBtn) {
-                const modeText = {
-                  [LAYOUT_MODES.HIDDEN]: 'Playlist: Hidden',
-                  [LAYOUT_MODES.UNDER_VIDEO]: 'Playlist: Under',
-                  [LAYOUT_MODES.SIDE_BY_SIDE]: 'Playlist: Right'
-                };
-                toggleLayoutBtn.querySelector('span:last-child').textContent = modeText[mode];
-              }
+  // Update button text to show current mode
+  if (toggleLayoutBtn) {
+    const modeText = {
+      [LAYOUT_MODES.HIDDEN]: 'Playlist: Hidden',
+      [LAYOUT_MODES.UNDER_VIDEO]: 'Playlist: Under',
+      [LAYOUT_MODES.SIDE_BY_SIDE]: 'Playlist: Right'
+    };
+    toggleLayoutBtn.querySelector('span:last-child').textContent = modeText[mode];
+  }
   
   currentLayoutMode = mode;
+  
+  // Save layout preference (unless this is initial load)
+  if (!skipSave && currentRelpath) {
+    console.log(`💾 [Layout] Saving layout preference: ${mode} for ${currentPlaylistType} playlist: ${currentRelpath}`);
+    await savePlaylistLayout(currentRelpath, mode, currentPlaylistType);
+  }
 }
 
 /**
  * Cycles through layout modes
  */
-export function cycleLayoutMode() {
+export async function cycleLayoutMode() {
   const modes = Object.values(LAYOUT_MODES);
   const currentIndex = modes.indexOf(currentLayoutMode);
   const nextIndex = (currentIndex + 1) % modes.length;
   const nextMode = modes[nextIndex];
   
   console.log(`🔄 [Layout] Cycling from ${currentLayoutMode} to ${nextMode}`);
-  applyLayoutMode(nextMode);
+  await applyLayoutMode(nextMode);
 }
 
 /**
@@ -121,22 +132,37 @@ export function setupLayoutToggleButton() {
 
 /**
  * Initialize playlist layout manager
+ * @param {Object} config - Configuration object
+ * @param {string} config.relpath - Relative path or virtual playlist identifier
+ * @param {string} config.playlistType - 'regular' or 'virtual'
  */
-export function initializePlaylistLayoutManager() {
+export async function initializePlaylistLayoutManager(config = {}) {
   console.log('🎵 [Layout] Initializing playlist layout manager');
+  
+  // Store configuration
+  currentRelpath = config.relpath || null;
+  currentPlaylistType = config.playlistType || 'regular';
+  
+  // Load saved layout preference
+  if (currentRelpath) {
+    console.log(`🔍 [Layout] Loading layout preference for ${currentPlaylistType} playlist: ${currentRelpath}`);
+    const savedLayout = await loadPlaylistLayout(currentRelpath, currentPlaylistType);
+    currentLayoutMode = savedLayout;
+    console.log(`🎵 [Layout] Loaded saved layout: ${savedLayout}`);
+  }
   
   // Set up the toggle button
   setupLayoutToggleButton();
   
-  // Apply initial layout
-  setTimeout(() => {
-    applyLayoutMode(currentLayoutMode);
+  // Apply initial layout (skip saving since this is loading saved preference)
+  setTimeout(async () => {
+    await applyLayoutMode(currentLayoutMode, true);
   }, 100);
   
   // Add global functions for debugging
-  window.setPlaylistLayout = function(mode) {
+  window.setPlaylistLayout = async function(mode) {
     if (Object.values(LAYOUT_MODES).includes(mode)) {
-      applyLayoutMode(mode);
+      await applyLayoutMode(mode);
     } else {
       console.warn('⚠️ [Layout] Invalid mode. Use:', Object.values(LAYOUT_MODES));
     }

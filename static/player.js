@@ -729,6 +729,9 @@ const cDislike = document.getElementById('cDislike');
   // ==============================
   
   // Initialize playlist layout manager for regular player
-  initializePlaylistLayoutManager();
+  await initializePlaylistLayoutManager({
+    relpath: playlistRel,
+    playlistType: 'regular'
+  });
 
 })(); 

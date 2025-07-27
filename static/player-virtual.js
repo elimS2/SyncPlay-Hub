@@ -698,6 +698,9 @@ const cDislike = document.getElementById('cDislike');
   // ==============================
   
   // Initialize playlist layout manager for virtual player
-  initializePlaylistLayoutManager();
+  await initializePlaylistLayoutManager({
+    relpath: virtualRelpath,
+    playlistType: 'virtual'
+  });
 
   })(); 

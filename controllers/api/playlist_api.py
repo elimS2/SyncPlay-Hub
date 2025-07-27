@@ -799,4 +799,113 @@ def api_get_playlist_settings():
         log_message(f"[Playlist Settings] Error getting settings: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500 
 
+@playlist_bp.route("/save_layout_preference", methods=["POST"])
+def api_save_layout_preference():
+    """Save layout preference for a playlist."""
+    data = request.get_json(force=True, silent=True) or {}
+    relpath = (data.get("relpath") or "").strip()
+    layout = (data.get("layout") or "").strip()
+    
+    if not relpath or not layout:
+        return jsonify({"status": "error", "message": "missing relpath or layout"}), 400
+
+    # Validate layout value
+    valid_layouts = ["hidden", "under_video", "side_by_side"]
+    if layout not in valid_layouts:
+        return jsonify({"status": "error", "message": f"invalid layout, must be one of: {valid_layouts}"}), 400
+
+    try:
+        conn = get_connection()
+        
+        # Check if this is a virtual playlist
+        is_virtual = relpath.startswith("virtual_")
+        
+        if is_virtual:
+            # Handle virtual playlist layout preference
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT OR REPLACE INTO virtual_playlist_preferences 
+                (relpath, layout_preference, updated_at) 
+                VALUES (?, ?, CURRENT_TIMESTAMP)
+            """, (relpath, layout))
+            
+            conn.commit()
+            conn.close()
+            
+            log_message(f"[Virtual Playlist Layout] Saved '{layout}' for virtual playlist '{relpath}'")
+            return jsonify({"status": "ok", "message": f"Virtual playlist layout saved: {layout}"})
+        else:
+            # Handle regular playlist layout preference
+            # Check if playlist exists
+            row = db.get_playlist_by_relpath(conn, relpath)
+            if not row:
+                conn.close()
+                return jsonify({"status": "error", "message": "playlist not found"}), 404
+
+            # Update layout preference for playlist
+            conn.execute("UPDATE playlists SET layout_preference=? WHERE relpath=?", (layout, relpath))
+            conn.commit()
+            conn.close()
+            
+            log_message(f"[Playlist Layout] Saved '{layout}' for playlist '{relpath}'")
+            return jsonify({"status": "ok", "message": f"Layout preference saved: {layout}"})
+        
+    except Exception as e:
+        log_message(f"[Playlist Layout] Error saving layout: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+@playlist_bp.route("/get_layout_preference", methods=["GET"])
+def api_get_layout_preference():
+    """Get layout preference for a playlist."""
+    relpath = request.args.get("relpath", "").strip()
+    
+    if not relpath:
+        return jsonify({"status": "error", "message": "missing relpath parameter"}), 400
+
+    try:
+        conn = get_connection()
+        
+        # Check if this is a virtual playlist
+        is_virtual = relpath.startswith("virtual_")
+        
+        if is_virtual:
+            # Get virtual playlist layout preference
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT layout_preference FROM virtual_playlist_preferences 
+                WHERE relpath = ?
+            """, (relpath,))
+            
+            row = cursor.fetchone()
+            layout_preference = row["layout_preference"] if row else "side_by_side"  # Default for virtual playlists
+            
+            conn.close()
+            
+            return jsonify({
+                "status": "ok", 
+                "layout": layout_preference,
+                "playlist_name": f"Virtual Playlist ({relpath})"
+            })
+        else:
+            # Get regular playlist layout preference
+            row = db.get_playlist_by_relpath(conn, relpath)
+            if not row:
+                conn.close()
+                return jsonify({"status": "error", "message": "playlist not found"}), 404
+            
+            # Get layout preference or default to side_by_side
+            layout_preference = row["layout_preference"] if row["layout_preference"] else "side_by_side"
+            
+            conn.close()
+            
+            return jsonify({
+                "status": "ok", 
+                "layout": layout_preference,
+                "playlist_name": row["name"] if row["name"] else "Unknown"
+            })
+        
+    except Exception as e:
+        log_message(f"[Playlist Layout] Error getting layout: {e}")
+        return jsonify({"status": "error", "message": str(e)}), 500 
+
  

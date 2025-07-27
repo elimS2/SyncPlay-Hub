@@ -194,6 +194,64 @@ export async function initializePlaylistPreferences(config) {
 }
 
 /**
+ * Save playlist layout preference (hidden, under_video, side_by_side)
+ * @param {string} relpath - Relative path or virtual playlist identifier
+ * @param {string} layout - Layout to save
+ * @param {string} playlistType - 'regular' or 'virtual'
+ */
+export async function savePlaylistLayout(relpath, layout, playlistType = 'regular') {
+  if (!relpath) return;
+  
+  try {
+    const response = await fetch('/api/save_layout_preference', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        relpath: relpath,
+        layout: layout
+      })
+    });
+    
+    const result = await response.json();
+    if (result.status === 'ok') {
+      console.log(`🎨 ${playlistType} playlist layout saved: ${layout}`);
+    } else {
+      console.warn(`❌ Failed to save ${playlistType} playlist layout:`, result.message);
+    }
+  } catch (error) {
+    console.error(`❌ Error saving ${playlistType} playlist layout:`, error);
+  }
+}
+
+/**
+ * Load playlist layout preference
+ * @param {string} relpath - Relative path or virtual playlist identifier
+ * @param {string} playlistType - 'regular' or 'virtual'
+ * @returns {Promise<string>} - Saved layout or default (side_by_side)
+ */
+export async function loadPlaylistLayout(relpath, playlistType = 'regular') {
+  if (!relpath) return 'side_by_side'; // Default fallback
+  
+  try {
+    const response = await fetch(`/api/get_layout_preference?relpath=${encodeURIComponent(relpath)}`);
+    const result = await response.json();
+    
+    if (result.status === 'ok') {
+      console.log(`🎨 Loaded ${playlistType} playlist layout: ${result.layout}`);
+      return result.layout;
+    } else {
+      console.warn(`❌ Failed to load ${playlistType} playlist layout:`, result.message);
+      return 'side_by_side'; // Default fallback
+    }
+  } catch (error) {
+    console.error(`❌ Error loading ${playlistType} playlist layout:`, error);
+    return 'side_by_side'; // Default fallback
+  }
+}
+
+/**
  * Re-setup handlers with updated queue after sorting
  * @param {Array} newQueue - New queue after sorting
  * @param {Array} tracks - Original tracks array
