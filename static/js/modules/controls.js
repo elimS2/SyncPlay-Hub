@@ -52,17 +52,29 @@ export async function executeDeleteWithoutConfirmation(context, playerType = 're
             
             // Remove track from current queue
             context.queue.splice(currentIndex, 1);
+            console.log(`🔍 [Delete] Removed track from queue, new queue length: ${context.queue.length}`);
             
             // Also remove from original tracks array
             const originalIndex = context.tracks.findIndex(t => t.video_id === currentTrack.video_id);
             if (originalIndex !== -1) {
                 context.tracks.splice(originalIndex, 1);
+                console.log(`🔍 [Delete] Removed track from tracks array at index ${originalIndex}`);
+            } else {
+                console.log(`🔍 [Delete] Track not found in tracks array, skipping removal`);
             }
             
             // Update global queue if updateQueue function is available
             if (context.updateQueue) {
                 console.log(`🔍 [Delete] Updating global queue from ${context.queue.length} tracks`);
-                context.updateQueue(context.queue);
+                // Create a copy of the queue to avoid reference issues
+                const updatedQueue = [...context.queue];
+                if (updatedQueue.length > 0) {
+                    context.updateQueue(updatedQueue);
+                    console.log(`🔍 [Delete] Global queue updated successfully`);
+                } else {
+                    console.warn(`🔍 [Delete] Queue is empty after deletion, skipping updateQueue call`);
+                    // Don't call updateQueue with empty array as it might clear the global queue
+                }
             } else {
                 console.warn(`🔍 [Delete] updateQueue function not available in context`);
             }
@@ -89,6 +101,20 @@ export async function executeDeleteWithoutConfirmation(context, playerType = 're
             
             // Update the list display
             context.renderList();
+            
+            // Update delete button tooltip after successful deletion
+            const deleteCurrentBtn = document.getElementById('deleteCurrentBtn');
+            if (deleteCurrentBtn && deleteCurrentBtn.updateTooltip) {
+                console.log(`🔍 [Delete] Updating delete button tooltip after deletion (executeDeleteWithoutConfirmation)`);
+                // Update the stored context to ensure tooltip gets fresh data
+                if (deleteCurrentBtn.context) {
+                    deleteCurrentBtn.context = context;
+                }
+                // Add a small delay to ensure the new track is loaded
+                setTimeout(() => {
+                    deleteCurrentBtn.updateTooltip();
+                }, 100);
+            }
             
             // Show success message
             context.showNotification(`✅ Track deleted: ${result.message}`, 'success');
@@ -492,7 +518,15 @@ export async function deleteTrack(track, trackIndex, context) {
         let wasCurrentTrack = false;
         let currentTime = 0;
         
-        if (trackIndex === currentIndex && !media.paused) {
+        // Check if this is the currently playing track (more reliable check)
+        const currentIdx = context.getCurrentIndex ? context.getCurrentIndex() : context.currentIndex;
+        const isCurrentlyPlaying = trackIndex === currentIdx && (
+            !media.paused || 
+            media.readyState > 0 || 
+            media.src !== ''
+        );
+        
+        if (isCurrentlyPlaying) {
             wasCurrentTrack = true;
             console.log('🔓 Deleting currently playing track - releasing file lock...');
             
@@ -527,16 +561,28 @@ export async function deleteTrack(track, trackIndex, context) {
             // Remove track from current queue
             queue.splice(trackIndex, 1);
             
-            // Also remove from original tracks array
+            // Also remove from original tracks array (but be more careful)
             const originalIndex = tracks.findIndex(t => t.video_id === track.video_id);
             if (originalIndex !== -1) {
                 tracks.splice(originalIndex, 1);
+                console.log(`🔍 [Delete] Removed track from tracks array at index ${originalIndex}`);
+            } else {
+                console.log(`🔍 [Delete] Track not found in tracks array, skipping removal`);
             }
             
             // Update global queue if updateQueue function is available
+            // Pass the original queue reference, not the modified one
             if (context.updateQueue) {
                 console.log(`🔍 [Delete] Updating global queue from ${queue.length} tracks`);
-                context.updateQueue(queue);
+                // Create a copy of the queue to avoid reference issues
+                const updatedQueue = [...queue];
+                if (updatedQueue.length > 0) {
+                    context.updateQueue(updatedQueue);
+                    console.log(`🔍 [Delete] Global queue updated successfully`);
+                } else {
+                    console.warn(`🔍 [Delete] Queue is empty after deletion, skipping updateQueue call`);
+                    // Don't call updateQueue with empty array as it might clear the global queue
+                }
             } else {
                 console.warn(`🔍 [Delete] updateQueue function not available in context`);
             }
@@ -554,8 +600,8 @@ export async function deleteTrack(track, trackIndex, context) {
                     context.currentIndex--;
                 }
             } else if (trackIndex === currentIdx) {
-                // If we deleted the currently playing track
-                console.log(`🔍 [Delete] Currently playing track deleted`);
+                // If we deleted the currently playing track - AUTO-CONTINUE TO NEXT TRACK
+                console.log(`🔍 [Delete] Currently playing track deleted - auto-continuing to next track`);
                 if (queue.length > 0) {
                     // Since we deleted the current track, we need to play the track at the same index
                     // but the queue has been updated, so we need to handle this carefully
@@ -585,6 +631,20 @@ export async function deleteTrack(track, trackIndex, context) {
             
             // Update the list display
             renderList();
+            
+            // Update delete button tooltip after successful deletion
+            const deleteCurrentBtn = document.getElementById('deleteCurrentBtn');
+            if (deleteCurrentBtn && deleteCurrentBtn.updateTooltip) {
+                console.log(`🔍 [Delete] Updating delete button tooltip after deletion`);
+                // Update the stored context to ensure tooltip gets fresh data
+                if (deleteCurrentBtn.context) {
+                    deleteCurrentBtn.context = context;
+                }
+                // Add a small delay to ensure the new track is loaded
+                setTimeout(() => {
+                    deleteCurrentBtn.updateTooltip();
+                }, 100);
+            }
             
             // Show success message
             showNotification(`✅ Track deleted: ${result.message}`, 'success');
@@ -1061,13 +1121,22 @@ export function setupDeleteCurrentHandler(deleteCurrentBtn, context, playerType 
 
     // Function to update button tooltip with current track info
     const updateButtonTooltip = () => {
-        const currentIndex = typeof context.currentIndex === 'function' ? context.currentIndex() : context.currentIndex;
+        // Get fresh context data each time
+        const deleteCurrentBtn = document.getElementById('deleteCurrentBtn');
+        if (!deleteCurrentBtn) return;
         
-        if (currentIndex >= 0 && currentIndex < context.queue.length) {
-            const currentTrack = context.queue[currentIndex];
+        // Try to get current context from the button's stored context or use the original context
+        const currentContext = deleteCurrentBtn.context || context;
+        
+        const currentIndex = typeof currentContext.currentIndex === 'function' ? currentContext.currentIndex() : currentContext.currentIndex;
+        
+        if (currentIndex >= 0 && currentIndex < currentContext.queue.length) {
+            const currentTrack = currentContext.queue[currentIndex];
             deleteCurrentBtn.title = `Delete current track: ${currentTrack.name.replace(/\s*\[.*?\]$/, '')} (${currentTrack.video_id})`;
+            console.log(`🔍 [Tooltip] Updated tooltip for track: ${currentTrack.name} (${currentTrack.video_id})`);
         } else {
             deleteCurrentBtn.title = 'Delete current track (no track playing)';
+            console.log(`🔍 [Tooltip] Updated tooltip: no track playing`);
         }
     };
 
@@ -1075,16 +1144,19 @@ export function setupDeleteCurrentHandler(deleteCurrentBtn, context, playerType 
     updateButtonTooltip();
 
     deleteCurrentBtn.onclick = async () => {
+        // Get fresh context data each time
+        const currentContext = deleteCurrentBtn.context || context;
+        
         // Get current index value (handle both direct values and functions)
-        const currentIndex = typeof context.currentIndex === 'function' ? context.currentIndex() : context.currentIndex;
+        const currentIndex = typeof currentContext.currentIndex === 'function' ? currentContext.currentIndex() : currentContext.currentIndex;
         
         // Check if there's a current track
-        if (currentIndex < 0 || currentIndex >= context.queue.length) {
-            context.showNotification('❌ No active track to delete', 'error');
+        if (currentIndex < 0 || currentIndex >= currentContext.queue.length) {
+            currentContext.showNotification('❌ No active track to delete', 'error');
             return;
         }
         
-        const currentTrack = context.queue[currentIndex];
+        const currentTrack = currentContext.queue[currentIndex];
         
         // Confirm deletion
         const confirmMessage = `Delete current track "${currentTrack.name.replace(/\s*\[.*?\]$/, '')}" from playlist?\n\nTrack will be moved to trash and can be restored.`;
@@ -1093,7 +1165,7 @@ export function setupDeleteCurrentHandler(deleteCurrentBtn, context, playerType 
         }
         
         // Execute deletion with confirmation
-        await executeDeleteWithoutConfirmation(context, playerType);
+        await executeDeleteWithoutConfirmation(currentContext, playerType);
     };
     
     // Store the function reference for remote commands
@@ -1101,6 +1173,9 @@ export function setupDeleteCurrentHandler(deleteCurrentBtn, context, playerType 
     
     // Store the update function so it can be called when track changes
     deleteCurrentBtn.updateTooltip = updateButtonTooltip;
+    
+    // Store the context for tooltip updates
+    deleteCurrentBtn.context = context;
 }
 
 /**
