@@ -345,7 +345,10 @@ def api_tracks_by_likes(like_count):
             ))
         )
         LEFT JOIN channel_groups cg ON cg.id = ch.channel_group_id
-        WHERE t.video_id NOT IN (SELECT video_id FROM deleted_tracks)
+        WHERE t.video_id NOT IN (
+            SELECT video_id FROM deleted_tracks 
+            WHERE restored_at IS NULL
+        )
             AND (cg.include_in_likes = 1)
         ORDER BY COALESCE(ym.title, t.name)
         """
@@ -475,7 +478,10 @@ def api_like_stats():
             ))
         )
         LEFT JOIN channel_groups cg ON cg.id = ch.channel_group_id
-        WHERE t.video_id NOT IN (SELECT video_id FROM deleted_tracks)
+        WHERE t.video_id NOT IN (
+            SELECT video_id FROM deleted_tracks 
+            WHERE restored_at IS NULL
+        )
             AND (cg.include_in_likes = 1)
         ORDER BY name
         """

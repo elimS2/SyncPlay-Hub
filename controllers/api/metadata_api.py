@@ -38,6 +38,7 @@ def api_scan_missing_metadata():
                     FROM tracks t
                     WHERE t.video_id NOT IN (
                         SELECT dt.video_id FROM deleted_tracks dt
+                        WHERE dt.restored_at IS NULL
                     )
                     ORDER BY t.id ASC
                     """
@@ -50,6 +51,7 @@ def api_scan_missing_metadata():
                     LEFT JOIN youtube_video_metadata yvm ON t.video_id = yvm.youtube_id
                     WHERE t.video_id NOT IN (
                         SELECT dt.video_id FROM deleted_tracks dt
+                        WHERE dt.restored_at IS NULL
                     )
                     AND (
                         yvm.youtube_id IS NULL 
@@ -95,6 +97,7 @@ def api_scan_missing_metadata():
                     SELECT COUNT(*) FROM tracks t
                     WHERE t.video_id NOT IN (
                         SELECT dt.video_id FROM deleted_tracks dt
+                        WHERE dt.restored_at IS NULL
                     )
                 """)
                 total_tracks = cur.fetchone()[0]
@@ -105,6 +108,7 @@ def api_scan_missing_metadata():
                     JOIN youtube_video_metadata yvm ON t.video_id = yvm.youtube_id
                     WHERE t.video_id NOT IN (
                         SELECT dt.video_id FROM deleted_tracks dt
+                        WHERE dt.restored_at IS NULL
                     )
                     AND (yvm.timestamp IS NOT NULL OR yvm.release_timestamp IS NOT NULL)
                 """)
@@ -231,6 +235,7 @@ def api_metadata_statistics():
             SELECT COUNT(*) FROM tracks t
             WHERE t.video_id NOT IN (
                 SELECT dt.video_id FROM deleted_tracks dt
+                WHERE dt.restored_at IS NULL
             )
         """)
         total_tracks = cur.fetchone()[0]
@@ -241,6 +246,7 @@ def api_metadata_statistics():
             JOIN youtube_video_metadata yvm ON t.video_id = yvm.youtube_id
             WHERE t.video_id NOT IN (
                 SELECT dt.video_id FROM deleted_tracks dt
+                WHERE dt.restored_at IS NULL
             )
             AND (yvm.timestamp IS NOT NULL OR yvm.release_timestamp IS NOT NULL)
         """)

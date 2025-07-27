@@ -4,6 +4,7 @@ import json
 import shutil
 from pathlib import Path
 from flask import Blueprint, request, jsonify
+import datetime
 
 from .shared import get_connection, log_message, get_root_dir, record_event, _format_file_size
 import database as db
@@ -166,16 +167,114 @@ def api_restore_track():
         cursor = conn.cursor()
         cursor.execute("""
             SELECT * FROM deleted_tracks 
-            WHERE id = ? AND restored_at IS NULL
+            WHERE id = ?
         """, (track_id,))
         
         track_info = cursor.fetchone()
         if not track_info:
             conn.close()
-            return jsonify({"status": "error", "error": "Track not found or already restored"}), 404
+            return jsonify({
+                "status": "error", 
+                "error": "Track not found in database",
+                "diagnostic": "No record with this ID exists in deleted_tracks table",
+                "track_id": track_id
+            }), 404
         
         # Convert to dict for easier access
         track_dict = dict(track_info)
+        
+        # Detailed diagnostics
+        diagnostic_info = {
+            'exists': True,
+            'id': track_dict.get('id'),
+            'video_id': track_dict.get('video_id'),
+            'restored_at': track_dict.get('restored_at'),
+            'can_restore': track_dict.get('can_restore'),
+            'trash_path': track_dict.get('trash_path'),
+            'original_relpath': track_dict.get('original_relpath')
+        }
+        
+        # Check if can be restored (for file_restore method)
+        if restore_method in ['file', 'file_restore'] and not track_dict.get('can_restore', False):
+            # Check where the restored file should be located
+            original_relpath = track_dict.get('original_relpath', '')
+            restored_file_path = None
+            file_exists = False
+            file_size = None
+            
+            if original_relpath:
+                root_dir = get_root_dir()
+                if root_dir:
+                    full_restored_path = root_dir / original_relpath
+                    restored_file_path = str(full_restored_path)
+                    file_exists = full_restored_path.exists()
+                    if file_exists:
+                        try:
+                            file_size = full_restored_path.stat().st_size
+                        except:
+                            file_size = None
+            
+            # If file doesn't exist, allow restoration even if can_restore = 0
+            if not file_exists:
+                log_message(f"[Restore] DEBUG: Track {track_id} has can_restore=0 but file not found, allowing re-restoration")
+                log_message(f"[Restore] DEBUG: Expected path: {restored_file_path}")
+                log_message(f"[Restore] DEBUG: File exists: {file_exists}")
+                # Continue with restoration process instead of returning error
+            else:
+                # File exists, so it's truly cannot be restored
+                conn.close()
+                return jsonify({
+                    "status": "error", 
+                    "error": "Track cannot be restored from file",
+                    "diagnostic": f"can_restore = {track_dict.get('can_restore')}",
+                    "details": diagnostic_info,
+                    "track_id": track_id,
+                    "restored_file_path": restored_file_path,
+                    "file_exists": file_exists,
+                    "file_size": file_size,
+                    "restored_at": track_dict.get('restored_at')
+                }), 400
+        
+        # Check if already restored
+        if track_dict.get('restored_at') is not None:
+            # Check where the restored file should be located
+            original_relpath = track_dict.get('original_relpath', '')
+            restored_file_path = None
+            file_exists = False
+            file_size = None
+            
+            if original_relpath:
+                root_dir = get_root_dir()
+                if root_dir:
+                    full_restored_path = root_dir / original_relpath
+                    restored_file_path = str(full_restored_path)
+                    file_exists = full_restored_path.exists()
+                    if file_exists:
+                        try:
+                            file_size = full_restored_path.stat().st_size
+                        except:
+                            file_size = None
+            
+            # If file doesn't exist, allow restoration even if marked as restored
+            if not file_exists:
+                log_message(f"[Restore] DEBUG: Track {track_id} marked as restored but file not found, allowing re-restoration")
+                log_message(f"[Restore] DEBUG: Expected path: {restored_file_path}")
+                log_message(f"[Restore] DEBUG: File exists: {file_exists}")
+                # Continue with restoration process instead of returning error
+            else:
+                # File exists, so it's truly already restored
+                conn.close()
+                return jsonify({
+                    "status": "error", 
+                    "error": "Track already restored",
+                    "diagnostic": f"restored_at = {track_dict.get('restored_at')}",
+                    "details": diagnostic_info,
+                    "track_id": track_id,
+                    "restored_file_path": restored_file_path,
+                    "file_exists": file_exists,
+                    "file_size": file_size,
+                    "restored_at": track_dict.get('restored_at')
+                }), 400
         
         log_message(f"[Restore] DEBUG: Found track to restore:")
         log_message(f"  - video_id: {track_dict.get('video_id')}")
@@ -184,6 +283,17 @@ def api_restore_track():
         log_message(f"  - channel_group: {track_dict.get('channel_group')}")
         log_message(f"  - trash_path: {track_dict.get('trash_path')}")
         log_message(f"  - can_restore: {track_dict.get('can_restore')}")
+        log_message(f"  - restored_at: {track_dict.get('restored_at')}")
+        
+        # Special case: re-restoring a track that was marked as restored but file is missing
+        if track_dict.get('restored_at') is not None:
+            log_message(f"[Restore] INFO: Re-restoring track {track_id} - was marked as restored but file is missing")
+            log_message(f"[Restore] INFO: This will overwrite the restored_at timestamp")
+        
+        # Special case: re-restoring a track that has can_restore=0 but file is missing
+        if track_dict.get('can_restore') == 0:
+            log_message(f"[Restore] INFO: Re-restoring track {track_id} - has can_restore=0 but file is missing")
+            log_message(f"[Restore] INFO: This will overwrite the can_restore flag")
         
         # Determine target folder for restoration
         original_path = track_dict.get('original_relpath', '')
@@ -306,14 +416,198 @@ def api_restore_track():
         
         # Handle file restoration method (restore from trash folder)
         elif restore_method in ['file', 'file_restore']:
-            # TODO: Implement file restoration from trash folder
             log_message(f"[Restore] DEBUG: File restoration method selected")
             log_message(f"[Restore] DEBUG: Would restore from trash_path: {track_dict.get('trash_path')}")
             
-            # For now, just mark as restored in database
+            trash_path = track_dict.get('trash_path')
+            if not trash_path:
+                # Get path information for error message
+                original_relpath = track_dict.get('original_relpath', '')
+                restored_file_path = None
+                file_exists = False
+                file_size = None
+                
+                if original_relpath:
+                    root_dir = get_root_dir()
+                    if root_dir:
+                        full_restored_path = root_dir / original_relpath
+                        restored_file_path = str(full_restored_path)
+                        file_exists = full_restored_path.exists()
+                        if file_exists:
+                            try:
+                                file_size = full_restored_path.stat().st_size
+                            except:
+                                file_size = None
+                
+                conn.close()
+                return jsonify({
+                    "status": "error", 
+                    "error": "No trash path available for restoration",
+                    "diagnostic": "trash_path is NULL or empty",
+                    "details": diagnostic_info,
+                    "track_id": track_id,
+                    "restored_file_path": restored_file_path,
+                    "file_exists": file_exists,
+                    "file_size": file_size,
+                    "restored_at": track_dict.get('restored_at')
+                }), 400
+            
+            # Get root directory
+            root_dir = get_root_dir()
+            if not root_dir:
+                # Get path information for error message
+                original_relpath = track_dict.get('original_relpath', '')
+                restored_file_path = None
+                file_exists = False
+                file_size = None
+                
+                if original_relpath:
+                    # Try to construct path even without root_dir
+                    restored_file_path = f"ERROR: root_dir not available / {original_relpath}"
+                
+                conn.close()
+                return jsonify({
+                    "status": "error", 
+                    "error": "Server configuration error",
+                    "diagnostic": "get_root_dir() returned None",
+                    "details": diagnostic_info,
+                    "track_id": track_id,
+                    "restored_file_path": restored_file_path,
+                    "file_exists": file_exists,
+                    "file_size": file_size,
+                    "restored_at": track_dict.get('restored_at')
+                }), 500
+            
+            # Construct full paths
+            full_trash_path = root_dir.parent / trash_path  # trash_path is relative to root_dir.parent
+            original_relpath = track_dict.get('original_relpath', '')
+            
+            if not original_relpath:
+                conn.close()
+                return jsonify({
+                    "status": "error", 
+                    "error": "No original path available for restoration",
+                    "diagnostic": "original_relpath is NULL or empty",
+                    "details": diagnostic_info,
+                    "track_id": track_id,
+                    "restored_file_path": None,
+                    "file_exists": False,
+                    "file_size": None,
+                    "restored_at": track_dict.get('restored_at')
+                }), 400
+            
+            full_original_path = root_dir / original_relpath
+            
+            log_message(f"[Restore] DEBUG: Full paths:")
+            log_message(f"  - Trash file: {full_trash_path}")
+            log_message(f"  - Original destination: {full_original_path}")
+            
+            # Check if trash file exists
+            if not full_trash_path.exists():
+                log_message(f"[Restore] ERROR: Trash file not found: {full_trash_path}")
+                conn.close()
+                return jsonify({
+                    "status": "error", 
+                    "error": "File not found in trash folder",
+                    "diagnostic": f"trash file missing: {full_trash_path}",
+                    "details": diagnostic_info,
+                    "track_id": track_id,
+                    "restored_file_path": str(full_original_path),
+                    "file_exists": full_original_path.exists(),
+                    "file_size": full_original_path.stat().st_size if full_original_path.exists() else None,
+                    "restored_at": track_dict.get('restored_at'),
+                    "trash_path": str(full_trash_path)
+                }), 404
+            
+            # Create target directory if it doesn't exist
+            target_dir = full_original_path.parent
+            try:
+                target_dir.mkdir(parents=True, exist_ok=True)
+                log_message(f"[Restore] DEBUG: Created target directory: {target_dir}")
+            except Exception as e:
+                log_message(f"[Restore] ERROR: Failed to create target directory: {e}")
+                conn.close()
+                return jsonify({
+                    "status": "error", 
+                    "error": f"Failed to create target directory: {e}",
+                    "diagnostic": f"mkdir failed for: {target_dir}",
+                    "details": diagnostic_info,
+                    "track_id": track_id,
+                    "restored_file_path": str(full_original_path),
+                    "file_exists": False,
+                    "file_size": None,
+                    "restored_at": track_dict.get('restored_at'),
+                    "target_dir": str(target_dir)
+                }), 500
+            
+            # Check if target file already exists
+            if full_original_path.exists():
+                # Generate unique filename to avoid conflicts
+                timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+                name_parts = full_original_path.name.rsplit('.', 1)
+                if len(name_parts) == 2:
+                    new_name = f"{name_parts[0]}_restored_{timestamp}.{name_parts[1]}"
+                else:
+                    new_name = f"{full_original_path.name}_restored_{timestamp}"
+                full_original_path = target_dir / new_name
+                log_message(f"[Restore] DEBUG: Target file exists, using new name: {new_name}")
+            
+            # Move file from trash back to original location
+            try:
+                log_message(f"[Restore] DEBUG: Moving file from trash to original location")
+                log_message(f"[Restore] DEBUG: Source: {full_trash_path}")
+                log_message(f"[Restore] DEBUG: Target: {full_original_path}")
+                
+                # Use shutil.move for reliable file operations
+                shutil.move(str(full_trash_path), str(full_original_path))
+                
+                log_message(f"[Restore] SUCCESS: File restored successfully")
+                log_message(f"[Restore] DEBUG: File moved to: {full_original_path}")
+                
+                # Verify file was moved successfully
+                if not full_original_path.exists():
+                    log_message(f"[Restore] ERROR: File not found after move")
+                    conn.close()
+                    return jsonify({
+                        "status": "error", 
+                        "error": "File restoration failed - file not found after move",
+                        "diagnostic": f"file missing after move: {str(full_original_path)}",
+                        "details": diagnostic_info,
+                        "track_id": track_id,
+                        "restored_file_path": str(full_original_path),
+                        "file_exists": False,
+                        "file_size": None,
+                        "restored_at": track_dict.get('restored_at'),
+                        "trash_path": str(full_trash_path)
+                    }), 500
+                
+                # Get file size for verification
+                restored_file_size = full_original_path.stat().st_size
+                log_message(f"[Restore] DEBUG: Restored file size: {restored_file_size} bytes")
+                
+            except Exception as e:
+                log_message(f"[Restore] ERROR: Failed to move file from trash: {e}")
+                conn.close()
+                return jsonify({
+                    "status": "error", 
+                    "error": f"Failed to restore file from trash: {e}",
+                    "diagnostic": f"shutil.move failed: {str(full_trash_path)} -> {str(full_original_path)}",
+                    "details": diagnostic_info,
+                    "track_id": track_id,
+                    "restored_file_path": str(full_original_path),
+                    "file_exists": full_original_path.exists(),
+                    "file_size": full_original_path.stat().st_size if full_original_path.exists() else None,
+                    "restored_at": track_dict.get('restored_at'),
+                    "trash_path": str(full_trash_path)
+                }), 500
+            
+            # Mark as restored in database
             result = db.restore_deleted_track(conn, track_id)
             
             if result:
+                if track_dict.get('restored_at') is not None:
+                    log_message(f"[Restore] SUCCESS: Re-restored track {track_id} (was marked as restored but file was missing)")
+                else:
                 log_message(f"[Restore] Track {track_id} marked as restored (method: {restore_method})")
                 
                 # Record event for file restoration
@@ -330,7 +624,9 @@ def api_restore_track():
                         "method": restore_method,
                         "original_relpath": track_dict.get('original_relpath'),
                         "trash_path": track_dict.get('trash_path'),
-                        "note": "File restoration method selected but not fully implemented yet"
+                        "restored_file_path": str(full_original_path),
+                        "restored_file_size": restored_file_size,
+                        "restoration_successful": True
                     })
                     
                     record_event(
@@ -347,12 +643,18 @@ def api_restore_track():
                 
                 conn.close()
                 return jsonify({
-                    "status": "placeholder", 
-                    "message": f"Track marked as restored from file",
+                    "status": "ok", 
+                    "message": f"Track restored successfully from trash" + (" (re-restored - file was missing)" if track_dict.get('restored_at') is not None else ""),
                     "track_id": track_id,
                     "method": restore_method,
                     "target_folder": target_folder,
-                    "note": "File restoration implementation coming in Phase 4.2"
+                    "restored_file_path": str(full_original_path),
+                    "restored_file_size": restored_file_size,
+                    "trash_path": trash_path,
+                    "original_relpath": original_relpath,
+                    "full_trash_path": str(full_trash_path),
+                    "full_original_path": str(full_original_path),
+                    "was_re_restored": track_dict.get('restored_at') is not None
                 })
             else:
                 conn.close()
@@ -394,22 +696,115 @@ def api_bulk_restore_tracks():
         
         for track_id in track_ids:
             try:
-                # Get track info
+                # Get track info with detailed diagnostics
                 cursor = conn.cursor()
                 cursor.execute("""
                     SELECT * FROM deleted_tracks 
-                    WHERE id = ? AND restored_at IS NULL
+                    WHERE id = ?
                 """, (track_id,))
                 
                 track_info = cursor.fetchone()
                 if not track_info:
+                    # Track doesn't exist at all
                     failed_tracks.append({
                         'track_id': track_id,
-                        'error': 'Track not found or already restored'
+                        'error': 'Track not found in database',
+                        'diagnostic': 'No record with this ID exists in deleted_tracks table'
                     })
                     continue
                 
                 track_dict = dict(track_info)
+                
+                # Detailed diagnostics
+                diagnostic_info = {
+                    'exists': True,
+                    'id': track_dict.get('id'),
+                    'video_id': track_dict.get('video_id'),
+                    'restored_at': track_dict.get('restored_at'),
+                    'can_restore': track_dict.get('can_restore'),
+                    'trash_path': track_dict.get('trash_path'),
+                    'original_relpath': track_dict.get('original_relpath')
+                }
+                
+                # Check if already restored
+                if track_dict.get('restored_at') is not None:
+                    # Check where the restored file should be located
+                    original_relpath = track_dict.get('original_relpath', '')
+                    restored_file_path = None
+                    file_exists = False
+                    file_size = None
+                    
+                    if original_relpath:
+                        root_dir = get_root_dir()
+                        if root_dir:
+                            full_restored_path = root_dir / original_relpath
+                            restored_file_path = str(full_restored_path)
+                            file_exists = full_restored_path.exists()
+                            if file_exists:
+                                try:
+                                    file_size = full_restored_path.stat().st_size
+                                except:
+                                    file_size = None
+                    
+                    # If file doesn't exist, allow restoration even if marked as restored
+                    if not file_exists:
+                        log_message(f"[Restore] DEBUG: Track {track_id} marked as restored but file not found, allowing re-restoration")
+                        log_message(f"[Restore] DEBUG: Expected path: {restored_file_path}")
+                        log_message(f"[Restore] DEBUG: File exists: {file_exists}")
+                        # Continue with restoration process instead of adding to failed_tracks
+                    else:
+                        # File exists, so it's truly already restored
+                        failed_tracks.append({
+                            'track_id': track_id,
+                            'error': 'Track already restored',
+                            'diagnostic': f"restored_at = {track_dict.get('restored_at')}",
+                            'details': diagnostic_info,
+                            'restored_file_path': restored_file_path,
+                            'file_exists': file_exists,
+                            'file_size': file_size,
+                            'restored_at': track_dict.get('restored_at')
+                        })
+                        continue
+                
+                # Check if can be restored (for file_restore method)
+                if restore_method in ['file', 'file_restore'] and not track_dict.get('can_restore', False):
+                    # Check where the restored file should be located
+                    original_relpath = track_dict.get('original_relpath', '')
+                    restored_file_path = None
+                    file_exists = False
+                    file_size = None
+                    
+                    if original_relpath:
+                        root_dir = get_root_dir()
+                        if root_dir:
+                            full_restored_path = root_dir / original_relpath
+                            restored_file_path = str(full_restored_path)
+                            file_exists = full_restored_path.exists()
+                            if file_exists:
+                                try:
+                                    file_size = full_restored_path.stat().st_size
+                                except:
+                                    file_size = None
+                    
+                    # If file doesn't exist, allow restoration even if can_restore = 0
+                    if not file_exists:
+                        log_message(f"[Restore] DEBUG: Track {track_id} has can_restore=0 but file not found, allowing re-restoration")
+                        log_message(f"[Restore] DEBUG: Expected path: {restored_file_path}")
+                        log_message(f"[Restore] DEBUG: File exists: {file_exists}")
+                        # Continue with restoration process instead of adding to failed_tracks
+                    else:
+                        # File exists, so it's truly cannot be restored
+                        failed_tracks.append({
+                            'track_id': track_id,
+                            'error': 'Track cannot be restored from file',
+                            'diagnostic': f"can_restore = {track_dict.get('can_restore')}",
+                            'details': diagnostic_info,
+                            'restored_file_path': restored_file_path,
+                            'file_exists': file_exists,
+                            'file_size': file_size,
+                            'restored_at': track_dict.get('restored_at')
+                        })
+                        continue
                 
                 # Determine target folder (cross-platform)
                 original_path = track_dict.get('original_relpath', '')
@@ -503,7 +898,160 @@ def api_bulk_restore_tracks():
                         })
                         
                 else:  # file_restore
-                    # TODO: Implement file restoration
+                    # Implement file restoration from trash
+                    log_message(f"[Restore] DEBUG: Bulk file restoration for track {track_id}")
+                    
+                    trash_path = track_dict.get('trash_path')
+                    if not trash_path:
+                        # Get path information for error message
+                        original_relpath = track_dict.get('original_relpath', '')
+                        restored_file_path = None
+                        file_exists = False
+                        file_size = None
+                        
+                        if original_relpath:
+                            root_dir = get_root_dir()
+                            if root_dir:
+                                full_restored_path = root_dir / original_relpath
+                                restored_file_path = str(full_restored_path)
+                                file_exists = full_restored_path.exists()
+                                if file_exists:
+                                    try:
+                                        file_size = full_restored_path.stat().st_size
+                                    except:
+                                        file_size = None
+                        
+                        failed_tracks.append({
+                            'track_id': track_id,
+                            'error': 'No trash path available for restoration',
+                            'diagnostic': 'trash_path is NULL or empty',
+                            'details': diagnostic_info,
+                            'restored_file_path': restored_file_path,
+                            'file_exists': file_exists,
+                            'file_size': file_size,
+                            'restored_at': track_dict.get('restored_at')
+                        })
+                        continue
+                    
+                    # Get root directory
+                    root_dir = get_root_dir()
+                    if not root_dir:
+                        # Get path information for error message
+                        original_relpath = track_dict.get('original_relpath', '')
+                        restored_file_path = None
+                        file_exists = False
+                        file_size = None
+                        
+                        if original_relpath:
+                            # Try to construct path even without root_dir
+                            restored_file_path = f"ERROR: root_dir not available / {original_relpath}"
+                        
+                        failed_tracks.append({
+                            'track_id': track_id,
+                            'error': 'Server configuration error',
+                            'diagnostic': 'get_root_dir() returned None',
+                            'details': diagnostic_info,
+                            'restored_file_path': restored_file_path,
+                            'file_exists': file_exists,
+                            'file_size': file_size,
+                            'restored_at': track_dict.get('restored_at')
+                        })
+                        continue
+                    
+                    # Construct full paths
+                    full_trash_path = root_dir.parent / trash_path  # trash_path is relative to root_dir.parent
+                    original_relpath = track_dict.get('original_relpath', '')
+                    
+                    if not original_relpath:
+                        failed_tracks.append({
+                            'track_id': track_id,
+                            'error': 'No original path available for restoration',
+                            'diagnostic': 'original_relpath is NULL or empty',
+                            'details': diagnostic_info,
+                            'restored_file_path': None,
+                            'file_exists': False,
+                            'file_size': None,
+                            'restored_at': track_dict.get('restored_at')
+                        })
+                        continue
+                    
+                    full_original_path = root_dir / original_relpath
+                    
+                    log_message(f"[Restore] DEBUG: Bulk restore paths for track {track_id}:")
+                    log_message(f"  - Trash file: {full_trash_path}")
+                    log_message(f"  - Original destination: {full_original_path}")
+                    
+                    # Check if trash file exists
+                    if not full_trash_path.exists():
+                        failed_tracks.append({
+                            'track_id': track_id,
+                            'error': 'File not found in trash folder',
+                            'diagnostic': f'trash file missing: {full_trash_path}',
+                            'details': diagnostic_info,
+                            'restored_file_path': str(full_original_path),
+                            'file_exists': full_original_path.exists(),
+                            'file_size': full_original_path.stat().st_size if full_original_path.exists() else None,
+                            'restored_at': track_dict.get('restored_at'),
+                            'trash_path': str(full_trash_path)
+                        })
+                        continue
+                    
+                    # Create target directory if it doesn't exist
+                    target_dir = full_original_path.parent
+                    try:
+                        target_dir.mkdir(parents=True, exist_ok=True)
+                        log_message(f"[Restore] DEBUG: Created target directory for track {track_id}: {target_dir}")
+                    except Exception as e:
+                        failed_tracks.append({
+                            'track_id': track_id,
+                            'error': f'Failed to create target directory: {e}'
+                        })
+                        continue
+                    
+                    # Check if target file already exists
+                    if full_original_path.exists():
+                        # Generate unique filename to avoid conflicts
+                        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+                        name_parts = full_original_path.name.rsplit('.', 1)
+                        if len(name_parts) == 2:
+                            new_name = f"{name_parts[0]}_restored_{timestamp}.{name_parts[1]}"
+                        else:
+                            new_name = f"{full_original_path.name}_restored_{timestamp}"
+                        full_original_path = target_dir / new_name
+                        log_message(f"[Restore] DEBUG: Target file exists for track {track_id}, using new name: {new_name}")
+                    
+                    # Move file from trash back to original location
+                    try:
+                        log_message(f"[Restore] DEBUG: Moving file from trash for track {track_id}")
+                        log_message(f"[Restore] DEBUG: Source: {full_trash_path}")
+                        log_message(f"[Restore] DEBUG: Target: {full_original_path}")
+                        
+                        # Use shutil.move for reliable file operations
+                        shutil.move(str(full_trash_path), str(full_original_path))
+                        
+                        log_message(f"[Restore] SUCCESS: File restored successfully for track {track_id}")
+                        log_message(f"[Restore] DEBUG: File moved to: {full_original_path}")
+                        
+                        # Verify file was moved successfully
+                        if not full_original_path.exists():
+                            failed_tracks.append({
+                                'track_id': track_id,
+                                'error': 'File restoration failed - file not found after move'
+                            })
+                            continue
+                        
+                        # Get file size for verification
+                        restored_file_size = full_original_path.stat().st_size
+                        log_message(f"[Restore] DEBUG: Restored file size for track {track_id}: {restored_file_size} bytes")
+                        
+                    except Exception as e:
+                        failed_tracks.append({
+                            'track_id': track_id,
+                            'error': f'Failed to restore file from trash: {e}'
+                        })
+                        continue
+                    
+                    # Mark as restored in database
                     db.restore_deleted_track(conn, track_id)
                     
                     # Record event for bulk file restoration
@@ -520,8 +1068,10 @@ def api_bulk_restore_tracks():
                             "method": restore_method,
                             "original_relpath": track_dict.get('original_relpath'),
                             "trash_path": track_dict.get('trash_path'),
-                            "bulk_operation": True,
-                            "note": "File restoration method selected but not fully implemented yet"
+                            "restored_file_path": str(full_original_path),
+                            "restored_file_size": restored_file_size,
+                            "restoration_successful": True,
+                            "bulk_operation": True
                         })
                         
                         record_event(
@@ -541,8 +1091,15 @@ def api_bulk_restore_tracks():
                         'job_id': None,
                         'video_id': track_dict.get('video_id'),
                         'target_folder': target_folder,
-                        'note': 'File restoration not yet implemented'
+                        'restored_file_path': str(full_original_path),
+                        'restored_file_size': restored_file_size,
+                        'trash_path': trash_path,
+                        'original_relpath': original_relpath,
+                        'full_trash_path': str(full_trash_path),
+                        'full_original_path': str(full_original_path)
                     })
+                    
+                    log_message(f"[Restore] Bulk: Successfully restored file for track {track_id} ({track_dict.get('video_id')})")
                     
             except Exception as e:
                 failed_tracks.append({

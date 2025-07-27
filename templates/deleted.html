@@ -560,20 +560,59 @@
                 });
 
                 const data = await response.json();
+                console.log('[Restore] API Response:', data); // Debug logging
                 if (data.status === 'ok') {
                     let successMessage = `Track restored successfully using ${method === 'file_restore' ? 'file restoration' : 're-download'}`;
                     if (method === 'redownload' && data.job_id) {
                         successMessage += `\n\nDownload job #${data.job_id} created and added to queue.`;
                         successMessage += `\nCheck the Jobs page to monitor download progress.`;
+                    } else if (method === 'file_restore' && data.restored_file_path) {
+                        successMessage += `\n\nFile restored to: ${data.restored_file_path}`;
+                        if (data.restored_file_size) {
+                            successMessage += `\nFile size: ${formatFileSize(data.restored_file_size)}`;
+                        }
+                        // Show detailed path information if available
+                        if (data.trash_path) {
+                            successMessage += `\n\nPath details:`;
+                            successMessage += `\nFrom trash: ${data.trash_path}`;
+                            successMessage += `\nTo original: ${data.restored_file_path}`;
+                            if (data.full_trash_path && data.full_original_path) {
+                                successMessage += `\n\nFull paths:`;
+                                successMessage += `\nFrom: ${data.full_trash_path}`;
+                                successMessage += `\nTo: ${data.full_original_path}`;
+                            }
+                        }
                     }
                     showSuccess(successMessage);
                     loadDeletedTracks(); // Refresh the list
-                } else if (data.status === 'placeholder') {
-                    // Handle placeholder response for methods not fully implemented
-                    showSuccess(data.message + '\n\n' + (data.note || ''));
-                    loadDeletedTracks(); // Refresh the list
                 } else {
-                    showError('Restore failed: ' + (data.message || data.error || 'Unknown error'));
+                    let errorMessage = 'Restore failed: ' + (data.message || data.error || 'Unknown error');
+                    if (data.diagnostic) {
+                        errorMessage += '\n\nDiagnostic: ' + data.diagnostic;
+                    }
+                    if (data.details) {
+                        errorMessage += '\n\nDetails:';
+                        errorMessage += '\n- ID: ' + data.details.id;
+                        errorMessage += '\n- Video ID: ' + data.details.video_id;
+                        errorMessage += '\n- Restored at: ' + (data.details.restored_at || 'NULL');
+                        errorMessage += '\n- Can restore: ' + data.details.can_restore;
+                        errorMessage += '\n- Trash path: ' + (data.details.trash_path || 'NULL');
+                    }
+                    
+                    // Show restored file location if available
+                    if (data.restored_file_path) {
+                        errorMessage += '\n\nRestored file location:';
+                        errorMessage += '\n📁 Full path: ' + data.restored_file_path;
+                        if (data.file_exists) {
+                            errorMessage += '\n✅ File exists: YES';
+                            if (data.file_size) {
+                                errorMessage += '\n📏 File size: ' + formatFileSize(data.file_size);
+                            }
+                        } else {
+                            errorMessage += '\n❌ File exists: NO (file may have been moved or deleted)';
+                        }
+                    }
+                    showError(errorMessage);
                 }
             } catch (error) {
                 showError('Network error: ' + error.message);
@@ -617,6 +656,7 @@
                 });
 
                 const data = await response.json();
+                console.log('[Bulk Restore] API Response:', data); // Debug logging
                 
                 if (data.status === 'ok') {
                     const { total_successful, total_failed, successful_jobs, failed_tracks } = data;
@@ -626,6 +666,26 @@
                         if (method === 'redownload') {
                             successMessage += `\n\n${total_successful} download jobs created and added to queue.`;
                             successMessage += `\nCheck the Jobs page to monitor download progress.`;
+                        } else if (method === 'file_restore') {
+                            successMessage += `\n\nFiles restored from trash to their original locations.`;
+                            // Show details for first few successful restorations
+                            const fileRestorations = successful_jobs.filter(job => job.restored_file_path);
+                            if (fileRestorations.length > 0) {
+                                successMessage += `\n\nRestored files:`;
+                                fileRestorations.slice(0, 3).forEach(job => {
+                                    successMessage += `\n- ${job.restored_file_path}`;
+                                    if (job.restored_file_size) {
+                                        successMessage += ` (${formatFileSize(job.restored_file_size)})`;
+                                    }
+                                    // Show detailed path info for first file
+                                    if (job === fileRestorations[0] && job.trash_path) {
+                                        successMessage += `\n  From: ${job.trash_path}`;
+                                    }
+                                });
+                                if (fileRestorations.length > 3) {
+                                    successMessage += `\n... and ${fileRestorations.length - 3} more files`;
+                                }
+                            }
                         }
                         showSuccess(successMessage);
                     }
@@ -636,6 +696,24 @@
                             errorMessage += '\n\nErrors:';
                             failed_tracks.slice(0, 5).forEach(failure => {
                                 errorMessage += `\n- Track ${failure.track_id}: ${failure.error}`;
+                                if (failure.diagnostic) {
+                                    errorMessage += `\n  Diagnostic: ${failure.diagnostic}`;
+                                }
+                                if (failure.details) {
+                                    errorMessage += `\n  Details: ID=${failure.details.id}, restored_at=${failure.details.restored_at}, can_restore=${failure.details.can_restore}`;
+                                }
+                                if (failure.restored_file_path) {
+                                    errorMessage += `\n  📁 Restored file: ${failure.restored_file_path}`;
+                                    if (failure.file_exists) {
+                                        errorMessage += ` (✅ exists`;
+                                        if (failure.file_size) {
+                                            errorMessage += `, ${formatFileSize(failure.file_size)}`;
+                                        }
+                                        errorMessage += `)`;
+                                    } else {
+                                        errorMessage += ` (❌ not found)`;
+                                    }
+                                }
                             });
                             if (failed_tracks.length > 5) {
                                 errorMessage += `\n... and ${failed_tracks.length - 5} more errors`;
@@ -785,6 +863,14 @@ Local (${timezone}): ${localTime}`;
         function showError(message) {
             // Simple alert for now - could be replaced with toast notifications
             alert('❌ ' + message);
+        }
+
+        function formatFileSize(bytes) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
         }
 
         // Trash management functions
