@@ -263,6 +263,17 @@ async function reSetupHandlers(newQueue, tracks, getCurrentIndex, playIndex, pla
       }, playlistType);
     });
   }
+  
+  // Re-setup YouTube button handler with updated queue
+  const cYoutube = document.getElementById('cYoutube');
+  if (cYoutube) {
+    import('/static/js/modules/controls.js').then(({ setupYouTubeHandler }) => {
+      setupYouTubeHandler(cYoutube, {
+        currentIndex: getCurrentIndex,
+        queue: newQueue
+      });
+    });
+  }
 }
 
 /**
