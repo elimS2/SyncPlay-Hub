@@ -113,13 +113,23 @@ export {
 
 // Re-export from playlist-layout-manager.js
 export {
-    LAYOUT_MODES,
-    applyLayoutMode,
-    cycleLayoutMode,
-    getCurrentLayoutMode,
-    setupLayoutToggleButton,
-    initializePlaylistLayoutManager
+  LAYOUT_MODES,
+  applyLayoutMode,
+  cycleLayoutMode,
+  getCurrentLayoutMode,
+  setupLayoutToggleButton,
+  initializePlaylistLayoutManager
 } from './playlist-layout-manager.js';
+
+// Re-export from track-order-manager.js
+export {
+  ORDER_MODES,
+  applyOrderMode,
+  cycleOrderMode,
+  getCurrentOrderMode,
+  setupOrderToggleButton,
+  initializeTrackOrderManager
+} from './track-order-manager.js';
 
 // Legacy compatibility - re-export everything from the original player-utils.js
 // This ensures existing imports continue to work during the transition

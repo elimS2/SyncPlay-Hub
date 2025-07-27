@@ -57,17 +57,9 @@
       {% endif %}
       
       <!-- Control buttons -->
-      <button id="shuffleBtn" class="modern-btn modern-btn-accent">
-        <span class="icon icon-shuffle"></span>
-        <span>Shuffle</span>
-      </button>
-      <button id="smartShuffleBtn" class="modern-btn modern-btn-accent">
-        <span class="icon icon-smart-shuffle"></span>
-        <span>Smart</span>
-      </button>
-      <button id="orderByDateBtn" class="modern-btn modern-btn-accent">
-        <span class="icon icon-order-by-date"></span>
-        <span>Order by Date</span>
+      <button id="orderBtn" class="modern-btn modern-btn-accent" title="Toggle track order (Shuffle/Smart/Date)">
+        <span class="icon icon-order"></span>
+        <span>Order: Shuffle</span>
       </button>
       {% if show_stop|default(false) %}
       <button id="stopBtn" class="modern-btn modern-btn-danger" style="display: none;">

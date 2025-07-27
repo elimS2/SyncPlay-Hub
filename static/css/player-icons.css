@@ -83,4 +83,8 @@
 
 .icon-layout {
   background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg width='20' height='20' viewBox='0 0 24 24' fill='none' stroke='%23ffffff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' xmlns='http://www.w3.org/2000/svg'%3E%3Crect x='3' y='3' width='7' height='9'%3E%3C/rect%3E%3Crect x='14' y='3' width='7' height='9'%3E%3C/rect%3E%3Crect x='14' y='12' width='7' height='9'%3E%3C/rect%3E%3Crect x='3' y='12' width='7' height='9'%3E%3C/rect%3E%3C/svg%3E");
+}
+
+.icon-order {
+  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg width='20' height='20' viewBox='0 0 24 24' fill='none' stroke='%23ffffff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M3 6h18'%3E%3C/path%3E%3Cpath d='M7 12h14'%3E%3C/path%3E%3Cpath d='M10 18h11'%3E%3C/path%3E%3Cpath d='M3 6l3 3-3 3'%3E%3C/path%3E%3C/svg%3E");
 } 

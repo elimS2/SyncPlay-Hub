@@ -563,62 +563,81 @@ def api_save_display_preference():
     try:
         conn = get_connection()
         
-        # Check if playlist exists
-        row = db.get_playlist_by_relpath(conn, relpath)
-        if not row:
+        # Check if this is a virtual playlist
+        is_virtual = relpath.startswith("virtual_")
+        
+        if is_virtual:
+            # Handle virtual playlist preference
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT OR REPLACE INTO virtual_playlist_preferences 
+                (relpath, display_preferences, updated_at) 
+                VALUES (?, ?, CURRENT_TIMESTAMP)
+            """, (relpath, preference))
+            
+            conn.commit()
             conn.close()
-            return jsonify({"status": "error", "message": "playlist not found"}), 404
+            
+            log_message(f"[Virtual Playlist Preferences] Saved '{preference}' for virtual playlist '{relpath}'")
+            return jsonify({"status": "ok", "message": f"Virtual playlist preference saved: {preference}"})
+        else:
+            # Handle regular playlist preference
+            # Check if playlist exists
+            row = db.get_playlist_by_relpath(conn, relpath)
+            if not row:
+                conn.close()
+                return jsonify({"status": "error", "message": "playlist not found"}), 404
 
-        playlist_name = row["name"]
-        
-        # Update display preference for playlist
-        conn.execute("UPDATE playlists SET display_preferences=? WHERE relpath=?", (preference, relpath))
-        
-        # Check if there's a channel group with the same name
-        cursor = conn.cursor()
-        cursor.execute("SELECT id, name, behavior_type, play_order FROM channel_groups WHERE name = ?", (playlist_name,))
-        channel_group = cursor.fetchone()
-        
-        channel_group_updated = False
-        if channel_group:
-            group_id, group_name, behavior_type, current_play_order = channel_group
+            playlist_name = row["name"]
             
-            # Map playlist preference to channel group play_order
-            new_play_order = None
+            # Update display preference for playlist
+            conn.execute("UPDATE playlists SET display_preferences=? WHERE relpath=?", (preference, relpath))
             
-            if preference == "shuffle":
-                new_play_order = "random"
-            elif preference == "smart":
-                # For smart preference, use behavior-specific default
-                if behavior_type == "music":
+            # Check if there's a channel group with the same name
+            cursor = conn.cursor()
+            cursor.execute("SELECT id, name, behavior_type, play_order FROM channel_groups WHERE name = ?", (playlist_name,))
+            channel_group = cursor.fetchone()
+            
+            channel_group_updated = False
+            if channel_group:
+                group_id, group_name, behavior_type, current_play_order = channel_group
+                
+                # Map playlist preference to channel group play_order
+                new_play_order = None
+                
+                if preference == "shuffle":
                     new_play_order = "random"
-                elif behavior_type == "news":
-                    new_play_order = "newest_first"
-                elif behavior_type == "education":
+                elif preference == "smart":
+                    # For smart preference, use behavior-specific default
+                    if behavior_type == "music":
+                        new_play_order = "random"
+                    elif behavior_type == "news":
+                        new_play_order = "newest_first"
+                    elif behavior_type == "education":
+                        new_play_order = "oldest_first"
+                    elif behavior_type == "podcasts":
+                        new_play_order = "newest_first"
+                    else:
+                        new_play_order = "random"  # fallback
+                elif preference == "order_by_date":
                     new_play_order = "oldest_first"
-                elif behavior_type == "podcasts":
-                    new_play_order = "newest_first"
-                else:
-                    new_play_order = "random"  # fallback
-            elif preference == "order_by_date":
-                new_play_order = "oldest_first"
+                
+                # Update channel group play_order if it's different
+                if new_play_order and new_play_order != current_play_order:
+                    cursor.execute("UPDATE channel_groups SET play_order = ? WHERE id = ?", (new_play_order, group_id))
+                    channel_group_updated = True
+                    log_message(f"[Channel Group Sync] Updated play_order for group '{group_name}' from '{current_play_order}' to '{new_play_order}'")
             
-            # Update channel group play_order if it's different
-            if new_play_order and new_play_order != current_play_order:
-                cursor.execute("UPDATE channel_groups SET play_order = ? WHERE id = ?", (new_play_order, group_id))
-                channel_group_updated = True
-                log_message(f"[Channel Group Sync] Updated play_order for group '{group_name}' from '{current_play_order}' to '{new_play_order}'")
-        
-        conn.commit()
-        conn.close()
-        
-        message = f"Display preference saved: {preference}"
-        if channel_group_updated:
-            message += f" (also updated matching channel group)"
-        
-        log_message(f"[Playlist Preferences] Saved '{preference}' for playlist '{relpath}'" + 
-                   (f" and synced with channel group '{playlist_name}'" if channel_group_updated else ""))
-        return jsonify({"status": "ok", "message": message})
+            conn.commit()
+            conn.close()
+            
+            message = f"Display preference saved: {preference}"
+            if channel_group_updated:
+                message += f" (also updated matching channel group)"
+            
+            log_message(f"[Playlist Preferences] Saved '{preference}' for playlist '{relpath}'" + 
+                       (f" and synced with channel group '{playlist_name}'" if channel_group_updated else ""))
+            return jsonify({"status": "ok", "message": message})
         
     except Exception as e:
         log_message(f"[Playlist Preferences] Error saving preference: {e}")
@@ -635,22 +654,44 @@ def api_get_display_preference():
     try:
         conn = get_connection()
         
-        # Get playlist with display preference
-        row = db.get_playlist_by_relpath(conn, relpath)
-        if not row:
+        # Check if this is a virtual playlist
+        is_virtual = relpath.startswith("virtual_")
+        
+        if is_virtual:
+            # Get virtual playlist preference
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT display_preferences FROM virtual_playlist_preferences 
+                WHERE relpath = ?
+            """, (relpath,))
+            
+            row = cursor.fetchone()
+            display_preference = row["display_preferences"] if row else "smart"  # Default for virtual playlists
+            
             conn.close()
-            return jsonify({"status": "error", "message": "playlist not found"}), 404
-        
-        # Get display preference or default to shuffle
-        display_preference = row["display_preferences"] if row["display_preferences"] else "shuffle"
-        
-        conn.close()
-        
-        return jsonify({
-            "status": "ok", 
-            "preference": display_preference,
-            "playlist_name": row["name"] if row["name"] else "Unknown"
-        })
+            
+            return jsonify({
+                "status": "ok", 
+                "preference": display_preference,
+                "playlist_name": f"Virtual Playlist ({relpath})"
+            })
+        else:
+            # Get regular playlist preference
+            row = db.get_playlist_by_relpath(conn, relpath)
+            if not row:
+                conn.close()
+                return jsonify({"status": "error", "message": "playlist not found"}), 404
+            
+            # Get display preference or default to shuffle
+            display_preference = row["display_preferences"] if row["display_preferences"] else "shuffle"
+            
+            conn.close()
+            
+            return jsonify({
+                "status": "ok", 
+                "preference": display_preference,
+                "playlist_name": row["name"] if row["name"] else "Unknown"
+            })
         
     except Exception as e:
         log_message(f"[Playlist Preferences] Error getting preference: {e}")
