@@ -97,6 +97,12 @@ export async function applyOrderMode(mode, skipSave = false) {
     updateCurrentTrackTitle(newQueue[currentIndex]);
   }
   
+  // Update delete button tooltip
+  const deleteCurrentBtn = document.getElementById('deleteCurrentBtn');
+  if (deleteCurrentBtn && deleteCurrentBtn.updateTooltip) {
+    deleteCurrentBtn.updateTooltip();
+  }
+  
   // Update button text
   updateOrderButtonText(mode);
   

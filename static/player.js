@@ -164,7 +164,7 @@ const cDislike = document.getElementById('cDislike');
       const deleteBtn = document.createElement('button');
       deleteBtn.className = 'delete-btn';
       deleteBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"></path><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path><path d="M8 6V4c0-1 1-2 2-2h4c0 1 1 2 1 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>';
-      deleteBtn.title = 'Delete track';
+      deleteBtn.title = `Delete track (YouTube ID: ${t.video_id})`;
       deleteBtn.style.cssText = `
         background: none;
         border: none;
@@ -205,6 +205,12 @@ const cDislike = document.getElementById('cDislike');
       updateCurrentTrackTitle(currentTrack);
     }
     
+    // Update delete button tooltip
+    const deleteCurrentBtn = document.getElementById('deleteCurrentBtn');
+    if (deleteCurrentBtn && deleteCurrentBtn.updateTooltip) {
+      deleteCurrentBtn.updateTooltip();
+    }
+    
     // Create global tooltip system
     setupGlobalTooltip();
   }
@@ -234,6 +240,12 @@ const cDislike = document.getElementById('cDislike');
       updateCurrentTrackTitle(queue[idx]);
     } else {
       console.warn(`🎵 [DEBUG] Cannot update track title: idx=${idx}, queue.length=${queue.length}`);
+    }
+    
+    // Update delete button tooltip
+    const deleteCurrentBtn = document.getElementById('deleteCurrentBtn');
+    if (deleteCurrentBtn && deleteCurrentBtn.updateTooltip) {
+      deleteCurrentBtn.updateTooltip();
     }
     
     return result;
@@ -297,7 +309,14 @@ const cDislike = document.getElementById('cDislike');
     showNotification,
     loadTrack,
     getCurrentIndex: () => currentIndex,
-    setCurrentIndex: (newIdx) => { currentIndex = newIdx; }
+    setCurrentIndex: (newIdx) => { currentIndex = newIdx; },
+    // Add function to update global queue
+    updateQueue: (newQueue) => { 
+      console.log(`🔍 [Delete] Updating global queue: old length=${queue.length}, new length=${newQueue.length}`);
+      queue.length = 0; 
+      queue.push(...newQueue); 
+      console.log(`🔍 [Delete] Global queue updated successfully, new length: ${queue.length}`);
+    }
   }, 'regular');
 
   // Setup fullscreen and control handlers using centralized functions
@@ -634,10 +653,18 @@ const cDislike = document.getElementById('cDislike');
   // Wrapper function для совместимости с существующим кодом
   async function deleteTrack(track, trackIndex) {
     const context = {
-      queue, tracks, currentIndex, media, playIndex, renderList, 
+      queue, tracks, media, playIndex, renderList, 
       showNotification, loadTrack,
+      currentIndex: () => currentIndex,
       getCurrentIndex: () => currentIndex,
-      setCurrentIndex: (newIdx) => { currentIndex = newIdx; }
+      setCurrentIndex: (newIdx) => { currentIndex = newIdx; },
+      // Add function to update global queue
+      updateQueue: (newQueue) => { 
+        console.log(`🔍 [Delete] Updating global queue: old length=${queue.length}, new length=${newQueue.length}`);
+        queue.length = 0; 
+        queue.push(...newQueue); 
+        console.log(`🔍 [Delete] Global queue updated successfully, new length: ${queue.length}`);
+      }
     };
     return await utilsDeleteTrack(track, trackIndex, context); // Используется универсальная логика с file locks
   }

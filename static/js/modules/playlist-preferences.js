@@ -262,6 +262,11 @@ async function reSetupHandlers(newQueue, tracks, getCurrentIndex, playIndex, pla
         }
       }, playlistType);
     });
+    
+    // Update delete button tooltip after re-setup
+    if (deleteCurrentBtn && deleteCurrentBtn.updateTooltip) {
+      deleteCurrentBtn.updateTooltip();
+    }
   }
   
   // Re-setup YouTube button handler with updated queue

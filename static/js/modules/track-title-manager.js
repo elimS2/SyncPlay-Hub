@@ -383,6 +383,12 @@ export function updateCurrentTrackTitle(track) {
             }
         }, 50);
     }
+    
+    // Update delete button tooltip with current track info
+    const deleteCurrentBtn = document.getElementById('deleteCurrentBtn');
+    if (deleteCurrentBtn && deleteCurrentBtn.updateTooltip) {
+        deleteCurrentBtn.updateTooltip();
+    }
 }
 
 /**

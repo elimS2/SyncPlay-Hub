@@ -333,6 +333,12 @@ export function loadTrack(idx, autoplay = false, context) {
     // Update current track title display
     updateCurrentTrackTitle(track);
     
+    // Update delete button tooltip
+    const deleteCurrentBtn = document.getElementById('deleteCurrentBtn');
+    if (deleteCurrentBtn && deleteCurrentBtn.updateTooltip) {
+        deleteCurrentBtn.updateTooltip();
+    }
+    
     if('mediaSession' in navigator){
         navigator.mediaSession.metadata = new MediaMetadata({
             title: track.name,

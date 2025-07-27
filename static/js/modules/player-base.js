@@ -164,6 +164,12 @@ export class BasePlayer {
     this.renderList();
     updateCurrentTrackTitle(track);
     
+    // Update delete button tooltip
+    const deleteCurrentBtn = document.getElementById('deleteCurrentBtn');
+    if (deleteCurrentBtn && deleteCurrentBtn.updateTooltip) {
+        deleteCurrentBtn.updateTooltip();
+    }
+    
     // Sync with remote
     await utilsSyncRemoteState();
   }
