@@ -10,330 +10,8 @@
   <!-- Include Sidebar Styles -->
   {% include 'sidebar_styles.html' %}
   
-  <style>
-    /* Override body styles for sidebar integration */
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-      background: var(--bg-primary);
-      color: var(--text-primary);
-      margin: 0;
-      padding: 0;
-      display: flex;
-      min-height: 100vh;
-    }
-    
-    /* Main content area */
-    .main-content {
-      flex: 1;
-      padding: 20px;
-      margin-left: var(--sidebar-width);
-      min-height: 100vh;
-    }
-    
-    h1 {
-      margin-bottom: 20px;
-      color: var(--text-primary);
-    }
-    
-    a {
-      color: var(--accent);
-      text-decoration: none;
-    }
-    
-    a:hover {
-      text-decoration: underline;
-    }
-    
-    .header-section {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 30px;
-      flex-wrap: wrap;
-      gap: 15px;
-    }
-    
-    .header-info h1 {
-      margin: 0;
-      color: var(--text-primary);
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
-    
-    .header-info .subtitle {
-      font-size: 12px;
-      color: var(--text-secondary);
-      margin-top: 4px;
-    }
-    
-    .header-actions {
-      display: flex;
-      gap: 8px;
-      flex-wrap: wrap;
-    }
-    
-    .btn {
-      padding: 8px 16px;
-      font-size: 14px;
-      cursor: pointer;
-      border-radius: 6px;
-      border: 1px solid var(--border);
-      background: var(--bg-secondary);
-      color: var(--text-primary);
-      text-decoration: none;
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      transition: all 0.2s ease;
-      font-weight: 500;
-    }
-    
-    .btn:hover {
-      background: var(--bg-hover);
-      border-color: var(--accent);
-      transform: translateY(-1px);
-    }
-    
-    .btn-primary {
-      background: var(--accent);
-      color: white;
-    }
-    
-    .btn-warning {
-      background: #ff9800;
-      color: white;
-    }
-
-    .btn-warning:hover {
-      background: #f57c00;
-      transform: translateY(-1px);
-    }
-
-    .btn-warning:disabled {
-      background: #ccc;
-      cursor: not-allowed;
-      transform: none;
-    }
-      border-color: var(--accent);
-    }
-    
-    .btn-primary:hover {
-      background: var(--accent-hover);
-      border-color: var(--accent-hover);
-    }
-    
-    .btn-success {
-      background: var(--success);
-      color: white;
-      border-color: var(--success);
-    }
-    
-    .btn-warning {
-      background: var(--warning);
-      color: white;
-      border-color: var(--warning);
-    }
-    
-    .btn-danger {
-      background: var(--error);
-      color: white;
-      border-color: var(--error);
-    }
-    
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      margin-top: 15px;
-      font-size: 15px;
-      background: var(--bg-card);
-      border-radius: 8px;
-      overflow: hidden;
-      border: 1px solid var(--border);
-    }
-    
-    th, td {
-      padding: 12px;
-      text-align: left;
-    }
-    
-    th {
-      border-bottom: 2px solid var(--border);
-      background: var(--bg-secondary);
-      cursor: pointer;
-      font-weight: 600;
-      color: var(--text-primary);
-    }
-    
-    th:hover {
-      background: var(--bg-hover);
-    }
-    
-    tbody tr {
-      border-bottom: 1px solid var(--border);
-    }
-    
-    tbody tr:hover {
-      background: var(--bg-hover);
-    }
-    
-    .arrow {
-      margin-left: 4px;
-      font-size: 10px;
-    }
-    
-    .no-backups {
-      text-align: center;
-      color: var(--text-secondary);
-      padding: 40px;
-      background: var(--bg-card);
-      border-radius: 8px;
-      border: 1px solid var(--border);
-    }
-    
-    .backup-info {
-      background: var(--bg-card);
-      padding: 15px;
-      border-radius: 8px;
-      margin-bottom: 20px;
-      border: 1px solid var(--border);
-    }
-    
-    .backup-info h3 {
-      margin: 0 0 8px 0;
-      color: var(--success);
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-    
-    .backup-info p {
-      margin: 4px 0;
-      color: var(--text-secondary);
-      font-size: 14px;
-    }
-    
-    .backup-info ul {
-      margin: 8px 0;
-      color: var(--text-secondary);
-      font-size: 13px;
-    }
-    
-    .backup-info code {
-      background: var(--bg-secondary);
-      padding: 2px 6px;
-      border-radius: 4px;
-      font-family: monospace;
-      color: var(--accent);
-    }
-    
-    .backup-actions {
-      margin-top: 15px;
-      display: flex;
-      flex-wrap: wrap;
-      gap: 10px;
-      align-items: center;
-    }
-    
-    .backup-actions span {
-      color: var(--text-secondary);
-      font-size: 12px;
-      margin-left: 12px;
-    }
-    
-    /* Modal styles */
-    .modal {
-      display: none;
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background: rgba(0, 0, 0, 0.8);
-      z-index: 1000;
-    }
-    
-    .modal-content {
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      background: var(--bg-card);
-      padding: 20px;
-      border-radius: 8px;
-      border: 1px solid var(--border);
-      min-width: 400px;
-      max-width: 90%;
-    }
-    
-    .modal-content h3 {
-      margin: 0 0 15px 0;
-      color: var(--success);
-    }
-    
-    .modal-content label {
-      display: block;
-      margin-bottom: 5px;
-      color: var(--text-secondary);
-    }
-    
-    .modal-content input {
-      padding: 8px 12px;
-      background: var(--bg-secondary);
-      border: 1px solid var(--border);
-      color: var(--text-primary);
-      border-radius: 4px;
-      font-size: 14px;
-    }
-    
-    .modal-content input:focus {
-      outline: none;
-      border-color: var(--accent);
-    }
-    
-    .modal-content .btn-group {
-      display: flex;
-      gap: 10px;
-      margin-top: 20px;
-    }
-    
-    /* Stats display */
-    .stats-display {
-      margin-top: 15px;
-      font-size: 12px;
-      color: var(--text-muted);
-    }
-    
-    /* Responsive design */
-    @media (max-width: 768px) {
-      .main-content {
-        margin-left: 0;
-        padding: 10px;
-      }
-      
-      .header-section {
-        flex-direction: column;
-        align-items: stretch;
-      }
-      
-      .header-actions {
-        justify-content: center;
-      }
-      
-      .modal-content {
-        min-width: 300px;
-        padding: 15px;
-      }
-      
-      table {
-        font-size: 13px;
-      }
-      
-      th, td {
-        padding: 8px;
-      }
-    }
-  </style>
+  <!-- Include Backups Page Styles -->
+  <link rel="stylesheet" href="/static/css/backups.css">
 </head>
 <body>
   <!-- Include Universal Sidebar -->
@@ -374,83 +52,83 @@
 
     <div class="backup-info">
       <h3>💡 About Database Backups</h3>
-      <p style="margin:4px 0;color:#ccc;font-size:14px;">
+      <p>
         Backups are stored in <code>Backups/DB/</code> with UTC timestamps. Each backup preserves:
       </p>
-      <ul style="margin:8px 0;color:#aaa;font-size:13px;">
+      <ul>
         <li>All track metadata and play statistics</li>
         <li>Playlist information and relationships</li>
         <li>Complete play history</li>
         <li>Database structure and indexes</li>
       </ul>
       <div class="backup-actions">
-        <button id="refreshBtn" style="padding:6px 12px;font-size:14px;cursor:pointer;">🔄 Refresh List</button>
-        <span style="color:#888;font-size:12px;margin-left:12px;">
+        <button id="refreshBtn" class="btn">🔄 Refresh List</button>
+        <span>
           Backups are created using SQLite's built-in backup API for consistency
         </span>
       </div>
     </div>
 
     <!-- Auto Backup Configuration -->
-    <div class="backup-info" style="margin-top:20px;">
+    <div class="backup-info backup-info-spaced">
       <h3>🤖 Automatic Backups</h3>
-      <div id="autoBackupStatus" style="margin:8px 0;">
-        <div style="color:#888;">Loading auto backup status...</div>
+              <div id="autoBackupStatus" class="status-container">
+        <div class="loading-message">Loading auto backup status...</div>
       </div>
       <div class="backup-actions">
-        <button id="configAutoBackupBtn" style="padding:6px 12px;font-size:14px;cursor:pointer;">⚙️ Configure</button>
-        <button id="forceBackupBtn" style="padding:6px 12px;font-size:14px;cursor:pointer;background:#ff9800;color:#fff;border:1px solid #f57c00;">🚀 Force Backup Now</button>
-        <button id="viewJobsBtn" style="padding:6px 12px;font-size:14px;cursor:pointer;background:#9c27b0;color:#fff;border:1px solid #7b1fa2;">📋 View Jobs</button>
+        <button id="configAutoBackupBtn" class="btn">⚙️ Configure</button>
+        <button id="forceBackupBtn" class="btn btn-warning">🚀 Force Backup Now</button>
+        <button id="viewJobsBtn" class="btn btn-purple">📋 View Jobs</button>
       </div>
     </div>
 
     <!-- Auto Backup Configuration Modal -->
-    <div id="configModal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.8);z-index:1000;">
-      <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:#1a1a1a;padding:20px;border-radius:8px;min-width:400px;max-width:90%;">
-        <h3 style="margin:0 0 15px 0;color:#4caf50;">Auto Backup Configuration</h3>
+    <div id="configModal" class="modal">
+      <div class="modal-content">
+        <h3>Auto Backup Configuration</h3>
         
-        <div style="margin-bottom:15px;">
-          <label style="display:block;margin-bottom:5px;color:#ccc;">
+        <div class="form-group">
+          <label>
             <input type="checkbox" id="enabledCheckbox"> Enable automatic backups
           </label>
         </div>
         
-        <div style="margin-bottom:15px;">
-          <label style="display:block;margin-bottom:5px;color:#ccc;">Schedule time (UTC):</label>
-          <input type="time" id="scheduleTimeInput" style="padding:5px;background:#333;border:1px solid #555;color:#fff;border-radius:3px;">
+        <div class="form-group">
+          <label>Schedule time (UTC):</label>
+          <input type="time" id="scheduleTimeInput">
         </div>
         
         <!-- Retention field removed - automatic cleanup is disabled by default -->
         
-        <div style="margin-bottom:15px;">
-          <label style="display:block;margin-bottom:5px;color:#ccc;">Check interval (minutes):</label>
-          <input type="number" id="checkIntervalInput" min="1" max="1440" style="padding:5px;background:#333;border:1px solid #555;color:#fff;border-radius:3px;width:80px;">
+        <div class="form-group">
+          <label>Check interval (minutes):</label>
+          <input type="number" id="checkIntervalInput" min="1" max="1440" class="form-input-small">
         </div>
         
-        <div style="display:flex;gap:10px;margin-top:20px;">
-          <button id="saveConfigBtn" style="padding:8px 15px;background:#4caf50;color:#fff;border:1px solid #388e3c;border-radius:4px;cursor:pointer;">💾 Save</button>
-          <button id="cancelConfigBtn" style="padding:8px 15px;background:#666;color:#fff;border:1px solid #555;border-radius:4px;cursor:pointer;">❌ Cancel</button>
+        <div class="btn-group">
+          <button id="saveConfigBtn" class="btn btn-success">💾 Save</button>
+          <button id="cancelConfigBtn" class="btn">❌ Cancel</button>
         </div>
       </div>
     </div>
 
     <!-- Jobs Modal -->
-    <div id="jobsModal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.8);z-index:1000;">
-      <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:#1a1a1a;padding:20px;border-radius:8px;min-width:600px;max-width:90%;max-height:80%;">
-        <h3 style="margin:0 0 15px 0;color:#4caf50;">Recent Backup Jobs</h3>
-        <div id="jobsList" style="max-height:400px;overflow-y:auto;">
+    <div id="jobsModal" class="modal">
+      <div class="modal-content modal-content-large">
+        <h3>Recent Backup Jobs</h3>
+        <div id="jobsList" class="jobs-list">
           Loading jobs...
         </div>
-        <div style="margin-top:15px;">
-          <button id="closeJobsBtn" style="padding:8px 15px;background:#666;color:#fff;border:1px solid #555;border-radius:4px;cursor:pointer;">❌ Close</button>
+        <div class="modal-actions">
+          <button id="closeJobsBtn" class="btn">❌ Close</button>
         </div>
       </div>
     </div>
 
     <div id="backupsList">
       <!-- Backups will be loaded here -->
-      <div style="text-align:center;color:#888;padding:40px;">
-        <div style="font-size:18px;margin-bottom:8px;">⏳</div>
+      <div class="loading-container">
+        <div class="loading-icon">⏳</div>
         Loading backups...
       </div>
     </div>
@@ -462,7 +140,7 @@
         const listDiv = document.getElementById('backupsList');
         
         try {
-          listDiv.innerHTML = '<div style="text-align:center;color:#888;padding:40px;"><div style="font-size:18px;margin-bottom:8px;">⏳</div>Loading backups...</div>';
+          listDiv.innerHTML = '<div class="loading-container"><div class="loading-icon">⏳</div>Loading backups...</div>';
           
           const res = await fetch('/api/backups');
           const data = await res.json();
@@ -471,10 +149,10 @@
             backups = data.backups || [];
             renderBackups();
           } else {
-            listDiv.innerHTML = `<div class="no-backups">❌ Error loading backups: ${data.message || 'Unknown error'}</div>`;
+            listDiv.innerHTML = `<div class="no-backups error-message">❌ Error loading backups: ${data.message || 'Unknown error'}</div>`;
           }
         } catch (err) {
-          listDiv.innerHTML = `<div class="no-backups">❌ Failed to load backups: ${err.message}</div>`;
+          listDiv.innerHTML = `<div class="no-backups error-message">❌ Failed to load backups: ${err.message}</div>`;
         }
       }
 
@@ -484,9 +162,9 @@
         if (backups.length === 0) {
           listDiv.innerHTML = `
             <div class="no-backups">
-              <div style="font-size:48px;margin-bottom:16px;">📦</div>
-              <h3 style="color:#888;margin:0 0 8px 0;">No backups found</h3>
-              <p style="color:#666;margin:0;">Create your first backup using the button above</p>
+              <div class="no-backups-icon">📦</div>
+              <h3 class="no-backups-title">No backups found</h3>
+              <p class="no-backups-text">Create your first backup using the button above</p>
             </div>
           `;
           return;
@@ -512,7 +190,7 @@
               <td>${backup.size_display}</td>
               <td style="font-family:monospace;font-size:12px;color:#888;">${backup.folder_name}</td>
               <td>
-                <button onclick="downloadBackup('${backup.backup_path}')" style="padding:4px 8px;font-size:12px;cursor:pointer;background:#2196f3;color:#fff;border:1px solid #1976d2;border-radius:3px;">📥 Download</button>
+                <button onclick="downloadBackup('${backup.backup_path}')" class="btn btn-small">📥 Download</button>
               </td>
             </tr>
           `;
@@ -521,7 +199,7 @@
         html += `
             </tbody>
           </table>
-          <div style="margin-top:15px;font-size:12px;color:#666;">
+          <div class="stats-display">
             Total backups: ${backups.length} | 
             Latest: ${backups[0]?.timestamp_display || 'None'} |
             Storage used: ${calculateTotalSize()}
@@ -624,7 +302,7 @@
             const runningText = status.running ? '🟢 Running' : '🔴 Stopped';
             
             statusDiv.innerHTML = `
-              <div style="display:flex;gap:20px;flex-wrap:wrap;font-size:13px;">
+              <div class="status-grid">
                 <div><strong>Status:</strong> ${enabledText}</div>
                 <div><strong>Service:</strong> ${runningText}</div>
                 <div><strong>Schedule:</strong> Daily at ${status.schedule_time} UTC</div>
@@ -633,10 +311,10 @@
               </div>
             `;
           } else {
-            statusDiv.innerHTML = `<div style="color:#f44336;">Error loading status: ${data.message}</div>`;
+            statusDiv.innerHTML = `<div class="error-message">Error loading status: ${data.message}</div>`;
           }
         } catch (err) {
-          statusDiv.innerHTML = `<div style="color:#f44336;">Failed to load status: ${err.message}</div>`;
+          statusDiv.innerHTML = `<div class="error-message">Failed to load status: ${err.message}</div>`;
         }
       }
 
@@ -737,15 +415,15 @@
             const jobs = data.jobs;
             
             if (jobs.length === 0) {
-              jobsList.innerHTML = '<div style="color:#888;text-align:center;padding:20px;">No backup jobs found</div>';
+              jobsList.innerHTML = '<div class="no-jobs-message">No backup jobs found</div>';
             } else {
-              let html = '<table style="width:100%;border-collapse:collapse;font-size:12px;">';
-              html += '<tr style="background:#333;"><th style="padding:6px;text-align:left;">ID</th><th style="padding:6px;text-align:left;">Status</th><th style="padding:6px;text-align:left;">Created</th><th style="padding:6px;text-align:left;">Duration</th><th style="padding:6px;text-align:left;">Source</th></tr>';
+              let html = '<table class="jobs-table">';
+              html += '<tr><th>ID</th><th>Status</th><th>Created</th><th>Duration</th><th>Source</th></tr>';
               
               jobs.forEach(job => {
-                const statusColor = job.status === 'completed' ? '#4caf50' : 
-                                   job.status === 'failed' ? '#f44336' : 
-                                   job.status === 'running' ? '#ff9800' : '#666';
+                const statusClass = job.status === 'completed' ? 'job-status-completed' : 
+                                   job.status === 'failed' ? 'job-status-failed' : 
+                                   job.status === 'running' ? 'job-status-running' : 'job-status-default';
                 
                 const duration = job.duration_seconds ? 
                   `${Math.round(job.duration_seconds)}s` : 
@@ -762,12 +440,12 @@
                     hour12: false
                 }) : '-';
                 
-                html += `<tr style="border-bottom:1px solid #333;">
-                  <td style="padding:6px;">${job.id}</td>
-                  <td style="padding:6px;color:${statusColor};">${job.status}</td>
-                  <td style="padding:6px;">${createdDate}</td>
-                  <td style="padding:6px;">${duration}</td>
-                  <td style="padding:6px;">${job.source}</td>
+                html += `<tr>
+                  <td>${job.id}</td>
+                  <td class="${statusClass}">${job.status}</td>
+                  <td>${createdDate}</td>
+                  <td>${duration}</td>
+                  <td>${job.source}</td>
                 </tr>`;
               });
               
