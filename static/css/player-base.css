@@ -152,6 +152,16 @@ button {
     border: 1px solid rgba(0, 0, 0, 0.1);
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
   }
+  
+  .modern-btn-primary,
+  .modern-btn-secondary,
+  .modern-btn-accent,
+  .modern-btn-success,
+  .modern-btn-danger {
+    background: rgba(0, 0, 0, 0.8);
+    color: white;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+  }
 }
 
 /* Control bar layout */
@@ -194,28 +204,33 @@ button {
 }
 
 .modern-btn-primary {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: rgba(0, 0, 0, 0.7);
   color: white;
+  border: 1px solid rgba(255, 255, 255, 0.2);
 }
 
 .modern-btn-secondary {
-  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+  background: rgba(0, 0, 0, 0.7);
   color: white;
+  border: 1px solid rgba(255, 255, 255, 0.2);
 }
 
 .modern-btn-accent {
-  background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+  background: rgba(0, 0, 0, 0.7);
   color: white;
+  border: 1px solid rgba(255, 255, 255, 0.2);
 }
 
 .modern-btn-success {
-  background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
+  background: rgba(0, 0, 0, 0.7);
   color: white;
+  border: 1px solid rgba(255, 255, 255, 0.2);
 }
 
 .modern-btn-danger {
-  background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
+  background: rgba(0, 0, 0, 0.7);
   color: white;
+  border: 1px solid rgba(255, 255, 255, 0.2);
 }
 
 .modern-btn-outline {
