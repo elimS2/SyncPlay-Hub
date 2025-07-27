@@ -1167,6 +1167,9 @@ export function setupSimpleControlHandlers(cPrev, cNext, media, prevTrack, nextT
  * @param {Function} context.startTick - start tick function
  */
 export function setupStreamHandler(streamBtn, context) {
+    // STREAM FUNCTIONALITY COMPLETELY DISABLED
+    return;
+    
     if (streamBtn) {
         streamBtn.onclick = async () => {
             const streamIdLeader = typeof context.streamIdLeader === 'function' ? context.streamIdLeader() : context.streamIdLeader;

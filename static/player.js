@@ -1,5 +1,5 @@
 // Импорт общих утилит из нового barrel файла
-import { shuffle, smartShuffle, detectChannelGroup, smartChannelShuffle, getGroupPlaybackInfo, orderByPublishDate as utilsOrderByPublishDate, formatTime, updateSpeedDisplay as utilsUpdateSpeedDisplay, showNotification, handleVolumeWheel as utilsHandleVolumeWheel, stopTick as utilsStopTick, stopPlayback as utilsStopPlayback, playIndex as utilsPlayIndex, updateMuteIcon as utilsUpdateMuteIcon, nextTrack as utilsNextTrack, prevTrack as utilsPrevTrack, sendStreamEvent as utilsSendStreamEvent, startTick as utilsStartTick, reportEvent as utilsReportEvent, triggerAutoDeleteCheck as utilsTriggerAutoDeleteCheck, recordSeekEvent, saveVolumeToDatabase as utilsSaveVolumeToDatabase, loadSavedVolume as utilsLoadSavedVolume, performKeyboardSeek as utilsPerformKeyboardSeek, syncLikeButtonsWithRemote as utilsSyncLikeButtonsWithRemote, syncLikesAfterAction as utilsSyncLikesAfterAction, setupLikeSyncHandlers as utilsSetupLikeSyncHandlers, togglePlayback as utilsTogglePlayback, showFsControls as utilsShowFsControls, updateFsVisibility as utilsUpdateFsVisibility, syncRemoteState as utilsSyncRemoteState, setupGlobalTooltip as utilsSetupGlobalTooltip, createTrackTooltipHTML, pollRemoteCommands as utilsPollRemoteCommands, cyclePlaybackSpeed as utilsCyclePlaybackSpeed, executeRemoteCommand as utilsExecuteRemoteCommand, deleteTrack as utilsDeleteTrack, initializeGoogleCastIntegration as utilsInitializeGoogleCastIntegration, castLoad as utilsCastLoad, loadTrack as utilsLoadTrack, setupMediaEndedHandler, setupMediaPlayPauseHandlers, setupMediaTimeUpdateHandler, setupMediaSeekedHandler, setupKeyboardHandler, setupProgressClickHandler, setupMediaSessionAPI, setupPlaylistToggleHandler, setupDeleteCurrentHandler, setupLikeDislikeHandlers, setupYouTubeHandler, setupFullscreenHandlers, setupSimpleControlHandlers, setupStreamHandler, setupBeforeUnloadHandler, setupAutoPlayInitialization, setupRemoteControlOverrides, setupRemoteControlInitialization } from '/static/js/modules/index.js';
+import { shuffle, smartShuffle, detectChannelGroup, smartChannelShuffle, getGroupPlaybackInfo, orderByPublishDate as utilsOrderByPublishDate, formatTime, updateSpeedDisplay as utilsUpdateSpeedDisplay, showNotification, handleVolumeWheel as utilsHandleVolumeWheel, stopTick as utilsStopTick, stopPlayback as utilsStopPlayback, playIndex as utilsPlayIndex, updateMuteIcon as utilsUpdateMuteIcon, nextTrack as utilsNextTrack, prevTrack as utilsPrevTrack, sendStreamEvent as utilsSendStreamEvent, startTick as utilsStartTick, reportEvent as utilsReportEvent, triggerAutoDeleteCheck as utilsTriggerAutoDeleteCheck, recordSeekEvent, saveVolumeToDatabase as utilsSaveVolumeToDatabase, loadSavedVolume as utilsLoadSavedVolume, performKeyboardSeek as utilsPerformKeyboardSeek, syncLikeButtonsWithRemote as utilsSyncLikeButtonsWithRemote, syncLikesAfterAction as utilsSyncLikesAfterAction, setupLikeSyncHandlers as utilsSetupLikeSyncHandlers, togglePlayback as utilsTogglePlayback, showFsControls as utilsShowFsControls, updateFsVisibility as utilsUpdateFsVisibility, syncRemoteState as utilsSyncRemoteState, setupGlobalTooltip as utilsSetupGlobalTooltip, createTrackTooltipHTML, pollRemoteCommands as utilsPollRemoteCommands, cyclePlaybackSpeed as utilsCyclePlaybackSpeed, executeRemoteCommand as utilsExecuteRemoteCommand, deleteTrack as utilsDeleteTrack, initializeGoogleCastIntegration as utilsInitializeGoogleCastIntegration, castLoad as utilsCastLoad, loadTrack as utilsLoadTrack, setupMediaEndedHandler, setupMediaPlayPauseHandlers, setupMediaTimeUpdateHandler, setupMediaSeekedHandler, setupKeyboardHandler, setupProgressClickHandler, setupMediaSessionAPI, setupPlaylistToggleHandler, setupDeleteCurrentHandler, setupLikeDislikeHandlers, setupYouTubeHandler, setupFullscreenHandlers, setupSimpleControlHandlers, setupStreamHandler, setupBeforeUnloadHandler, setupAutoPlayInitialization, setupRemoteControlOverrides, setupRemoteControlInitialization, initializePlaylistPreferences, savePlaylistPreference as savePlaylistPreferenceModule, savePlaylistSpeed as savePlaylistSpeedModule, setupSortButtonHandlers } from '/static/js/modules/index.js';
 
 // Импорт track title manager
 import { updateCurrentTrackTitle } from '/static/js/modules/track-title-manager.js';
@@ -66,139 +66,31 @@ const cDislike = document.getElementById('cDislike');
 
   // Playback speed control
   const speedOptions = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2, 2.5];
-  let currentSpeedIndex = 2; // Default to 1x (index 2)
 
   const playlistRel = typeof PLAYLIST_REL !== 'undefined' ? PLAYLIST_REL : '';
   let tracks = await fetchTracks(playlistRel);
 
-  // Playlist preferences functions
+  // Initialize playlist preferences using shared module
+  const result = await initializePlaylistPreferences({
+    relpath: playlistRel,
+    playlistType: 'regular',
+    tracks,
+    speedOptions,
+    shuffle,
+    smartShuffle,
+    orderByPublishDate
+  });
+  
+  let { queue } = result;
+  let { currentSpeedIndex } = result;
+
+  // Wrapper functions for backward compatibility
   async function savePlaylistPreference(preference) {
-    if (!playlistRel) return;
-    
-    try {
-      const response = await fetch('/api/save_display_preference', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          relpath: playlistRel,
-          preference: preference
-        })
-      });
-      
-      const result = await response.json();
-      if (result.status === 'ok') {
-        console.log(`💾 Playlist preference saved: ${preference}`);
-      } else {
-        console.warn('❌ Failed to save playlist preference:', result.message);
-      }
-    } catch (error) {
-      console.error('❌ Error saving playlist preference:', error);
-    }
+    return await savePlaylistPreferenceModule(playlistRel, preference, 'regular');
   }
 
-  // Playlist speed functions
   async function savePlaylistSpeed(speed) {
-    if (!playlistRel) return;
-    
-    try {
-      const response = await fetch('/api/save_playback_speed', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          relpath: playlistRel,
-          speed: speed
-        })
-      });
-      
-      const result = await response.json();
-      if (result.status === 'ok') {
-        console.log(`⚡ Playlist speed saved: ${speed}x`);
-      } else {
-        console.warn('❌ Failed to save playlist speed:', result.message);
-      }
-    } catch (error) {
-      console.error('❌ Error saving playlist speed:', error);
-    }
-  }
-
-  async function loadPlaylistSpeed() {
-    if (!playlistRel) return 1.0; // Default fallback
-    
-    try {
-      const response = await fetch(`/api/get_playback_speed?relpath=${encodeURIComponent(playlistRel)}`);
-      const result = await response.json();
-      
-      if (result.status === 'ok') {
-        console.log(`⚡ Loaded playlist speed: ${result.speed}x`);
-        return result.speed;
-      } else {
-        console.warn('❌ Failed to load playlist speed:', result.message);
-        return 1.0; // Default fallback
-      }
-    } catch (error) {
-      console.error('❌ Error loading playlist speed:', error);
-      return 1.0; // Default fallback
-    }
-  }
-
-  async function loadPlaylistPreference() {
-    if (!playlistRel) return 'shuffle'; // Default fallback
-    
-    try {
-      const response = await fetch(`/api/get_display_preference?relpath=${encodeURIComponent(playlistRel)}`);
-      const result = await response.json();
-      
-      if (result.status === 'ok') {
-        console.log(`📂 Loaded playlist preference: ${result.preference}`);
-        return result.preference;
-      } else {
-        console.warn('❌ Failed to load playlist preference:', result.message);
-        return 'shuffle'; // Default fallback
-      }
-    } catch (error) {
-      console.error('❌ Error loading playlist preference:', error);
-      return 'shuffle'; // Default fallback
-    }
-  }
-
-  // Apply display preference
-  async function applyDisplayPreference(preference) {
-    switch (preference) {
-      case 'smart':
-        queue = smartShuffle([...tracks]);
-        console.log('🧠 Applied smart shuffle from saved preference (grouped by last play time)');
-        break;
-      case 'order_by_date':
-        queue = orderByPublishDate([...tracks]);
-        console.log('📅 Applied order by date from saved preference');
-        break;
-      case 'shuffle':
-      default:
-        queue = [...tracks];
-        shuffle(queue);
-        console.log('🔀 Applied random shuffle from saved preference');
-        break;
-    }
-  }
-
-  // Load saved preference and apply it
-  const savedPreference = await loadPlaylistPreference();
-  let queue = []; // Initialize queue
-  await applyDisplayPreference(savedPreference);
-
-  // Load and apply saved playback speed
-  const savedSpeed = await loadPlaylistSpeed();
-  const speedIndex = speedOptions.indexOf(savedSpeed);
-  if (speedIndex !== -1) {
-    currentSpeedIndex = speedIndex;
-    console.log(`⚡ Applied saved speed: ${savedSpeed}x`);
-  } else {
-    console.warn(`⚠️ Invalid saved speed ${savedSpeed}x, using default 1x`);
-    currentSpeedIndex = 2; // Default to 1x (index 2)
+    return await savePlaylistSpeedModule(playlistRel, speed, 'regular');
   }
   
   let currentIndex = -1;
@@ -363,54 +255,25 @@ const cDislike = document.getElementById('cDislike');
     playIndex
   });
 
-  shuffleBtn.onclick = async () => {
-    // Regular random shuffle
-    queue = [...tracks];
-    shuffle(queue);
-    console.log('🔀 Random shuffle applied to all tracks');
-    
-    // Save preference
-    await savePlaylistPreference('shuffle');
-    
-    playIndex(0);
-    // Update current track title after shuffle
-    if (currentIndex >= 0 && currentIndex < queue.length) {
-      const currentTrack = queue[currentIndex];
-      updateCurrentTrackTitle(currentTrack);
-    }
-  };
-
-  smartShuffleBtn.onclick = async ()=>{
-     // Smart shuffle based on last play time (always same logic for all playlists)
-     queue = smartShuffle([...tracks]);
-     console.log('🧠 Smart shuffle applied (grouped by last play time)');
-     
-     // Save preference
-     await savePlaylistPreference('smart');
-     
-     playIndex(0);
-     // Update current track title after smart shuffle
-     if (currentIndex >= 0 && currentIndex < queue.length) {
-       const currentTrack = queue[currentIndex];
-       updateCurrentTrackTitle(currentTrack);
-     }
-  };
-
-  orderByDateBtn.onclick = async () => {
-    // Sort tracks by YouTube publish date (oldest first)
-    queue = orderByPublishDate([...tracks]);
-    console.log('📅 Tracks ordered by YouTube publish date (oldest first)');
-    
-    // Save preference
-    await savePlaylistPreference('order_by_date');
-    
-    playIndex(0);
-    // Update current track title after ordering by date
-    if (currentIndex >= 0 && currentIndex < queue.length) {
-      const currentTrack = queue[currentIndex];
-      updateCurrentTrackTitle(currentTrack);
-    }
-  };
+  // Setup sort button handlers using shared module
+  setupSortButtonHandlers({
+    shuffleBtn,
+    smartShuffleBtn,
+    orderByDateBtn,
+    tracks,
+    shuffle,
+    smartShuffle,
+    orderByPublishDate,
+    savePlaylistPreference,
+    playIndex,
+    updateCurrentTrackTitle,
+    relpath: playlistRel,
+    playlistType: 'regular',
+    getCurrentIndex: () => currentIndex,
+    getQueue: () => queue,
+    setQueue: (newQueue) => { queue = newQueue; },
+    showNotification
+  });
 
   // Functions for control actions
   function stopPlayback() {

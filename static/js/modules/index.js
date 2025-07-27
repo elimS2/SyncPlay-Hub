@@ -85,6 +85,17 @@ export {
     executeRemoteCommand 
 } from './event-bus.js';
 
+// Re-export from playlist-preferences.js
+export {
+    savePlaylistPreference,
+    savePlaylistSpeed,
+    loadPlaylistSpeed,
+    loadPlaylistPreference,
+    applyDisplayPreference,
+    initializePlaylistPreferences,
+    setupSortButtonHandlers
+} from './playlist-preferences.js';
+
 // Re-export from error-handler.js
 export { 
     logError, 

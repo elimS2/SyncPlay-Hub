@@ -1,139 +1,15 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>❤️ {{ like_count }} Like{{ 's' if like_count != 1 else '' }} - Virtual Playlist</title>
-  <!-- Favicon using emoji -->
-  <link rel="icon" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='0.9em' font-size='90'>❤️</text></svg>">
-  <!-- Common player styles -->
-  <link rel="stylesheet" href="/static/css/player-common.css">
-  <!-- Likes player specific styles -->
-  <link rel="stylesheet" href="/static/css/likes-player.css">
-  <!-- Icons styles -->
-  <link rel="stylesheet" href="/static/css/player-icons.css">
-</head>
-<body>
-  <div id="controlBar" class="control-bar">
-    <div style="display:flex;align-items:center;gap:8px;">
-      <a href="/likes" class="modern-btn modern-btn-outline" style="text-decoration:none;display:inline-flex;align-items:center;gap:6px;">
-        <span class="icon icon-like"></span>
-        <span>Virtual Playlists</span>
-      </a>
-      <button id="prevBtn" class="modern-btn modern-btn-secondary" style="display: none;">
-        <span class="icon icon-prev"></span>
-        <span>Prev</span>
-      </button>
-      <button id="playBtn" class="modern-btn modern-btn-primary" style="display: none;">
-        <span class="icon icon-play"></span>
-        <span>Play</span>
-      </button>
-      <button id="nextBtn" class="modern-btn modern-btn-secondary" style="display: none;">
-        <span class="icon icon-next"></span>
-        <span>Next</span>
-      </button>
-      <button id="shuffleBtn" class="modern-btn modern-btn-accent">
-        <span class="icon icon-shuffle"></span>
-        <span>Shuffle</span>
-      </button>
-      <button id="smartShuffleBtn" class="modern-btn modern-btn-accent">
-        <span class="icon icon-smart-shuffle"></span>
-        <span>Smart</span>
-      </button>
-      <button id="orderByDateBtn" class="modern-btn modern-btn-accent">
-        <span class="icon icon-order-by-date"></span>
-        <span>Order by Date</span>
-      </button>
-      <button id="stopBtn" class="modern-btn modern-btn-danger" style="display: none;">
-        <span class="icon icon-stop"></span>
-        <span>Stop</span>
-      </button>
-      <button id="deleteCurrentBtn" class="modern-btn modern-btn-danger">
-        <span class="icon icon-delete"></span>
-        <span>Delete</span>
-      </button>
-      <button id="fullBtn" class="modern-btn modern-btn-secondary">
-        <span class="icon icon-full"></span>
-        <span>Full</span>
-      </button>
-      <button id="toggleListBtn" class="modern-btn modern-btn-outline">
-        <span class="icon icon-list"></span>
-        <span>Playlist</span>
-      </button>
-    </div>
-    <span style="font-size:20px;color:var(--text);font-weight:500;">
-      ❤️ <span class="likes-badge">{{ like_count }}</span> like{{ 's' if like_count != 1 else '' }}
-    </span>
-  </div>
-  <div id="playerContainer" class="player-container" style="margin-top:10px; position:relative;">
-    <div id="videoWrapper" style="position:relative; flex:1 1 auto;">
-      <video id="player" style="width:100%;" playsinline></video>
-      <!-- custom control bar -->
-      <div id="customControls" class="controls">
-        <div class="left-group">
-          <button id="cPrev" class="ctrl-btn" title="Previous">
-            <span class="icon icon-prev"></span>
-          </button>
-          <button id="cPlay" class="ctrl-btn" title="Play/Pause">
-            <span class="icon icon-play"></span>
-          </button>
-          <button id="cNext" class="ctrl-btn" title="Next">
-            <span class="icon icon-next"></span>
-          </button>
-          <button id="cLike" class="ctrl-btn" title="Like">
-            <span class="icon icon-like"></span>
-          </button>
-          <button id="cDislike" class="ctrl-btn" title="Dislike">
-            <span class="icon icon-dislike"></span>
-          </button>
-          <button id="cYoutube" class="ctrl-btn" title="Open on YouTube">
-            <span class="icon icon-youtube"></span>
-          </button>
-          <button id="cMute" class="ctrl-btn" title="Mute/Unmute">
-            <span class="icon icon-volume"></span>
-          </button>
-          <input type="range" id="cVol" min="0" max="1" step="0.01" value="1" class="vol-slider" />
-          <button id="cSpeed" class="ctrl-btn" title="Playback Speed: 1x">
-            <span class="icon icon-clock"></span>
-            <span id="speedLabel">1x</span>
-          </button>
-        </div>
-        <div id="progressContainer" class="progress"><div id="progressBar" class="progress-bar"></div></div>
-        <span id="timeLabel" class="time">0:00 / 0:00</span>
-        <button id="cFull" class="ctrl-btn" title="Fullscreen">
-          <span class="icon icon-full"></span>
-        </button>
-      </div>
-    </div>
-    
-    <!-- Current track title display -->
-    <div id="currentTrackTitle">
-      <span id="currentTrackName">No track selected</span>
-    </div>
-    
-    <div id="playlistPanel" class="playlist-panel">
-      <ul id="tracklist" class="side-list"></ul>
-    </div>
-  </div>
+{% extends "components/player_base.html" %}
 
-  <!-- Virtual playlist configuration -->
-  <script>
-    // Set like count for virtual playlist
-    const VIRTUAL_PLAYLIST_LIKE_COUNT = {{ like_count }};
-    const PLAYLIST_REL = ''; // Virtual playlist has no relpath
-    
-    console.log("🎵 [Virtual] Configure virtual playlist for " + VIRTUAL_PLAYLIST_LIKE_COUNT + " likes");
-  </script>
+{% block title %}❤️ {{ like_count }} Like{{ 's' if like_count != 1 else '' }} - Virtual Playlist{% endblock %}
 
-  <!-- Load specialized virtual player -->
-  <script type="module" src="/static/player-virtual.js?v=3"></script>
-  
-  <!-- Initialize track title manager -->
-  <script type="module">
-    import { initializeTrackTitleManager } from '/static/js/modules/track-title-manager.js';
-    
-    // Initialize track title management system
-    initializeTrackTitleManager();
-  </script>
-</body>
-</html> 
+{% set page_title = "❤️ " + like_count|string + " Like" + ("s" if like_count != 1 else "") + " - Virtual Playlist" %}
+{% set favicon_emoji = "❤️" %}
+{% set player_css = "likes-player" %}
+{% set player_js = "player-virtual" %}
+{% set back_url = "/likes" %}
+{% set back_text = "Virtual Playlists" %}
+{% set show_stream = false %}
+{% set show_cast = true %}
+{% set show_prev_next = true %}
+{% set show_stop = false %}
+{% set virtual_playlist_config = {"like_count": like_count} %} 

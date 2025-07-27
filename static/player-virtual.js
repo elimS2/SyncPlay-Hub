@@ -1,5 +1,5 @@
 // Импорт общих утилит из нового barrel файла
-import { shuffle, smartShuffle, detectChannelGroup, smartChannelShuffle, getGroupPlaybackInfo, orderByPublishDate as utilsOrderByPublishDate, formatTime, updateSpeedDisplay as utilsUpdateSpeedDisplay, showNotification, handleVolumeWheel as utilsHandleVolumeWheel, stopTick as utilsStopTick, stopPlayback as utilsStopPlayback, playIndex as utilsPlayIndex, updateMuteIcon as utilsUpdateMuteIcon, nextTrack as utilsNextTrack, prevTrack as utilsPrevTrack, sendStreamEvent as utilsSendStreamEvent, startTick as utilsStartTick, reportEvent as utilsReportEvent, triggerAutoDeleteCheck as utilsTriggerAutoDeleteCheck, recordSeekEvent, saveVolumeToDatabase as utilsSaveVolumeToDatabase, loadSavedVolume as utilsLoadSavedVolume, performKeyboardSeek as utilsPerformKeyboardSeek, syncLikeButtonsWithRemote as utilsSyncLikeButtonsWithRemote, syncLikesAfterAction as utilsSyncLikesAfterAction, setupLikeSyncHandlers as utilsSetupLikeSyncHandlers, togglePlayback as utilsTogglePlayback, showFsControls as utilsShowFsControls, updateFsVisibility as utilsUpdateFsVisibility, syncRemoteState as utilsSyncRemoteState, setupGlobalTooltip as utilsSetupGlobalTooltip, createTrackTooltipHTML, pollRemoteCommands as utilsPollRemoteCommands, cyclePlaybackSpeed as utilsCyclePlaybackSpeed, executeRemoteCommand as utilsExecuteRemoteCommand, deleteTrack as utilsDeleteTrack, initializeGoogleCastIntegration as utilsInitializeGoogleCastIntegration, castLoad as utilsCastLoad, loadTrack as utilsLoadTrack, setupMediaEndedHandler, setupMediaPlayPauseHandlers, setupMediaTimeUpdateHandler, setupMediaSeekedHandler, setupKeyboardHandler, setupProgressClickHandler, setupMediaSessionAPI, setupPlaylistToggleHandler, setupDeleteCurrentHandler, setupLikeDislikeHandlers, setupYouTubeHandler, setupFullscreenHandlers, setupSimpleControlHandlers, setupStreamHandler, setupBeforeUnloadHandler, setupAutoPlayInitialization, setupRemoteControlOverrides, setupRemoteControlInitialization } from '/static/js/modules/index.js';
+import { shuffle, smartShuffle, detectChannelGroup, smartChannelShuffle, getGroupPlaybackInfo, orderByPublishDate as utilsOrderByPublishDate, formatTime, updateSpeedDisplay as utilsUpdateSpeedDisplay, showNotification, handleVolumeWheel as utilsHandleVolumeWheel, stopTick as utilsStopTick, stopPlayback as utilsStopPlayback, playIndex as utilsPlayIndex, updateMuteIcon as utilsUpdateMuteIcon, nextTrack as utilsNextTrack, prevTrack as utilsPrevTrack, sendStreamEvent as utilsSendStreamEvent, startTick as utilsStartTick, reportEvent as utilsReportEvent, triggerAutoDeleteCheck as utilsTriggerAutoDeleteCheck, recordSeekEvent, saveVolumeToDatabase as utilsSaveVolumeToDatabase, loadSavedVolume as utilsLoadSavedVolume, performKeyboardSeek as utilsPerformKeyboardSeek, syncLikeButtonsWithRemote as utilsSyncLikeButtonsWithRemote, syncLikesAfterAction as utilsSyncLikesAfterAction, setupLikeSyncHandlers as utilsSetupLikeSyncHandlers, togglePlayback as utilsTogglePlayback, showFsControls as utilsShowFsControls, updateFsVisibility as utilsUpdateFsVisibility, syncRemoteState as utilsSyncRemoteState, setupGlobalTooltip as utilsSetupGlobalTooltip, createTrackTooltipHTML, pollRemoteCommands as utilsPollRemoteCommands, cyclePlaybackSpeed as utilsCyclePlaybackSpeed, executeRemoteCommand as utilsExecuteRemoteCommand, deleteTrack as utilsDeleteTrack, initializeGoogleCastIntegration as utilsInitializeGoogleCastIntegration, castLoad as utilsCastLoad, loadTrack as utilsLoadTrack, setupMediaEndedHandler, setupMediaPlayPauseHandlers, setupMediaTimeUpdateHandler, setupMediaSeekedHandler, setupKeyboardHandler, setupProgressClickHandler, setupMediaSessionAPI, setupPlaylistToggleHandler, setupDeleteCurrentHandler, setupLikeDislikeHandlers, setupYouTubeHandler, setupFullscreenHandlers, setupSimpleControlHandlers, setupStreamHandler, setupBeforeUnloadHandler, setupAutoPlayInitialization, setupRemoteControlOverrides, setupRemoteControlInitialization, initializePlaylistPreferences, savePlaylistPreference as savePlaylistPreferenceModule, savePlaylistSpeed as savePlaylistSpeedModule, setupSortButtonHandlers } from '/static/js/modules/index.js';
 
 // Импорт track title manager
 import { updateCurrentTrackTitle } from '/static/js/modules/track-title-manager.js';
@@ -40,8 +40,8 @@ async function fetchTracks(playlistPath = '') {
 // orderByPublishDate() теперь импортируется из player-utils.js
 // Wrapper function для совместимости с существующим кодом
 function orderByPublishDate(tracks) {
-  // Используем схему 'virtual' для виртуальных плейлистов (timestamp, release_timestamp, release_year)
-  return utilsOrderByPublishDate(tracks, 'virtual');
+  // Используем схему 'regular' для виртуальных плейлистов (youtube_timestamp, youtube_release_timestamp, youtube_release_year)
+  return utilsOrderByPublishDate(tracks, 'regular');
 }
 
 // getGroupPlaybackInfo() теперь импортируется из player-utils.js
@@ -82,12 +82,37 @@ const cDislike = document.getElementById('cDislike');
 
   // Playback speed control
   const speedOptions = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2, 2.5];
-  let currentSpeedIndex = 2; // Default to 1x (index 2)
 
   const playlistRel = typeof PLAYLIST_REL !== 'undefined' ? PLAYLIST_REL : '';
   let tracks = await fetchTracks(playlistRel);
 
-  let queue = smartShuffle([...tracks]);
+  // Get virtual playlist identifier
+  const likeCount = typeof VIRTUAL_PLAYLIST_LIKE_COUNT !== 'undefined' ? VIRTUAL_PLAYLIST_LIKE_COUNT : 1;
+  const virtualRelpath = `virtual_${likeCount}_likes`;
+
+  // Initialize playlist preferences using shared module
+  const result = await initializePlaylistPreferences({
+    relpath: virtualRelpath,
+    playlistType: 'virtual',
+    tracks,
+    speedOptions,
+    shuffle,
+    smartShuffle,
+    orderByPublishDate
+  });
+  
+  let { queue } = result;
+  let { currentSpeedIndex } = result;
+
+  // Wrapper functions for backward compatibility
+  async function savePlaylistPreference(preference) {
+    return await savePlaylistPreferenceModule(virtualRelpath, preference, 'virtual');
+  }
+
+  async function savePlaylistSpeed(speed) {
+    return await savePlaylistSpeedModule(virtualRelpath, speed, 'virtual');
+  }
+  
   let currentIndex = -1;
   
   console.log('🧠 Applied smart shuffle for virtual playlist (grouped by last play time)');
@@ -246,40 +271,25 @@ const cDislike = document.getElementById('cDislike');
     playIndex
   });
 
-  shuffleBtn.onclick = () => {
-    // Regular random shuffle
-    queue = [...tracks];
-    shuffle(queue);
-    console.log('🔀 Random shuffle applied to all tracks');
-    playIndex(0);
-    // Update track title after shuffle
-    if (currentIndex >= 0 && currentIndex < queue.length) {
-      updateCurrentTrackTitle(queue[currentIndex]);
-    }
-  };
-
-  smartShuffleBtn.onclick = ()=>{
-     // Smart shuffle based on last play time (always same logic for all playlists)
-     queue = smartShuffle([...tracks]);
-     console.log('🧠 Smart shuffle applied (grouped by last play time)');
-     
-     playIndex(0);
-     // Update track title after smart shuffle
-     if (currentIndex >= 0 && currentIndex < queue.length) {
-       updateCurrentTrackTitle(queue[currentIndex]);
-     }
-  };
-
-  orderByDateBtn.onclick = () => {
-    // Sort tracks by YouTube publish date (oldest first)
-    queue = orderByPublishDate([...tracks]);
-    console.log('📅 [Virtual] Tracks ordered by YouTube publish date (oldest first)');
-    playIndex(0);
-    // Update track title after ordering
-    if (currentIndex >= 0 && currentIndex < queue.length) {
-      updateCurrentTrackTitle(queue[currentIndex]);
-    }
-  };
+  // Setup sort button handlers using shared module
+  setupSortButtonHandlers({
+    shuffleBtn,
+    smartShuffleBtn,
+    orderByDateBtn,
+    tracks,
+    shuffle,
+    smartShuffle,
+    orderByPublishDate,
+    savePlaylistPreference,
+    playIndex,
+    updateCurrentTrackTitle,
+    relpath: virtualRelpath,
+    playlistType: 'virtual',
+    getCurrentIndex: () => currentIndex,
+    getQueue: () => queue,
+    setQueue: (newQueue) => { queue = newQueue; },
+    showNotification
+  });
 
   // Direct functions for playback control
   function stopPlayback() {
@@ -309,7 +319,9 @@ const cDislike = document.getElementById('cDislike');
     playIndex,
     renderList,
     showNotification,
-    loadTrack
+    loadTrack,
+    getCurrentIndex: () => currentIndex,
+    setCurrentIndex: (newIdx) => { currentIndex = newIdx; }
   }, 'virtual');
 
   // Setup fullscreen and control handlers using centralized functions
@@ -327,7 +339,7 @@ const cDislike = document.getElementById('cDislike');
   // Wrapper function для совместимости с существующим кодом
   async function cyclePlaybackSpeed() {
     const context = { currentSpeedIndex, speedOptions, media, updateSpeedDisplay, reportEvent, currentIndex, queue };
-    const newSpeedIndex = await utilsCyclePlaybackSpeed(context, null, 'virtual');
+    const newSpeedIndex = await utilsCyclePlaybackSpeed(context, savePlaylistSpeed, 'virtual');
     currentSpeedIndex = newSpeedIndex;
     updateSpeedDisplay(); // Update display after index is updated
   }
