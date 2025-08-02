@@ -8,14 +8,15 @@
 export async function executeDeleteWithoutConfirmation(context, playerType = 'regular') {
     // Get current index value (handle both direct values and functions)
     const currentIndex = typeof context.currentIndex === 'function' ? context.currentIndex() : context.currentIndex;
+    const currentQueue = typeof context.queue === 'function' ? context.queue() : context.queue;
     
     // Check if there's a current track
-    if (currentIndex < 0 || currentIndex >= context.queue.length) {
+    if (currentIndex < 0 || currentIndex >= currentQueue.length) {
         context.showNotification('❌ No active track to delete', 'error');
         return;
     }
     
-    const currentTrack = context.queue[currentIndex];
+    const currentTrack = currentQueue[currentIndex];
     
     console.log(`🗑️ Deleting current track (remote command): ${currentTrack.name} (${currentTrack.video_id})`);
     
@@ -51,8 +52,8 @@ export async function executeDeleteWithoutConfirmation(context, playerType = 're
             console.log(successMessage);
             
             // Remove track from current queue
-            context.queue.splice(currentIndex, 1);
-            console.log(`🔍 [Delete] Removed track from queue, new queue length: ${context.queue.length}`);
+            currentQueue.splice(currentIndex, 1);
+            console.log(`🔍 [Delete] Removed track from queue, new queue length: ${currentQueue.length}`);
             
             // Also remove from original tracks array
             const originalIndex = context.tracks.findIndex(t => t.video_id === currentTrack.video_id);
@@ -65,9 +66,9 @@ export async function executeDeleteWithoutConfirmation(context, playerType = 're
             
             // Update global queue if updateQueue function is available
             if (context.updateQueue) {
-                console.log(`🔍 [Delete] Updating global queue from ${context.queue.length} tracks`);
+                console.log(`🔍 [Delete] Updating global queue from ${currentQueue.length} tracks`);
                 // Create a copy of the queue to avoid reference issues
-                const updatedQueue = [...context.queue];
+                const updatedQueue = [...currentQueue];
                 if (updatedQueue.length > 0) {
                     context.updateQueue(updatedQueue);
                     console.log(`🔍 [Delete] Global queue updated successfully`);
@@ -80,18 +81,18 @@ export async function executeDeleteWithoutConfirmation(context, playerType = 're
             }
             
             // Handle playback continuation
-            if (context.queue.length > 0) {
+            if (currentQueue.length > 0) {
                 // Since we deleted the current track, we need to play the track at the same index
                 // but the queue has been updated, so we need to handle this carefully
                 let nextIndex;
-                if (currentIndex >= context.queue.length) {
+                if (currentIndex >= currentQueue.length) {
                     // If we were at the end, go to the last track
-                    nextIndex = context.queue.length - 1;
+                    nextIndex = currentQueue.length - 1;
                 } else {
                     // Stay at the same index (which now points to the next track)
                     nextIndex = currentIndex;
                 }
-                console.log(`🎵 [Delete] Auto-continuing to next track at index ${nextIndex} (queue length: ${context.queue.length})`);
+                console.log(`🎵 [Delete] Auto-continuing to next track at index ${nextIndex} (queue length: ${currentQueue.length})`);
                 context.playIndex(nextIndex);
             } else {
                 // No tracks left - note: cannot modify currentIndex directly as it might be a function result
@@ -404,7 +405,9 @@ export function setupLikeSyncHandlers(context) {
       }
       
       // Sync likes after action
-      const currentTrack = currentIndex >= 0 && currentIndex < queue.length ? queue[currentIndex] : null;
+      const currentIdx = typeof currentIndex === 'function' ? currentIndex() : currentIndex;
+      const currentQueue = typeof queue === 'function' ? queue() : queue;
+      const currentTrack = currentIdx >= 0 && currentIdx < currentQueue.length ? currentQueue[currentIdx] : null;
       if (currentTrack && currentTrack.video_id) {
         await syncLikesAfterAction(currentTrack.video_id, 'like');
       }
@@ -422,7 +425,9 @@ export function setupLikeSyncHandlers(context) {
       }
       
       // Sync likes after action
-      const currentTrack = currentIndex >= 0 && currentIndex < queue.length ? queue[currentIndex] : null;
+      const currentIdx = typeof currentIndex === 'function' ? currentIndex() : currentIndex;
+      const currentQueue = typeof queue === 'function' ? queue() : queue;
+      const currentTrack = currentIdx >= 0 && currentIdx < currentQueue.length ? currentQueue[currentIdx] : null;
       if (currentTrack && currentTrack.video_id) {
         await syncLikesAfterAction(currentTrack.video_id, 'dislike');
       }
@@ -1128,15 +1133,15 @@ export function setupDeleteCurrentHandler(deleteCurrentBtn, context, playerType 
         // Try to get current context from the button's stored context or use the original context
         const currentContext = deleteCurrentBtn.context || context;
         
+        // Get current index and queue
         const currentIndex = typeof currentContext.currentIndex === 'function' ? currentContext.currentIndex() : currentContext.currentIndex;
+        const currentQueue = typeof currentContext.queue === 'function' ? currentContext.queue() : (currentContext.queue || []);
         
-        if (currentIndex >= 0 && currentIndex < currentContext.queue.length) {
-            const currentTrack = currentContext.queue[currentIndex];
+        if (currentIndex >= 0 && currentIndex < currentQueue.length) {
+            const currentTrack = currentQueue[currentIndex];
             deleteCurrentBtn.title = `Delete current track: ${currentTrack.name.replace(/\s*\[.*?\]$/, '')} (${currentTrack.video_id})`;
-            console.log(`🔍 [Tooltip] Updated tooltip for track: ${currentTrack.name} (${currentTrack.video_id})`);
         } else {
             deleteCurrentBtn.title = 'Delete current track (no track playing)';
-            console.log(`🔍 [Tooltip] Updated tooltip: no track playing`);
         }
     };
 
@@ -1149,14 +1154,15 @@ export function setupDeleteCurrentHandler(deleteCurrentBtn, context, playerType 
         
         // Get current index value (handle both direct values and functions)
         const currentIndex = typeof currentContext.currentIndex === 'function' ? currentContext.currentIndex() : currentContext.currentIndex;
+        const currentQueue = typeof currentContext.queue === 'function' ? currentContext.queue() : (currentContext.queue || []);
         
         // Check if there's a current track
-        if (currentIndex < 0 || currentIndex >= currentContext.queue.length) {
+        if (currentIndex < 0 || currentIndex >= currentQueue.length) {
             currentContext.showNotification('❌ No active track to delete', 'error');
             return;
         }
         
-        const currentTrack = currentContext.queue[currentIndex];
+        const currentTrack = currentQueue[currentIndex];
         
         // Confirm deletion
         const confirmMessage = `Delete current track "${currentTrack.name.replace(/\s*\[.*?\]$/, '')}" from playlist?\n\nTrack will be moved to trash and can be restored.`;
@@ -1193,8 +1199,10 @@ export function setupLikeDislikeHandlers(cLike, cDislike, context) {
     if (cLike) {
         cLike.onclick = () => {
             const currentIndex = typeof context.currentIndex === 'function' ? context.currentIndex() : context.currentIndex;
-            if (currentIndex < 0 || currentIndex >= context.queue.length) return;
-            const track = context.queue[currentIndex];
+            const queue = typeof context.queue === 'function' ? context.queue() : context.queue;
+            
+            if (currentIndex < 0 || currentIndex >= queue.length) return;
+            const track = queue[currentIndex];
             context.reportEvent(track.video_id, 'like', context.media.currentTime);
             context.likedCurrent = true;
             cLike.classList.add('like-active');
@@ -1206,8 +1214,9 @@ export function setupLikeDislikeHandlers(cLike, cDislike, context) {
     if (cDislike) {
         cDislike.onclick = () => {
             const currentIndex = typeof context.currentIndex === 'function' ? context.currentIndex() : context.currentIndex;
-            if (currentIndex < 0 || currentIndex >= context.queue.length) return;
-            const track = context.queue[currentIndex];
+            const queue = typeof context.queue === 'function' ? context.queue() : context.queue;
+            if (currentIndex < 0 || currentIndex >= queue.length) return;
+            const track = queue[currentIndex];
             context.reportEvent(track.video_id, 'dislike', context.media.currentTime);
             cDislike.classList.add('dislike-active');
             // Change to filled dislike (same icon, but purple styling via CSS class)
@@ -1227,8 +1236,9 @@ export function setupYouTubeHandler(cYoutube, context) {
     if (cYoutube) {
         cYoutube.onclick = () => {
             const currentIndex = typeof context.currentIndex === 'function' ? context.currentIndex() : context.currentIndex;
-            if (currentIndex < 0 || currentIndex >= context.queue.length) return;
-            const track = context.queue[currentIndex];
+            const queue = typeof context.queue === 'function' ? context.queue() : context.queue;
+            if (currentIndex < 0 || currentIndex >= queue.length) return;
+            const track = queue[currentIndex];
             if (track.video_id) {
                 const youtubeUrl = `https://www.youtube.com/watch?v=${track.video_id}`;
                 window.open(youtubeUrl, '_blank');

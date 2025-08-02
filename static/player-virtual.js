@@ -273,6 +273,7 @@ const cDislike = document.getElementById('cDislike');
     relpath: virtualRelpath,
     playlistType: 'virtual',
     getCurrentIndex: () => currentIndex,
+    getQueue: () => queue,  // Add function to get current queue
     setQueue: (newQueue) => { queue = newQueue; },
     showNotification
   });
@@ -299,7 +300,7 @@ const cDislike = document.getElementById('cDislike');
   // Setup delete current button handler using centralized function
   setupDeleteCurrentHandler(deleteCurrentBtn, {
     currentIndex: () => currentIndex,
-    queue,
+    queue: () => queue,  // Pass as function to always get current queue
     tracks,
     media,
     playIndex,
@@ -526,7 +527,7 @@ const cDislike = document.getElementById('cDislike');
   // Setup like/dislike and YouTube handlers using centralized functions
   setupLikeDislikeHandlers(cLike, cDislike, {
     currentIndex: () => currentIndex,
-    queue,
+    queue: () => queue,  // Pass as function to always get current queue
     media,
     reportEvent,
     likedCurrent
@@ -534,7 +535,7 @@ const cDislike = document.getElementById('cDislike');
   
   setupYouTubeHandler(cYoutube, {
     currentIndex: () => currentIndex,
-    queue
+    queue: () => queue  // Pass as function to always get current queue
   });
 
   async function reportEvent(videoId, event, position=null){
@@ -653,7 +654,11 @@ const cDislike = document.getElementById('cDislike');
   // setupLikeSyncHandlers() теперь импортируется из player-utils.js
   // Wrapper function для совместимости с существующим кодом
   function setupLikeSyncHandlers() {
-    const context = { currentIndex, queue, syncLikesAfterAction };
+    const context = { 
+      currentIndex: () => currentIndex, 
+      queue: () => queue,  // Pass as function to always get current queue
+      syncLikesAfterAction 
+    };
     return utilsSetupLikeSyncHandlers(context);
   }
   

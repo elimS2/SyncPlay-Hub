@@ -100,6 +100,15 @@ export async function applyOrderMode(mode, skipSave = false) {
   // Update delete button tooltip
   const deleteCurrentBtn = document.getElementById('deleteCurrentBtn');
   if (deleteCurrentBtn && deleteCurrentBtn.updateTooltip) {
+    // Update Delete button context with new queue function
+    if (deleteCurrentBtn.context && config?.getQueue) {
+      deleteCurrentBtn.context.queue = config.getQueue;
+      
+      // Also update currentIndex to use the function
+      if (config.getCurrentIndex) {
+        deleteCurrentBtn.context.currentIndex = config.getCurrentIndex;
+      }
+    }
     deleteCurrentBtn.updateTooltip();
   }
   
@@ -206,6 +215,27 @@ export async function initializeTrackOrderManager(orderConfig) {
   // Apply initial order mode (skip saving since this is loading saved preference)
   setTimeout(async () => {
     await applyOrderMode(currentOrderMode, true);
+    // Force set first track and update UI after applying order
+    if (typeof config?.playIndex === 'function') {
+      config.playIndex(0);
+    }
+    
+    // Update Delete button context after applying order
+    const deleteCurrentBtn = document.getElementById('deleteCurrentBtn');
+    if (deleteCurrentBtn && deleteCurrentBtn.context && config?.getQueue) {
+      // Update the queue reference in button context
+      // Need to update it to use the function that returns current queue
+      deleteCurrentBtn.context.queue = config.getQueue;
+      
+      // Also update currentIndex to use the function
+      if (config.getCurrentIndex) {
+        deleteCurrentBtn.context.currentIndex = config.getCurrentIndex;
+      }
+      
+      if (deleteCurrentBtn.updateTooltip) {
+        deleteCurrentBtn.updateTooltip();
+      }
+    }
   }, 100);
   
   // Add global functions for debugging
