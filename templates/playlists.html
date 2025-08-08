@@ -7,6 +7,9 @@
   <title>Local YouTube Player - Home</title>
   <!-- Favicon using emoji -->
   <link rel="icon" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='0.9em' font-size='90'>🎵</text></svg>">
+  <!-- Include shared sidebar styles for unified responsive behavior -->
+  {% include 'sidebar_styles.html' %}
+  <link rel="stylesheet" href="/static/css/home.css">
   <style>
     :root {
       --bg-primary: #0a0a0a;
@@ -58,516 +61,10 @@
       line-height: 1.6;
     }
 
-    .layout {
-      display: flex;
-      min-height: 100vh;
-    }
+    /* Sidebar and layout styles are unified via sidebar_styles.html */
 
-    /* Left Sidebar Navigation */
-    .sidebar {
-      width: var(--sidebar-width);
-      background: var(--bg-secondary);
-      border-right: 1px solid var(--border);
-      padding: 20px 0;
-      position: fixed;
-      height: 100vh;
-      overflow-y: auto;
-    }
-
-    .sidebar-header {
-      padding: 0 20px 20px 20px;
-      border-bottom: 1px solid var(--border);
-      margin-bottom: 20px;
-    }
-
-    .sidebar-title {
-      font-size: 18px;
-      font-weight: 600;
-      color: var(--accent);
-      margin: 0;
-    }
-
-    .server-info {
-      font-size: 11px;
-      color: var(--text-muted);
-      margin-top: 5px;
-      padding: 15px 20px;
-      border-top: 1px solid var(--border);
-    }
-
-    .server-info-row {
-      margin-bottom: 3px;
-    }
-
-    .server-info-row:last-child {
-      margin-bottom: 0;
-    }
-
-    .github-link {
-      color: var(--text-muted);
-      text-decoration: none;
-      display: flex;
-      align-items: center;
-      gap: 5px;
-      transition: color 0.2s ease;
-    }
-
-    .github-link:hover {
-      color: var(--accent);
-    }
-
-    .nav-menu {
-      list-style: none;
-      padding: 0;
-      margin: 0;
-    }
-
-    .nav-item {
-      margin-bottom: 2px;
-    }
-
-    .nav-link {
-      display: flex;
-      align-items: center;
-      padding: 12px 20px;
-      color: var(--text-secondary);
-      text-decoration: none;
-      transition: all 0.2s ease;
-      font-size: 14px;
-      font-weight: 500;
-    }
-
-    .nav-link:hover {
-      background: var(--bg-hover);
-      color: var(--accent);
-    }
-
-    .nav-icon {
-      width: 20px;
-      margin-right: 12px;
-      text-align: center;
-    }
-
-    /* Dropdown Menu Styles */
-    .nav-dropdown {
-      position: relative;
-    }
-
-    .dropdown-toggle {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      cursor: pointer;
-    }
-
-    .dropdown-arrow {
-      transition: transform 0.3s ease;
-      margin-left: auto;
-    }
-
-    .nav-dropdown.open .dropdown-arrow {
-      transform: rotate(180deg);
-    }
-
-    .nav-submenu {
-      list-style: none;
-      padding: 0;
-      margin: 0;
-      max-height: 0;
-      overflow: hidden;
-      transition: max-height 0.3s ease;
-      background: var(--bg-primary);
-    }
-
-    .nav-dropdown.open .nav-submenu {
-      max-height: 400px;
-    }
-
-    .nav-subitem {
-      margin-bottom: 1px;
-    }
-
-    .nav-sublink {
-      display: flex;
-      align-items: center;
-      padding: 10px 20px 10px 52px;
-      color: var(--text-secondary);
-      text-decoration: none;
-      transition: all 0.2s ease;
-      font-size: 13px;
-      font-weight: 400;
-      border-left: 3px solid transparent;
-    }
-
-    .nav-sublink:hover {
-      background: var(--bg-hover);
-      color: var(--accent);
-      border-left-color: var(--accent);
-    }
-
-    .nav-sublink.active {
-      background: var(--bg-hover);
-      color: var(--accent);
-      border-left-color: var(--accent);
-    }
-
-    .nav-sublink .nav-icon {
-      width: 16px;
-      margin-right: 10px;
-    }
-
-    /* Main Content */
-    .main-content {
-      flex: 1;
-      margin-left: var(--sidebar-width);
-      padding: 20px;
-    }
-
-    /* Header with Action Buttons */
-    .header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 20px;
-      padding-bottom: 15px;
-      border-bottom: 1px solid var(--border);
-    }
-
-    .page-title {
-      font-size: 24px;
-      font-weight: 600;
-      color: var(--text-primary);
-      margin: 0;
-    }
-
-    .action-buttons {
-      display: flex;
-      gap: 8px;
-      flex-wrap: wrap;
-    }
-
-    .btn {
-      padding: 8px 12px;
-      border: none;
-      border-radius: 6px;
-      font-size: 13px;
-      font-weight: 500;
-      cursor: pointer;
-      text-decoration: none;
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      transition: all 0.2s ease;
-      box-shadow: var(--shadow);
-    }
-
-    .btn:hover {
-      transform: translateY(-1px);
-      box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
-    }
-
-    .btn-primary {
-      background: var(--accent);
-      color: white;
-    }
-
-    .btn-primary:hover {
-      background: var(--accent-hover);
-    }
-
-    .btn-success {
-      background: var(--success);
-      color: white;
-    }
-
-    .btn-success:hover {
-      background: #45a049;
-    }
-
-    .btn-warning {
-      background: var(--warning);
-      color: white;
-    }
-
-    .btn-warning:hover {
-      background: #e68900;
-    }
-
-    .btn-error {
-      background: var(--error);
-      color: white;
-    }
-
-    .btn-error:hover {
-      background: #d32f2f;
-    }
-
-    /* Active Downloads */
-    .downloads-section {
-      background: var(--bg-secondary);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 20px;
-      margin-bottom: 20px;
-    }
-
-    .downloads-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 15px;
-    }
-
-    .downloads-title {
-      font-size: 16px;
-      color: var(--accent);
-      margin: 0;
-    }
-
-    .download-task {
-      background: var(--bg-card);
-      border-radius: 6px;
-      padding: 12px;
-      margin-bottom: 8px;
-      border-left: 3px solid var(--accent);
-    }
-
-    .download-task.download {
-      border-left-color: var(--success);
-    }
-
-    .download-task.resync {
-      border-left-color: var(--warning);
-    }
-
-    .task-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 6px;
-    }
-
-    .task-title {
-      font-weight: 600;
-      color: var(--text-primary);
-      font-size: 14px;
-    }
-
-    .task-status {
-      font-size: 12px;
-      color: var(--text-secondary);
-    }
-
-    .task-details {
-      font-size: 11px;
-      color: var(--text-muted);
-      word-break: break-all;
-    }
-
-    /* Playlists Table */
-    .playlists-section {
-      background: var(--bg-secondary);
-      border-radius: 8px;
-      border: 1px solid var(--border);
-      overflow: hidden;
-    }
-
-    .playlists-header {
-      padding: 15px 20px;
-      border-bottom: 1px solid var(--border);
-    }
-
-    .playlists-title {
-      font-size: 18px;
-      margin: 0;
-      color: var(--text-primary);
-    }
-
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: 14px;
-    }
-
-    th, td {
-      padding: 12px 16px;
-      text-align: left;
-    }
-
-    th {
-      background: var(--bg-card);
-      color: var(--text-primary);
-      font-weight: 600;
-      cursor: pointer;
-      border-bottom: 2px solid var(--border);
-      transition: background 0.2s ease;
-    }
-
-    th:hover {
-      background: var(--bg-hover);
-    }
-
-    tbody tr {
-      border-bottom: 1px solid var(--border);
-      transition: background 0.2s ease;
-    }
-
-    tbody tr:hover {
-      background: var(--bg-hover);
-    }
-
-    .playlist-link {
-      color: var(--accent);
-      text-decoration: none;
-      font-weight: 500;
-    }
-
-    .playlist-link:hover {
-      text-decoration: underline;
-    }
-
-    .arrow {
-      margin-left: 4px;
-      font-size: 10px;
-    }
-
-    .table-btn {
-      padding: 4px 8px;
-      font-size: 12px;
-      border-radius: 4px;
-      border: 1px solid var(--border);
-      background: var(--bg-card);
-      color: var(--text-primary);
-      cursor: pointer;
-      transition: all 0.2s ease;
-    }
-
-    .table-btn:hover {
-      background: var(--accent);
-      color: white;
-    }
-
-    .empty-state {
-      text-align: center;
-      padding: 40px;
-      color: var(--text-muted);
-    }
-
-    /* Modal Styles */
-    .modal {
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background: rgba(0, 0, 0, 0.8);
-      z-index: 1000;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-
-    .modal-content {
-      background: var(--bg-secondary);
-      border-radius: 12px;
-      max-width: 500px;
-      width: 90%;
-      max-height: 90vh;
-      overflow-y: auto;
-      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
-      border: 1px solid var(--border);
-    }
-
-    .modal-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 20px;
-      border-bottom: 1px solid var(--border);
-    }
-
-    .modal-header h3 {
-      margin: 0;
-      color: var(--accent);
-      font-size: 20px;
-    }
-
-    .modal-close {
-      background: none;
-      border: none;
-      font-size: 24px;
-      color: var(--text-muted);
-      cursor: pointer;
-      padding: 5px;
-      border-radius: 4px;
-      transition: all 0.2s ease;
-    }
-
-    .modal-close:hover {
-      background: var(--bg-hover);
-      color: var(--text-primary);
-    }
-
-    .modal-body {
-      padding: 20px;
-    }
-
-    .qr-container {
-      text-align: center;
-    }
-
-    #qrcode {
-      margin: 0 auto 20px auto;
-      padding: 20px;
-      background: white;
-      border-radius: 8px;
-      display: inline-block;
-    }
-
-    .qr-info p {
-      margin: 10px 0;
-      color: var(--text-secondary);
-    }
-
-    .url-box {
-      display: flex;
-      gap: 10px;
-      margin-top: 15px;
-      align-items: center;
-    }
-
-    .url-box input {
-      flex: 1;
-      padding: 10px;
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      background: var(--bg-primary);
-      color: var(--text-primary);
-      font-family: monospace;
-      font-size: 12px;
-    }
-
-    .url-box input:focus {
-      outline: none;
-      border-color: var(--accent);
-    }
-
-    /* Mobile Responsive */
+    /* Mobile Responsive (page-specific parts only) */
     @media (max-width: 768px) {
-      .sidebar {
-        width: 100%;
-        height: auto;
-        position: relative;
-      }
-
-      .main-content {
-        margin-left: 0;
-      }
-
-      .layout {
-        flex-direction: column;
-      }
-
       .action-buttons {
         flex-direction: column;
         gap: 4px;
@@ -583,28 +80,13 @@
         gap: 10px;
         text-align: center;
       }
-
-      .nav-menu {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 5px;
-        padding: 0 20px;
-      }
-
-      .nav-item {
-        margin-bottom: 0;
-      }
-
-      .nav-link {
-        padding: 8px 12px;
-        border-radius: 6px;
-        background: var(--bg-card);
-        border: 1px solid var(--border);
-      }
     }
   </style>
 </head>
 <body>
+  <!-- Mobile Menu Button -->
+  <button class="mobile-menu-btn" onclick="toggleSidebar()">☰</button>
+
   <div class="layout">
     <!-- Left Sidebar Navigation -->
     <!-- Include Universal Sidebar -->
@@ -720,23 +202,23 @@
             <tr>
               <th>Playlist</th>
               <th>Tracks</th>
-              <th>Plays</th>
+              <th class="col-hide-sm">Plays</th>
               <th>Likes</th>
-              <th>Forgotten</th>
-              <th>Last Sync</th>
+              <th class="col-hide-md">Forgotten</th>
+              <th class="col-hide-md">Last Sync</th>
               <th>Action</th>
             </tr>
           </thead>
           <tbody>
             {% for pl in playlists %}
               <tr data-rel="{{ pl.relpath }}">
-                <td><a href="{{ pl.url }}" class="playlist-link">{{ pl.name }}</a></td>
-                <td>{{ pl.count }}</td>
-                <td>{{ pl.plays }}</td>
-                <td>{{ pl.likes }}</td>
-                <td>{{ pl.forgotten }}</td>
-                <td>{{ pl.last_sync }}</td>
-                <td>
+                <td data-label="Playlist"><a href="{{ pl.url }}" class="playlist-link">{{ pl.name }}</a></td>
+                <td data-label="Tracks">{{ pl.count }}</td>
+                <td class="col-hide-sm" data-label="Plays">{{ pl.plays }}</td>
+                <td data-label="Likes">{{ pl.likes }}</td>
+                <td class="col-hide-md" data-label="Forgotten">{{ pl.forgotten }}</td>
+                <td class="col-hide-md" data-label="Last Sync">{{ pl.last_sync }}</td>
+                <td data-label="Action">
                   {% if pl.has_source %}
                     <button class="resyncBtn table-btn">🔄 Resync</button>
                   {% else %}
@@ -757,6 +239,24 @@
       </div>
     </div>
   </div>
+
+  <!-- Mobile sidebar toggle and outside-click close -->
+  <script>
+    function toggleSidebar() {
+      const sidebar = document.querySelector('.sidebar');
+      if (sidebar) sidebar.classList.toggle('open');
+    }
+
+    document.addEventListener('click', function(event) {
+      const sidebar = document.querySelector('.sidebar');
+      const menuBtn = document.querySelector('.mobile-menu-btn');
+      if (window.innerWidth <= 768 && sidebar && sidebar.classList.contains('open')) {
+        if (!sidebar.contains(event.target) && !menuBtn.contains(event.target)) {
+          sidebar.classList.remove('open');
+        }
+      }
+    });
+  </script>
 
   <!-- QR Code Modal -->
   <div id="qrModal" class="modal" style="display: none;">
@@ -1013,7 +513,7 @@
     })();
 
     // Auto-refresh for active downloads
-    var hasActiveDownloads = {{ 'true' if active_downloads else 'false' }};
+    var hasActiveDownloads = JSON.parse('{{ (active_downloads|length > 0) | tojson }}');
     if (hasActiveDownloads) {
         setInterval(function() {
             location.reload();
