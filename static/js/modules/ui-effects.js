@@ -2,6 +2,7 @@
 
 // Import dependencies
 import { formatFileSize } from './dom-utils.js';
+import { getCurrentLayoutMode, LAYOUT_MODES } from './playlist-layout-manager.js';
 
 /**
  * Update playback speed display
@@ -247,6 +248,7 @@ export function createTrackTooltipHTML(track) {
  * @param {HTMLElement} listElem - list element to search for tooltip elements
  */
 export function setupGlobalTooltip(listElem) {
+    const TOOLTIP_VERTICAL_SPACING = 4;
     // Remove existing tooltip if any
     const existingTooltip = document.getElementById('global-tooltip');
     if (existingTooltip) {
@@ -293,7 +295,20 @@ export function setupGlobalTooltip(listElem) {
             }
             
             // Position vertically
-            top = rect.top;
+            const layoutMode = getCurrentLayoutMode ? getCurrentLayoutMode() : null;
+            const isUnderVideo = layoutMode === LAYOUT_MODES.UNDER_VIDEO;
+
+            if (isUnderVideo) {
+                // Prefer showing the tooltip below the hovered row
+                top = rect.top + rect.height + TOOLTIP_VERTICAL_SPACING;
+                // If it overflows bottom, place it above the row
+                if (top + tooltipRect.height > windowHeight - 10) {
+                    top = rect.top - tooltipRect.height - TOOLTIP_VERTICAL_SPACING;
+                }
+            } else {
+                // Default behavior for side-by-side and other modes
+                top = rect.top;
+            }
             
             // Ensure tooltip doesn't go off screen vertically
             if (top + tooltipRect.height > windowHeight - 10) {
