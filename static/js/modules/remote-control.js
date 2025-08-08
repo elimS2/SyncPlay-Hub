@@ -64,21 +64,34 @@ class RemoteControl {
     this.playBtn.addEventListener('click', () => this.sendCommand('play'));
     this.nextBtn.addEventListener('click', () => this.sendCommand('next'));
     this.deleteBtn.addEventListener('click', async () => {
-        // Get current track info for confirmation
-        if (this.currentStatus && this.currentStatus.current_track) {
-            const trackName = this.currentStatus.current_track.name || 'Unknown track';
-            const videoId = this.currentStatus.current_track.video_id || 'Unknown ID';
-            const confirmMessage = `Delete current track "${trackName.replace(/\s*\[.*?\]$/, '')}" (${videoId}) from playlist?\n\nTrack will be moved to trash and can be restored.`;
-            
-            if (confirm(confirmMessage)) {
-                await this.sendCommand('delete');
-            }
-        } else {
-            // Fallback if no track info available
-            if (confirm('Delete current track from playlist?\n\nTrack will be moved to trash and can be restored.')) {
-                await this.sendCommand('delete');
-            }
-        }
+      // Get current track info for confirmation
+      const hasTrack = this.currentStatus && this.currentStatus.current_track;
+      const trackName = hasTrack ? (this.currentStatus.current_track.name || 'Unknown track') : null;
+      const videoId = hasTrack ? (this.currentStatus.current_track.video_id || 'Unknown ID') : null;
+      const plainMessage = hasTrack
+        ? `Delete current track "${(trackName || '').replace(/\s*\[.*?\]$/, '')}" (${videoId}) from playlist?\n\nTrack will be moved to trash and can be restored.`
+        : 'Delete current track from playlist?\n\nTrack will be moved to trash and can be restored.';
+
+      let confirmed = false;
+      if (window.showConfirmDialog) {
+        const htmlMessage = hasTrack
+          ? `Delete current track "${(trackName || '').replace(/\s*\[.*?\]$/, '')}" (${videoId}) from playlist?<br/><br/>Track will be moved to trash and can be restored.`
+          : 'Delete current track from playlist?<br/><br/>Track will be moved to trash and can be restored.';
+        confirmed = await window.showConfirmDialog({
+          title: 'Delete Track',
+          htmlMessage,
+          confirmText: 'Delete',
+          cancelText: 'Cancel',
+          destructive: true
+        });
+      } else {
+        // Safe fallback
+        confirmed = window.confirm(plainMessage);
+      }
+
+      if (confirmed) {
+        await this.sendCommand('delete');
+      }
     });
     this.likeBtn.addEventListener('click', async () => {
       // Send command and wait for sync (no immediate toggle)
