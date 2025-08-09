@@ -295,10 +295,10 @@ class PlaylistDownloadWorker(JobWorker):
                 if extract_audio:
                     cmd.extend(['-f', 'bestaudio', '--extract-audio', '--audio-format', 'mp3'])
                 else:
-                    if format_selector == 'bestvideo+bestaudio/best':
-                        cmd.extend(['-f', '137+251/best[height<=1080]/best'])
-                    else:
-                        cmd.extend(['-f', format_selector])
+                    cmd.extend(['-f', format_selector])
+                    # Prefer MP4 container merge when possible (no re-encode)
+                    if job_data.get('prefer_mp4', True):
+                        cmd.extend(['--merge-output-format', 'mp4'])
 
                 # Archive: only add if enabled and not explicitly ignored
                 ignore_archive = bool(job_data.get('ignore_archive'))
@@ -431,7 +431,24 @@ class PlaylistDownloadWorker(JobWorker):
                             record_cookie_outcome(cookies_for_attempt, success=True)
                         except Exception:
                             pass
-                    self._update_database_scan(config.get('DB_PATH'))
+                    # Post-process DB update optimized for single video
+                    try:
+                        video_id = (job_data.get('video_id') or '').strip()
+                        skip_full_scan = bool(job_data.get('skip_full_scan'))
+                        if video_id and skip_full_scan:
+                            self._update_single_track_path_and_probe(config, output_dir, video_id)
+                            # After DB relpath points to new file and file exists, cleanup old variants
+                            try:
+                                self._cleanup_old_variants_if_safe(config, video_id)
+                            except Exception as ce:
+                                print(f"[PostProcess] Cleanup skipped due to error: {ce}")
+                        else:
+                            self._update_database_scan(config.get('DB_PATH'))
+                    except Exception as e:
+                        print(f"[PostProcess] Warning: failed to update DB optimally: {e}")
+                        # Fallback scan to keep DB consistent
+                        self._update_database_scan(config.get('DB_PATH'))
+
                     self._cleanup_folder_temp_files(output_dir)
                     return True
 
@@ -486,6 +503,124 @@ class PlaylistDownloadWorker(JobWorker):
         except Exception as e:
             print(f"Exception during single video download: {e}")
             return False
+
+    def _update_single_track_path_and_probe(self, config: dict, output_dir: Path, video_id: str) -> None:
+        """Update a single track's relpath based on the freshly downloaded file and rescan media properties.
+
+        Looks for a file named '* [<video_id>].<ext>' in output_dir with latest mtime.
+        Updates tracks.relpath if changed and triggers media probe to refresh bitrate/resolution/size.
+        """
+        try:
+            from database import get_connection, update_track_media_properties
+            from utils.media_probe import ffprobe_media_properties
+            # Resolve ROOT_DIR for relpath computation
+            root_dir = None
+            if config.get('ROOT_DIR'):
+                r = Path(config['ROOT_DIR'])
+                root_dir = r if r.name == 'Playlists' else r / 'Playlists'
+            if not root_dir:
+                # attempt to infer from output_dir's parents
+                candidates = [p for p in output_dir.parents]
+                for p in candidates:
+                    if p.name == 'Playlists':
+                        root_dir = p
+                        break
+            if not root_dir:
+                print('[PostProcess] ROOT_DIR not resolved, skipping optimized update')
+                return
+
+            # Find newly downloaded playable file matching the video_id
+            import re
+            pattern = re.compile(rf"\[(?:{re.escape(video_id)})\]\.[^.]+$")
+            allowed_exts = {'.mp4', '.mkv', '.webm', '.mov', '.m4a', '.mp3', '.opus', '.flac'}
+            candidates = [
+                f for f in output_dir.glob('*')
+                if f.is_file() and pattern.search(f.name) and f.suffix.lower() in allowed_exts
+            ]
+            if not candidates:
+                print(f"[PostProcess] No file found for video {video_id} in {output_dir}")
+                return
+            # Pick latest by mtime
+            target_file = max(candidates, key=lambda p: p.stat().st_mtime)
+
+            # Compute relpath and update if changed (also update filetype)
+            relpath = str(target_file.resolve().relative_to(root_dir)).replace('\\', '/')
+            conn = get_connection()
+            cur = conn.cursor()
+            row = cur.execute("SELECT relpath FROM tracks WHERE video_id = ? LIMIT 1", (video_id,)).fetchone()
+            current_rel = row[0] if row else None
+            if not current_rel:
+                # Track may not be in DB yet; create or fall back to scan
+                conn.close()
+                print(f"[PostProcess] Track {video_id} not found in DB; running fallback scan")
+                self._update_database_scan(config.get('DB_PATH'))
+                return
+
+            if current_rel != relpath:
+                filetype = target_file.suffix.lstrip('.').lower()
+                cur.execute("UPDATE tracks SET relpath = ?, filetype = ? WHERE video_id = ?", (relpath, filetype, video_id))
+                conn.commit()
+                print(f"[PostProcess] Updated relpath for {video_id}: {current_rel} -> {relpath}")
+
+            # Probe media properties and update
+            duration, bitrate, resolution = ffprobe_media_properties(target_file)
+            size_bytes = target_file.stat().st_size
+            update_track_media_properties(conn, video_id, bitrate=bitrate, resolution=resolution, duration=duration, size_bytes=size_bytes)
+            conn.close()
+            print(f"[PostProcess] Probed media for {video_id}: bitrate={bitrate}, resolution={resolution}")
+        except Exception as e:
+            print(f"[PostProcess] Error updating single track: {e}")
+
+    def _cleanup_old_variants_if_safe(self, config: dict, video_id: str) -> None:
+        """Remove other files with the same [video_id] when DB already points to the new file.
+
+        Preconditions:
+        - tracks.relpath exists and points to an existing file
+        - Only files in the same directory with '*[video_id].*' will be considered
+        """
+        import re
+        from database import get_connection
+        root_dir = None
+        if config.get('ROOT_DIR'):
+            r = Path(config['ROOT_DIR'])
+            root_dir = r if r.name == 'Playlists' else r / 'Playlists'
+        if not root_dir or not root_dir.exists():
+            return
+        conn = get_connection()
+        try:
+            cur = conn.cursor()
+            row = cur.execute("SELECT relpath FROM tracks WHERE video_id = ? LIMIT 1", (video_id,)).fetchone()
+            if not row or not row[0]:
+                return
+            relpath = row[0]
+            current_file = (root_dir / relpath).resolve()
+            if not current_file.exists():
+                return
+            start_dir = current_file.parent
+            pattern = re.compile(r"\[" + re.escape(video_id) + r"\]")
+            allowed_exts = {'.mp4', '.mkv', '.webm', '.mov', '.m4a', '.mp3', '.opus', '.flac'}
+            removed = 0
+            for candidate in start_dir.glob('*'):
+                try:
+                    if not candidate.is_file():
+                        continue
+                    if candidate.resolve() == current_file:
+                        continue
+                    if not pattern.search(candidate.stem):
+                        continue
+                    if candidate.suffix.lower() not in allowed_exts:
+                        # keep thumbnails and json sidecars
+                        continue
+                    # Safe remove other variant
+                    candidate.unlink(missing_ok=True)
+                    removed += 1
+                    print(f"[Cleanup] Removed old variant: {candidate.name}")
+                except Exception as e:
+                    print(f"[Cleanup] Failed to remove {candidate}: {e}")
+            if removed:
+                print(f"[Cleanup] Old variants removed: {removed}")
+        finally:
+            conn.close()
     
     def _update_database_scan(self, db_path: str = None):
         """Updates database by scanning new files."""

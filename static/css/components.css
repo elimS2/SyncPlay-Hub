@@ -9,6 +9,18 @@
   padding: 14px;
 }
 
+/* High-contrast adjustments for dark theme readability */
+:root {
+  --bg-card: #1a1a1a;
+  --bg-secondary: #121212;
+  --bg-hover: #232323;
+  --text-primary: #f3f4f6;   /* near-white */
+  --text-secondary: #c7cbd1; /* light gray */
+  --border: #2b2b2b;
+  --accent: #2563eb;
+  --accent-hover: #1d4ed8;
+}
+
 .section-title {
   font-size: 1.1rem;
   margin: 0 0 8px 0;
@@ -37,6 +49,7 @@
 .btn-primary:hover { background: var(--accent-hover); }
 
 .btn-secondary { background: var(--bg-card); color: var(--text-primary); border-color: var(--border); }
+.btn-secondary:hover { background: var(--bg-hover); }
 
 /**** Badges ****/
 .badge { display:inline-block; padding:2px 8px; border-radius: 6px; font-size: 12px; }

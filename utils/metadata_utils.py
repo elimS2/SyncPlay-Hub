@@ -5,7 +5,8 @@ Metadata utilities for YouTube video metadata processing.
 Contains common functions for extracting, formatting and saving YouTube video metadata.
 """
 
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
+import json
 import sys
 from pathlib import Path
 
@@ -14,6 +15,90 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from controllers.api.shared import get_connection, log_message
 import database as db
+
+
+def _normalize_format_entry(fmt: Dict[str, Any]) -> Dict[str, Any]:
+    """Return a compact, normalized subset of a yt-dlp format entry.
+
+    Keeps only fields useful for identifying quality ladders while reducing size.
+    """
+    return {
+        'format_id': fmt.get('format_id'),
+        'format_note': fmt.get('format_note'),
+        'ext': fmt.get('ext'),
+        'vcodec': fmt.get('vcodec'),
+        'acodec': fmt.get('acodec'),
+        'tbr': fmt.get('tbr'),  # total bitrate kbps (if present)
+        'abr': fmt.get('abr'),  # audio bitrate kbps (if present)
+        'asr': fmt.get('asr'),  # audio sample rate Hz
+        'fps': fmt.get('fps'),
+        'width': fmt.get('width'),
+        'height': fmt.get('height'),
+        'filesize': fmt.get('filesize'),
+        'filesize_approx': fmt.get('filesize_approx'),
+    }
+
+
+def _build_formats_summary(normalized_formats: List[Dict[str, Any]]) -> str:
+    """Build a compact, human-readable summary from normalized formats.
+
+    Example: "video: 2160p, 1440p, 1080p60, 720p | audio: 160kbps opus, 128kbps m4a"
+    """
+    if not normalized_formats:
+        return ""
+
+    video_entries: List[str] = []
+    audio_entries: List[str] = []
+
+    # Collect video and audio candidates
+    video_formats = [f for f in normalized_formats if (f.get('vcodec') and f.get('vcodec') != 'none')]
+    audio_formats = [f for f in normalized_formats if (f.get('acodec') and f.get('acodec') != 'none') and (not f.get('vcodec') or f.get('vcodec') == 'none')]
+
+    # Build unique video descriptors by (height, fps>=50)
+    seen_video_keys = set()
+    for f in sorted(video_formats, key=lambda x: (x.get('height') or 0, x.get('fps') or 0), reverse=True):
+        height = f.get('height')
+        if not height:
+            continue
+        is_60 = (f.get('fps') or 0) >= 50
+        key = (height, is_60)
+        if key in seen_video_keys:
+            continue
+        seen_video_keys.add(key)
+        label = f"{height}p"
+        if is_60:
+            label += "60"
+        video_entries.append(label)
+        if len(video_entries) >= 6:
+            break
+
+    # Build top audio descriptors by abr/tbr
+    def _audio_bitrate(fmt: Dict[str, Any]) -> float:
+        return float(fmt.get('abr') or fmt.get('tbr') or 0)
+
+    seen_audio_keys = set()
+    for f in sorted(audio_formats, key=_audio_bitrate, reverse=True):
+        abr = int(round(_audio_bitrate(f)))
+        if abr <= 0:
+            continue
+        codec = f.get('acodec') or ''
+        ext = f.get('ext') or ''
+        # Unique by (abr, codec or ext)
+        key = (abr, codec or ext)
+        if key in seen_audio_keys:
+            continue
+        seen_audio_keys.add(key)
+        label_codec = (codec or ext).split('.')[-1]
+        audio_entries.append(f"{abr}kbps {label_codec}")
+        if len(audio_entries) >= 3:
+            break
+
+    parts = []
+    if video_entries:
+        parts.append("video: " + ", ".join(video_entries))
+    if audio_entries:
+        parts.append("audio: " + ", ".join(audio_entries))
+    return " | ".join(parts)
 
 
 def create_metadata_dict_from_entry(entry: Dict[str, Any], channel_url: str = None) -> Dict[str, Any]:
@@ -83,6 +168,18 @@ def create_metadata_dict_from_entry(entry: Dict[str, Any], channel_url: str = No
         '__x_forwarded_for_ip': entry.get('__x_forwarded_for_ip', '')
     }
     
+    # Available formats and summary (optional)
+    try:
+        raw_formats = entry.get('formats') or []
+        normalized_formats = [_normalize_format_entry(f) for f in raw_formats if isinstance(f, dict)]
+        # Store as JSON string to keep DB column TEXT
+        metadata['available_formats'] = json.dumps(normalized_formats, ensure_ascii=False)
+        metadata['available_qualities_summary'] = _build_formats_summary(normalized_formats)
+    except Exception:
+        # Fail-safe: do not break metadata creation if formats are unexpected
+        metadata['available_formats'] = None
+        metadata['available_qualities_summary'] = None
+
     return metadata
 
 

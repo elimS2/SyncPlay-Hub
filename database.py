@@ -275,6 +275,9 @@ def _ensure_schema(conn: sqlite3.Connection):
             epoch INTEGER,
             duration_string TEXT,
             release_year INTEGER,
+            -- New fields for YouTube available formats
+            available_formats TEXT,
+            available_qualities_summary TEXT,
             created_at TEXT DEFAULT (datetime('now')),
             updated_at TEXT DEFAULT (datetime('now'))
         );
@@ -339,6 +342,15 @@ def _ensure_schema(conn: sqlite3.Connection):
     channel_groups_cols = {row[1] for row in cur.fetchall()}
     if "include_in_likes" not in channel_groups_cols:
         cur.execute("ALTER TABLE channel_groups ADD COLUMN include_in_likes BOOLEAN DEFAULT 1")
+    conn.commit()
+
+    # Add new columns for youtube_video_metadata if missing (upgrades)
+    cur.execute("PRAGMA table_info(youtube_video_metadata)")
+    ycols = {row[1] for row in cur.fetchall()}
+    if "available_formats" not in ycols:
+        cur.execute("ALTER TABLE youtube_video_metadata ADD COLUMN available_formats TEXT")
+    if "available_qualities_summary" not in ycols:
+        cur.execute("ALTER TABLE youtube_video_metadata ADD COLUMN available_qualities_summary TEXT")
     conn.commit()
 
     # Ensure valid event types include new channel events
@@ -1610,7 +1622,9 @@ def upsert_youtube_metadata(conn: sqlite3.Connection, metadata: dict) -> int:
         'playlist_count', 'playlist', 'playlist_id', 'playlist_title', 'playlist_uploader',
         'playlist_uploader_id', 'playlist_channel', 'playlist_channel_id', 'playlist_webpage_url',
         'n_entries', 'playlist_index', '__last_playlist_index', 'playlist_autonumber',
-        'epoch', 'duration_string', 'release_year'
+        'epoch', 'duration_string', 'release_year',
+        # New available qualities fields
+        'available_formats', 'available_qualities_summary'
     ]
     
     # Build column list and value placeholders

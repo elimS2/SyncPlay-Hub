@@ -292,13 +292,80 @@ def track_page(video_id: str):
     finally:
         conn.close()
 
+    # Find on-disk files that match this video_id by filename pattern: *[VIDEO_ID].ext
+    same_id_files = []
+    same_id_files_info = []
+    try:
+        if ROOT_DIR:
+            import re
+            # Match literal [VIDEO_ID] anywhere in the stem (not only at the very end)
+            pattern = re.compile(r"\[" + re.escape(video_id) + r"\]")
+
+            # Ensure DB relpath is included if exists on disk
+            try:
+                db_rel = track.get("relpath") if isinstance(track, dict) else None
+                if db_rel:
+                    db_abs = (ROOT_DIR / db_rel).resolve()
+                    if db_abs.exists() and db_abs.is_file():
+                        relp = str(db_abs.relative_to(ROOT_DIR)).replace("\\", "/")
+                        if relp not in same_id_files:
+                            same_id_files.append(relp)
+                            st = db_abs.stat()
+                            same_id_files_info.append({
+                                "rel": relp,
+                                "size_bytes": st.st_size,
+                                "size_human": _format_file_size(st.st_size),
+                                "modified": datetime.datetime.fromtimestamp(st.st_mtime).strftime('%Y-%m-%d %H:%M:%S'),
+                            })
+            except Exception:
+                pass
+            # Scan only this track's parent directory for performance and correctness
+            start_dir = None
+            try:
+                db_rel = track.get("relpath") if isinstance(track, dict) else None
+                if db_rel:
+                    start_dir = (ROOT_DIR / db_rel).resolve().parent
+            except Exception:
+                start_dir = None
+
+            search_root = start_dir if start_dir and start_dir.exists() else ROOT_DIR
+
+            for path in search_root.rglob("*.*"):
+                try:
+                    if not path.is_file():
+                        continue
+                    if pattern.search(path.stem):
+                        rel = str(path.relative_to(ROOT_DIR)).replace("\\", "/")
+                        if rel not in same_id_files:
+                            same_id_files.append(rel)
+                            st = path.stat()
+                            same_id_files_info.append({
+                                "rel": rel,
+                                "size_bytes": st.st_size,
+                                "size_human": _format_file_size(st.st_size),
+                                "modified": datetime.datetime.fromtimestamp(st.st_mtime).strftime('%Y-%m-%d %H:%M:%S'),
+                            })
+                except Exception:
+                    continue
+    except Exception:
+        # Fail-safe: do not break page on scanning errors
+        same_id_files = []
+
     # Optional telemetry
     try:
         log_message(f"[Track] View: {video_id}")
     except Exception:
         pass
 
-    return render_template("track.html", track=track, metadata=metadata, video_id=video_id)
+    return render_template(
+        "track.html",
+        track=track,
+        metadata=metadata,
+        video_id=video_id,
+        same_id_files=same_id_files,
+        same_id_files_info=sorted(same_id_files_info, key=lambda x: x.get('modified') or '' , reverse=True),
+        same_id_count=len(same_id_files),
+    )
 
 @app.route("/history")
 @app.route("/events")

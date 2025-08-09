@@ -58,6 +58,37 @@
             </div>
             <div class="muted">Type</div><div>{{ track.get('filetype') or '-' }}</div>
             <div class="muted">Relpath</div><div class="mono">{{ track.get('relpath') or '-' }}</div>
+            <div class="muted">Files with this ID</div>
+            <div>
+              {% if same_id_count and same_id_count > 0 %}
+                <span class="mono">{{ same_id_count }}</span>
+                {% if same_id_files_info and same_id_files_info|length > 0 %}
+                  <details style="margin-top:4px;">
+                    <summary class="muted">Show files</summary>
+                    <table class="mono" style="margin-top:6px; width:100%; font-size:12px;">
+                      <thead>
+                        <tr>
+                          <th style="text-align:left; padding-right:8px;">Path</th>
+                          <th style="text-align:right; padding-right:8px;">Size</th>
+                          <th style="text-align:left;">Modified</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {% for info in same_id_files_info %}
+                          <tr>
+                            <td style="padding-right:8px;"><a href="/media/{{ info.rel }}" target="_blank" rel="noopener">{{ info.rel }}</a></td>
+                            <td style="text-align:right; padding-right:8px; white-space:nowrap;">{{ info.size_human }}</td>
+                            <td style="white-space:nowrap;">{{ info.modified }}</td>
+                          </tr>
+                        {% endfor %}
+                      </tbody>
+                    </table>
+                  </details>
+                {% endif %}
+              {% else %}
+                <span class="muted">0</span>
+              {% endif %}
+            </div>
           </div>
         </div>
         <div class="card">
@@ -116,6 +147,24 @@
         {% else %}
           <div class="muted">No YouTube metadata found for this track.</div>
         {% endif %}
+      </div>
+
+      <!-- YouTube Qualities -->
+      <div class="card section" id="ytQualitiesSection">
+        <h3 class="section-title">YouTube Qualities</h3>
+        <div class="kv">
+          <div class="muted">Summary</div>
+          <div>
+            <span id="ytQualitiesSummary">{% if metadata and metadata.get('available_qualities_summary') %}{{ metadata['available_qualities_summary'] }}{% else %}-{% endif %}</span>
+            <button id="rescanYoutubeBtn" class="inline-action" title="Rescan YouTube metadata" style="margin-left:8px; padding:2px 8px; font-size:12px;">⟲ Rescan YouTube</button>
+            <button id="refreshYoutubeBtn" class="inline-action" title="Refresh from database" style="margin-left:6px; padding:2px 8px; font-size:12px;">↻ Refresh</button>
+          </div>
+        </div>
+        <div id="ytFormatsToolbar" style="margin-top:8px; display:flex; flex-wrap:wrap; gap:6px; align-items:center;"></div>
+        <details style="margin-top:8px;">
+          <summary class="muted">Show details</summary>
+          <div id="ytFormatsContainer" class="mono" style="margin-top:6px; font-size:12px; white-space:pre-wrap;"></div>
+        </details>
       </div>
 
       <!-- Optional Raw Data (for debugging) -->
@@ -211,6 +260,198 @@
         setTimeout(()=>{ btn.textContent = origText; btn.disabled = false; }, 1200);
       }
     });
+
+    // YouTube Qualities: helpers
+    const ytSummaryEl = document.getElementById('ytQualitiesSummary');
+    const ytFormatsEl = document.getElementById('ytFormatsContainer');
+    const ytToolbarEl = document.getElementById('ytFormatsToolbar');
+    const ytRescanBtn = document.getElementById('rescanYoutubeBtn');
+    const ytRefreshBtn = document.getElementById('refreshYoutubeBtn');
+
+    let allFormats = [];
+    let normalized = [];
+    const filterState = {
+      type: 'all',       // all | video | audio | progressive | no_storyboard
+      container: 'all',  // all | mp4 | webm
+      codec: 'all'       // all | avc1 | vp9 | av01
+    };
+
+    async function fetchYoutubeFormats() {
+      try {
+        ytRefreshBtn && (ytRefreshBtn.disabled = true);
+        const resp = await fetch(`/api/track/{{ video_id }}/youtube_formats`);
+        const data = await resp.json();
+        if (!resp.ok || data.status !== 'ok') {
+          window.ToastNotifications?.showToast(data?.error || 'Failed to load YouTube formats', { position: 'bottom' });
+          return;
+        }
+        const summary = data.available_qualities_summary || '-';
+        if (ytSummaryEl) ytSummaryEl.textContent = summary;
+        allFormats = Array.isArray(data.available_formats) ? data.available_formats : [];
+        normalized = normalizeFormats(allFormats);
+        renderToolbar();
+        renderList(normalized);
+      } catch (e) {
+        window.ToastNotifications?.showToast('Unexpected error loading YouTube formats', { position: 'bottom' });
+      } finally {
+        ytRefreshBtn && (ytRefreshBtn.disabled = false);
+      }
+    }
+
+    async function requestRedownload(formatId) {
+      try {
+        const resp = await fetch(`/api/track/{{ video_id }}/redownload`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ format_id: formatId })
+        });
+        const data = await resp.json();
+        if (!resp.ok || data.status !== 'started') {
+          window.ToastNotifications?.showToast(data?.error || 'Failed to enqueue redownload', { position: 'bottom' });
+          return;
+        }
+        window.ToastNotifications?.showToast(`Redownload job #${data.job_id} started`, { position: 'bottom' });
+      } catch (e) {
+        window.ToastNotifications?.showToast('Unexpected error enqueuing redownload', { position: 'bottom' });
+      }
+    }
+
+    function normalizeFormats(formats) {
+      return (formats || []).map((f) => {
+        const vcodec = (f.vcodec || '').toLowerCase();
+        const acodec = (f.acodec || '').toLowerCase();
+        const ext = (f.ext || '').toLowerCase();
+        const note = (f.format_note || '').toLowerCase();
+        const isStoryboard = ext === 'mhtml' || note.includes('storyboard');
+        const hasVideo = vcodec && vcodec !== 'none';
+        const hasAudio = acodec && acodec !== 'none';
+        let type = 'other';
+        if (isStoryboard) type = 'storyboard';
+        else if (hasVideo && hasAudio) type = 'progressive';
+        else if (hasVideo && !hasAudio) type = 'video';
+        else if (!hasVideo && hasAudio) type = 'audio';
+        return {
+          id: f.format_id || '',
+          height: f.height || null,
+          fps: f.fps ? Math.round(f.fps) : null,
+          vcodec, acodec, ext,
+          abr: (typeof f.abr === 'number' && f.abr > 0) ? Math.round(f.abr) : (typeof f.tbr === 'number' ? Math.round(f.tbr) : null),
+          asr: f.asr ? Math.round(f.asr) : null,
+          note: f.format_note || '',
+          type,
+        };
+      });
+    }
+
+    function passesFilters(f) {
+      if (f.type === 'storyboard') return false;
+      if (filterState.type !== 'all') {
+        if (filterState.type === 'video' && f.type !== 'video') return false;
+        if (filterState.type === 'audio' && f.type !== 'audio') return false;
+        if (filterState.type === 'progressive' && f.type !== 'progressive') return false;
+      }
+      if (filterState.container !== 'all' && f.ext !== filterState.container) return false;
+      if (filterState.codec !== 'all') {
+        const c = filterState.codec;
+        if (!f.vcodec.includes(c) && !f.acodec.includes(c)) return false;
+      }
+      return true;
+    }
+
+    function renderToolbar() {
+      if (!ytToolbarEl) return;
+      ytToolbarEl.innerHTML = `
+        <span class="muted" style="font-size:12px;">Filters:</span>
+        <button class="inline-action format-action" data-ftype="all">All</button>
+        <button class="inline-action format-action" data-ftype="video">Video-only</button>
+        <button class="inline-action format-action" data-ftype="audio">Audio-only</button>
+        <button class="inline-action format-action" data-ftype="progressive">Progressive</button>
+        <span class="muted" style="font-size:12px; margin-left:8px;">Container:</span>
+        <button class="inline-action format-action" data-fcontainer="all">All</button>
+        <button class="inline-action format-action" data-fcontainer="mp4">MP4</button>
+        <button class="inline-action format-action" data-fcontainer="webm">WEBM</button>
+        <span class="muted" style="font-size:12px; margin-left:8px;">Codec:</span>
+        <button class="inline-action format-action" data-fcodec="all">All</button>
+        <button class="inline-action format-action" data-fcodec="avc1">H.264</button>
+        <button class="inline-action format-action" data-fcodec="vp9">VP9</button>
+        <button class="inline-action format-action" data-fcodec="av01">AV1</button>
+      `;
+      ytToolbarEl.querySelectorAll('button[data-ftype]')?.forEach(btn => {
+        btn.addEventListener('click', () => { filterState.type = btn.getAttribute('data-ftype'); renderList(normalized); });
+      });
+      ytToolbarEl.querySelectorAll('button[data-fcontainer]')?.forEach(btn => {
+        btn.addEventListener('click', () => { filterState.container = btn.getAttribute('data-fcontainer'); renderList(normalized); });
+      });
+      ytToolbarEl.querySelectorAll('button[data-fcodec]')?.forEach(btn => {
+        btn.addEventListener('click', () => { filterState.codec = btn.getAttribute('data-fcodec'); renderList(normalized); });
+      });
+    }
+
+    function renderList(nf) {
+      if (!ytFormatsEl) return;
+      const filtered = nf.filter(passesFilters);
+      const maxLines = 80;
+      const rows = [];
+      for (let i=0; i<filtered.length && i<maxLines; i++) {
+        const f = filtered[i];
+        const parts = [];
+        if (f.height) parts.push(`${f.height}p`);
+        if (f.fps) parts.push(`${f.fps}fps`);
+        if (f.vcodec) parts.push(f.vcodec);
+        if (f.acodec && f.type!=='video') parts.push(f.acodec);
+        if (f.abr) parts.push(`${f.abr}kbps`);
+        parts.push(f.ext);
+        if (f.note) parts.push(f.note);
+        const label = parts.join(' · ');
+        rows.push(`<div style="display:flex; align-items:center; gap:8px; justify-content:space-between;">
+          <span>- ${f.id}: ${label}</span>
+          <button class="inline-action format-action" data-fid="${f.id}">Download this quality</button>
+        </div>`);
+      }
+      if (filtered.length > maxLines) rows.push(`<div class="muted">… and ${filtered.length - maxLines} more</div>`);
+      ytFormatsEl.innerHTML = rows.join('');
+      ytFormatsEl.querySelectorAll('button[data-fid]')?.forEach(btn => {
+        btn.addEventListener('click', () => {
+          const fid = btn.getAttribute('data-fid');
+          if (fid) requestRedownload(fid);
+        });
+      });
+    }
+
+    ytRefreshBtn?.addEventListener('click', fetchYoutubeFormats);
+
+    ytRescanBtn?.addEventListener('click', async () => {
+      const btn = ytRescanBtn;
+      const orig = btn.textContent;
+      try {
+        btn.disabled = true;
+        btn.textContent = 'Enqueuing…';
+        const resp = await fetch(`/api/track/{{ video_id }}/rescan_youtube_metadata`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ force_update: true })
+        });
+        const data = await resp.json();
+        if (!resp.ok || data.status !== 'started') {
+          btn.textContent = 'Failed';
+          window.ToastNotifications?.showToast(data?.error || 'Failed to enqueue', { position: 'bottom' });
+          setTimeout(()=>{ btn.textContent = orig; btn.disabled = false; }, 1200);
+          return;
+        }
+        btn.textContent = 'Queued';
+        window.ToastNotifications?.showToast(`Job #${data.job_id} started`, { position: 'bottom' });
+        setTimeout(()=>{ btn.textContent = orig; btn.disabled = false; }, 1000);
+      } catch (e) {
+        btn.textContent = 'Error';
+        window.ToastNotifications?.showToast('Unexpected error', { position: 'bottom' });
+        setTimeout(()=>{ btn.textContent = orig; btn.disabled = false; }, 1200);
+      }
+    });
+
+    // Initial load of YouTube formats: always fetch to populate details
+    (function initYoutubeQualities() {
+      fetchYoutubeFormats();
+    })();
   </script>
 </body>
 </html>
