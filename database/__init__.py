@@ -24,6 +24,7 @@ spec.loader.exec_module(database_core)
 # Connection helpers
 set_db_path = database_core.set_db_path
 get_connection = database_core.get_connection
+execute_with_retry = database_core.execute_with_retry
 
 # Playlist management
 upsert_playlist = database_core.upsert_playlist
@@ -107,6 +108,7 @@ __all__ = [
     # Connection helpers
     'set_db_path',
     'get_connection',
+    'execute_with_retry',
     
     # Playlist management
     'upsert_playlist',

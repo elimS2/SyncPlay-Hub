@@ -45,7 +45,7 @@ def api_set_volume():
         else:
             volume_from = max(0.0, min(1.0, float(volume_from)))
             
-        # Save new volume
+        # Save new volume (with internal DB retry)
         db.set_user_volume(conn, volume)
         
         # Record volume change event if there's a meaningful change

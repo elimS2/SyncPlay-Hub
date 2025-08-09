@@ -382,6 +382,7 @@ def api_delete_track():
         # Record deletion in database with full path information
         full_source_path = str(full_file_path)
         full_target_path = str(target_file)
+        # Record deletion in DB with retry for transient locks
         db.record_track_deletion(
             conn, 
             video_id, 

@@ -1,6 +1,7 @@
 import sqlite3
+import time
 from pathlib import Path
-from typing import Iterator, Optional, Union, List, Dict
+from typing import Iterator, Optional, Union, List, Dict, Callable, TypeVar
 
 def _load_env_config() -> dict:
     """Load configuration from .env file."""
@@ -32,12 +33,101 @@ def set_db_path(path: Union[str, Path]):
     global DB_PATH
     DB_PATH = Path(path)
 
-def get_connection():
-    """Return sqlite3 connection (creates file/tables if needed)."""
-    conn = sqlite3.connect(DB_PATH)
+def get_connection(timeout: float = 30.0):
+    """Return sqlite3 connection (creates file/tables if needed).
+
+    Applies connection-level PRAGMAs for better concurrency and stability.
+    """
+    # Create connection with busy timeout
+    conn = sqlite3.connect(DB_PATH, timeout=timeout)
+    # Enable autocommit to minimize transaction lifetimes and reduce lock contention
+    try:
+        conn.isolation_level = None
+    except Exception:
+        pass
     conn.row_factory = sqlite3.Row
+
+    # Apply recommended PRAGMAs per-connection (low risk defaults)
+    try:
+        cur = conn.cursor()
+        # Enable foreign keys
+        cur.execute("PRAGMA foreign_keys = ON")
+        # Prefer WAL for concurrent readers/writers
+        cur.execute("PRAGMA journal_mode = WAL")
+        # Balance durability and performance
+        cur.execute("PRAGMA synchronous = NORMAL")
+        # Ensure SQLite waits before raising SQLITE_BUSY
+        cur.execute(f"PRAGMA busy_timeout = {int(timeout * 1000)}")
+        # Optional performance tweaks (safe on modern SQLite)
+        cur.execute("PRAGMA temp_store = MEMORY")
+        cur.execute("PRAGMA cache_size = -64000")  # 64MB
+        cur.execute("PRAGMA mmap_size = 268435456")  # 256MB
+        # Let SQLite auto-optimize
+        cur.execute("PRAGMA optimize")
+    except Exception:
+        # Don't fail connection creation if PRAGMAs are not supported
+        pass
+    finally:
+        try:
+            cur.close()
+        except Exception:
+            pass
+
     _ensure_schema(conn)
     return conn
+
+
+# ---------- Retry helpers ----------
+
+T = TypeVar("T")
+
+
+def execute_with_retry(
+    operation: Callable[[], T],
+    *,
+    max_attempts: int = 5,
+    base_delay_ms: int = 100,
+) -> T:
+    """Execute callable with retries on transient SQLite lock errors.
+
+    Retries sqlite3.OperationalError when error message indicates a lock/busy state.
+    Uses exponential backoff with a small initial delay.
+
+    Args:
+        operation: Callable that performs the database operation and returns a value.
+        max_attempts: Maximum number of attempts (including the first try).
+        base_delay_ms: Initial delay between retries in milliseconds.
+
+    Returns:
+        The result of the operation if successful.
+
+    Raises:
+        Re-raises the last exception if not considered transient or attempts exhausted.
+    """
+    attempt_number = 1
+    delay_seconds = max(0.0, base_delay_ms / 1000.0)
+
+    while True:
+        try:
+            return operation()
+        except sqlite3.OperationalError as error:
+            message = str(error).lower()
+            is_transient = any(
+                token in message
+                for token in (
+                    "database is locked",
+                    "database is busy",
+                    "schema is locked",
+                    "table is locked",
+                )
+            )
+
+            if not is_transient or attempt_number >= max_attempts:
+                raise
+
+            time.sleep(delay_seconds)
+            attempt_number += 1
+            delay_seconds = min(delay_seconds * 2.0, 1.0)
 
 
 def _ensure_schema(conn: sqlite3.Connection):
@@ -579,25 +669,40 @@ def record_event(conn: sqlite3.Connection, video_id: str, event: str, position: 
         # no per-track counters, only history log
         pass
     if set_parts:
-        cur.execute(f"UPDATE tracks SET {', '.join(set_parts)} WHERE video_id = ?", (video_id,))
-        conn.commit()
+        def _update_track_counters() -> bool:
+            cur.execute(
+                f"UPDATE tracks SET {', '.join(set_parts)} WHERE video_id = ?",
+                (video_id,)
+            )
+            conn.commit()
+            return True
+
+        execute_with_retry(_update_track_counters)
 
     # log history
     try:
-        cur.execute(
-            "INSERT INTO play_history (video_id, event, position, volume_from, volume_to, seek_from, seek_to, additional_data) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", 
-            (video_id, event, position, volume_from, volume_to, seek_from, seek_to, additional_data)
-        )
-        conn.commit()
-    except sqlite3.IntegrityError as e:
-        # Likely due to old CHECK constraint only allowing start/finish
-        if "CHECK" in str(e):
-            _migrate_history_table(conn)
+        def _insert_history() -> bool:
             cur.execute(
                 "INSERT INTO play_history (video_id, event, position, volume_from, volume_to, seek_from, seek_to, additional_data) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", 
                 (video_id, event, position, volume_from, volume_to, seek_from, seek_to, additional_data)
             )
             conn.commit()
+            return True
+
+        execute_with_retry(_insert_history)
+    except sqlite3.IntegrityError as e:
+        # Likely due to old CHECK constraint only allowing start/finish
+        if "CHECK" in str(e):
+            _migrate_history_table(conn)
+            def _reinsert_history() -> bool:
+                cur.execute(
+                    "INSERT INTO play_history (video_id, event, position, volume_from, volume_to, seek_from, seek_to, additional_data) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", 
+                    (video_id, event, position, volume_from, volume_to, seek_from, seek_to, additional_data)
+                )
+                conn.commit()
+                return True
+
+            execute_with_retry(_reinsert_history)
         else:
             raise
 
@@ -903,17 +1008,22 @@ def set_user_setting(conn: sqlite3.Connection, setting_key: str, setting_value: 
         setting_value: Setting value to store
     """
     cur = conn.cursor()
-    cur.execute(
-        """
-        INSERT INTO user_settings (setting_key, setting_value, updated_at)
-        VALUES (?, ?, datetime('now'))
-        ON CONFLICT(setting_key) DO UPDATE SET
-            setting_value = excluded.setting_value,
-            updated_at = datetime('now')
-        """,
-        (setting_key, setting_value)
-    )
-    conn.commit()
+
+    def _upsert_setting() -> bool:
+        cur.execute(
+            """
+            INSERT INTO user_settings (setting_key, setting_value, updated_at)
+            VALUES (?, ?, datetime('now'))
+            ON CONFLICT(setting_key) DO UPDATE SET
+                setting_value = excluded.setting_value,
+                updated_at = datetime('now')
+            """,
+            (setting_key, setting_value)
+        )
+        conn.commit()
+        return True
+
+    execute_with_retry(_upsert_setting)
 
 
 def get_user_volume(conn: sqlite3.Connection) -> float:
@@ -1314,17 +1424,22 @@ def record_track_deletion(conn: sqlite3.Connection, video_id: str, original_name
         additional_data: Additional context data
     """
     cur = conn.cursor()
-    cur.execute(
-        """
-        INSERT INTO deleted_tracks 
-        (video_id, original_name, original_relpath, deletion_reason, 
-         channel_group, trash_path, additional_data)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-        """,
-        (video_id, original_name, original_relpath, deletion_reason,
-         channel_group, trash_path, additional_data)
-    )
-    conn.commit()
+
+    def _insert_deleted() -> bool:
+        cur.execute(
+            """
+            INSERT INTO deleted_tracks 
+            (video_id, original_name, original_relpath, deletion_reason, 
+             channel_group, trash_path, additional_data)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (video_id, original_name, original_relpath, deletion_reason,
+             channel_group, trash_path, additional_data)
+        )
+        conn.commit()
+        return True
+
+    execute_with_retry(_insert_deleted)
     
     # Also record as event in play_history
     record_event(conn, video_id, 'auto_deleted' if deletion_reason == 'auto_delete' else 'removed',
@@ -1409,15 +1524,20 @@ def restore_deleted_track(conn: sqlite3.Connection, deleted_track_id: int):
         deleted_track_id: ID of the deleted track record
     """
     cur = conn.cursor()
-    cur.execute(
-        """
-        UPDATE deleted_tracks 
-        SET restored_at = datetime('now'), can_restore = 0
-        WHERE id = ?
-        """,
-        (deleted_track_id,)
-    )
-    conn.commit()
+
+    def _mark_restored() -> bool:
+        cur.execute(
+            """
+            UPDATE deleted_tracks 
+            SET restored_at = datetime('now'), can_restore = 0
+            WHERE id = ?
+            """,
+            (deleted_track_id,)
+        )
+        conn.commit()
+        return True
+
+    execute_with_retry(_mark_restored)
 
 
 def should_auto_delete_track(conn: sqlite3.Connection, video_id: str) -> bool:

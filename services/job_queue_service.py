@@ -22,7 +22,7 @@ from .job_types import (
 )
 
 # Database functions for settings
-from database import get_user_setting
+from database import get_user_setting, get_connection, execute_with_retry
 
 # Performance monitoring and optimization (Phase 7)
 try:
@@ -98,7 +98,8 @@ class JobQueueService:
     
     def _init_database(self):
         """Initialize database for job queue operations."""
-        with sqlite3.connect(self.db_path) as conn:
+        conn = get_connection()
+        try:
             # Check if job_queue table exists
             cursor = conn.cursor()
             cursor.execute("""
@@ -136,6 +137,8 @@ class JobQueueService:
                 cursor.execute("CREATE INDEX idx_job_queue_type ON job_queue(job_type)")
                 
                 conn.commit()
+        finally:
+            conn.close()
     
     def _start_worker_threads(self):
         """Start worker threads."""
@@ -184,10 +187,33 @@ class JobQueueService:
             # Use optimized database connection if available
             if self._database_optimizer:
                 with self._database_optimizer.get_optimized_connection() as conn:
-                    return self._get_next_job_from_connection(conn)
+                    # Ensure short lock time: BEGIN IMMEDIATE to avoid writer starvation
+                    try:
+                        conn.execute("BEGIN IMMEDIATE")
+                    except Exception:
+                        pass
+                    job = self._get_next_job_from_connection(conn)
+                    try:
+                        conn.commit()
+                    except Exception:
+                        pass
+                    return job
             else:
-                with sqlite3.connect(self.db_path) as conn:
-                    return self._get_next_job_from_connection(conn)
+                conn = get_connection()
+                try:
+                    # Ensure short lock time: BEGIN IMMEDIATE to lock minimally during selection and update
+                    try:
+                        conn.execute("BEGIN IMMEDIATE")
+                    except Exception:
+                        pass
+                    job = self._get_next_job_from_connection(conn)
+                    try:
+                        conn.commit()
+                    except Exception:
+                        pass
+                    return job
+                finally:
+                    conn.close()
     
     def _get_next_job_from_connection(self, conn) -> Optional[Job]:
         """Helper method to get next job from provided connection."""
@@ -236,12 +262,18 @@ class JobQueueService:
             job.failure_type = JobFailureType(row[13])
         
         # Mark job as running
-        cursor.execute("""
-            UPDATE job_queue 
-            SET status = 'running', started_at = CURRENT_TIMESTAMP
-            WHERE id = ?
-        """, (job.id,))
-        conn.commit()
+        def _mark_running() -> bool:
+            cursor.execute(
+                """
+                UPDATE job_queue 
+                SET status = 'running', started_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+                """,
+                (job.id,)
+            )
+            conn.commit()
+            return True
+        execute_with_retry(_mark_running)
         
         job.status = JobStatus.RUNNING
         job.started_at = datetime.utcnow()
@@ -321,19 +353,27 @@ class JobQueueService:
     
     def _update_job_completion(self, job: Job, success: bool, error_message: Optional[str]):
         """Update completed job status with enhanced retry logic."""
-        with sqlite3.connect(self.db_path) as conn:
+        conn = get_connection()
+        try:
             cursor = conn.cursor()
             
             if success:
                 new_status = JobStatus.COMPLETED
                 self._stats['completed_jobs'] += 1
                 
-                cursor.execute("""
-                    UPDATE job_queue 
-                    SET status = ?, completed_at = CURRENT_TIMESTAMP, 
-                        log_file_path = ?
-                    WHERE id = ?
-                """, (new_status.value, job.log_file_path, job.id))
+                def _update_completed() -> bool:
+                    cursor.execute(
+                        """
+                        UPDATE job_queue 
+                        SET status = ?, completed_at = CURRENT_TIMESTAMP, 
+                            log_file_path = ?
+                        WHERE id = ?
+                        """,
+                        (new_status.value, job.log_file_path, job.id)
+                    )
+                    conn.commit()
+                    return True
+                execute_with_retry(_update_completed)
                 
             else:
                 # Enhanced retry logic with exponential backoff
@@ -342,41 +382,55 @@ class JobQueueService:
                     if job.schedule_retry():
                         new_status = JobStatus.RETRYING
                         
-                        cursor.execute("""
-                            UPDATE job_queue 
-                            SET status = ?, retry_count = ?, error_message = ?, 
-                                failure_type = ?, next_retry_at = ?, log_file_path = ?
-                            WHERE id = ?
-                        """, (
-                            new_status.value, 
-                            job.retry_count, 
-                            error_message,
-                            job.failure_type.value if job.failure_type else None,
-                            job.next_retry_at.isoformat() if job.next_retry_at else None,
-                            job.log_file_path,
-                            job.id
-                        ))
+                        def _update_retrying() -> bool:
+                            cursor.execute(
+                                """
+                                UPDATE job_queue 
+                                SET status = ?, retry_count = ?, error_message = ?, 
+                                    failure_type = ?, next_retry_at = ?, log_file_path = ?
+                                WHERE id = ?
+                                """,
+                                (
+                                    new_status.value, 
+                                    job.retry_count, 
+                                    error_message,
+                                    job.failure_type.value if job.failure_type else None,
+                                    job.next_retry_at.isoformat() if job.next_retry_at else None,
+                                    job.log_file_path,
+                                    job.id
+                                )
+                            )
+                            conn.commit()
+                            return True
+                        execute_with_retry(_update_retrying)
                     else:
                         # If schedule_retry returned False, move to dead letter
                         job.move_to_dead_letter("Failed to schedule retry")
                         new_status = JobStatus.DEAD_LETTER
                         self._stats['failed_jobs'] += 1
                         
-                        cursor.execute("""
-                            UPDATE job_queue 
-                            SET status = ?, completed_at = CURRENT_TIMESTAMP, 
-                                error_message = ?, failure_type = ?, log_file_path = ?,
-                                dead_letter_reason = ?, moved_to_dead_letter_at = ?
-                            WHERE id = ?
-                        """, (
-                            new_status.value, 
-                            error_message, 
-                            job.failure_type.value if job.failure_type else None,
-                            job.log_file_path,
-                            job.dead_letter_reason,
-                            job.moved_to_dead_letter_at.isoformat() if job.moved_to_dead_letter_at else None,
-                            job.id
-                        ))
+                        def _update_dead_letter() -> bool:
+                            cursor.execute(
+                                """
+                                UPDATE job_queue 
+                                SET status = ?, completed_at = CURRENT_TIMESTAMP, 
+                                    error_message = ?, failure_type = ?, log_file_path = ?,
+                                    dead_letter_reason = ?, moved_to_dead_letter_at = ?
+                                WHERE id = ?
+                                """,
+                                (
+                                    new_status.value, 
+                                    error_message, 
+                                    job.failure_type.value if job.failure_type else None,
+                                    job.log_file_path,
+                                    job.dead_letter_reason,
+                                    job.moved_to_dead_letter_at.isoformat() if job.moved_to_dead_letter_at else None,
+                                    job.id
+                                )
+                            )
+                            conn.commit()
+                            return True
+                        execute_with_retry(_update_dead_letter)
                 else:
                     # Maximum retry attempts exhausted
                     if job.retry_count >= job.max_retries:
@@ -387,24 +441,31 @@ class JobQueueService:
                     
                     self._stats['failed_jobs'] += 1
                     
-                    cursor.execute("""
-                        UPDATE job_queue 
-                        SET status = ?, completed_at = CURRENT_TIMESTAMP, 
-                            error_message = ?, failure_type = ?, log_file_path = ?,
-                            dead_letter_reason = ?, moved_to_dead_letter_at = ?
-                        WHERE id = ?
-                    """, (
-                        new_status.value, 
-                        error_message, 
-                        job.failure_type.value if job.failure_type else None,
-                        job.log_file_path,
-                        job.dead_letter_reason,
-                        job.moved_to_dead_letter_at.isoformat() if job.moved_to_dead_letter_at else None,
-                        job.id
-                    ))
-            
-            conn.commit()
+                    def _update_failed() -> bool:
+                        cursor.execute(
+                            """
+                            UPDATE job_queue 
+                            SET status = ?, completed_at = CURRENT_TIMESTAMP, 
+                                error_message = ?, failure_type = ?, log_file_path = ?,
+                                dead_letter_reason = ?, moved_to_dead_letter_at = ?
+                            WHERE id = ?
+                            """,
+                            (
+                                new_status.value, 
+                                error_message, 
+                                job.failure_type.value if job.failure_type else None,
+                                job.log_file_path,
+                                job.dead_letter_reason,
+                                job.moved_to_dead_letter_at.isoformat() if job.moved_to_dead_letter_at else None,
+                                job.id
+                            )
+                        )
+                        conn.commit()
+                        return True
+                    execute_with_retry(_update_failed)
             job.status = new_status
+        finally:
+            conn.close()
     
     def _call_job_callbacks(self, job_id: int, success: bool, error_message: Optional[str]):
         """Call registered callbacks for the job."""
@@ -422,7 +483,8 @@ class JobQueueService:
     
     def _cleanup_zombie_jobs(self):
         """Clean up zombie jobs."""
-        with sqlite3.connect(self.db_path) as conn:
+        conn = get_connection()
+        try:
             cursor = conn.cursor()
             
             # Find all running jobs
@@ -468,26 +530,35 @@ class JobQueueService:
                     job.mark_as_zombie(f"Zombie detected during cleanup after {job.get_elapsed_time():.0f}s")
                     
                     # Update in database
-                    cursor.execute("""
-                        UPDATE job_queue 
-                        SET status = ?, error_message = ?, failure_type = ?
-                        WHERE id = ?
-                    """, (
-                        JobStatus.ZOMBIE.value,
-                        job.error_message,
-                        JobFailureType.TIMEOUT_ERROR.value,
-                        job.id
-                    ))
+                    def _mark_zombie() -> bool:
+                        cursor.execute(
+                            """
+                            UPDATE job_queue 
+                            SET status = ?, error_message = ?, failure_type = ?
+                            WHERE id = ?
+                            """,
+                            (
+                                JobStatus.ZOMBIE.value,
+                                job.error_message,
+                                JobFailureType.TIMEOUT_ERROR.value,
+                                job.id
+                            )
+                        )
+                        conn.commit()
+                        return True
+                    execute_with_retry(_mark_zombie)
                     
                     zombie_count += 1
             
             if zombie_count > 0:
-                conn.commit()
                 print(f"Marked {zombie_count} zombie jobs during cleanup")
+        finally:
+            conn.close()
     
     def force_kill_zombie_jobs(self):
         """Forcefully terminate all zombie jobs."""
-        with sqlite3.connect(self.db_path) as conn:
+        conn = get_connection()
+        try:
             cursor = conn.cursor()
             
             # Find all zombie jobs
@@ -498,18 +569,24 @@ class JobQueueService:
             zombie_ids = [row[0] for row in cursor.fetchall()]
             
             if zombie_ids:
-                cursor.execute("""
-                    UPDATE job_queue 
-                    SET status = 'failed', completed_at = CURRENT_TIMESTAMP,
-                        error_message = 'Zombie job forcefully terminated'
-                    WHERE status = 'zombie'
-                """)
-                
-                conn.commit()
+                def _kill_zombies() -> bool:
+                    cursor.execute(
+                        """
+                        UPDATE job_queue 
+                        SET status = 'failed', completed_at = CURRENT_TIMESTAMP,
+                            error_message = 'Zombie job forcefully terminated'
+                        WHERE status = 'zombie'
+                        """
+                    )
+                    conn.commit()
+                    return True
+                execute_with_retry(_kill_zombies)
                 print(f"Force killed {len(zombie_ids)} zombie jobs")
                 return len(zombie_ids)
             
             return 0
+        finally:
+            conn.close()
     
     # Public API methods
     
@@ -531,26 +608,32 @@ class JobQueueService:
         Returns:
             ID of created job
         """
-        with sqlite3.connect(self.db_path) as conn:
+        conn = get_connection()
+        try:
             cursor = conn.cursor()
             
-            cursor.execute("""
-                INSERT INTO job_queue (
-                    job_type, job_data, status, priority, 
-                    max_retries, timeout_seconds, parent_job_id
-                ) VALUES (?, ?, ?, ?, ?, ?, ?)
-            """, (
-                job.job_type.value,
-                job.job_data.to_json(),
-                job.status.value,
-                job.priority.value,
-                job.max_retries,
-                job.timeout_seconds,
-                job.parent_job_id
-            ))
-            
-            job_id = cursor.lastrowid
-            conn.commit()
+            def _insert_job() -> int:
+                cursor.execute(
+                    """
+                    INSERT INTO job_queue (
+                        job_type, job_data, status, priority, 
+                        max_retries, timeout_seconds, parent_job_id
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        job.job_type.value,
+                        job.job_data.to_json(),
+                        job.status.value,
+                        job.priority.value,
+                        job.max_retries,
+                        job.timeout_seconds,
+                        job.parent_job_id
+                    )
+                )
+                conn.commit()
+                return cursor.lastrowid
+
+            job_id = execute_with_retry(_insert_job)
             
             job.id = job_id
             
@@ -564,6 +647,8 @@ class JobQueueService:
             self._stats['total_jobs'] += 1
             
             return job_id
+        finally:
+            conn.close()
     
     def create_and_add_job(self, job_type: JobType, callback: Optional[Callable] = None, **kwargs) -> int:
         """Create and add job with default settings."""

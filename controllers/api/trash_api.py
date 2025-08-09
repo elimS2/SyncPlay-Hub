@@ -1338,13 +1338,21 @@ def api_clear_trash():
         # Update database: mark all deleted tracks as not restorable from file 
         conn = get_connection()
         cursor = conn.cursor()
-        cursor.execute("""
-            UPDATE deleted_tracks
-            SET can_restore = 0
-            WHERE trash_path IS NOT NULL AND can_restore = 1
-        """)
-        affected_records = cursor.rowcount
-        conn.commit()
+
+        from database import execute_with_retry
+
+        def _mark_not_restorable() -> int:
+            cursor.execute(
+                """
+                UPDATE deleted_tracks
+                SET can_restore = 0
+                WHERE trash_path IS NOT NULL AND can_restore = 1
+                """
+            )
+            conn.commit()
+            return cursor.rowcount
+
+        affected_records = execute_with_retry(_mark_not_restorable)
         conn.close()
         
         formatted_size = _format_file_size(size_freed)

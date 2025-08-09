@@ -287,8 +287,14 @@ def api_link_playlist():
         conn.close()
         return jsonify({"status": "error", "message": "playlist not found"}), 404
 
-    conn.execute("UPDATE playlists SET source_url=? WHERE relpath=?", (url, relpath))
-    conn.commit()
+    from database import execute_with_retry
+
+    def _update_source_url() -> bool:
+        conn.execute("UPDATE playlists SET source_url=? WHERE relpath=?", (url, relpath))
+        conn.commit()
+        return True
+
+    execute_with_retry(_update_source_url)
     conn.close()
     return jsonify({"status": "ok"})
 
