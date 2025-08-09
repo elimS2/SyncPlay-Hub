@@ -9,8 +9,11 @@ import os
 import random
 import glob
 from pathlib import Path
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 import logging
+import json
+import time
+import os
 
 # Configure logger
 logger = logging.getLogger(__name__)
@@ -112,8 +115,17 @@ def find_cookie_files(cookies_dir: Path) -> List[Path]:
     # Remove duplicates and filter only files
     unique_files = []
     seen_files = set()
+    # Exclude health file from candidates
+    try:
+        health_path = _get_health_file_path(cookies_dir)
+    except Exception:
+        health_path = None
+
     for file_path in cookie_files:
         if file_path.is_file() and file_path not in seen_files:
+             # Skip internal health JSON file
+            if health_path and file_path.resolve() == health_path.resolve():
+                continue
             unique_files.append(file_path)
             seen_files.add(file_path)
     
@@ -199,6 +211,148 @@ def get_random_cookie_file() -> Optional[str]:
     return str(selected_cookie)
 
 
+def _get_health_file_path(cookies_dir: Path, env_config: Optional[dict] = None) -> Path:
+    """Resolve path for cookie health JSON file."""
+    if env_config is None:
+        env_config = _load_env_config()
+    configured = env_config.get('COOKIE_HEALTH_PATH') or os.environ.get('COOKIE_HEALTH_PATH')
+    if configured:
+        return Path(configured)
+    return cookies_dir / '_health.json'
+
+
+def _load_cookie_health(cookies_dir: Path) -> Dict[str, Any]:
+    """Load cookie health state from JSON; return empty dict on errors."""
+    try:
+        path = _get_health_file_path(cookies_dir)
+        if not path.exists():
+            return {}
+        with open(path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        if isinstance(data, dict):
+            return data
+        return {}
+    except Exception as e:
+        logger.warning(f"Failed to load cookie health file: {e}")
+        return {}
+
+
+def _atomic_write_json(path: Path, data: Dict[str, Any]) -> None:
+    """Atomically write JSON to file (temp + replace)."""
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = path.with_suffix(path.suffix + '.tmp')
+        with open(tmp, 'w', encoding='utf-8') as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
+        os.replace(tmp, path)
+    except Exception as e:
+        logger.warning(f"Failed to write cookie health file: {e}")
+
+
+def _save_cookie_health(cookies_dir: Path, state: Dict[str, Any]) -> None:
+    path = _get_health_file_path(cookies_dir)
+    _atomic_write_json(path, state)
+
+
+def record_cookie_outcome(cookie_path: str, success: bool) -> None:
+    """Record success/failure outcome for a cookie file into health state."""
+    try:
+        cookies_dir = Path(cookie_path).parent
+        state = _load_cookie_health(cookies_dir)
+        key = str(Path(cookie_path))
+        now = int(time.time())
+        entry = state.get(key) or {
+            'successes': 0,
+            'failures': 0,
+            'last_success_ts': 0,
+            'last_failure_ts': 0,
+        }
+        if success:
+            entry['successes'] = int(entry.get('successes', 0)) + 1
+            entry['last_success_ts'] = now
+        else:
+            entry['failures'] = int(entry.get('failures', 0)) + 1
+            entry['last_failure_ts'] = now
+        state[key] = entry
+        _save_cookie_health(cookies_dir, state)
+    except Exception as e:
+        logger.debug(f"record_cookie_outcome skipped due to error: {e}")
+
+
+def get_cookie_file(prefer_healthy: bool = True) -> Optional[str]:
+    """Select a cookie file with improved prioritization.
+
+    Priority order:
+    1) Unseen cookies (no record yet) → random among them
+    2) Clean-success cookies (failures == 0 and successes > 0) → random among them
+    3) Non-recently failed cookies with last_success >= last_failure → random among them
+    4) Neutral/others → fallback random choice from remaining valid cookies
+    """
+    cookies_dir = get_cookies_directory()
+    if not cookies_dir:
+        return None
+
+    cookie_files = find_cookie_files(cookies_dir)
+    valid_cookies = [p for p in cookie_files if validate_cookies_file(p)]
+    if not valid_cookies:
+        logger.warning(f"No valid cookie files found in {cookies_dir}")
+        return None
+
+    if not prefer_healthy or len(valid_cookies) == 1:
+        selected = random.choice(valid_cookies)
+        logger.info(f"Selected cookie (random): {selected.name}")
+        return str(selected)
+
+    # Load health state and apply simple cooldown-based preference
+    state = _load_cookie_health(cookies_dir)
+    now = int(time.time())
+    failure_cooldown_sec = 30 * 60  # 30 minutes
+
+    unseen_pool: List[Path] = []
+    clean_success_pool: List[Path] = []
+    good_pool: List[Path] = []
+    fallback_pool: List[Path] = []
+
+    for p in valid_cookies:
+        key = str(p)
+        entry = state.get(key)
+        if entry is None:
+            unseen_pool.append(p)
+            continue
+        last_fail = int(entry.get('last_failure_ts', 0) or 0)
+        last_succ = int(entry.get('last_success_ts', 0) or 0)
+        successes = int(entry.get('successes', 0) or 0)
+        failures = int(entry.get('failures', 0) or 0)
+
+        # Cooldown: skip recently failed with no newer success
+        if failures > 0 and last_fail and (now - last_fail) < failure_cooldown_sec and (not last_succ or last_succ < last_fail):
+            # Keep them only as last resort (not placing into pools)
+            continue
+
+        if failures == 0 and successes > 0:
+            clean_success_pool.append(p)
+        elif last_succ and last_succ >= last_fail:
+            good_pool.append(p)
+        else:
+            fallback_pool.append(p)
+
+    for pool_name, pool in (
+        ("unseen", unseen_pool),
+        ("clean", clean_success_pool),
+        ("good", good_pool),
+        ("fallback", fallback_pool or valid_cookies),
+    ):
+        if pool:
+            selected = random.choice(pool)
+            logger.info(f"Selected cookie ({pool_name}): {selected.name}")
+            return str(selected)
+
+    # Should not reach here, but keep a safe fallback
+    selected = random.choice(valid_cookies)
+    logger.info(f"Selected cookie (final-fallback): {selected.name}")
+    return str(selected)
+
+
 def get_cookies_for_download(explicit_path: Optional[str] = None, use_browser: bool = False) -> tuple[Optional[str], bool]:
     """
     Get cookies configuration for download operations.
@@ -221,9 +375,9 @@ def get_cookies_for_download(explicit_path: Optional[str] = None, use_browser: b
         return None, True
     
     # Priority 3: Try to get random cookie file from directory
-    random_cookie = get_random_cookie_file()
-    if random_cookie:
-        return random_cookie, False
+    preferred_cookie = get_cookie_file(prefer_healthy=True)
+    if preferred_cookie:
+        return preferred_cookie, False
     
     # Priority 4: Fallback to browser cookies if available
     logger.info("No cookie files available, checking browser cookies fallback")

@@ -399,9 +399,17 @@
                                 <span>🔄</span>
                                 Refresh Statistics
                             </button>
+                            <button class="btn btn-secondary" onclick="loadCookiesHealth()">
+                                <span>🍪</span>
+                                Show Cookies Health
+                            </button>
                         </div>
                         <div class="status-display" id="system-status">
                             System operational
+                        </div>
+                        <div id="cookies-health" style="margin-top: 12px; display: none;">
+                            <div class="card-description">Cookies files success/failure counters (sorted by best first)</div>
+                            <div id="cookies-health-content">Loading...</div>
                         </div>
                     </div>
                 </div>
@@ -648,6 +656,31 @@
                 }
             } catch (error) {
                 showStatus('system-status', `Network error: ${error.message}`, 'error');
+            }
+        }
+
+        // Cookies health UI (restored)
+        async function loadCookiesHealth() {
+            const box = document.getElementById('cookies-health');
+            const content = document.getElementById('cookies-health-content');
+            box.style.display = 'block';
+            content.textContent = 'Loading...';
+            try {
+                const res = await fetch('/api/cookies/health');
+                const data = await res.json();
+                if (data.status !== 'ok') {
+                    content.textContent = 'Error: ' + (data.error || 'Unknown');
+                    return;
+                }
+                if (!data.files || data.files.length === 0) {
+                    content.textContent = 'No cookies data available';
+                    return;
+                }
+                const header = '<thead><tr><th>File</th><th>Successes</th><th>Failures</th><th>Last Success (ts)</th><th>Last Failure (ts)</th></tr></thead>';
+                const rows = data.files.map(f => `<tr><td>${f.file}</td><td>${f.successes}</td><td>${f.failures}</td><td>${f.last_success_ts}</td><td>${f.last_failure_ts}</td></tr>`).join('');
+                content.innerHTML = `<table class="table">${header}<tbody>${rows}</tbody></table>`;
+            } catch (e) {
+                content.textContent = 'Error loading cookies health: ' + e;
             }
         }
 

@@ -19,7 +19,7 @@ import shutil
 sys.path.append(str(Path(__file__).parent.parent.parent))
 
 from services.job_types import JobWorker, Job, JobType
-from utils.cookies_manager import get_random_cookie_file
+from utils.cookies_manager import get_random_cookie_file, get_cookie_file, record_cookie_outcome
 
 
 class PlaylistDownloadWorker(JobWorker):
@@ -32,6 +32,7 @@ class PlaylistDownloadWorker(JobWorker):
             JobType.PLAYLIST_SYNC,
             JobType.SINGLE_VIDEO_DOWNLOAD
         ]
+        self._yt_dlp_version_checked = False
     
     def get_supported_job_types(self) -> List[JobType]:
         """Returns supported job types."""
@@ -127,6 +128,8 @@ class PlaylistDownloadWorker(JobWorker):
                           extract_audio: bool) -> bool:
         """Downloads playlist."""
         try:
+            # Check yt-dlp version once per worker lifecycle
+            self._check_yt_dlp_version(config)
             # Use download_playlist.py for playlists
             script_path = project_root / 'download_playlist.py'
             if not script_path.exists():
@@ -226,8 +229,10 @@ class PlaylistDownloadWorker(JobWorker):
                               format_selector: str, extract_audio: bool, job_data: dict) -> bool:
         """Downloads single video."""
         try:
-            # Use yt-dlp directly for single videos
-            cmd = ['yt-dlp']
+            # Check yt-dlp version once per worker lifecycle
+            self._check_yt_dlp_version(config)
+            import time
+            import random
             
             # Determine save path
             if config.get('ROOT_DIR'):
@@ -249,101 +254,231 @@ class PlaylistDownloadWorker(JobWorker):
             
             # Output configuration
             output_template = str(output_dir / '%(title)s [%(id)s].%(ext)s')
-            cmd.extend(['-o', output_template])
-            
-            # Format with fallback to bypass HTTP 403
-            if extract_audio:
-                cmd.extend(['-f', 'bestaudio', '--extract-audio', '--audio-format', 'mp3'])
-            else:
-                # Use proven solution: f137+f251 instead of f616+f251 to bypass HTTP 403
-                if format_selector == 'bestvideo+bestaudio/best':
-                    cmd.extend(['-f', '137+251/best[height<=1080]/best'])
+
+            # Feature flags / configuration
+            retry_ladder_enabled = str(config.get('YTDLP_RETRY_LADDER', '1')).strip() not in ('0', 'false', 'False')
+            max_attempts = int(config.get('YTDLP_MAX_ATTEMPTS', '4'))
+            backoff_min_ms = int(config.get('YTDLP_BACKOFF_MIN_MS', '1000'))
+            backoff_max_ms = int(config.get('YTDLP_BACKOFF_MAX_MS', '5000'))
+            align_ua_with_client = str(config.get('YTDLP_ALIGN_UA_WITH_CLIENT', '0')).strip() in ('1', 'true', 'True')
+
+            # Helper to construct UA per client if alignment is enabled
+            def user_agent_for_client(client: str | None) -> str:
+                if not align_ua_with_client:
+                    return 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36'
+                if client == 'android':
+                    return 'Mozilla/5.0 (Linux; Android 12; SM-G998B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Mobile Safari/537.36'
+                if client == 'ios':
+                    return 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1'
+                # web/default
+                return 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36'
+
+            # Prepare attempt configurations (ladder)
+            # We avoid TV client based on observed SABR correlation.
+            attempt_plan = [
+                { 'name': 'web-default', 'player_client': None, 'rotate_cookie': False, 'rotate_proxy': False, 'extra_flags': [] },
+                { 'name': 'android',     'player_client': 'android', 'rotate_cookie': False, 'rotate_proxy': False, 'extra_flags': [] },
+                { 'name': 'web-rotated', 'player_client': None, 'rotate_cookie': True,  'rotate_proxy': True,  'extra_flags': [] },
+                { 'name': 'ios-final',   'player_client': 'ios', 'rotate_cookie': True,  'rotate_proxy': True,  'extra_flags': ['--force-ipv4', '--http-chunk-size', '10M'] },
+            ]
+
+            if not retry_ladder_enabled:
+                attempt_plan = attempt_plan[:1]
+                max_attempts = 1
+
+            # Build command per attempt
+            def build_cmd(player_client: str | None, cookies_path: str | None, extra_flags: list[str], proxy_url: str | None) -> list[str]:
+                cmd = ['yt-dlp']
+                cmd.extend(['-o', output_template])
+
+                # Format selection
+                if extract_audio:
+                    cmd.extend(['-f', 'bestaudio', '--extract-audio', '--audio-format', 'mp3'])
                 else:
-                    cmd.extend(['-f', format_selector])
-            
-            # Archive
-            if download_archive:
-                archive_file = output_dir / 'archive.txt'
-                cmd.extend(['--download-archive', str(archive_file)])
-            
-            # Main options + encoding fix
-            cmd.extend([
-                '--write-info-json',
-                '--write-thumbnail', 
-                '--embed-thumbnail',
-                '--add-metadata',
-                '--restrict-filenames',  # KEY fix for Unicode in Windows
-                '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
-                '--extractor-retries', '3',
-                '--fragment-retries', '10'
-            ])
-            
-            # Proxy support for bypassing YouTube blocks
-            if config.get('PROXY_URL'):
-                cmd.extend(['--proxy', config['PROXY_URL']])
-                print(f"Using proxy: {config['PROXY_URL']}")
-            
-            # Cookies support for bypassing YouTube age restrictions and bot detection
-            random_cookie = get_random_cookie_file()
-            if random_cookie:
-                cmd.extend(['--cookies', random_cookie])
-                print(f"Using cookies file: {Path(random_cookie).name}")
+                    if format_selector == 'bestvideo+bestaudio/best':
+                        cmd.extend(['-f', '137+251/best[height<=1080]/best'])
+                    else:
+                        cmd.extend(['-f', format_selector])
+
+                # Archive: only add if enabled and not explicitly ignored
+                ignore_archive = bool(job_data.get('ignore_archive'))
+                if download_archive and not ignore_archive:
+                    archive_file = output_dir / 'archive.txt'
+                    cmd.extend(['--download-archive', str(archive_file)])
+
+                # Common options
+                cmd.extend([
+                    '--write-info-json',
+                    '--write-thumbnail', 
+                    '--embed-thumbnail',
+                    '--add-metadata',
+                    '--restrict-filenames',
+                    '--user-agent', user_agent_for_client(player_client),
+                    '--extractor-retries', '3',
+                    '--fragment-retries', '10'
+                ])
+
+                # Extractor args for client switching
+                if player_client:
+                    cmd.extend(['--extractor-args', f'youtube:player_client={player_client}'])
+
+                # Proxy support (attempt-specific)
+                if proxy_url:
+                    cmd.extend(['--proxy', proxy_url])
+
+                # Cookies
+                if cookies_path:
+                    cmd.extend(['--cookies', cookies_path])
+
+                # Extra flags for certain attempts
+                if extra_flags:
+                    cmd.extend(extra_flags)
+
+                # Additional parameters
+                if job_data.get('force_overwrites'):
+                    cmd.append('--force-overwrites')
+
+                # URL
+                cmd.append(video_url)
+                return cmd
+
+            # Select initial cookie
+            base_cookie = get_cookie_file(prefer_healthy=True)
+            if base_cookie:
+                print(f"Using cookies file: {Path(base_cookie).name}")
             else:
                 print("No cookies available - download may fail for age-restricted content")
-            
-            # Additional parameters for download fixes
-            if job_data.get('ignore_archive'):
-                cmd.append('--no-download-archive')
-            if job_data.get('force_overwrites'):
-                cmd.append('--force-overwrites')
-            
-            # Video URL
-            cmd.append(video_url)
-            
-            print(f"Executing command: {' '.join(cmd)}")
-            
-            # Run download with correct encoding for Windows
+
+            # Proxy configuration: support PROXY_URLS (comma-separated) and fallback PROXY_URL
+            proxy_urls_raw = str(config.get('PROXY_URLS', '')).strip()
+            proxy_list = [p.strip() for p in proxy_urls_raw.split(',') if p.strip()] if proxy_urls_raw else []
+            if not proxy_list and config.get('PROXY_URL'):
+                proxy_list = [config.get('PROXY_URL')]
+            proxy_index = 0
+
+            # Environment
             env = os.environ.copy()
             env['PYTHONIOENCODING'] = 'utf-8'
-            
-            result = subprocess.run(
-                cmd,
-                cwd=str(project_root),
-                capture_output=True,
-                text=True,
-                encoding='utf-8',
-                errors='replace',
-                timeout=3600,  # 1 hour timeout for single video
-                env=env
-            )
-            
-            # Output result for logging
-            if result.stdout:
-                print("=== STDOUT ===")
-                print(result.stdout)
-            
-            if result.stderr:
-                print("=== STDERR ===")
-                print(result.stderr)
-            
-            print(f"Process exit code: {result.returncode}")
-            
-            # Check result
-            if result.returncode == 0:
-                print("Single video download completed successfully")
-                
-                # Update database with scan
-                self._update_database_scan(config.get('DB_PATH'))
-                
-                # Cleanup temporary files in the download folder
-                self._cleanup_folder_temp_files(output_dir)
-                
-                return True
-            else:
-                print(f"Single video download failed with exit code {result.returncode}")
+
+            # Attempt loop
+            attempt_index = 0
+            seen_sabr_or_403 = False
+            for plan in attempt_plan:
+                attempt_index += 1
+
+                # Decide cookie for this attempt
+                cookies_for_attempt = base_cookie
+                if plan['rotate_cookie']:
+                    # Prefer a different healthy cookie when rotating
+                    rotated = get_cookie_file(prefer_healthy=True)
+                    # Avoid picking the same cookie if possible
+                    if rotated == base_cookie:
+                        try_alt = get_cookie_file(prefer_healthy=True)
+                        if try_alt:
+                            rotated = try_alt
+                    if rotated and rotated != base_cookie:
+                        cookies_for_attempt = rotated
+
+                # Decide proxy for this attempt
+                proxy_for_attempt = None
+                if proxy_list:
+                    proxy_for_attempt = proxy_list[proxy_index % len(proxy_list)]
+                # Rotate proxy if the plan indicates so
+                if plan.get('rotate_proxy'):
+                    proxy_index += 1
+                    if proxy_list:
+                        proxy_for_attempt = proxy_list[proxy_index % len(proxy_list)]
+
+                cmd = build_cmd(plan['player_client'], cookies_for_attempt, plan['extra_flags'], proxy_for_attempt)
+
+                # One-line attempt log
+                attempt_log = (
+                    f"attempt={attempt_index}/{min(max_attempts, len(attempt_plan))} "
+                    f"client={plan['player_client'] or 'web'} "
+                    f"cookie={(Path(cookies_for_attempt).name if cookies_for_attempt else 'none')} "
+                    f"proxy={(proxy_for_attempt or 'none')} "
+                    f"format={'137+251' if (not extract_audio and format_selector=='bestvideo+bestaudio/best') else format_selector}"
+                )
+                print(attempt_log)
+                print(f"Executing command: {' '.join(cmd)}")
+
+                result = subprocess.run(
+                    cmd,
+                    cwd=str(project_root),
+                    capture_output=True,
+                    text=True,
+                    encoding='utf-8',
+                    errors='replace',
+                    timeout=3600,  # 1 hour timeout for single video
+                    env=env
+                )
+
+                # Output result for logging
+                if result.stdout:
+                    print("=== STDOUT ===")
+                    print(result.stdout)
                 if result.stderr:
-                    print(f"Error output: {result.stderr}")
-                return False
+                    print("=== STDERR ===")
+                    print(result.stderr)
+
+                print(f"Process exit code: {result.returncode}")
+
+                # Success?
+                if result.returncode == 0:
+                    print("Single video download completed successfully")
+                    if cookies_for_attempt:
+                        try:
+                            record_cookie_outcome(cookies_for_attempt, success=True)
+                        except Exception:
+                            pass
+                    self._update_database_scan(config.get('DB_PATH'))
+                    self._cleanup_folder_temp_files(output_dir)
+                    return True
+
+                # Decide if we should retry based on stderr markers
+                stderr_lower = (result.stderr or '').lower()
+                sabr_marker = 'sabr' in stderr_lower or 'missing a url' in stderr_lower
+                forbidden_403 = 'http error 403' in stderr_lower or 'forbidden' in stderr_lower
+                permanent_markers = ['this video is private', 'video unavailable', 'copyright']
+                is_permanent = any(m in stderr_lower for m in permanent_markers)
+                if sabr_marker or forbidden_403:
+                    seen_sabr_or_403 = True
+
+                if is_permanent or attempt_index >= max_attempts:
+                    if cookies_for_attempt:
+                        try:
+                            record_cookie_outcome(cookies_for_attempt, success=False)
+                        except Exception:
+                            pass
+                    # Stop retrying
+                    break
+
+                # Retry only if SABR/403-like
+                if sabr_marker or forbidden_403:
+                    if cookies_for_attempt:
+                        try:
+                            record_cookie_outcome(cookies_for_attempt, success=False)
+                        except Exception:
+                            pass
+                    # backoff with jitter
+                    delay_ms = random.randint(backoff_min_ms, backoff_max_ms)
+                    time.sleep(delay_ms / 1000.0)
+                    continue
+                else:
+                    if cookies_for_attempt:
+                        try:
+                            record_cookie_outcome(cookies_for_attempt, success=False)
+                        except Exception:
+                            pass
+                    # Unknown error kind; do not spin endlessly
+                    break
+
+            # If reached here, not successful
+            print("Single video download failed after attempts")
+            if seen_sabr_or_403:
+                # Raise exception to classify as network error for queue retry policy
+                raise RuntimeError("network: SABR/403 encountered across attempts")
+            return False
                 
         except subprocess.TimeoutExpired:
             print("Single video download timed out (1 hour)")
@@ -415,6 +550,38 @@ class PlaylistDownloadWorker(JobWorker):
                 print(f"Warning: Failed to load .env file: {e}")
         
         return config
+
+    def _check_yt_dlp_version(self, config: dict) -> None:
+        """Log yt-dlp version and warn if older than minimum configured version."""
+        try:
+            if self._yt_dlp_version_checked:
+                return
+            self._yt_dlp_version_checked = True
+
+            import subprocess
+            result = subprocess.run(['yt-dlp', '--version'], capture_output=True, text=True, timeout=10)
+            version_str = (result.stdout or '').strip()
+            if not version_str:
+                print("[yt-dlp] Unable to determine yt-dlp version")
+                return
+
+            print(f"[yt-dlp] Detected yt-dlp version: {version_str}")
+
+            min_required = str(config.get('YTDLP_MIN_VERSION', '2024.12.01')).strip()
+
+            def parse_v(s: str):
+                try:
+                    parts = s.split('.')
+                    return tuple(int(p) for p in parts[:3])
+                except Exception:
+                    return None
+
+            cur = parse_v(version_str)
+            req = parse_v(min_required)
+            if cur and req and cur < req:
+                print(f"[yt-dlp] Warning: yt-dlp {version_str} is older than recommended minimum {min_required}. Consider upgrading: pip install -U yt-dlp")
+        except Exception as e:
+            print(f"[yt-dlp] Version check skipped due to error: {e}")
     
     def get_worker_info(self) -> dict:
         """Worker information for monitoring."""

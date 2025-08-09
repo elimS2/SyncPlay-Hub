@@ -9,6 +9,8 @@ import time
 import signal
 from pathlib import Path
 from flask import Blueprint, request, jsonify
+from utils.cookies_manager import get_cookies_directory
+from utils.cookies_manager import _load_cookie_health  # internal helper used for read-only API
 from .shared import log_message
 
 # Create blueprint
@@ -94,3 +96,38 @@ def api_stop():
     threading.Thread(target=stop_server, daemon=True).start()
     
     return jsonify({"status": "ok", "message": "Server stopping..."}) 
+
+
+@system_bp.route("/cookies/health", methods=["GET"])
+def api_cookies_health():
+    """Return cookies health statistics for monitoring."""
+    try:
+        cookies_dir = get_cookies_directory()
+        if not cookies_dir:
+            return jsonify({
+                'status': 'ok',
+                'cookies_dir': None,
+                'files': [],
+            })
+        state = _load_cookie_health(cookies_dir)
+        files = []
+        for path_str, entry in state.items():
+            # Cross-platform filename extraction
+            fname = path_str.replace('\\', '/').split('/')[-1]
+            files.append({
+                'path': path_str,
+                'file': fname,
+                'successes': int(entry.get('successes', 0)),
+                'failures': int(entry.get('failures', 0)),
+                'last_success_ts': int(entry.get('last_success_ts', 0)),
+                'last_failure_ts': int(entry.get('last_failure_ts', 0)),
+            })
+        # Sort by successes desc, failures asc
+        files.sort(key=lambda x: (-x['successes'], x['failures'], x['file']))
+        return jsonify({
+            'status': 'ok',
+            'cookies_dir': str(cookies_dir),
+            'files': files,
+        })
+    except Exception as e:
+        return jsonify({'status': 'error', 'error': str(e)}), 500

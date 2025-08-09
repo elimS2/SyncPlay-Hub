@@ -42,6 +42,18 @@ VIDEO_ID_RE = re.compile(r"\[([A-Za-z0-9_-]{11})\]")
 UNAVAILABLE_FILE = "unavailable_ids.txt"
 
 
+def _user_agent_for_client(client: str | None, align: bool) -> str:
+    """Return a UA aligned with a given extractor client if requested."""
+    if not align:
+        return 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36'
+    if client == 'android':
+        return 'Mozilla/5.0 (Linux; Android 12; SM-G998B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Mobile Safari/537.36'
+    if client == 'ios':
+        return 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1'
+    # web/default
+    return 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36'
+
+
 class _ProgLogger:
     def __init__(self, total=None, progress_callback=None):
         self.count = 0
@@ -428,7 +440,7 @@ def cleanup_local_files(playlist_dir: pathlib.Path, current_ids: Set[str], root_
             print(f"[Warning] Could not update {UNAVAILABLE_FILE}: {exc}")
 
 
-def build_ydl_opts(output_dir: pathlib.Path, audio_only: bool, *, cookies_path: str | None = None, use_browser: bool = False, proxy_url: str | None = None) -> Dict[str, Any]:
+def build_ydl_opts(output_dir: pathlib.Path, audio_only: bool, *, cookies_path: str | None = None, use_browser: bool = False, proxy_url: str | None = None, player_client: str | None = None, align_ua: bool = False) -> Dict[str, Any]:
     """Build yt-dlp options dict."""
     # File name template: <playlist>/Title [VIDEO_ID].ext
     output_template = str(output_dir / "%(playlist_title)s" / "%(title)s [%(id)s].%(ext)s")
@@ -444,8 +456,12 @@ def build_ydl_opts(output_dir: pathlib.Path, audio_only: bool, *, cookies_path: 
             {"key": "FFmpegMetadata"},
         ]
 
+    extractor_args: Dict[str, Any] = {}
+    if player_client:
+        extractor_args = {"youtube": {"player_client": [player_client]}}
+
     return {
-        "format": "bestaudio/best" if audio_only else "bestvideo+bestaudio/best",
+        "format": "bestaudio/best" if audio_only else "137+251/best[height<=1080]/best",
         "outtmpl": output_template,
         "download_archive": str(output_dir / "downloaded.txt"),
         "ignoreerrors": True,
@@ -459,6 +475,10 @@ def build_ydl_opts(output_dir: pathlib.Path, audio_only: bool, *, cookies_path: 
         # Windows filename sanitization - prevents invalid characters like \/:*?"<>|
         "restrictfilenames": True,
         "windowsfilenames": True,
+        "extractor_retries": 3,
+        "fragment_retries": 10,
+        "user_agent": _user_agent_for_client(player_client, align_ua),
+        **({"extractor_args": extractor_args} if extractor_args else {}),
         **({"cookiefile": cookies_path} if cookies_path else {}),
         **({"cookiesfrombrowser": ("chrome",)} if use_browser and not cookies_path else {}),
         **({"proxy": proxy_url} if proxy_url else {}),
@@ -545,7 +565,29 @@ def download_playlist(playlist_url: str, output_dir: pathlib.Path, audio_only: b
     output_dir.mkdir(parents=True, exist_ok=True)
 
     # 2. Download/update files
-    ydl_opts = build_ydl_opts(output_dir, audio_only, cookies_path=actual_cookies_path, use_browser=actual_use_browser, proxy_url=proxy_url)
+    # Player client and UA alignment via environment (defaults aligned with roadmap)
+    player_client = os.environ.get('YTDLP_PLAYLIST_CLIENT', 'android')
+    align_ua = str(os.environ.get('YTDLP_ALIGN_UA_WITH_CLIENT', '0')).strip() in ('1', 'true', 'True')
+
+    # Log yt-dlp version and warn if outdated (simple CLI check)
+    try:
+        import subprocess
+        res = subprocess.run(['yt-dlp', '--version'], capture_output=True, text=True, timeout=10)
+        ver = (res.stdout or '').strip()
+        if ver:
+            print(f"[yt-dlp] Version: {ver}")
+    except Exception:
+        pass
+
+    ydl_opts = build_ydl_opts(
+        output_dir,
+        audio_only,
+        cookies_path=actual_cookies_path,
+        use_browser=actual_use_browser,
+        proxy_url=proxy_url,
+        player_client=player_client,
+        align_ua=align_ua,
+    )
     if debug:
         ydl_opts["quiet"] = False
     with YoutubeDL(ydl_opts) as ydl:

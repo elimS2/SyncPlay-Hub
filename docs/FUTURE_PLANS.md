@@ -1,6 +1,6 @@
-## Future Plans (Media Properties Rescan and Job Queue UX)
+## Future Plans
 
-This document captures follow-up items and optional enhancements derived from the implementation plan in `docs/features/MEDIA_PROPERTIES_RESCAN.md`. It is intentionally concise; for full context and technical background, see the roadmap document.
+This document captures concise follow-ups and optional enhancements. Keep it short and link back to feature roadmaps for details.
 
 ### Backend
 - Add lightweight audit events (optional)
@@ -45,6 +45,42 @@ This document captures follow-up items and optional enhancements derived from th
   - Keep this document short; link back to the roadmap for details.
 
 References
-- Roadmap and implementation details: `docs/features/MEDIA_PROPERTIES_RESCAN.md`
+ - Media properties rescan: `docs/features/MEDIA_PROPERTIES_RESCAN.md`
+ - Intermittent 403/SABR mitigation: `docs/features/INTERMITTENT_403_SABR_ROADMAP.md`
+
+---
+
+## Intermittent 403/SABR Mitigation – Next Steps (Concise)
+
+For full context and rationale, see `docs/features/INTERMITTENT_403_SABR_ROADMAP.md`. Below are compact future items only.
+
+### Backend
+- Cookie health concurrency safety (file locking)
+  - Add cross-process file lock/mutex around `_health.json` updates (current writes are atomic, but not locked). Keep it simple on Windows (msvcrt) and POSIX (fcntl), or use a small lock file.
+
+- Proxy rotation parity for playlists
+  - `download_playlist.py`: add optional rotation over `PROXY_URLS` similar to single-video ladder.
+
+- Failure-path cleanup
+  - On download failure, optionally clean up stale `.part`/`.tmp` files older than N minutes in the target folder.
+
+- Job queue backoff configurability via env
+  - Teach `services/job_types.RetryConfig` to read `.env` (initial_delay, backoff_multiplier, max_delay, jitter) for system-wide tuning.
+
+- Effective config logging
+  - On worker init, log effective non-sensitive settings (retry ladder enabled, attempts, backoff window, client alignment flag, proxy count, cookies dir).
+
+### Frontend / Admin
+- Cookies health UX polish
+  - Format timestamps as human-readable datetime; add quick filters (unseen / clean / failed recently).
+  - Optional: button to deprioritize a specific cookie for X minutes.
+
+### Observability
+- Minimal counters
+  - Emit a small summary line per job completion: attempts used, client path taken, cookie(s) used, final result.
+
+### Documentation
+- Keep `INTERMITTENT_403_SABR_ROADMAP.md` in sync
+  - Mark the above items as “Future” in the checklist; review quarterly.
 
 

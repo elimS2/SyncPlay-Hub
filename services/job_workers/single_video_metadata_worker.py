@@ -18,7 +18,7 @@ from datetime import datetime
 sys.path.append(str(Path(__file__).parent.parent.parent))
 
 from services.job_types import JobWorker, Job, JobType
-from utils.cookies_manager import get_random_cookie_file
+from utils.cookies_manager import get_cookie_file
 from utils.logging_utils import log_message
 
 
@@ -61,8 +61,8 @@ class SingleVideoMetadataWorker(JobWorker):
                 job.log_info(f"Metadata already exists for video {video_id}, skipping")
                 return True
             
-            # Get cookies for the extraction
-            cookies_path = get_random_cookie_file()
+            # Get cookies for the extraction (prefer healthy)
+            cookies_path = get_cookie_file(prefer_healthy=True)
             if not cookies_path:
                 job.log_info("Warning: No cookies available - extraction may fail for age-restricted content")
             else:

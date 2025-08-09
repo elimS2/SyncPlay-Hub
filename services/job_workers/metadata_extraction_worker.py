@@ -17,7 +17,7 @@ from datetime import datetime
 sys.path.append(str(Path(__file__).parent.parent.parent))
 
 from services.job_types import JobWorker, Job, JobType
-from utils.cookies_manager import get_random_cookie_file
+from utils.cookies_manager import get_cookie_file
 
 
 class MetadataExtractionWorker(JobWorker):
@@ -68,8 +68,8 @@ class MetadataExtractionWorker(JobWorker):
             if playlist_items:
                 print(f"Playlist items filter: {playlist_items}")
             
-            # Get cookies for the extraction
-            cookies_path = get_random_cookie_file()
+            # Get cookies for the extraction (prefer healthy)
+            cookies_path = get_cookie_file(prefer_healthy=True)
             if not cookies_path:
                 print("Warning: No cookies available - extraction may fail for age-restricted content")
             else:
