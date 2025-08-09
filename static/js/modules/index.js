@@ -26,6 +26,11 @@ export {
     setupGlobalTooltip 
 } from './ui-effects.js';
 
+// Re-export from playlist-scroll.js
+export {
+    scrollActiveTrackToTop
+} from './playlist-scroll.js';
+
 // Re-export from controls.js
 export { 
     handleVolumeWheel, 

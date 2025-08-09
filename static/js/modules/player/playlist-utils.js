@@ -310,6 +310,7 @@ export async function triggerAutoDeleteCheck(track, detectChannelGroupFn, media)
  * @param {Object} context - execution context
  */
 import { updateCurrentTrackTitle } from '../track-title-manager.js';
+import { scrollActiveTrackToTop } from '../playlist-scroll.js';
 
 export function loadTrack(idx, autoplay = false, context) {
     const { 
@@ -348,6 +349,8 @@ export function loadTrack(idx, autoplay = false, context) {
     }
     castLoad(track);
     renderList();
+    // After the list is re-rendered, auto-scroll so the active item is at the top
+    scrollActiveTrackToTop({ smooth: false });
     // reset like state visual
     let likedCurrent = false;
     cLike.classList.remove('like-active');
