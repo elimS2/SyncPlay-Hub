@@ -318,6 +318,51 @@ def upsert_track(
     return cur.fetchone()[0]
 
 
+def update_track_media_properties(
+    conn: sqlite3.Connection,
+    video_id: str,
+    *,
+    bitrate: Optional[int] = None,
+    resolution: Optional[str] = None,
+    duration: Optional[float] = None,
+    size_bytes: Optional[int] = None,
+) -> bool:
+    """
+    Partially update media-related properties for a track identified by video_id.
+
+    Only provided keyword arguments will be updated. If no fields are provided,
+    the function is a no-op and returns False.
+
+    Returns True when an UPDATE was executed (rows may still be 0 if video_id
+    does not exist), False when nothing to update.
+    """
+    set_parts = []
+    params: list = []
+
+    if duration is not None:
+        set_parts.append("duration = ?")
+        params.append(duration)
+    if size_bytes is not None:
+        set_parts.append("size_bytes = ?")
+        params.append(size_bytes)
+    if bitrate is not None:
+        set_parts.append("bitrate = ?")
+        params.append(bitrate)
+    if resolution is not None:
+        set_parts.append("resolution = ?")
+        params.append(resolution)
+
+    if not set_parts:
+        return False
+
+    sql = f"UPDATE tracks SET {', '.join(set_parts)} WHERE video_id = ?"
+    params.append(video_id)
+
+    cur = conn.cursor()
+    cur.execute(sql, tuple(params))
+    conn.commit()
+    return True
+
 def link_track_playlist(conn: sqlite3.Connection, track_id: int, playlist_id: int):
     """Link track to playlist and log the event if it's a new association."""
     cur = conn.cursor()

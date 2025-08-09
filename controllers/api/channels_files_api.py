@@ -420,7 +420,6 @@ def api_rescan_files():
         
         # Import scan functionality
         from pathlib import Path
-        import subprocess
         
         MEDIA_EXTS = {".mp3", ".m4a", ".opus", ".webm", ".flac", ".mp4", ".mkv", ".mov"}
         VIDEO_ID_RE = re.compile(r"\[([A-Za-z0-9_-]{11})\]$")
@@ -430,22 +429,10 @@ def api_rescan_files():
             return m.group(1) if m else None
         
         def ffprobe_duration(path: Path):
+            """Compatibility wrapper delegating to utils.media_probe.ffprobe_media_properties."""
             try:
-                res = subprocess.run([
-                    "ffprobe", "-v", "error",
-                    "-show_entries", "format=duration:stream=bit_rate,width,height",
-                    "-of", "default=noprint_wrappers=1:nokey=1",
-                    str(path)
-                ], capture_output=True, text=True, check=True, timeout=10)
-                lines = res.stdout.strip().split("\n")
-                duration = float(lines[0]) if lines else None
-                bitrate = None
-                resolution = None
-                for line in lines[1:]:
-                    if not bitrate and line.isdigit():
-                        bitrate = int(line)
-                    elif "x" in line and line.replace("x", "").replace("N/A", "").isdigit():
-                        resolution = line
+                from utils.media_probe import ffprobe_media_properties
+                duration, bitrate, resolution = ffprobe_media_properties(path)
                 return duration, bitrate, resolution
             except Exception:
                 return None, None, None

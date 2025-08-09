@@ -36,6 +36,7 @@ link_track_playlist = database_core.link_track_playlist
 iter_tracks_with_playlists = database_core.iter_tracks_with_playlists
 get_track_with_playlists = database_core.get_track_with_playlists
 increment_play = database_core.increment_play
+update_track_media_properties = database_core.update_track_media_properties
 
 # Event recording
 record_event = database_core.record_event
@@ -118,6 +119,7 @@ __all__ = [
     'iter_tracks_with_playlists',
      'get_track_with_playlists',
     'increment_play',
+    'update_track_media_properties',
     
     # Event recording
     'record_event',

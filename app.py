@@ -664,6 +664,20 @@ def tests_track_detail():
     }
     return render_template('tests/track_detail.html', server_info=server_info)
 
+@app.route("/tests/media_rescan")
+def tests_media_rescan():
+    """Manual links page for Media Properties Rescan feature."""
+    # Server info for sidebar
+    uptime = datetime.datetime.now() - SERVER_START_TIME
+    uptime_str = str(uptime).split('.')[0]
+    server_info = {
+        'pid': os.getpid(),
+        'start_time': SERVER_START_TIME.strftime('%Y-%m-%d %H:%M:%S'),
+        'current_time': datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+        'uptime': uptime_str
+    }
+    return render_template('tests/media_properties_rescan.html', server_info=server_info)
+
 # Register API blueprints
 app.register_blueprint(api_bp)
 app.register_blueprint(trash_bp, url_prefix='/api')
@@ -778,7 +792,7 @@ def main():
     
     # Initialize and start Job Queue Service
     from services.job_queue_service import get_job_queue_service
-    from services.job_workers import ChannelDownloadWorker, MetadataExtractionWorker, CleanupWorker, PlaylistDownloadWorker, BackupWorker, QuickSyncWorker
+    from services.job_workers import ChannelDownloadWorker, MetadataExtractionWorker, CleanupWorker, PlaylistDownloadWorker, BackupWorker, QuickSyncWorker, LibraryScanWorker
     
     # Force reload the single video metadata worker to ensure latest code
     import importlib
@@ -798,6 +812,7 @@ def main():
         job_service.register_worker(BackupWorker())
         job_service.register_worker(SingleVideoMetadataWorker())
         job_service.register_worker(QuickSyncWorker())
+        job_service.register_worker(LibraryScanWorker())
         
         # Start the service
         job_service.start()

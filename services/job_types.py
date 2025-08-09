@@ -632,6 +632,11 @@ JOB_TYPE_CONFIGS = {
         'timeout_seconds': 300,   # 5 minutes
         'max_retries': 2,
         'priority': JobPriority.HIGH
+    },
+    JobType.LIBRARY_SCAN: {
+        'timeout_seconds': 7200,  # 2 hours for large libraries
+        'max_retries': 1,
+        'priority': JobPriority.LOW
     }
 }
 

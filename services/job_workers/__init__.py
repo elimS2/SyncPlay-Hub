@@ -12,6 +12,7 @@ from .playlist_download_worker import PlaylistDownloadWorker
 from .backup_worker import BackupWorker
 from .single_video_metadata_worker import SingleVideoMetadataWorker
 from .quick_sync_worker import QuickSyncWorker
+from .library_scan_worker import LibraryScanWorker
 
 __all__ = [
     'ChannelDownloadWorker',
@@ -20,5 +21,6 @@ __all__ = [
     'PlaylistDownloadWorker',
     'BackupWorker',
     'SingleVideoMetadataWorker',
-    'QuickSyncWorker'
+    'QuickSyncWorker',
+    'LibraryScanWorker'
 ] 

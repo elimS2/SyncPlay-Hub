@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Manual Test – Media Properties Rescan</title>
+  {% include 'sidebar_styles.html' %}
+  <link rel="stylesheet" href="/static/css/components.css">
+  <link rel="stylesheet" href="/static/css/tests.css">
+  <link rel="stylesheet" href="/static/css/track.css">
+  <style>
+    .links-list { display: flex; flex-direction: column; gap: 8px; }
+    .links-list a { color: var(--link-color, #2563eb); }
+  </style>
+ </head>
+<body>
+  <button class="mobile-menu-btn" onclick="toggleSidebar()">☰</button>
+  <div class="layout">
+    {% include 'sidebar.html' %}
+    <div class="main-content">
+      <div class="page-header">
+        <h1 class="page-title">Media Properties Rescan – Manual Links</h1>
+      </div>
+
+      <div class="card section">
+        <div class="section-title">Instructions</div>
+        <p class="muted">Use the links below to open Track pages and test the inline Rescan button next to Bitrate/Resolution.</p>
+      </div>
+
+      <div class="card section">
+        <div class="section-title">Test links</div>
+        <div class="links-list">
+          <!-- Replace with known valid IDs in your library as needed -->
+          <a href="/track/EBj73_z1a9M">/track/EBj73_z1a9M (known valid example)</a>
+          <a href="/track/INVALID12345">/track/INVALID12345 (should show 404)</a>
+          <a href="/track/AAAAAAAAAAA">/track/AAAAAAAAAAA (audio-only sample, if exists)</a>
+          <a href="/track/BBBBBBBBBBB">/track/BBBBBBBBBBB (missing file case, if applicable)</a>
+          <a href="/track/CCCCCCCCCCC">/track/CCCCCCCCCCC (edge case / large file)</a>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <script>
+    function toggleSidebar() {
+      const sidebar = document.querySelector('.sidebar');
+      sidebar?.classList.toggle('open');
+    }
+  </script>
+</body>
+</html>
+
+

@@ -34,28 +34,14 @@ def get_video_id(stem: str) -> Optional[str]:
 
 
 def ffprobe_duration(path: Path) -> Optional[float]:
+    """Deprecated: use utils.media_probe.ffprobe_media_properties instead.
+
+    Kept for backward compatibility. Returns (duration, bitrate, resolution)
+    like before, now by delegating to the shared utility.
+    """
     try:
-        res = subprocess.run([
-            "ffprobe",
-            "-v",
-            "error",
-            "-show_entries",
-            "format=duration:stream=bit_rate,width,height",
-            "-of",
-            "default=noprint_wrappers=1:nokey=1",
-            str(path),
-        ], capture_output=True, text=True, check=True, timeout=10)
-        lines = res.stdout.strip().split("\n")
-        # ffprobe prints duration then per-stream values; we only need duration & maybe first stream values
-        duration = float(lines[0]) if lines else None
-        # try to parse bitrate/resolution from subsequent lines if they exist
-        bitrate = None
-        resolution = None
-        for line in lines[1:]:
-            if not bitrate and line.isdigit():
-                bitrate = int(line)
-            elif "x" in line and line.replace("x", "").isdigit():
-                resolution = line
+        from utils.media_probe import ffprobe_media_properties
+        duration, bitrate, resolution = ffprobe_media_properties(path)
         return duration, bitrate, resolution
     except Exception:
         return None, None, None

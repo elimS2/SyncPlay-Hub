@@ -78,6 +78,22 @@
   gap: 6px;
 }
 
+/* Inline action button for small in-row actions (e.g., Rescan) */
+.inline-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--border-color, #e2e2e2);
+  background: var(--card-bg, #fff);
+  color: var(--text-color, #222);
+  border-radius: 6px;
+  cursor: pointer;
+}
+.inline-action:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 /* Responsive adjustments */
 @media (max-width: 768px) {
   .layout {

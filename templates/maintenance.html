@@ -335,6 +335,10 @@
                                 <span>🔍</span>
                                 Rescan Library
                             </button>
+                             <button class="btn" onclick="enqueueLibraryRescan()">
+                                 <span>🗂️</span>
+                                 Enqueue Library Rescan (Jobs)
+                             </button>
                         </div>
                         <div class="status-display" id="database-status">
                             Ready to perform database operations
@@ -547,6 +551,29 @@
                     showStatus('database-status', 'Library rescan completed', 'success');
                 } else {
                     showStatus('database-status', `Rescan failed: ${data.message || 'Unknown error'}`, 'error');
+                }
+            } catch (error) {
+                showStatus('database-status', `Network error: ${error.message}`, 'error');
+            }
+        }
+
+        async function enqueueLibraryRescan() {
+            showLoading('database-status');
+            try {
+                const response = await fetch('/api/jobs', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        job_type: 'library_scan',
+                        priority: 'LOW',
+                        parameters: { refresh_duration: true, refresh_size: true }
+                    })
+                });
+                const data = await response.json();
+                if (response.ok) {
+                    showStatus('database-status', `Library rescan job enqueued (Job #${data.job_id})`, 'success');
+                } else {
+                    showStatus('database-status', `Enqueue failed: ${data.error || data.message || 'Unknown error'}`, 'error');
                 }
             } catch (error) {
                 showStatus('database-status', `Network error: ${error.message}`, 'error');

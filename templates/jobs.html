@@ -95,6 +95,7 @@
                                     <option value="file_cleanup">File Cleanup</option>
                                     <option value="database_cleanup">Database Cleanup</option>
                                     <option value="log_cleanup">Log Cleanup</option>
+                                    <option value="library_scan">Library Scan</option>
                                 </select>
                             </div>
 
@@ -164,6 +165,7 @@
                                     <option value="file_cleanup">File Cleanup</option>
                                     <option value="database_cleanup">Database Cleanup</option>
                                     <option value="log_cleanup">Log Cleanup</option>
+                                    <option value="library_scan">Library Scan</option>
                                 </select>
                             </div>
 
@@ -485,6 +487,25 @@
                             <select id="dryRun" name="dry_run">
                                 <option value="true">Yes (Safe)</option>
                                 <option value="false">No (Delete)</option>
+                            </select>
+                        </div>
+                    `;
+                    break;
+
+                case 'library_scan':
+                    html = `
+                        <div class="form-group">
+                            <label for="refreshDuration">Refresh Duration</label>
+                            <select id="refreshDuration" name="refresh_duration">
+                                <option value="true" selected>Yes</option>
+                                <option value="false">No</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="refreshSize">Refresh Size</label>
+                            <select id="refreshSize" name="refresh_size">
+                                <option value="true" selected>Yes</option>
+                                <option value="false">No</option>
                             </select>
                         </div>
                     `;
