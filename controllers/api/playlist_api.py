@@ -355,7 +355,7 @@ def api_tracks_by_likes(like_count):
             SELECT video_id FROM deleted_tracks 
             WHERE restored_at IS NULL
         )
-            AND (cg.include_in_likes = 1)
+            AND (cg.include_in_likes = 1 OR cg.id IS NULL)
         ORDER BY COALESCE(ym.title, t.name)
         """
         
@@ -488,7 +488,7 @@ def api_like_stats():
             SELECT video_id FROM deleted_tracks 
             WHERE restored_at IS NULL
         )
-            AND (cg.include_in_likes = 1)
+            AND (cg.include_in_likes = 1 OR cg.id IS NULL)
         ORDER BY name
         """
         
