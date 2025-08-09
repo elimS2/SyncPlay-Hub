@@ -219,7 +219,7 @@ def api_get_job(job_id: int):
 
 @jobs_bp.route("/jobs/<int:job_id>/retry", methods=["POST"])
 def api_retry_job(job_id: int):
-    """Retry a failed job."""
+    """Retry a job (failed, cancelled, timeout, or completed)."""
     try:
         # Get job queue service
         service = get_job_queue_service()
@@ -230,7 +230,7 @@ def api_retry_job(job_id: int):
             return jsonify({"status": "error", "error": "Job not found"}), 404
         
         # Check if job can be retried
-        if job.status not in [JobStatus.FAILED, JobStatus.CANCELLED, JobStatus.TIMEOUT]:
+        if job.status not in [JobStatus.FAILED, JobStatus.CANCELLED, JobStatus.TIMEOUT, JobStatus.COMPLETED]:
             return jsonify({
                 "status": "error", 
                 "error": f"Job cannot be retried in status '{job.status.value}'"

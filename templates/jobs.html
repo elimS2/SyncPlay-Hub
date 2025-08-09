@@ -689,8 +689,8 @@
                         <td>${worker}</td>
                         <td class="job-actions">
                             <button class="btn btn-primary" onclick="showJobDetails(${job.id})">View</button>
-                            ${job.status === 'failed' || job.status === 'cancelled' || job.status === 'timeout' ? 
-                                `<button class="btn btn-warning" onclick="retryJob(${job.id})">Retry</button>` : ''}
+                            ${job.status === 'failed' || job.status === 'cancelled' || job.status === 'timeout' || job.status === 'completed' ? 
+                                `<button class="btn btn-warning" title="Re-queue this job and run it again" onclick="retryJob(${job.id})">Retry</button>` : ''}
                             ${job.status === 'pending' || job.status === 'running' ? 
                                 `<button class="btn btn-danger" onclick="cancelJob(${job.id})">Cancel</button>` : ''}
                         </td>
@@ -917,8 +917,8 @@
                     html += `
                         <div style="margin-bottom: 20px;">
                             <button class="btn btn-primary" onclick="loadJobLogs(${job.id})">Load Logs</button>
-                            ${job.status === 'failed' || job.status === 'cancelled' || job.status === 'timeout' ? 
-                                `<button class="btn btn-warning" onclick="retryJob(${job.id}); closeJobModal();">Retry Job</button>` : ''}
+                            ${job.status === 'failed' || job.status === 'cancelled' || job.status === 'timeout' || job.status === 'completed' ? 
+                                `<button class="btn btn-warning" title="Re-queue this job and run it again" onclick="retryJob(${job.id}); closeJobModal();">Retry Job</button>` : ''}
                             ${job.status === 'pending' || job.status === 'running' ? 
                                 `<button class="btn btn-danger" onclick="cancelJob(${job.id}); closeJobModal();">Cancel Job</button>` : ''}
                         </div>

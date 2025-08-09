@@ -886,7 +886,7 @@ class JobQueueService:
             return False, f"Cannot cancel job with status '{status}'"
     
     def retry_job(self, job_id: int) -> bool:
-        """Retry a failed job."""
+        """Retry a job by moving it back to pending (failed, cancelled, timeout, or completed)."""
         with self._lock:
             # Check if job is currently running
             if job_id in self._running_jobs:
@@ -909,7 +909,7 @@ class JobQueueService:
                 status, retry_count, max_retries = row
                 
                 # Check if job can be retried
-                if status not in ['failed', 'cancelled', 'timeout']:
+                if status not in ['failed', 'cancelled', 'timeout', 'completed']:
                     return False
                 
                 # Can also check retry limit (optional)
