@@ -1,0 +1,89 @@
+/* Track Detail Page Styles */
+
+.main-content {
+  padding: 20px 5px 20px 20px !important;
+  margin-left: var(--sidebar-width);
+  width: calc(100vw - var(--sidebar-width));
+  max-width: none;
+}
+@media (max-width: 768px) { .main-content { margin-left: 0; } }
+
+.page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.page-title { font-size: 1.6rem; margin: 0; color: var(--text-primary); }
+
+.badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 6px;
+  font-size: 12px;
+}
+
+.badge-deleted { background: rgba(239, 68, 68, 0.15); color: #ef4444; }
+
+.badge-active { background: rgba(34, 197, 94, 0.15); color: #22c55e; }
+
+.actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* Buttons moved to components.css; keep only layout hooks */
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+/* Card base comes from components.css */
+
+.section-title {
+  font-size: 1.1rem;
+  margin: 0 0 8px 0;
+}
+
+.kv {
+  display: grid;
+  grid-template-columns: 180px 1fr;
+  gap: 8px 14px;
+}
+
+.kv div {
+  padding: 2px 0;
+  overflow-wrap: anywhere;
+}
+
+.muted { color: var(--text-secondary); font-size: 0.92rem; }
+
+.mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+}
+
+/* Description style comes from components.css */
+
+/* Pill style comes from components.css */
+
+.list-inline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .layout {
+    grid-template-columns: 1fr;
+  }
+  .main-content {
+    padding: 14px;
+  }
+}

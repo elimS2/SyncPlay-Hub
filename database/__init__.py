@@ -34,6 +34,7 @@ get_playlist_by_relpath = database_core.get_playlist_by_relpath
 upsert_track = database_core.upsert_track
 link_track_playlist = database_core.link_track_playlist
 iter_tracks_with_playlists = database_core.iter_tracks_with_playlists
+get_track_with_playlists = database_core.get_track_with_playlists
 increment_play = database_core.increment_play
 
 # Event recording
@@ -115,6 +116,7 @@ __all__ = [
     'upsert_track',
     'link_track_playlist',
     'iter_tracks_with_playlists',
+     'get_track_with_playlists',
     'increment_play',
     
     # Event recording

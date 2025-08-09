@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Manual Test – Track Detail Page</title>
+  {% include 'sidebar_styles.html' %}
+  <link rel="stylesheet" href="/static/css/components.css">
+  <link rel="stylesheet" href="/static/css/tests.css">
+</head>
+<body>
+  <button class="mobile-menu-btn" onclick="toggleSidebar()">☰</button>
+  <div class="layout">
+    {% include 'sidebar.html' %}
+    <div class="main-content">
+      <div class="page-header">
+        <h1 class="page-title">Track Detail Page – Manual Test Plan</h1>
+      </div>
+
+      <div class="card">
+        <div class="section-title">Instructions</div>
+        <p class="muted">Follow each step, then mark the result as Pass/Fail. Progress is stored in your browser (localStorage).</p>
+      </div>
+
+      <div id="testList" class="tests-steps section">
+        <!-- Steps injected by script -->
+      </div>
+
+      <div class="card" style="margin-top: 12px;">
+        <button class="btn" id="resetBtn">Reset Results</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function toggleSidebar() {
+      const sidebar = document.querySelector('.sidebar');
+      sidebar?.classList.toggle('open');
+    }
+
+    const STORAGE_KEY = 'tests_track_detail_results_v1';
+    const steps = [
+      { id: 'nav_from_tracks', text: 'From /tracks, click a track Title and navigate to /track/<video_id>.' },
+      { id: 'header_info', text: 'Header shows title and video_id.' },
+      { id: 'file_props', text: 'File Properties show duration/size/bitrate/resolution/type/relpath.' },
+      { id: 'usage_stats', text: 'Usage Stats show starts/finishes/nexts/prevs/likes and last timestamps.' },
+      { id: 'playlists_links', text: 'Playlists section lists memberships; links open /playlist/<relpath>.' },
+      { id: 'yt_metadata', text: 'YouTube Metadata shows title/channel/uploader/duration; description collapses.' },
+      { id: 'ext_link', text: 'Open on YouTube button opens correct video in new tab.' },
+      { id: 'copy_link', text: 'Copy link button copies canonical URL (paste to verify).' },
+      { id: 'compat_redirect', text: 'Direct /track?youtube_id=<id> redirects to /track/<id>.' },
+      { id: 'invalid_404', text: 'Invalid ID /track/INVALID12345 shows 404 page.' },
+      { id: 'deleted_badge', text: 'Deleted track shows Deleted badge with date if available.' },
+      { id: 'responsive', text: 'Layout remains readable on narrow viewport (mobile).' }
+    ];
+
+    function loadResults() {
+      try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || {}; } catch (e) { return {}; }
+    }
+    function saveResults(results) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(results));
+    }
+
+    function render() {
+      const container = document.getElementById('testList');
+      const results = loadResults();
+      container.innerHTML = '';
+      steps.forEach((s, idx) => {
+        const status = results[s.id] || '';
+        const el = document.createElement('div');
+        el.className = 'card test-step';
+        el.innerHTML = `
+          <div class="test-step-header">
+            <div class="test-step-index">${idx + 1}.</div>
+            <div class="test-step-text">${s.text}</div>
+          </div>
+          <div class="test-step-controls">
+            <label><input type="radio" name="${s.id}" value="pass" ${status==='pass'?'checked':''}> Pass</label>
+            <label><input type="radio" name="${s.id}" value="fail" ${status==='fail'?'checked':''}> Fail</label>
+            <label><input type="radio" name="${s.id}" value="" ${status===''?'checked':''}> Not tested</label>
+          </div>
+        `;
+        container.appendChild(el);
+      });
+
+      container.addEventListener('change', (e) => {
+        if (e.target && e.target.name && e.target.type === 'radio') {
+          const results = loadResults();
+          results[e.target.name] = e.target.value;
+          saveResults(results);
+        }
+      });
+    }
+
+    document.getElementById('resetBtn')?.addEventListener('click', () => {
+      if (confirm('Reset all test results?')) {
+        localStorage.removeItem(STORAGE_KEY);
+        render();
+      }
+    });
+
+    render();
+  </script>
+</body>
+</html>

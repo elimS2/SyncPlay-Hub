@@ -112,8 +112,13 @@
             {% for t in tracks %}
               <tr class="{% if t['is_deleted'] %}track-deleted{% endif %}">
                 <td>{{ loop.index }}</td>
-                <td>{{ t['display_name'] }}</td>
-                <td><a href="https://youtu.be/{{ t['video_id'] }}" target="_blank" class="track-link">{{ t['video_id'] }}</a></td>
+                <td>
+                  <a href="/track/{{ t['video_id'] }}" class="track-link">{{ t['display_name'] }}</a>
+                </td>
+                <td>
+                  <a href="/track/{{ t['video_id'] }}" class="track-link mono">{{ t['video_id'] }}</a>
+                  <a href="https://youtu.be/{{ t['video_id'] }}" target="_blank" rel="noopener" title="Open on YouTube" style="margin-left:6px;">🔗</a>
+                </td>
                 <td>{{ t['playlists'] or '-' }}</td>
                 <td>{% if t['duration'] %}{{ (t['duration'] // 60)|int }}:{{ ('%02d' % (t['duration'] % 60)) }}{% else %}-{% endif %}</td>
                 <td>{{ '%.1f' % (t['size_bytes']/1048576) }} MB</td>

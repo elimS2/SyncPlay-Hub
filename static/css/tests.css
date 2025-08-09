@@ -1,0 +1,32 @@
+/* Manual Tests Pages */
+.main-content {
+  padding: 20px 5px 20px 20px !important;
+  margin-left: var(--sidebar-width);
+  width: calc(100vw - var(--sidebar-width));
+  max-width: none;
+}
+@media (max-width: 768px) { .main-content { margin-left: 0; } }
+.page-header { display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap; }
+.page-title { font-size: 1.6rem; margin: 0; }
+
+.tests-list { display:grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; margin-top: 12px; }
+.test-card { display:block; border:1px solid #e5e7eb; border-radius:10px; background:#fff; padding:14px; text-decoration:none; color:inherit; }
+.test-card:hover { background:#fafafa; }
+.test-card-title { font-weight: 600; margin-bottom: 6px; }
+.test-card-desc { color:#6b7280; font-size: 0.95rem; }
+
+.card { border:1px solid var(--border); border-radius:10px; background: var(--bg-card); color: var(--text-primary); padding:14px; }
+.section-title { font-size: 1.1rem; margin:0 0 8px 0; color: var(--text-primary); }
+.muted { color: var(--text-secondary); font-size: 0.92rem; }
+
+.tests-steps { display:grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap: 10px; margin-top: 12px; }
+.test-step-header { display:flex; align-items:center; gap:8px; margin-bottom: 8px; }
+.test-step-index { font-weight:600; }
+.test-step-controls { display:flex; gap: 16px; }
+.btn { display:inline-flex; align-items:center; gap:6px; padding:8px 12px; border-radius:8px; border:1px solid var(--border); background: var(--bg-card); cursor:pointer; text-decoration:none; color: var(--text-primary); }
+.btn:hover { background: var(--bg-hover); }
+
+@media (max-width: 768px) {
+  .layout { grid-template-columns: 1fr; }
+  .main-content { padding: 14px; }
+}

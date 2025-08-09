@@ -9,7 +9,7 @@ import os
 import sys
 from pathlib import Path
 
-from flask import Flask, render_template, send_from_directory, abort, jsonify
+from flask import Flask, render_template, send_from_directory, abort, jsonify, redirect, url_for, request
 
 # Import our new modules
 from utils.logging_utils import init_logging, setup_logging, log_message
@@ -20,7 +20,18 @@ from controllers.api import api_bp, init_api_router
 from controllers.api.trash_api import trash_bp
 
 # Import database functions
-from database import get_connection, iter_tracks_with_playlists, get_history_page, get_user_setting, set_user_setting
+from database import (
+    get_connection,
+    iter_tracks_with_playlists,
+    get_history_page,
+    get_user_setting,
+    set_user_setting,
+    get_track_with_playlists,
+    get_youtube_metadata_by_id,
+)
+
+import re
+YT_ID_RE = re.compile(r"^[A-Za-z0-9_-]{11}$")
 
 # Add psutil import for process checking (optional)
 try:
@@ -245,6 +256,49 @@ def tracks_page():
     
     return render_template("tracks.html", tracks=tracks, search_query=search_query, 
                          include_deleted=include_deleted, server_info=server_info)
+
+@app.route("/track")
+def track_redirect():
+    """Compatibility entry: redirect /track?youtube_id= to canonical /track/<video_id>.
+
+    Accepts youtube_id|video_id|id as query parameter names for flexibility.
+    """
+    video_id = (request.args.get("youtube_id") or
+                request.args.get("video_id") or
+                request.args.get("id"))
+    if not video_id:
+        abort(400)
+    if not YT_ID_RE.match(video_id):
+        abort(400)
+    return redirect(url_for("track_page", video_id=video_id), code=302)
+
+@app.route("/track/<video_id>")
+def track_page(video_id: str):
+    """Track Detail page.
+
+    Renders a detailed view of track properties and YouTube metadata.
+    """
+    if not YT_ID_RE.match(video_id):
+        abort(400)
+
+    conn = get_connection()
+    try:
+        track = get_track_with_playlists(conn, video_id)
+        if not track:
+            abort(404)
+        metadata_row = get_youtube_metadata_by_id(conn, video_id)
+        # Ensure template receives JSON-serializable dict
+        metadata = dict(metadata_row) if metadata_row else None
+    finally:
+        conn.close()
+
+    # Optional telemetry
+    try:
+        log_message(f"[Track] View: {video_id}")
+    except Exception:
+        pass
+
+    return render_template("track.html", track=track, metadata=metadata, video_id=video_id)
 
 @app.route("/history")
 @app.route("/events")
@@ -574,6 +628,41 @@ def likes_playlists_page():
 def likes_player_page(like_count: int):
     """Player page for virtual playlist by like count."""
     return render_template("likes_player.html", like_count=like_count)
+
+@app.route("/tests")
+def tests_index():
+    """Manual tests index page."""
+    # Server info for sidebar
+    uptime = datetime.datetime.now() - SERVER_START_TIME
+    uptime_str = str(uptime).split('.')[0]
+    server_info = {
+        'pid': os.getpid(),
+        'start_time': SERVER_START_TIME.strftime('%Y-%m-%d %H:%M:%S'),
+        'current_time': datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+        'uptime': uptime_str
+    }
+    tests = [
+        {
+            'id': 'track_detail',
+            'name': 'Track Detail Page – Manual Test Plan',
+            'description': 'End-to-end manual validation of the /track/<video_id> page.'
+        },
+    ]
+    return render_template('tests/index.html', tests=tests, server_info=server_info)
+
+@app.route("/tests/track_detail")
+def tests_track_detail():
+    """Manual test page for Track Detail feature with pass/fail controls."""
+    # Server info for sidebar
+    uptime = datetime.datetime.now() - SERVER_START_TIME
+    uptime_str = str(uptime).split('.')[0]
+    server_info = {
+        'pid': os.getpid(),
+        'start_time': SERVER_START_TIME.strftime('%Y-%m-%d %H:%M:%S'),
+        'current_time': datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+        'uptime': uptime_str
+    }
+    return render_template('tests/track_detail.html', server_info=server_info)
 
 # Register API blueprints
 app.register_blueprint(api_bp)

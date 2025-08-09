@@ -398,6 +398,78 @@ def iter_tracks_with_playlists(conn: sqlite3.Connection, search_query: str = Non
                 yield row
 
 
+# ---------- Single track fetcher ----------
+
+def get_track_with_playlists(conn: sqlite3.Connection, video_id: str) -> Optional[Dict]:
+    """Return a single track with aggregated playlist information.
+
+    Combines core track fields from `tracks` with:
+    - playlist_count: number of associated playlists
+    - playlists: comma-separated playlist names for display
+    - playlists_list: list of playlist names (stable separator)
+    - playlist_relpaths_list: list of playlist relpaths for linking
+    - is_deleted, deletion_date, deletion_reason from deleted_tracks
+
+    Args:
+        conn: Database connection
+        video_id: YouTube video ID
+
+    Returns:
+        dict with track and aggregation fields, or None if not found
+    """
+    cur = conn.cursor()
+    # Use custom separators that are unlikely to appear in names/paths
+    name_sep = '|||'
+    path_sep = '||/'
+    row = cur.execute(
+        f"""
+        SELECT 
+            t.*,
+            COUNT(DISTINCT p.id) AS playlist_count,
+            GROUP_CONCAT(p.name, '{name_sep}') AS playlist_names_concat,
+            GROUP_CONCAT(p.relpath, '{path_sep}') AS playlist_relpaths_concat,
+            CASE WHEN dt.video_id IS NOT NULL THEN 1 ELSE 0 END AS is_deleted,
+            dt.deleted_at AS deletion_date,
+            dt.deletion_reason AS deletion_reason
+        FROM tracks t
+        LEFT JOIN track_playlists tp ON tp.track_id = t.id
+        LEFT JOIN playlists p ON p.id = tp.playlist_id
+        LEFT JOIN deleted_tracks dt ON dt.video_id = t.video_id
+        WHERE t.video_id = ?
+        GROUP BY t.id
+        LIMIT 1
+        """,
+        (video_id,),
+    ).fetchone()
+
+    if not row:
+        return None
+
+    result: Dict = dict(row)
+
+    # Build readable playlists string and lists
+    names_concat = result.pop('playlist_names_concat', None)
+    relpaths_concat = result.pop('playlist_relpaths_concat', None)
+
+    if names_concat:
+        names_list = names_concat.split(name_sep)
+        result['playlists_list'] = names_list
+        # Human-readable comma+space separated string
+        result['playlists'] = ', '.join(names_list)
+    else:
+        result['playlists_list'] = []
+        result['playlists'] = ''
+
+    if relpaths_concat:
+        result['playlist_relpaths_list'] = relpaths_concat.split(path_sep)
+    else:
+        result['playlist_relpaths_list'] = []
+
+    # Normalize boolean-ish field
+    result['is_deleted'] = bool(result.get('is_deleted'))
+
+    return result
+
 # ---------- Play counts ----------
 
 

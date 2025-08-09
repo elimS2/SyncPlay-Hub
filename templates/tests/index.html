@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Manual Tests</title>
+  {% include 'sidebar_styles.html' %}
+  <link rel="stylesheet" href="/static/css/components.css">
+  <link rel="stylesheet" href="/static/css/tests.css">
+</head>
+<body>
+  <button class="mobile-menu-btn" onclick="toggleSidebar()">☰</button>
+  <div class="layout">
+    {% include 'sidebar.html' %}
+    <div class="main-content">
+      <div class="page-header">
+        <h1 class="page-title">Manual Tests</h1>
+      </div>
+
+      <div class="tests-list">
+        {% for t in tests %}
+        <a class="test-card" href="/tests/{{ t.id }}">
+          <div class="test-card-title">{{ t.name }}</div>
+          <div class="test-card-desc">{{ t.description }}</div>
+        </a>
+        {% else %}
+        <div class="muted">No tests available.</div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function toggleSidebar() {
+      const sidebar = document.querySelector('.sidebar');
+      sidebar?.classList.toggle('open');
+    }
+  </script>
+</body>
+</html>

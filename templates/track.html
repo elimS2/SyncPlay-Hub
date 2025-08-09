@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Track – {{ (metadata.title if metadata and metadata['title']) or track.get('name') or video_id }}</title>
+  <link rel="icon" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='0.9em' font-size='90'>🎵</text></svg>">
+  {% include 'sidebar_styles.html' %}
+  <link rel="stylesheet" href="/static/css/components.css">
+  <link rel="stylesheet" href="/static/css/track.css">
+</head>
+<body>
+  <button class="mobile-menu-btn" onclick="toggleSidebar()">☰</button>
+  <div class="layout">
+    {% include 'sidebar.html' %}
+    <div class="main-content">
+
+      <!-- Header -->
+      <div class="page-header">
+        <div>
+          <h1 class="page-title">
+            {{ (metadata.title if metadata and metadata['title']) or track.get('name') or 'Track' }}
+          </h1>
+          <div class="muted mono">Video ID: {{ video_id }}</div>
+          {% if track.is_deleted %}
+            <span class="badge badge-deleted">Deleted{% if track.deletion_date %} ({{ track.deletion_date }}){% endif %}</span>
+          {% else %}
+            <span class="badge badge-active">Active</span>
+          {% endif %}
+        </div>
+        <div class="actions">
+          <a class="btn btn-secondary" href="https://youtu.be/{{ video_id }}" target="_blank" rel="noopener" aria-label="Open on YouTube (opens in new tab)">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M10 15l5.19-3L10 9v6zm11-3c0 2.5-.2 4.1-.44 5.08-.24.97-.97 1.7-1.94 1.94C17.64 19.25 12 19.25 12 19.25s-5.64 0-6.62-.23c-.97-.24-1.7-.97-1.94-1.94C3.2 16.1 3 14.5 3 12s.2-4.1.44-5.08c.24-.97.97-1.7 1.94-1.94C6.36 4.75 12 4.75 12 4.75s5.64 0 6.62.23c.97.24 1.7.97 1.94 1.94.24.98.44 2.58.44 5.08z"/></svg>
+            Open on YouTube
+          </a>
+          <button class="btn btn-secondary" id="copyLinkBtn" data-url="{{ request.url }}">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+            Copy link
+          </button>
+          <a class="btn btn-secondary" href="/tracks">Back to Tracks</a>
+        </div>
+      </div>
+
+      <!-- Properties -->
+      <div class="grid section">
+        <div class="card">
+          <h3 class="section-title">File Properties</h3>
+          <div class="kv">
+            <div class="muted">Title (file)</div><div>{{ track.get('name') or '-' }}</div>
+            <div class="muted">Duration</div><div>{% if track.get('duration') %}{{ (track['duration'] // 60)|int }}:{{ ('%02d' % (track['duration'] % 60)) }}{% else %}-{% endif %}</div>
+            <div class="muted">Size</div><div>{% if track.get('size_bytes') is not none %}{{ '%.1f' % (track['size_bytes']/1048576) }} MB{% else %}-{% endif %}</div>
+            <div class="muted">Bitrate</div><div>{% if track.get('bitrate') %}{{ (track['bitrate']/1000)|int }} kbps{% else %}-{% endif %}</div>
+            <div class="muted">Resolution</div><div>{{ track.get('resolution') or '-' }}</div>
+            <div class="muted">Type</div><div>{{ track.get('filetype') or '-' }}</div>
+            <div class="muted">Relpath</div><div class="mono">{{ track.get('relpath') or '-' }}</div>
+          </div>
+        </div>
+        <div class="card">
+          <h3 class="section-title">Usage Stats</h3>
+          <div class="kv">
+            <div class="muted">Starts</div><div>{{ track.get('play_starts') or 0 }}</div>
+            <div class="muted">Finishes</div><div>{{ track.get('play_finishes') or 0 }}</div>
+            <div class="muted">Nexts</div><div>{{ track.get('play_nexts') or 0 }}</div>
+            <div class="muted">Prevs</div><div>{{ track.get('play_prevs') or 0 }}</div>
+            <div class="muted">Likes</div><div>{{ track.get('play_likes') or 0 }}</div>
+            <div class="muted">Last Start</div><div>{{ track.get('last_start_ts') or '-' }}</div>
+            <div class="muted">Last Finish</div><div>{{ track.get('last_finish_ts') or '-' }}</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Playlists -->
+      {% set names = track.get('playlists_list') or [] %}
+      {% set rels = track.get('playlist_relpaths_list') or [] %}
+      {% set has_pl = names and rels and (names|length == rels|length) %}
+      {% set has_pl_text = track.get('playlists') %}
+      {% if has_pl or has_pl_text %}
+        <div class="card section">
+          <h3 class="section-title">Playlists ({{ track.get('playlist_count') or 0 }})</h3>
+          {% if has_pl %}
+            <div class="list-inline">
+              {% for i in range(names|length) %}
+                <a class="pill" href="/playlist/{{ rels[i] }}">{{ names[i] }}</a>
+              {% endfor %}
+            </div>
+          {% else %}
+            <div class="muted">{{ track['playlists'] }}</div>
+          {% endif %}
+        </div>
+      {% endif %}
+
+      <!-- YouTube Metadata -->
+      <div class="card section">
+        <h3 class="section-title">YouTube Metadata</h3>
+        {% if metadata %}
+          <div class="kv">
+            <div class="muted">Title (YouTube)</div><div>{{ metadata['title'] or '-' }}</div>
+            <div class="muted">Duration</div><div>{{ metadata['duration_string'] or metadata['duration'] or '-' }}</div>
+            <div class="muted">Channel</div><div>{{ metadata['channel'] or '-' }}</div>
+            <div class="muted">Uploader</div><div>{{ metadata['uploader'] or '-' }}</div>
+            <div class="muted">Release</div><div>{{ metadata['release_timestamp'] or metadata['timestamp'] or '-' }}</div>
+            <div class="muted">Availability</div><div>{{ metadata['availability'] or '-' }}</div>
+            <div class="muted">Live status</div><div>{{ metadata['live_status'] or '-' }}</div>
+          </div>
+          {% if metadata['description'] %}
+            <details style="margin-top:10px;">
+              <summary class="muted">Description</summary>
+              <div class="description">{{ metadata['description'] }}</div>
+            </details>
+          {% endif %}
+        {% else %}
+          <div class="muted">No YouTube metadata found for this track.</div>
+        {% endif %}
+      </div>
+
+      <!-- Optional Raw Data (for debugging) -->
+      <details class="section">
+        <summary class="muted">Show raw data</summary>
+        <div class="card">
+          <div class="section-title">Track (DB)</div>
+          <pre class="description">{{ track | tojson(indent=2) }}</pre>
+        </div>
+        {% if metadata %}
+        <div class="card" style="margin-top:10px;">
+          <div class="section-title">YouTube Metadata</div>
+          <pre class="description">{{ metadata | tojson(indent=2) }}</pre>
+        </div>
+        {% endif %}
+      </details>
+
+    </div>
+  </div>
+
+  <script>
+    function toggleSidebar() {
+      const sidebar = document.querySelector('.sidebar');
+      if (sidebar) sidebar.classList.toggle('open');
+    }
+    document.addEventListener('click', function(event) {
+      const sidebar = document.querySelector('.sidebar');
+      const menuBtn = document.querySelector('.mobile-menu-btn');
+      if (window.innerWidth <= 768 && sidebar && !sidebar.contains(event.target) && !menuBtn.contains(event.target) && sidebar.classList.contains('open')) {
+        sidebar.classList.remove('open');
+      }
+    });
+    const copyBtn = document.getElementById('copyLinkBtn');
+    copyBtn?.addEventListener('click', async () => {
+      try {
+        const url = copyBtn.getAttribute('data-url') || window.location.href;
+        await navigator.clipboard.writeText(url);
+        copyBtn.textContent = 'Copied!';
+        setTimeout(()=>{ copyBtn.textContent = 'Copy link'; }, 1200);
+      } catch (e) { /* no-op */ }
+    });
+  </script>
+</body>
+</html>
