@@ -26,7 +26,7 @@
 
 body { 
   font-family: Arial, sans-serif; 
-  margin: 20px; 
+  margin: 0; 
   background: var(--page-bg); 
   color: var(--text);
 }
@@ -110,6 +110,20 @@ button {
 .player-container {
   display: flex;
   gap: 12px;
+  overflow-x: hidden;
+}
+
+/* Ensure body does not introduce extra vertical margins/padding that affect viewport fit */
+html, body {
+  height: 100%;
+}
+
+/* Ensure left pane stacks video, title, controls vertically */
+.left-pane {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 /* Playlist panel wrapper */
@@ -123,8 +137,35 @@ button {
   border-radius: 8px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
   border: 1px solid rgba(255, 255, 255, 0.1);
-  margin: 8px;
+  margin: 8px 8px 8px 8px;
   padding: 8px;
+  /* Reserve space for a visible vertical scrollbar when content overflows */
+  scrollbar-gutter: stable both-edges;
+}
+
+/* Playlist panel scrollbar styling (visible and contrast) */
+#playlistPanel::-webkit-scrollbar {
+  width: 10px;
+}
+
+#playlistPanel::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
+}
+
+#playlistPanel::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.35);
+  border-radius: 6px;
+}
+
+#playlistPanel:hover::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.55);
+}
+
+/* Firefox */
+#playlistPanel {
+  scrollbar-width: auto;
+  scrollbar-color: rgba(255, 255, 255, 0.55) rgba(255, 255, 255, 0.08);
 }
 
 .playlist-panel.collapsed {
@@ -173,7 +214,7 @@ button {
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
-  padding: 12px 0;
+  padding: 10px 10px;
 }
 
 /* Modern Button Styles */

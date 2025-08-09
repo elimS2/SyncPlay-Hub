@@ -400,19 +400,39 @@ export function updateTrackTitleWidth() {
     const currentTrackTitle = document.getElementById('currentTrackTitle');
     const controls = document.querySelector('.controls');
     
-    if (videoWrapper && currentTrackTitle && controls) {
-        const videoWidth = videoWrapper.offsetWidth;
-        const videoLeft = videoWrapper.offsetLeft;
-        
-        // Set width to match video width and position to match video left
-        currentTrackTitle.style.width = videoWidth + 'px';
-        currentTrackTitle.style.left = videoLeft + 'px';
-        
-        controls.style.width = videoWidth + 'px';
-        controls.style.left = videoLeft + 'px';
-        
-        console.log('📏 Updated track title width:', videoWidth + 'px, left:', videoLeft + 'px');
+    if (!videoWrapper) return;
+
+    const videoWidth = videoWrapper.offsetWidth;
+    const videoLeft = videoWrapper.offsetLeft;
+
+    // Update track title only when it is fixed; otherwise clear inline sizing
+    if (currentTrackTitle) {
+        const isTitleFixed = getComputedStyle(currentTrackTitle).position === 'fixed';
+        if (isTitleFixed) {
+            currentTrackTitle.style.width = videoWidth + 'px';
+            currentTrackTitle.style.left = videoLeft + 'px';
+        } else {
+            currentTrackTitle.style.width = '';
+            currentTrackTitle.style.left = '';
+        }
     }
+
+    // Update controls only when they are fixed; otherwise clear inline sizing
+    if (controls) {
+        const isControlsFixed = getComputedStyle(controls).position === 'fixed';
+        if (isControlsFixed) {
+            controls.style.width = videoWidth + 'px';
+            controls.style.left = videoLeft + 'px';
+        } else {
+            controls.style.width = '';
+            controls.style.left = '';
+        }
+    }
+
+    console.log('📏 Updated layout widths (conditional by position):', {
+        videoWidth,
+        videoLeft
+    });
 }
 
 /**

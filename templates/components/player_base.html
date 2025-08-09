@@ -22,11 +22,12 @@
     const SERVER_IP = "{{ server_ip }}";
     // Relative path of playlist (sub-folder) – empty for root / all tracks
     const PLAYLIST_REL = "{{ playlist_rel|default('') }}";
-    {% if virtual_playlist_config %}
-    // Virtual playlist configuration
-    const VIRTUAL_PLAYLIST_LIKE_COUNT = {{ virtual_playlist_config.like_count }};
-    console.log("🎵 [Virtual] Configure virtual playlist for " + VIRTUAL_PLAYLIST_LIKE_COUNT + " likes");
-    {% endif %}
+    // Virtual playlist configuration (null if not provided)
+    const VIRTUAL_PLAYLIST_LIKE_COUNT_STR = "{{ virtual_playlist_config.like_count if virtual_playlist_config is defined else '' }}";
+    const VIRTUAL_PLAYLIST_LIKE_COUNT = VIRTUAL_PLAYLIST_LIKE_COUNT_STR ? Number(VIRTUAL_PLAYLIST_LIKE_COUNT_STR) : null;
+    if (VIRTUAL_PLAYLIST_LIKE_COUNT !== null) {
+      console.log("🎵 [Virtual] Configure virtual playlist for " + VIRTUAL_PLAYLIST_LIKE_COUNT + " likes");
+    }
   </script>
 </head>
 <body>
@@ -98,8 +99,15 @@
   </div>
   
   <div id="playerContainer" class="player-container" style="margin-top:10px; position:relative;">
-    <div id="videoWrapper" style="position:relative; flex:1 1 auto;">
-      <video id="player" style="width:100%;" playsinline></video>
+    <div id="leftPane" class="left-pane" style="display:flex;flex-direction:column;flex:1 1 auto;min-width:0;">
+      <div id="videoWrapper" style="position:relative; flex:1 1 auto;">
+        <video id="player" style="width:100%;" playsinline></video>
+      </div>
+      
+      <!-- Current track title display -->
+      <div id="currentTrackTitle">
+        <span id="currentTrackName">No track selected</span>
+      </div>
       
       <!-- custom control bar -->
       <div id="customControls" class="controls">
@@ -142,11 +150,6 @@
           <span class="icon icon-full"></span>
         </button>
       </div>
-    </div>
-    
-    <!-- Current track title display -->
-    <div id="currentTrackTitle">
-      <span id="currentTrackName">No track selected</span>
     </div>
     
     <div id="playlistPanel" class="playlist-panel">

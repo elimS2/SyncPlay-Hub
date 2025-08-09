@@ -54,3 +54,26 @@
     padding: 3px 10px;
   }
 } 
+
+/* In-flow controls override for Likes Player */
+#customControls.controls {
+  position: static;
+  left: auto;
+  bottom: auto;
+  width: auto;
+  max-width: 100%;
+  box-sizing: border-box;
+  z-index: auto;
+  margin-top: 0;
+}
+
+/* In-flow current track title override for Likes Player */
+#currentTrackTitle {
+  position: static;
+  left: auto;
+  bottom: auto;
+  width: auto;
+  max-width: 100%;
+  box-sizing: border-box;
+  margin: 6px 0 0;
+}

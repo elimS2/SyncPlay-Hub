@@ -17,6 +17,25 @@ export const LAYOUT_MODES = {
 let currentLayoutMode = LAYOUT_MODES.SIDE_BY_SIDE;
 let currentRelpath = null;
 let currentPlaylistType = 'regular';
+let resizeListenerAttached = false;
+
+function recalcUnderVideoMaxHeight() {
+  try {
+    const playlistPanel = document.getElementById('playlistPanel');
+    if (!playlistPanel) return;
+    // Compute remaining space from playlistPanel top to viewport bottom
+    const rect = playlistPanel.getBoundingClientRect();
+    const viewportHeight = window.innerHeight || document.documentElement.clientHeight;
+    const styles = getComputedStyle(playlistPanel);
+    const marginBottom = parseFloat(styles.marginBottom || '0') || 0;
+    const bottomGap = 16 + marginBottom; // breathing space + panel bottom margin
+    const available = Math.max(100, Math.floor(viewportHeight - rect.top - bottomGap - 1));
+    playlistPanel.style.maxHeight = available + 'px';
+    playlistPanel.style.overflowY = 'auto';
+  } catch (e) {
+    console.warn('⚠️ [Layout] Failed to recalc under-video maxHeight:', e);
+  }
+}
 
 /**
  * Applies the specified layout mode
@@ -44,6 +63,11 @@ export async function applyLayoutMode(mode, skipSave = false) {
     case LAYOUT_MODES.HIDDEN:
       // Hide playlist completely
       playlistPanel.style.display = 'none';
+      // Ensure vertical stacking when playlist is hidden
+      playerContainer.style.flexDirection = 'column';
+      // Prevent page vertical scroll; internal elements manage their own scrolling
+      document.documentElement.style.overflowY = 'hidden';
+      document.body.style.overflowY = 'hidden';
       console.log('✅ [Layout] Applied hidden layout');
       break;
       
@@ -51,19 +75,31 @@ export async function applyLayoutMode(mode, skipSave = false) {
       // Show playlist under video
       playlistPanel.style.display = 'flex';
       playerContainer.style.flexDirection = 'column';
+      playerContainer.style.overflowX = 'hidden';
       playlistPanel.style.width = '100%';
+      // Set a temporary max-height; will be recalculated precisely next tick
       playlistPanel.style.maxHeight = '40vh';
       playlistPanel.style.order = '2';
+      // Prevent page vertical scroll in under-video layout
+      document.documentElement.style.overflowY = 'hidden';
+      document.body.style.overflowY = 'hidden';
       console.log('✅ [Layout] Applied under-video layout');
+      // Recalculate to eliminate page vertical scroll while keeping internal scrolling
+      setTimeout(recalcUnderVideoMaxHeight, 0);
+      setTimeout(recalcUnderVideoMaxHeight, 100); // second pass after any image/video reflow
       break;
       
     case LAYOUT_MODES.SIDE_BY_SIDE:
       // Show playlist side by side with video
       playlistPanel.style.display = 'flex';
       playerContainer.style.flexDirection = 'row';
+      playerContainer.style.overflowX = '';
       playlistPanel.style.width = '600px';
       playlistPanel.style.maxHeight = '70vh';
       playlistPanel.style.order = '2';
+      // Restore default page scroll behavior when side-by-side
+      document.documentElement.style.overflowY = '';
+      document.body.style.overflowY = '';
       console.log('✅ [Layout] Applied side-by-side layout');
       break;
       
@@ -158,6 +194,16 @@ export async function initializePlaylistLayoutManager(config = {}) {
   setTimeout(async () => {
     await applyLayoutMode(currentLayoutMode, true);
   }, 100);
+
+  // Attach resize listener once for dynamic height in UNDER_VIDEO
+  if (!resizeListenerAttached) {
+    window.addEventListener('resize', () => {
+      if (currentLayoutMode === LAYOUT_MODES.UNDER_VIDEO) {
+        recalcUnderVideoMaxHeight();
+      }
+    });
+    resizeListenerAttached = true;
+  }
   
   // Add global functions for debugging
   window.setPlaylistLayout = async function(mode) {

@@ -72,3 +72,25 @@ body {
     max-height: calc(50vh - 60px);
   }
 } 
+
+/* Make title and controls in-flow under video (parity with Likes Player) */
+#currentTrackTitle {
+  position: static;
+  left: auto;
+  bottom: auto;
+  width: auto;
+  max-width: 100%;
+  box-sizing: border-box;
+  margin: 6px 0 0;
+}
+
+#customControls.controls {
+  position: static;
+  left: auto;
+  bottom: auto;
+  width: auto;
+  max-width: 100%;
+  box-sizing: border-box;
+  z-index: auto;
+  margin-top: 0;
+}
