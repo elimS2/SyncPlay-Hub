@@ -132,6 +132,12 @@ export function showNotification(message, type = 'info') {
  */
 export function createTrackTooltipHTML(track) {
   let tooltipHTML = '';
+  // Precompute media property rows for consistent ordering and grouping
+  let durationRowHTML = '';
+  let fileSizeRowHTML = '';
+  let bitrateRowHTML = '';
+  let resolutionRowHTML = '';
+  let filetypeRowHTML = '';
   
   // Add channel handle (@channelname) info - FIRST ITEM
   if (track.youtube_channel_handle) {
@@ -193,21 +199,47 @@ export function createTrackTooltipHTML(track) {
     }
   }
   
-  // Add video duration info
+  // Prepare duration row (do not append yet)
   if (track.youtube_duration_string) {
-    tooltipHTML += `<div class="tooltip-row"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12,6 12,12 16,14"></polyline></svg><strong>Duration:</strong> ${track.youtube_duration_string}</div>`;
+    durationRowHTML = `<div class="tooltip-row"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12,6 12,12 16,14"></polyline></svg><strong>Duration:</strong> ${track.youtube_duration_string}</div>`;
   } else if (track.youtube_duration) {
     const duration = Math.floor(track.youtube_duration);
     const minutes = Math.floor(duration / 60);
     const seconds = duration % 60;
     const durationStr = `${minutes}:${seconds.toString().padStart(2, '0')}`;
-    tooltipHTML += `<div class="tooltip-row"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12,6 12,12 16,14"></polyline></svg><strong>Duration:</strong> ${durationStr}</div>`;
+    durationRowHTML = `<div class="tooltip-row"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12,6 12,12 16,14"></polyline></svg><strong>Duration:</strong> ${durationStr}</div>`;
+  } else {
+    durationRowHTML = `<div class=\"tooltip-row\"><svg width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><circle cx=\"12\" cy=\"12\" r=\"10\"></circle><polyline points=\"12,6 12,12 16,14\"></polyline></svg><strong>Duration:</strong> -</div>`;
   }
-  
-  // Add file size info
+
+  // Prepare file size row
   if (track.size_bytes) {
     const fileSize = formatFileSize(track.size_bytes);
-    tooltipHTML += `<div class="tooltip-row"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14,2 14,8 20,8"></polyline></svg><strong>File Size:</strong> ${fileSize}</div>`;
+    fileSizeRowHTML = `<div class=\"tooltip-row\"><svg width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><path d=\"M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z\"></path><polyline points=\"14,2 14,8 20,8\"></polyline></svg><strong>File Size:</strong> ${fileSize}</div>`;
+  } else {
+    fileSizeRowHTML = `<div class=\"tooltip-row\"><svg width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><path d=\"M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z\"></path><polyline points=\"14,2 14,8 20,8\"></polyline></svg><strong>File Size:</strong> -</div>`;
+  }
+
+  // Prepare bitrate row (kbps)
+  if (typeof track.bitrate === 'number' && track.bitrate > 0) {
+    const kbps = Math.round(track.bitrate / 1000);
+    bitrateRowHTML = `<div class=\"tooltip-row\"><svg width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><polyline points=\"3,12 7,12 9,19 13,5 15,12 21,12\"></polyline></svg><strong>Bitrate:</strong> ${kbps} kbps</div>`;
+  } else {
+    bitrateRowHTML = `<div class=\"tooltip-row\"><svg width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><polyline points=\"3,12 7,12 9,19 13,5 15,12 21,12\"></polyline></svg><strong>Bitrate:</strong> -</div>`;
+  }
+
+  // Prepare resolution row
+  if (track.resolution) {
+    resolutionRowHTML = `<div class=\"tooltip-row\"><svg width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><rect x=\"3\" y=\"6\" width=\"18\" height=\"12\" rx=\"2\"></rect></svg><strong>Resolution:</strong> ${track.resolution}</div>`;
+  } else {
+    resolutionRowHTML = `<div class=\"tooltip-row\"><svg width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><rect x=\"3\" y=\"6\" width=\"18\" height=\"12\" rx=\"2\"></rect></svg><strong>Resolution:</strong> -</div>`;
+  }
+
+  // Prepare file type row
+  if (track.filetype) {
+    filetypeRowHTML = `<div class=\"tooltip-row\"><svg width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><path d=\"M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z\"></path><polyline points=\"14,2 14,8 20,8\"></polyline></svg><strong>Type:</strong> ${track.filetype}</div>`;
+  } else {
+    filetypeRowHTML = `<div class=\"tooltip-row\"><svg width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><path d=\"M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z\"></path><polyline points=\"14,2 14,8 20,8\"></polyline></svg><strong>Type:</strong> -</div>`;
   }
   
   // Add last play date info
@@ -228,7 +260,15 @@ export function createTrackTooltipHTML(track) {
   } else {
     tooltipHTML += `<div class="tooltip-row"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12,6 12,12 16,14"></polyline></svg><strong>Last Played:</strong> Never</div>`;
   }
-  
+
+  // Add media properties section (grouped)
+  tooltipHTML += `<div class="tooltip-section"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="6" width="18" height="12" rx="2"></rect></svg><strong>Media Properties:</strong></div>`;
+  tooltipHTML += durationRowHTML;
+  tooltipHTML += fileSizeRowHTML;
+  tooltipHTML += bitrateRowHTML;
+  tooltipHTML += resolutionRowHTML;
+  tooltipHTML += filetypeRowHTML;
+
   // Add playback statistics
   tooltipHTML += `<div class="tooltip-section"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="20" x2="12" y2="10"></line><line x1="18" y1="20" x2="18" y2="4"></line><line x1="6" y1="20" x2="6" y2="16"></line></svg><strong>Playback Statistics:</strong></div>`;
   tooltipHTML += `<div class="tooltip-row"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5,3 19,12 5,21"></polygon></svg>Total Plays: ${track.play_starts || 0}</div>`;
