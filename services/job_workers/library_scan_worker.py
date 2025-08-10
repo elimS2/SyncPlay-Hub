@@ -17,7 +17,7 @@ from typing import List
 sys.path.append(str(Path(__file__).parent.parent.parent))
 
 from services.job_types import JobWorker, Job, JobType
-from utils.media_probe import ffprobe_media_properties
+from utils.media_probe import ffprobe_media_properties_ex
 
 
 class LibraryScanWorker(JobWorker):
@@ -88,10 +88,23 @@ class LibraryScanWorker(JobWorker):
                             job.log_info(f"Missing file for {video_id}: {abs_path}")
                         continue
 
-                    duration, bitrate, resolution = ffprobe_media_properties(abs_path)
+                    probe = ffprobe_media_properties_ex(abs_path)
+                    duration = probe.get("duration")
+                    bitrate = probe.get("bitrate")
+                    resolution = probe.get("resolution")
+                    video_fps = probe.get("video_fps")
+                    video_codec = probe.get("video_codec")
                     size_bytes = abs_path.stat().st_size
 
-                    update_kwargs = {"bitrate": bitrate, "resolution": resolution}
+                    update_kwargs = {
+                        "bitrate": bitrate,
+                        "resolution": resolution,
+                        "video_fps": video_fps,
+                        "video_codec": video_codec,
+                        "audio_codec": probe.get("audio_codec"),
+                        "audio_bitrate": probe.get("audio_bitrate"),
+                        "audio_sample_rate": probe.get("audio_sample_rate"),
+                    }
                     if refresh_duration:
                         update_kwargs["duration"] = duration
                     if refresh_size:
@@ -104,7 +117,9 @@ class LibraryScanWorker(JobWorker):
                         updated += 1
 
                     if idx % 100 == 0 or idx == total:
-                        job.log_info(f"Progress: {idx}/{total} processed; updated={updated}; missing={skipped_missing}")
+                        job.log_info(
+                            f"Progress: {idx}/{total} processed; updated={updated}; missing={skipped_missing}"
+                        )
 
                 job.log_info(f"Library scan finished: processed={processed}, updated={updated}, missing={skipped_missing}")
                 return True

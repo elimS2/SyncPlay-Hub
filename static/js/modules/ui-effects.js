@@ -137,7 +137,11 @@ export function createTrackTooltipHTML(track) {
   let fileSizeRowHTML = '';
   let bitrateRowHTML = '';
   let resolutionRowHTML = '';
+  let fpsRowHTML = '';
+  let codecRowHTML = '';
+  let videoSummaryRowHTML = '';
   let filetypeRowHTML = '';
+  let audioInfoRowHTML = '';
   
   // Add channel handle (@channelname) info - FIRST ITEM
   if (track.youtube_channel_handle) {
@@ -220,26 +224,58 @@ export function createTrackTooltipHTML(track) {
     fileSizeRowHTML = `<div class=\"tooltip-row\"><svg width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><path d=\"M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z\"></path><polyline points=\"14,2 14,8 20,8\"></polyline></svg><strong>File Size:</strong> -</div>`;
   }
 
-  // Prepare bitrate row (kbps)
-  if (typeof track.bitrate === 'number' && track.bitrate > 0) {
-    const kbps = Math.round(track.bitrate / 1000);
-    bitrateRowHTML = `<div class=\"tooltip-row\"><svg width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><polyline points=\"3,12 7,12 9,19 13,5 15,12 21,12\"></polyline></svg><strong>Bitrate:</strong> ${kbps} kbps</div>`;
-  } else {
-    bitrateRowHTML = `<div class=\"tooltip-row\"><svg width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><polyline points=\"3,12 7,12 9,19 13,5 15,12 21,12\"></polyline></svg><strong>Bitrate:</strong> -</div>`;
-  }
-
-  // Prepare resolution row
-  if (track.resolution) {
-    resolutionRowHTML = `<div class=\"tooltip-row\"><svg width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><rect x=\"3\" y=\"6\" width=\"18\" height=\"12\" rx=\"2\"></rect></svg><strong>Resolution:</strong> ${track.resolution}</div>`;
-  } else {
-    resolutionRowHTML = `<div class=\"tooltip-row\"><svg width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><rect x=\"3\" y=\"6\" width=\"18\" height=\"12\" rx=\"2\"></rect></svg><strong>Resolution:</strong> -</div>`;
-  }
+  // Build compact Video summary row: e.g., 1080p · 23.98fps · h264 · 1753 kbps
+  (function buildVideoSummary() {
+    const parts = [];
+    // Codec first
+    if (track.video_codec) parts.push(String(track.video_codec).toLowerCase());
+    // Resolution (e.g., 1080p)
+    if (track.resolution && typeof track.resolution === 'string') {
+      const m = track.resolution.match(/^(\d+)x(\d+)$/);
+      if (m) {
+        const height = parseInt(m[2], 10);
+        if (!isNaN(height) && height > 0) parts.push(`${height}p`);
+      } else {
+        parts.push(track.resolution);
+      }
+    }
+    // FPS
+    if (typeof track.video_fps === 'number' && track.video_fps > 0) {
+      const fps = (Math.round(track.video_fps * 100) / 100).toFixed(2);
+      parts.push(`${fps}fps`);
+    }
+    // Bitrate (kbps)
+    if (typeof track.bitrate === 'number' && track.bitrate > 0) {
+      const kbps = Math.round(track.bitrate / 1000);
+      parts.push(`${kbps} kbps`);
+    }
+    const label = parts.length ? parts.join(' · ') : '-';
+    videoSummaryRowHTML = `<div class=\"tooltip-row\"><svg width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><rect x=\"3\" y=\"6\" width=\"18\" height=\"12\" rx=\"2\"></rect></svg><strong>Video:</strong> ${label}</div>`;
+  })();
 
   // Prepare file type row
   if (track.filetype) {
     filetypeRowHTML = `<div class=\"tooltip-row\"><svg width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><path d=\"M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z\"></path><polyline points=\"14,2 14,8 20,8\"></polyline></svg><strong>Type:</strong> ${track.filetype}</div>`;
   } else {
     filetypeRowHTML = `<div class=\"tooltip-row\"><svg width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><path d=\"M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z\"></path><polyline points=\"14,2 14,8 20,8\"></polyline></svg><strong>Type:</strong> -</div>`;
+  }
+
+  // Prepare audio info row (compact): Codec · Bitrate · Sample rate
+  const audioParts = [];
+  if (track.audio_codec) audioParts.push(String(track.audio_codec).toUpperCase());
+  if (typeof track.audio_bitrate === 'number' && track.audio_bitrate > 0) {
+    const kbpsA = Math.round(track.audio_bitrate / 1000);
+    audioParts.push(`${kbpsA} kbps`);
+  } else if (track.audio_codec) {
+    // No numeric default guesses; fall back to VBR when unknown
+    audioParts.push('VBR');
+  }
+  if (typeof track.audio_sample_rate === 'number' && track.audio_sample_rate > 0) {
+    const khz = (Math.round(track.audio_sample_rate / 100) / 10).toFixed(1); // 48000 -> 48.0
+    audioParts.push(`${khz} kHz`);
+  }
+  if (audioParts.length > 0) {
+    audioInfoRowHTML = `<div class=\"tooltip-row\"><svg width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><path d=\"M11 5l6 2v10l-6 2V5z\"></path><rect x=\"3\" y=\"7\" width=\"4\" height=\"10\" rx=\"1\"></rect></svg><strong>Audio:</strong> ${audioParts.join(' · ')}</div>`;
   }
   
   // Add last play date info
@@ -265,9 +301,10 @@ export function createTrackTooltipHTML(track) {
   tooltipHTML += `<div class="tooltip-section"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="6" width="18" height="12" rx="2"></rect></svg><strong>Media Properties:</strong></div>`;
   tooltipHTML += durationRowHTML;
   tooltipHTML += fileSizeRowHTML;
-  tooltipHTML += bitrateRowHTML;
-  tooltipHTML += resolutionRowHTML;
+  // Use a single compact row for video properties
+  tooltipHTML += videoSummaryRowHTML;
   tooltipHTML += filetypeRowHTML;
+  tooltipHTML += audioInfoRowHTML;
 
   // Add playback statistics
   tooltipHTML += `<div class="tooltip-section"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="20" x2="12" y2="10"></line><line x1="18" y1="20" x2="18" y2="4"></line><line x1="6" y1="20" x2="6" y2="16"></line></svg><strong>Playback Statistics:</strong></div>`;

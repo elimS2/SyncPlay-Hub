@@ -42,19 +42,32 @@
       </div>
 
       <!-- Properties -->
-      <div class="grid section">
+      <div class="grid section grid-1col">
         <div class="card">
           <h3 class="section-title">File Properties</h3>
           <div class="kv">
             <div class="muted">Title (file)</div><div>{{ track.get('name') or '-' }}</div>
             <div class="muted">Duration</div><div>{% if track.get('duration') %}{{ (track['duration'] // 60)|int }}:{{ ('%02d' % (track['duration'] % 60)) }}{% else %}-{% endif %}</div>
             <div class="muted">Size</div><div>{% if track.get('size_bytes') is not none %}{{ '%.1f' % (track['size_bytes']/1048576) }} MB{% else %}-{% endif %}</div>
-            <div class="muted">Bitrate</div>
-            <div id="bitrateValue">{% if track.get('bitrate') %}{{ (track['bitrate']/1000)|int }} kbps{% else %}-{% endif %}</div>
-            <div class="muted">Resolution</div>
-            <div id="resolutionValue">
-              {{ track.get('resolution') or '-' }}
+            <div class="muted">Video</div>
+            <div id="videoSummaryValue">
+              <span id="videoSummaryText">
+                {% set parts = [] %}
+                {% if track.get('video_codec') %}{% set _ = parts.append(track.get('video_codec')) %}{% endif %}
+                {% if track.get('resolution') %}{% set _ = parts.append(track.get('resolution')) %}{% endif %}
+                {% if track.get('video_fps') %}{% set _ = parts.append(('%.2f' % track.get('video_fps')) + ' fps') %}{% endif %}
+                {% if track.get('bitrate') %}{% set _ = parts.append(((track.get('bitrate')/1000)|int)|string + ' kbps') %}{% endif %}
+                {{ parts|length and (' · '.join(parts)) or '-' }}
+              </span>
               <button id="rescanMediaBtn" class="inline-action" title="Rescan media properties" style="margin-left:8px; padding:2px 8px; font-size:12px;">⟲ Rescan</button>
+            </div>
+            <div class="muted">Audio</div>
+            <div id="audioInfoValue">
+              {% set audio_parts = [] %}
+              {% if track.get('audio_codec') %}{% set _ = audio_parts.append(track.get('audio_codec').upper()) %}{% endif %}
+              {% if track.get('audio_bitrate') %}{% set _ = audio_parts.append(((track.get('audio_bitrate')/1000)|int)|string + ' kbps') %}{% elif track.get('audio_codec') %}{% set _ = audio_parts.append('VBR') %}{% endif %}
+              {% if track.get('audio_sample_rate') %}{% set _ = audio_parts.append(('%.1f' % (track.get('audio_sample_rate')/1000.0)) + ' kHz') %}{% endif %}
+              {{ ' · '.join(audio_parts) if audio_parts else '-' }}
             </div>
             <div class="muted">Type</div><div>{{ track.get('filetype') or '-' }}</div>
             <div class="muted">Relpath</div><div class="mono">{{ track.get('relpath') or '-' }}</div>
@@ -229,27 +242,43 @@
           return;
         }
         // Update inline values if present
-        const bitrateEl = document.getElementById('bitrateValue');
+        const videoSummaryEl = document.getElementById('videoSummaryText');
         const resEl = document.getElementById('resolutionValue');
-        if (bitrateEl && typeof data.bitrate === 'number') {
-          const kbps = Math.round((data.bitrate || 0) / 1000);
-          bitrateEl.textContent = kbps ? `${kbps} kbps` : '-';
+        const fpsEl = document.getElementById('fpsValue');
+        const codecEl = document.getElementById('codecValue');
+        const audioEl = document.getElementById('audioInfoValue');
+        if (videoSummaryEl) {
+          const parts = [];
+          if (data.video_codec) parts.push(String(data.video_codec));
+          if (data.resolution) parts.push(String(data.resolution));
+          if (typeof data.video_fps === 'number' && data.video_fps > 0) {
+            const fps = (Math.round(data.video_fps * 100) / 100).toFixed(2);
+            parts.push(`${fps} fps`);
+          }
+          if (typeof data.bitrate === 'number' && data.bitrate > 0) {
+            const kbps = Math.round(data.bitrate / 1000);
+            parts.push(`${kbps} kbps`);
+          }
+          videoSummaryEl.textContent = parts.length ? parts.join(' · ') : '-';
         }
-        if (resEl && data.resolution) {
-          // Keep button in place, adjust only text part before the button
-          const parts = resEl.childNodes;
-          // Replace first text node content
-          let replaced = false;
-          for (const n of parts) {
-            if (n.nodeType === Node.TEXT_NODE) {
-              n.textContent = ` ${data.resolution} `;
-              replaced = true;
-              break;
+        if (audioEl) {
+          const ap = [];
+          if (data.audio_codec) ap.push(String(data.audio_codec).toUpperCase());
+          if (typeof data.audio_bitrate === 'number' && data.audio_bitrate > 0) {
+            ap.push(`${Math.round(data.audio_bitrate / 1000)} kbps`);
+          } else if (data.audio_codec) {
+            // If bitrate not available but codec present, show ~ kbps (est) when flagged; otherwise VBR
+            if (data.audio_bitrate_estimated) {
+              ap.push('~ kbps (est)');
+            } else {
+              ap.push('VBR');
             }
           }
-          if (!replaced) {
-            resEl.insertBefore(document.createTextNode(data.resolution + ' '), resEl.firstChild);
+          if (typeof data.audio_sample_rate === 'number' && data.audio_sample_rate > 0) {
+            const khz = (Math.round(data.audio_sample_rate / 100) / 10).toFixed(1);
+            ap.push(`${khz} kHz`);
           }
+          audioEl.textContent = ap.length ? ap.join(' · ') : '-';
         }
         btn.textContent = 'Done';
         window.ToastNotifications?.showToast('Rescan complete', { position: 'bottom' });

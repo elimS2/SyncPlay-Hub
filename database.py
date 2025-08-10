@@ -305,6 +305,20 @@ def _ensure_schema(conn: sqlite3.Connection):
             else:
                 cur.execute(f"ALTER TABLE tracks ADD COLUMN {col} TEXT")
     
+    # Add new media properties columns (video) to tracks table if missing
+    if "video_fps" not in cols:
+        cur.execute("ALTER TABLE tracks ADD COLUMN video_fps REAL")
+    if "video_codec" not in cols:
+        cur.execute("ALTER TABLE tracks ADD COLUMN video_codec TEXT")
+
+    # Add new media properties columns (audio) to tracks table if missing
+    if "audio_codec" not in cols:
+        cur.execute("ALTER TABLE tracks ADD COLUMN audio_codec TEXT")
+    if "audio_bitrate" not in cols:
+        cur.execute("ALTER TABLE tracks ADD COLUMN audio_bitrate INTEGER")
+    if "audio_sample_rate" not in cols:
+        cur.execute("ALTER TABLE tracks ADD COLUMN audio_sample_rate INTEGER")
+
     conn.commit()
 
     # ensure history table exists (for upgrades before)
@@ -428,6 +442,11 @@ def update_track_media_properties(
     resolution: Optional[str] = None,
     duration: Optional[float] = None,
     size_bytes: Optional[int] = None,
+    video_fps: Optional[float] = None,
+    video_codec: Optional[str] = None,
+    audio_codec: Optional[str] = None,
+    audio_bitrate: Optional[int] = None,
+    audio_sample_rate: Optional[int] = None,
 ) -> bool:
     """
     Partially update media-related properties for a track identified by video_id.
@@ -453,6 +472,21 @@ def update_track_media_properties(
     if resolution is not None:
         set_parts.append("resolution = ?")
         params.append(resolution)
+    if video_fps is not None:
+        set_parts.append("video_fps = ?")
+        params.append(video_fps)
+    if video_codec is not None:
+        set_parts.append("video_codec = ?")
+        params.append(video_codec)
+    if audio_codec is not None:
+        set_parts.append("audio_codec = ?")
+        params.append(audio_codec)
+    if audio_bitrate is not None:
+        set_parts.append("audio_bitrate = ?")
+        params.append(audio_bitrate)
+    if audio_sample_rate is not None:
+        set_parts.append("audio_sample_rate = ?")
+        params.append(audio_sample_rate)
 
     if not set_parts:
         return False

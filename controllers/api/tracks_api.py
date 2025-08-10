@@ -14,7 +14,7 @@ from flask import Blueprint, jsonify, request
 
 from .shared import get_connection, get_root_dir, log_message
 import database as db
-from utils.media_probe import ffprobe_media_properties
+from utils.media_probe import ffprobe_media_properties, ffprobe_media_properties_ex
 from services.job_queue_service import get_job_queue_service
 from services.job_types import JobType, JobPriority
 
@@ -28,7 +28,8 @@ _YT_ID_RE = re.compile(r"^[A-Za-z0-9_-]{11}$")
 @tracks_bp.route("/track/<video_id>/rescan_media", methods=["POST"])
 def api_rescan_track_media(video_id: str):
     """
-    Rescan media properties (bitrate, resolution) for a single track.
+    Rescan media properties (bitrate, resolution) for a single track and
+    update extended fields (video_fps, video_codec) when available.
 
     Request body (optional JSON):
       - refresh_duration: bool (default False)
@@ -42,6 +43,11 @@ def api_rescan_track_media(video_id: str):
         "resolution": str | null,
         "duration": float | null,
         "size_bytes": int | null,
+        "video_fps": float | null,
+        "video_codec": str | null,
+        "audio_codec": str | null,
+        "audio_bitrate": int | null,
+        "audio_sample_rate": int | null,
         "fields_updated": ["bitrate", "resolution", ...],
         "error": str (when status == "error")
       }
@@ -76,8 +82,13 @@ def api_rescan_track_media(video_id: str):
             log_message(f"[Rescan] File not found for {video_id}: {abs_path}")
             return jsonify({"status": "error", "error": "File not found"}), 404
 
-        # Probe media
-        duration, bitrate, resolution = ffprobe_media_properties(abs_path)
+        # Probe media (extended)
+        probe = ffprobe_media_properties_ex(abs_path)
+        duration = probe.get("duration")
+        bitrate = probe.get("bitrate")
+        resolution = probe.get("resolution")
+        video_fps = probe.get("video_fps")
+        video_codec = probe.get("video_codec")
         size_bytes = abs_path.stat().st_size
 
         # Determine which fields to update
@@ -85,6 +96,11 @@ def api_rescan_track_media(video_id: str):
         update_kwargs = {
             "bitrate": bitrate,
             "resolution": resolution,
+            "video_fps": video_fps,
+            "video_codec": video_codec,
+            "audio_codec": probe.get("audio_codec"),
+            "audio_bitrate": probe.get("audio_bitrate"),
+            "audio_sample_rate": probe.get("audio_sample_rate"),
         }
         if refresh_duration:
             update_kwargs["duration"] = duration
@@ -100,7 +116,9 @@ def api_rescan_track_media(video_id: str):
 
         log_message(
             f"[Rescan] {video_id} -> updated: {fields_updated or 'none'}; "
-            f"bitrate={bitrate}, resolution={resolution}, duration={duration}, size={size_bytes}"
+            f"bitrate={bitrate}, resolution={resolution}, fps={video_fps}, vcodec={video_codec}, "
+            f"acodec={probe.get('audio_codec')}, abitrate={probe.get('audio_bitrate')}, asr={probe.get('audio_sample_rate')}, "
+            f"duration={duration}, size={size_bytes}"
         )
 
         return jsonify(
@@ -111,6 +129,12 @@ def api_rescan_track_media(video_id: str):
                 "resolution": resolution,
                 "duration": duration,
                 "size_bytes": size_bytes,
+                "video_fps": video_fps,
+                "video_codec": video_codec,
+                "audio_codec": probe.get("audio_codec"),
+                "audio_bitrate": probe.get("audio_bitrate"),
+                "audio_sample_rate": probe.get("audio_sample_rate"),
+                "audio_bitrate_estimated": bool(probe.get("audio_bitrate_estimated")),
                 "fields_updated": fields_updated,
             }
         )

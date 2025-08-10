@@ -19,7 +19,7 @@ All identifiers, comments, and strings are in English as per project policy.
 """
 
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Dict, Any
 import json
 import subprocess
 import os
@@ -251,4 +251,463 @@ def ffprobe_media_properties(path: Path, timeout: int = 10) -> Tuple[Optional[fl
     # Could not determine via any method
     return None, None, None
 
+
+def _parse_fractional_rate(value: Any) -> Optional[float]:
+    """
+    Parse ffprobe frame rate value that may be a fraction string like "30000/1001".
+    Returns float rounded to two decimals, or None if cannot parse.
+    """
+    if value in (None, "N/A", "", 0):
+        return None
+    try:
+        # Already numeric
+        if isinstance(value, (int, float)):
+            return round(float(value), 2)
+        text = str(value)
+        if "/" in text:
+            num, den = text.split("/", 1)
+            num_f = float(num)
+            den_f = float(den) if float(den) != 0 else 1.0
+            return round(num_f / den_f, 2)
+        # Plain string number
+        return round(float(text), 2)
+    except Exception:
+        return None
+
+
+def ffprobe_media_properties_ex(path: Path, timeout: int = 10) -> Dict[str, Optional[Any]]:
+    """
+    Extended media probing that returns a dictionary with the following keys:
+      - duration: float | None (seconds)
+      - bitrate: int | None (bits per second)
+      - resolution: str | None (e.g., "1920x1080")
+      - video_fps: float | None (e.g., 29.97)
+      - video_codec: str | None (e.g., "h264")
+      - audio_codec: str | None (e.g., "aac", "opus")
+      - audio_bitrate: int | None (bps)
+      - audio_sample_rate: int | None (Hz)
+      - audio_bitrate_estimated: bool (True when bitrate is derived/approximate)
+
+    Strategy mirrors ffprobe_media_properties but also extracts fps and codec
+    for video streams when available.
+    """
+    if not isinstance(path, Path):
+        path = Path(path)
+    if not path.exists() or not path.is_file():
+        return {
+            "duration": None,
+            "bitrate": None,
+            "resolution": None,
+            "video_fps": None,
+            "video_codec": None,
+            "audio_codec": None,
+            "audio_bitrate": None,
+            "audio_sample_rate": None,
+            "audio_bitrate_estimated": False,
+        }
+
+    size_bytes: int = path.stat().st_size
+    suffix = path.suffix.lower()
+
+    # Audio via mutagen
+    if suffix in _AUDIO_EXTS:
+        try:
+            from mutagen import File as MutagenFile  # type: ignore
+            m = MutagenFile(str(path))
+            duration_seconds = float(m.info.length) if getattr(m, "info", None) and getattr(m.info, "length", None) else None
+            bitrate_bps = int(getattr(m.info, "bitrate", 0)) or None
+            if (not bitrate_bps) and duration_seconds and duration_seconds > 0:
+                bitrate_bps = int(size_bytes * 8 / duration_seconds)
+            return {
+                "duration": duration_seconds,
+                "bitrate": bitrate_bps,
+                "resolution": None,
+                "video_fps": None,
+                "video_codec": None,
+                "audio_codec": (getattr(m.info, 'codec', None) or None),
+                "audio_bitrate": bitrate_bps,
+                "audio_sample_rate": int(getattr(m.info, 'sample_rate', 0)) or None,
+                "audio_bitrate_estimated": bool(not getattr(m.info, 'bitrate', None)),
+            }
+        except Exception:
+            pass
+
+    # Prefer ffprobe for video, if available
+    if suffix in _VIDEO_EXTS:
+        try:
+            from shutil import which
+            if which("ffprobe") is not None:
+                cmd = [
+                    "ffprobe",
+                    "-v",
+                    "error",
+                    "-show_entries",
+                    # Request additional fields; include format.sample_rate and audio stream sample_rate/channels
+                    "format=duration,bit_rate,sample_rate:stream=index,codec_type,codec_name,bit_rate,width,height,avg_frame_rate,r_frame_rate,sample_rate,channels,channel_layout,tags",
+                    "-of",
+                    "json",
+                    str(path),
+                ]
+                res = subprocess.run(
+                    cmd,
+                    capture_output=True,
+                    text=True,
+                    check=True,
+                    timeout=timeout,
+                )
+                data = json.loads(res.stdout or "{}")
+
+                duration_seconds: Optional[float] = None
+                bitrate_bps: Optional[int] = None
+                resolution: Optional[str] = None
+                video_fps: Optional[float] = None
+                video_codec: Optional[str] = None
+                audio_codec: Optional[str] = None
+                audio_bitrate: Optional[int] = None
+                audio_sample_rate: Optional[int] = None
+                audio_bitrate_estimated: bool = False
+
+                fmt = (data or {}).get("format") or {}
+                if isinstance(fmt, dict):
+                    dur_raw = fmt.get("duration")
+                    if dur_raw not in (None, "N/A", ""):
+                        try:
+                            duration_seconds = float(dur_raw)
+                        except (TypeError, ValueError):
+                            duration_seconds = None
+                    fmt_bitrate = fmt.get("bit_rate")
+                    if fmt_bitrate not in (None, "N/A", ""):
+                        try:
+                            bitrate_bps = int(fmt_bitrate)
+                        except (TypeError, ValueError):
+                            bitrate_bps = None
+                    # Fallback for audio sample rate at container level
+                    fmt_asr = fmt.get("sample_rate")
+                    if audio_sample_rate is None and fmt_asr not in (None, "N/A", ""):
+                        try:
+                            audio_sample_rate = int(fmt_asr)
+                        except Exception:
+                            pass
+
+                streams = (data or {}).get("streams") or []
+                if isinstance(streams, list):
+                    video_stream_bitrate_sum = 0
+                    for s in streams:
+                        if not isinstance(s, dict):
+                            continue
+                        ctype = s.get("codec_type")
+                        if ctype == "video":
+                            w = s.get("width")
+                            h = s.get("height")
+                            try:
+                                if w and h and int(w) > 0 and int(h) > 0:
+                                    resolution = f"{int(w)}x{int(h)}"
+                            except (TypeError, ValueError):
+                                pass
+                            # codec name
+                            c = s.get("codec_name")
+                            if isinstance(c, str) and c and c != "N/A":
+                                video_codec = c.lower()
+                            # frame rate from avg_frame_rate or r_frame_rate
+                            video_fps = _parse_fractional_rate(s.get("avg_frame_rate")) or _parse_fractional_rate(s.get("r_frame_rate"))
+                            # Do not break; keep scanning others to collect stream bitrates below
+                            # accumulate known video stream bitrates
+                            br_v = s.get("bit_rate")
+                            try:
+                                if br_v not in (None, "N/A", ""):
+                                    video_stream_bitrate_sum += int(br_v)
+                            except Exception:
+                                pass
+                        elif ctype == "audio":
+                            c = s.get("codec_name")
+                            if isinstance(c, str) and c and c != "N/A":
+                                audio_codec = c.lower()
+                            # Prefer stream audio bitrate if present
+                            br = s.get("bit_rate")
+                            try:
+                                if br not in (None, "N/A", ""):
+                                    audio_bitrate = int(br)
+                            except Exception:
+                                pass
+                            asr = s.get("sample_rate")
+                            try:
+                                if asr not in (None, "N/A", ""):
+                                    audio_sample_rate = int(asr)
+                            except Exception:
+                                pass
+                            # Try tags for audio bitrate (e.g., BPS, BPS-eng)
+                            if audio_bitrate is None:
+                                tags = s.get("tags") or {}
+                                if isinstance(tags, dict):
+                                    for key in ("BPS", "BPS-eng"):
+                                        val = tags.get(key)
+                                        if val not in (None, "N/A", ""):
+                                            try:
+                                                audio_bitrate = int(val)
+                                                break
+                                            except Exception:
+                                                continue
+                    if bitrate_bps is None:
+                        stream_bitrates = []
+                        for s in streams:
+                            if not isinstance(s, dict):
+                                continue
+                            br = s.get("bit_rate")
+                            if br in (None, "N/A", ""):
+                                continue
+                            try:
+                                stream_bitrates.append(int(br))
+                            except (TypeError, ValueError):
+                                continue
+                        if stream_bitrates:
+                            bitrate_bps = max(stream_bitrates)
+
+                    # Derive audio_bitrate if missing and we have a container/derived bitrate
+                    if audio_bitrate is None and (duration_seconds and duration_seconds > 0):
+                        container_bps = None
+                        # Prefer format bit_rate if present
+                        if isinstance(fmt, dict) and fmt.get("bit_rate") not in (None, "N/A", ""):
+                            try:
+                                container_bps = int(fmt.get("bit_rate"))
+                            except Exception:
+                                container_bps = None
+                        # Fallback to size/duration
+                        if container_bps is None:
+                            try:
+                                container_bps = int(size_bytes * 8 / duration_seconds)
+                            except Exception:
+                                container_bps = None
+                        if container_bps is not None and video_stream_bitrate_sum > 0:
+                            candidate = container_bps - video_stream_bitrate_sum
+                            if candidate > 0:
+                                audio_bitrate = candidate
+                                audio_bitrate_estimated = True
+
+                if (not bitrate_bps) and (duration_seconds and duration_seconds > 0):
+                    bitrate_bps = int(size_bytes * 8 / duration_seconds)
+
+                return {
+                    "duration": duration_seconds,
+                    "bitrate": bitrate_bps,
+                    "resolution": resolution,
+                    "video_fps": video_fps,
+                    "video_codec": video_codec,
+                    "audio_codec": audio_codec,
+                    "audio_bitrate": audio_bitrate,
+                    "audio_sample_rate": audio_sample_rate,
+                    "audio_bitrate_estimated": audio_bitrate_estimated,
+                }
+        except Exception:
+            # Fall back to moviepy path below
+            pass
+
+    # MoviePy fallback for video
+    if suffix in _VIDEO_EXTS:
+        try:
+            import warnings as _warnings
+            from moviepy.video.io.VideoFileClip import VideoFileClip  # type: ignore
+            clip = None
+            try:
+                with _warnings.catch_warnings():
+                    _warnings.simplefilter("ignore", category=UserWarning)
+                    clip = VideoFileClip(str(path), audio=False)
+                duration_seconds = float(clip.duration) if getattr(clip, "duration", None) else None
+                width = int(clip.w) if getattr(clip, "w", None) else None
+                height = int(clip.h) if getattr(clip, "h", None) else None
+                resolution = f"{width}x{height}" if width and height else None
+                bitrate_bps = None
+                if duration_seconds and duration_seconds > 0:
+                    bitrate_bps = int(size_bytes * 8 / duration_seconds)
+                fps_val = getattr(clip, "fps", None)
+                video_fps = round(float(fps_val), 2) if fps_val else None
+                return {
+                    "duration": duration_seconds,
+                    "bitrate": bitrate_bps,
+                    "resolution": resolution,
+                    "video_fps": video_fps,
+                    "video_codec": None,  # codec not available via moviepy reliably
+                    "audio_codec": None,
+                    "audio_bitrate": None,
+                    "audio_sample_rate": None,
+                    "audio_bitrate_estimated": False,
+                }
+            finally:
+                try:
+                    if clip is not None:
+                        clip.close()
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+    # Generic ffprobe fallback (any suffix)
+    try:
+        from shutil import which
+        if which("ffprobe") is None:
+            raise FileNotFoundError("ffprobe not available")
+
+        cmd = [
+            "ffprobe",
+            "-v",
+            "error",
+            "-show_entries",
+            "format=duration,bit_rate,sample_rate:stream=index,codec_type,codec_name,bit_rate,width,height,avg_frame_rate,r_frame_rate,sample_rate,channels,channel_layout,tags",
+            "-of",
+            "json",
+            str(path),
+        ]
+        res = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=timeout,
+        )
+        data = json.loads(res.stdout or "{}")
+
+        duration_seconds: Optional[float] = None
+        bitrate_bps: Optional[int] = None
+        resolution: Optional[str] = None
+        video_fps: Optional[float] = None
+        video_codec: Optional[str] = None
+        audio_codec: Optional[str] = None
+        audio_bitrate: Optional[int] = None
+        audio_sample_rate: Optional[int] = None
+        audio_bitrate_estimated: bool = False
+
+        fmt = (data or {}).get("format") or {}
+        if isinstance(fmt, dict):
+            dur_raw = fmt.get("duration")
+            if dur_raw not in (None, "N/A", ""):
+                try:
+                    duration_seconds = float(dur_raw)
+                except (TypeError, ValueError):
+                    duration_seconds = None
+            fmt_bitrate = fmt.get("bit_rate")
+            if fmt_bitrate not in (None, "N/A", ""):
+                try:
+                    bitrate_bps = int(fmt_bitrate)
+                except (TypeError, ValueError):
+                    bitrate_bps = None
+            fmt_asr = fmt.get("sample_rate")
+            if fmt_asr not in (None, "N/A", "") and audio_sample_rate is None:
+                try:
+                    audio_sample_rate = int(fmt_asr)
+                except Exception:
+                    pass
+
+        streams = (data or {}).get("streams") or []
+        if isinstance(streams, list):
+            video_stream_bitrate_sum = 0
+            for s in streams:
+                if not isinstance(s, dict):
+                    continue
+                ctype = s.get("codec_type")
+                if ctype == "video":
+                    w = s.get("width")
+                    h = s.get("height")
+                    try:
+                        if w and h and int(w) > 0 and int(h) > 0:
+                            resolution = f"{int(w)}x{int(h)}"
+                    except (TypeError, ValueError):
+                        pass
+                    c = s.get("codec_name")
+                    if isinstance(c, str) and c and c != "N/A":
+                        video_codec = c.lower()
+                    video_fps = _parse_fractional_rate(s.get("avg_frame_rate")) or _parse_fractional_rate(s.get("r_frame_rate"))
+                    br_v = s.get("bit_rate")
+                    try:
+                        if br_v not in (None, "N/A", ""):
+                            video_stream_bitrate_sum += int(br_v)
+                    except Exception:
+                        pass
+                elif ctype == "audio":
+                    c = s.get("codec_name")
+                    if isinstance(c, str) and c and c != "N/A":
+                        audio_codec = c.lower()
+                    br = s.get("bit_rate")
+                    try:
+                        if br not in (None, "N/A", ""):
+                            audio_bitrate = int(br)
+                    except Exception:
+                        pass
+                    asr = s.get("sample_rate")
+                    try:
+                        if asr not in (None, "N/A", ""):
+                            audio_sample_rate = int(asr)
+                    except Exception:
+                        pass
+                    if audio_bitrate is None:
+                        tags = s.get("tags") or {}
+                        if isinstance(tags, dict):
+                            for key in ("BPS", "BPS-eng"):
+                                val = tags.get(key)
+                                if val not in (None, "N/A", ""):
+                                    try:
+                                        audio_bitrate = int(val)
+                                        break
+                                    except Exception:
+                                        continue
+            if bitrate_bps is None:
+                stream_bitrates = []
+                for s in streams:
+                    if not isinstance(s, dict):
+                        continue
+                    br = s.get("bit_rate")
+                    if br in (None, "N/A", ""):
+                        continue
+                    try:
+                        stream_bitrates.append(int(br))
+                    except (TypeError, ValueError):
+                        continue
+                if stream_bitrates:
+                    bitrate_bps = max(stream_bitrates)
+
+            # Derive audio_bitrate if missing and possible
+            if audio_bitrate is None and (duration_seconds and duration_seconds > 0):
+                container_bps = None
+                if isinstance(fmt, dict) and fmt.get("bit_rate") not in (None, "N/A", ""):
+                    try:
+                        container_bps = int(fmt.get("bit_rate"))
+                    except Exception:
+                        container_bps = None
+                if container_bps is None:
+                    try:
+                        container_bps = int(size_bytes * 8 / duration_seconds)
+                    except Exception:
+                        container_bps = None
+                if container_bps is not None and video_stream_bitrate_sum > 0:
+                    candidate = container_bps - video_stream_bitrate_sum
+                    if candidate > 0:
+                        audio_bitrate = candidate
+                        audio_bitrate_estimated = True
+
+        if (not bitrate_bps) and (duration_seconds and duration_seconds > 0):
+            bitrate_bps = int(size_bytes * 8 / duration_seconds)
+
+        return {
+            "duration": duration_seconds,
+            "bitrate": bitrate_bps,
+            "resolution": resolution,
+            "video_fps": video_fps,
+            "video_codec": video_codec,
+            "audio_codec": audio_codec,
+            "audio_bitrate": audio_bitrate,
+            "audio_sample_rate": audio_sample_rate,
+            "audio_bitrate_estimated": audio_bitrate_estimated,
+        }
+    except Exception:
+        pass
+
+    return {
+        "duration": None,
+        "bitrate": None,
+        "resolution": None,
+        "video_fps": None,
+        "video_codec": None,
+        "audio_codec": None,
+        "audio_bitrate": None,
+        "audio_sample_rate": None,
+        "audio_bitrate_estimated": False,
+    }
 

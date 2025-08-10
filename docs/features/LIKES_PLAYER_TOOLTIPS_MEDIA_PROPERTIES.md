@@ -81,6 +81,7 @@ Conclusion: Frontend tooltip function already has a good extension point. API fo
 
 - [ ] API: Extend `api_tracks_by_likes` to include media properties
   - [x] Update SQL SELECT to add `t.bitrate`, `t.resolution`, `t.filetype`.
+- [x] Extend SQL SELECT and API response to include `t.video_fps` and `t.video_codec` for richer media info.
   - [x] Include these fields in the `track` dict returned for each item.
   - [x] Verify endpoint returns expected fields for a known track (validated indirectly via UI; optional JSON spot-check recommended).
 
@@ -97,6 +98,7 @@ Conclusion: Frontend tooltip function already has a good extension point. API fo
   - [x] Compare visible values against `/track/<video_id>` for the same item (values match).
   - [x] Test both playlist layouts (Under Video and Side by Side) to ensure tooltip position and occlusion remain acceptable.
   - [x] Test tracks with missing `bitrate`, `resolution`, `filetype` to ensure placeholders are shown.
+- [x] Test tracks with missing `video_fps` / `video_codec` to ensure placeholders are shown.
   - [x] Confirm no console errors, and that performance remains acceptable with large lists.
 
 8) Manual Testing Steps (UI)
@@ -132,6 +134,7 @@ Conclusion: Frontend tooltip function already has a good extension point. API fo
 
 - Follow SOLID, DRY, KISS; limit the change scope to the relevant function and endpoint.
 - Keep naming explicit and consistent (`bitrate`, `resolution`, `filetype`).
+- Also expose `video_fps`, `video_codec` for video media when available.
 - Maintain separation of concerns: API enriches data; UI renders with minimal formatting logic.
 - Keep code in English (variables, strings, comments, UI labels).
 

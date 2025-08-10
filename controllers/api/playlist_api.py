@@ -337,7 +337,12 @@ def api_tracks_by_likes(like_count):
             t.size_bytes,
             t.bitrate,
             t.resolution,
-            t.filetype
+            t.filetype,
+            t.video_fps,
+            t.video_codec,
+            t.audio_codec,
+            t.audio_bitrate,
+            t.audio_sample_rate
         FROM tracks t
         LEFT JOIN youtube_video_metadata ym ON ym.youtube_id = t.video_id
         LEFT JOIN channels ch ON (
@@ -421,6 +426,12 @@ def api_tracks_by_likes(like_count):
                 "bitrate": row[26],
                 "resolution": row[27],
                 "filetype": row[28],
+                "video_fps": row[29],
+                "video_codec": row[30],
+                "audio_codec": row[31],
+                "audio_bitrate": row[32],
+                "audio_sample_rate": row[33],
+                # No numeric codec-based guesses here to avoid misleading values
                 
                 # Add properly named timestamp fields for compatibility
                 "youtube_timestamp": row[12],

@@ -43,6 +43,11 @@
   gap: 12px;
 }
 
+/* Force single-column layout for sections that should stack */
+.grid-1col {
+  grid-template-columns: 1fr !important;
+}
+
 /* Card base comes from components.css */
 
 .section-title {
@@ -52,7 +57,7 @@
 
 .kv {
   display: grid;
-  grid-template-columns: 200px 1fr;
+  grid-template-columns: 120px 1fr;
   gap: 10px 16px;
 }
 
