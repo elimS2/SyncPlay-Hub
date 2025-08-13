@@ -83,6 +83,7 @@ should_auto_delete_track = database_core.should_auto_delete_track
 upsert_youtube_metadata = database_core.upsert_youtube_metadata
 get_youtube_metadata_by_id = database_core.get_youtube_metadata_by_id
 get_youtube_metadata_batch = database_core.get_youtube_metadata_batch
+get_track_media_properties_batch = database_core.get_track_media_properties_batch
 get_track_stats_batch = database_core.get_track_stats_batch
 get_last_play_timestamps_batch = database_core.get_last_play_timestamps_batch
 get_dislike_counts_batch = database_core.get_dislike_counts_batch
@@ -165,6 +166,7 @@ __all__ = [
     'upsert_youtube_metadata',
     'get_youtube_metadata_by_id',
     'get_youtube_metadata_batch',
+    'get_track_media_properties_batch',
     'get_track_stats_batch',
     'get_last_play_timestamps_batch',
     'get_dislike_counts_batch',

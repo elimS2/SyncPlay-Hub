@@ -70,7 +70,13 @@ def _get_track_stats(video_id: str) -> dict:
 
 def scan_tracks(scan_root: Path) -> List[dict]:
     """Scan a directory for media files and return track information, using YouTube metadata if available."""
-    from database import get_connection, get_youtube_metadata_batch, get_track_stats_batch, get_last_play_timestamps_batch
+    from database import (
+        get_connection,
+        get_youtube_metadata_batch,
+        get_track_stats_batch,
+        get_last_play_timestamps_batch,
+        get_track_media_properties_batch,
+    )
     
     # Get ROOT_DIR from global scope (set by init function)
     root_dir = globals().get('ROOT_DIR')
@@ -104,10 +110,11 @@ def scan_tracks(scan_root: Path) -> List[dict]:
             if video_id:
                 video_ids.append(video_id)
     
-    # Step 2: Batch load all metadata, statistics, and timestamps
+    # Step 2: Batch load all metadata, statistics, timestamps and media props
     metadata_lookup = get_youtube_metadata_batch(conn, video_ids)
     stats_lookup = get_track_stats_batch(conn, video_ids)
     timestamps_lookup = get_last_play_timestamps_batch(conn, video_ids)
+    media_props_lookup = get_track_media_properties_batch(conn, video_ids)
     
     # Step 3: Process tracks with O(1) lookups
     tracks = []
@@ -182,6 +189,19 @@ def scan_tracks(scan_root: Path) -> List[dict]:
             except Exception as e:
                 print(f"Warning: Error processing YouTube metadata for {video_id}: {e}")
         
+        # Add media properties if available
+        if video_id and video_id in media_props_lookup:
+            mp = media_props_lookup[video_id]
+            # Keep keys aligned with frontend expectations
+            track_data["bitrate"] = mp.get("bitrate")
+            track_data["resolution"] = mp.get("resolution")
+            track_data["filetype"] = mp.get("filetype")
+            track_data["video_fps"] = mp.get("video_fps")
+            track_data["video_codec"] = mp.get("video_codec")
+            track_data["audio_codec"] = mp.get("audio_codec")
+            track_data["audio_bitrate"] = mp.get("audio_bitrate")
+            track_data["audio_sample_rate"] = mp.get("audio_sample_rate")
+
         tracks.append(track_data)
     
     conn.close()

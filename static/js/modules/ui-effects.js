@@ -135,10 +135,6 @@ export function createTrackTooltipHTML(track) {
   // Precompute media property rows for consistent ordering and grouping
   let durationRowHTML = '';
   let fileSizeRowHTML = '';
-  let bitrateRowHTML = '';
-  let resolutionRowHTML = '';
-  let fpsRowHTML = '';
-  let codecRowHTML = '';
   let videoSummaryRowHTML = '';
   let filetypeRowHTML = '';
   let audioInfoRowHTML = '';

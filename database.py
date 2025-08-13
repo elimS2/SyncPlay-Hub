@@ -1710,6 +1710,49 @@ def get_youtube_metadata_batch(conn: sqlite3.Connection, video_ids: List[str]) -
     return result
 
 
+def get_track_media_properties_batch(conn: sqlite3.Connection, video_ids: List[str]) -> Dict[str, dict]:
+    """Get media properties for multiple video IDs in a single query.
+
+    Returns mapping: video_id -> {
+        'bitrate', 'resolution', 'filetype', 'video_fps', 'video_codec',
+        'audio_codec', 'audio_bitrate', 'audio_sample_rate'
+    }
+    """
+    if not video_ids:
+        return {}
+
+    # Remove duplicates while preserving order
+    unique_ids = list(dict.fromkeys(video_ids))
+
+    placeholders = ','.join(['?' for _ in unique_ids])
+    query = f"""
+        SELECT 
+            video_id, bitrate, resolution, filetype,
+            video_fps, video_codec,
+            audio_codec, audio_bitrate, audio_sample_rate
+        FROM tracks 
+        WHERE video_id IN ({placeholders})
+    """
+
+    cur = conn.cursor()
+    cur.execute(query, unique_ids)
+
+    result: Dict[str, dict] = {}
+    for row in cur.fetchall():
+        result[row['video_id']] = {
+            'bitrate': row['bitrate'],
+            'resolution': row['resolution'],
+            'filetype': row['filetype'],
+            'video_fps': row['video_fps'],
+            'video_codec': row['video_codec'],
+            'audio_codec': row['audio_codec'],
+            'audio_bitrate': row['audio_bitrate'],
+            'audio_sample_rate': row['audio_sample_rate'],
+        }
+
+    return result
+
+
 def get_track_stats_batch(conn: sqlite3.Connection, video_ids: List[str]) -> Dict[str, dict]:
     """Get track statistics for multiple video IDs in single query for performance optimization"""
     if not video_ids:
