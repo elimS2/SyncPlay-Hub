@@ -19,7 +19,7 @@ All identifiers, comments, and strings are in English as per project policy.
 """
 
 from pathlib import Path
-from typing import Optional, Tuple, Dict, Any
+from typing import Optional, Tuple, Dict, Any, List
 import json
 import subprocess
 import os
@@ -68,7 +68,7 @@ def ffprobe_media_properties(path: Path, timeout: int = 10) -> Tuple[Optional[fl
                     "-v",
                     "error",
                     "-show_entries",
-                    "format=duration,bit_rate:stream=index,codec_type,bit_rate,width,height",
+                    "format=duration,bit_rate:stream=index,codec_type,bit_rate,width,height,disposition",
                     "-of",
                     "json",
                     str(path),
@@ -103,18 +103,34 @@ def ffprobe_media_properties(path: Path, timeout: int = 10) -> Tuple[Optional[fl
 
                 streams = (data or {}).get("streams") or []
                 if isinstance(streams, list):
-                    for s in streams:
-                        if not isinstance(s, dict):
-                            continue
-                        if s.get("codec_type") == "video":
-                            w = s.get("width")
-                            h = s.get("height")
-                            try:
-                                if w and h and int(w) > 0 and int(h) > 0:
-                                    resolution = f"{int(w)}x{int(h)}"
-                                    break
-                            except (TypeError, ValueError):
-                                continue
+                    # Prefer non-attached picture streams (ignore cover images)
+                    def _is_attached(stream: Dict[str, Any]) -> bool:
+                        try:
+                            disp = stream.get("disposition") or {}
+                            flag = disp.get("attached_pic")
+                            if isinstance(flag, str):
+                                flag = int(flag)
+                            return bool(flag)
+                        except Exception:
+                            return False
+                    video_streams: List[Dict[str, Any]] = [s for s in streams if isinstance(s, dict) and s.get("codec_type") == "video"]
+                    preferred = [s for s in video_streams if not _is_attached(s)] or video_streams
+                    # Choose the stream with the largest area
+                    def _area(s: Dict[str, Any]) -> int:
+                        try:
+                            return int(s.get("width") or 0) * int(s.get("height") or 0)
+                        except Exception:
+                            return 0
+                    preferred.sort(key=_area, reverse=True)
+                    main_v = preferred[0] if preferred else None
+                    if main_v:
+                        w = main_v.get("width")
+                        h = main_v.get("height")
+                        try:
+                            if w and h and int(w) > 0 and int(h) > 0:
+                                resolution = f"{int(w)}x{int(h)}"
+                        except (TypeError, ValueError):
+                            pass
                     if bitrate_bps is None:
                         stream_bitrates = []
                         for s in streams:
@@ -178,7 +194,7 @@ def ffprobe_media_properties(path: Path, timeout: int = 10) -> Tuple[Optional[fl
             "-v",
             "error",
             "-show_entries",
-            "format=duration,bit_rate:stream=index,codec_type,bit_rate,width,height",
+            "format=duration,bit_rate:stream=index,codec_type,bit_rate,width,height,disposition",
             "-of",
             "json",
             str(path),
@@ -213,18 +229,32 @@ def ffprobe_media_properties(path: Path, timeout: int = 10) -> Tuple[Optional[fl
 
         streams = (data or {}).get("streams") or []
         if isinstance(streams, list):
-            for s in streams:
-                if not isinstance(s, dict):
-                    continue
-                if s.get("codec_type") == "video":
-                    w = s.get("width")
-                    h = s.get("height")
-                    try:
-                        if w and h and int(w) > 0 and int(h) > 0:
-                            resolution = f"{int(w)}x{int(h)}"
-                            break
-                    except (TypeError, ValueError):
-                        continue
+            def _is_attached(stream: Dict[str, Any]) -> bool:
+                try:
+                    disp = stream.get("disposition") or {}
+                    flag = disp.get("attached_pic")
+                    if isinstance(flag, str):
+                        flag = int(flag)
+                    return bool(flag)
+                except Exception:
+                    return False
+            video_streams: List[Dict[str, Any]] = [s for s in streams if isinstance(s, dict) and s.get("codec_type") == "video"]
+            preferred = [s for s in video_streams if not _is_attached(s)] or video_streams
+            def _area(s: Dict[str, Any]) -> int:
+                try:
+                    return int(s.get("width") or 0) * int(s.get("height") or 0)
+                except Exception:
+                    return 0
+            preferred.sort(key=_area, reverse=True)
+            main_v = preferred[0] if preferred else None
+            if main_v:
+                try:
+                    w = main_v.get("width")
+                    h = main_v.get("height")
+                    if w and h and int(w) > 0 and int(h) > 0:
+                        resolution = f"{int(w)}x{int(h)}"
+                except (TypeError, ValueError):
+                    pass
             if bitrate_bps is None:
                 stream_bitrates = []
                 for s in streams:
@@ -343,7 +373,8 @@ def ffprobe_media_properties_ex(path: Path, timeout: int = 10) -> Dict[str, Opti
                     "error",
                     "-show_entries",
                     # Request additional fields; include format.sample_rate and audio stream sample_rate/channels
-                    "format=duration,bit_rate,sample_rate:stream=index,codec_type,codec_name,bit_rate,width,height,avg_frame_rate,r_frame_rate,sample_rate,channels,channel_layout,tags",
+                    # Add disposition to detect attached pictures (cover images)
+                    "format=duration,bit_rate,sample_rate:stream=index,codec_type,codec_name,bit_rate,width,height,avg_frame_rate,r_frame_rate,sample_rate,channels,channel_layout,tags,disposition",
                     "-of",
                     "json",
                     str(path),
@@ -392,26 +423,14 @@ def ffprobe_media_properties_ex(path: Path, timeout: int = 10) -> Dict[str, Opti
                 streams = (data or {}).get("streams") or []
                 if isinstance(streams, list):
                     video_stream_bitrate_sum = 0
+                    video_streams: list[dict] = []
                     for s in streams:
                         if not isinstance(s, dict):
                             continue
                         ctype = s.get("codec_type")
                         if ctype == "video":
-                            w = s.get("width")
-                            h = s.get("height")
-                            try:
-                                if w and h and int(w) > 0 and int(h) > 0:
-                                    resolution = f"{int(w)}x{int(h)}"
-                            except (TypeError, ValueError):
-                                pass
-                            # codec name
-                            c = s.get("codec_name")
-                            if isinstance(c, str) and c and c != "N/A":
-                                video_codec = c.lower()
-                            # frame rate from avg_frame_rate or r_frame_rate
-                            video_fps = _parse_fractional_rate(s.get("avg_frame_rate")) or _parse_fractional_rate(s.get("r_frame_rate"))
+                            video_streams.append(s)
                             # Do not break; keep scanning others to collect stream bitrates below
-                            # accumulate known video stream bitrates
                             br_v = s.get("bit_rate")
                             try:
                                 if br_v not in (None, "N/A", ""):
@@ -447,6 +466,40 @@ def ffprobe_media_properties_ex(path: Path, timeout: int = 10) -> Dict[str, Opti
                                                 break
                                             except Exception:
                                                 continue
+                    # Choose preferred video stream: ignore attached pictures and still-image codecs, then max area
+                    def _is_attached(stream: dict) -> bool:
+                        try:
+                            disp = stream.get("disposition") or {}
+                            flag = disp.get("attached_pic")
+                            if isinstance(flag, str):
+                                flag = int(flag)
+                            return bool(flag)
+                        except Exception:
+                            return False
+                    STILL_IMAGE_CODECS = {"png", "mjpeg", "mjpg", "bmp", "gif", "webp", "tiff"}
+                    def _is_still_codec(stream: dict) -> bool:
+                        c = stream.get("codec_name")
+                        return isinstance(c, str) and c.lower() in STILL_IMAGE_CODECS
+                    candidates = [s for s in video_streams if (not _is_attached(s)) and (not _is_still_codec(s))] or \
+                                 [s for s in video_streams if not _is_attached(s)] or video_streams
+                    def _area(s: dict) -> int:
+                        try:
+                            return int(s.get("width") or 0) * int(s.get("height") or 0)
+                        except Exception:
+                            return 0
+                    main_v = sorted(candidates, key=_area, reverse=True)[0] if candidates else None
+                    if main_v:
+                        try:
+                            w = main_v.get("width")
+                            h = main_v.get("height")
+                            if w and h and int(w) > 0 and int(h) > 0:
+                                resolution = f"{int(w)}x{int(h)}"
+                        except Exception:
+                            pass
+                        c = main_v.get("codec_name")
+                        if isinstance(c, str) and c and c != "N/A":
+                            video_codec = c.lower()
+                        video_fps = _parse_fractional_rate(main_v.get("avg_frame_rate")) or _parse_fractional_rate(main_v.get("r_frame_rate"))
                     if bitrate_bps is None:
                         stream_bitrates = []
                         for s in streams:
@@ -551,7 +604,8 @@ def ffprobe_media_properties_ex(path: Path, timeout: int = 10) -> Dict[str, Opti
             "-v",
             "error",
             "-show_entries",
-            "format=duration,bit_rate,sample_rate:stream=index,codec_type,codec_name,bit_rate,width,height,avg_frame_rate,r_frame_rate,sample_rate,channels,channel_layout,tags",
+            # Add disposition to detect attached pictures
+            "format=duration,bit_rate,sample_rate:stream=index,codec_type,codec_name,bit_rate,width,height,avg_frame_rate,r_frame_rate,sample_rate,channels,channel_layout,tags,disposition",
             "-of",
             "json",
             str(path),
@@ -599,22 +653,13 @@ def ffprobe_media_properties_ex(path: Path, timeout: int = 10) -> Dict[str, Opti
         streams = (data or {}).get("streams") or []
         if isinstance(streams, list):
             video_stream_bitrate_sum = 0
+            video_streams: list[dict] = []
             for s in streams:
                 if not isinstance(s, dict):
                     continue
                 ctype = s.get("codec_type")
                 if ctype == "video":
-                    w = s.get("width")
-                    h = s.get("height")
-                    try:
-                        if w and h and int(w) > 0 and int(h) > 0:
-                            resolution = f"{int(w)}x{int(h)}"
-                    except (TypeError, ValueError):
-                        pass
-                    c = s.get("codec_name")
-                    if isinstance(c, str) and c and c != "N/A":
-                        video_codec = c.lower()
-                    video_fps = _parse_fractional_rate(s.get("avg_frame_rate")) or _parse_fractional_rate(s.get("r_frame_rate"))
+                    video_streams.append(s)
                     br_v = s.get("bit_rate")
                     try:
                         if br_v not in (None, "N/A", ""):
@@ -648,6 +693,40 @@ def ffprobe_media_properties_ex(path: Path, timeout: int = 10) -> Dict[str, Opti
                                         break
                                     except Exception:
                                         continue
+            # Choose preferred video stream (ignore attached pictures and still-image codecs)
+            def _is_attached(stream: dict) -> bool:
+                try:
+                    disp = stream.get("disposition") or {}
+                    flag = disp.get("attached_pic")
+                    if isinstance(flag, str):
+                        flag = int(flag)
+                    return bool(flag)
+                except Exception:
+                    return False
+            STILL_IMAGE_CODECS = {"png", "mjpeg", "mjpg", "bmp", "gif", "webp", "tiff"}
+            def _is_still_codec(stream: dict) -> bool:
+                c = stream.get("codec_name")
+                return isinstance(c, str) and c.lower() in STILL_IMAGE_CODECS
+            candidates = [s for s in video_streams if (not _is_attached(s)) and (not _is_still_codec(s))] or \
+                         [s for s in video_streams if not _is_attached(s)] or video_streams
+            def _area(s: dict) -> int:
+                try:
+                    return int(s.get("width") or 0) * int(s.get("height") or 0)
+                except Exception:
+                    return 0
+            main_v = sorted(candidates, key=_area, reverse=True)[0] if candidates else None
+            if main_v:
+                try:
+                    w = main_v.get("width")
+                    h = main_v.get("height")
+                    if w and h and int(w) > 0 and int(h) > 0:
+                        resolution = f"{int(w)}x{int(h)}"
+                except Exception:
+                    pass
+                c = main_v.get("codec_name")
+                if isinstance(c, str) and c and c != "N/A":
+                    video_codec = c.lower()
+                video_fps = _parse_fractional_rate(main_v.get("avg_frame_rate")) or _parse_fractional_rate(main_v.get("r_frame_rate"))
             if bitrate_bps is None:
                 stream_bitrates = []
                 for s in streams:
