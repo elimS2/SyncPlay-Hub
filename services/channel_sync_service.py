@@ -218,15 +218,19 @@ class ChannelSyncService:
                             
                             try:
                                 # Create single video download job
+                                log_message(f"[Channel Sync] Creating download job for {video_id} with video_id={video_id}, skip_full_scan=True")
                                 job_id = job_service.create_and_add_job(
                                     JobType.SINGLE_VIDEO_DOWNLOAD,
                                     priority=JobPriority.NORMAL,
                                     playlist_url=video_url,
                                     target_folder=target_folder,
-                                    format_selector='bestvideo+bestaudio/best',
+                                    # Prefer ≥1080p with MP4/AVC1 when available; allow higher (4K/2K) first
+                                    format_selector='bestvideo[ext=mp4][vcodec*=avc1][height>=2160]+bestaudio[ext=m4a]/bestvideo[ext=mp4][vcodec*=avc1][height>=1440]+bestaudio[ext=m4a]/bestvideo[ext=mp4][vcodec*=avc1][height>=1080]+bestaudio[ext=m4a]/137+140/bestvideo[height>=1080]+bestaudio',
                                     extract_audio=False,  # Download video files for channels
                                     download_archive=True,
-                                    exclude_shorts=True  # Exclude YouTube Shorts
+                                    exclude_shorts=True,  # Exclude YouTube Shorts
+                                    video_id=video_id,  # Pass video_id for automatic media probing
+                                    skip_full_scan=True  # Enable optimized single-track update with media probing
                                 )
                                 
                                 created_jobs += 1
@@ -735,15 +739,19 @@ class ChannelSyncService:
                         
                         try:
                             # Create single video download job
+                            log_message(f"[Quick Sync] Creating download job for {video_id} with video_id={video_id}, skip_full_scan=True")
                             job_id = job_service.create_and_add_job(
                                 JobType.SINGLE_VIDEO_DOWNLOAD,
                                 priority=JobPriority.HIGH,  # High priority for quick sync
                                 playlist_url=video_url,
                                 target_folder=target_folder,
-                                format_selector='bestvideo+bestaudio/best',
+                                # Prefer ≥1080p with MP4/AVC1 when available; allow higher (4K/2K) first
+                                format_selector='bestvideo[ext=mp4][vcodec*=avc1][height>=2160]+bestaudio[ext=m4a]/bestvideo[ext=mp4][vcodec*=avc1][height>=1440]+bestaudio[ext=m4a]/bestvideo[ext=mp4][vcodec*=avc1][height>=1080]+bestaudio[ext=m4a]/137+140/bestvideo[height>=1080]+bestaudio',
                                 extract_audio=False,  # Download video files for channels
                                 download_archive=True,
-                                exclude_shorts=True
+                                exclude_shorts=True,  # Exclude YouTube Shorts
+                                video_id=video_id,  # Pass video_id for automatic media probing
+                                skip_full_scan=True  # Enable optimized single-track update with media probing
                             )
                             
                             created_jobs += 1

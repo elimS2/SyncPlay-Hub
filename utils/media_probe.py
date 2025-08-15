@@ -790,3 +790,118 @@ def ffprobe_media_properties_ex(path: Path, timeout: int = 10) -> Dict[str, Opti
         "audio_bitrate_estimated": False,
     }
 
+
+def rescan_track_media_properties(video_id: str, file_path: Path, refresh_duration: bool = False, refresh_size: bool = False) -> dict:
+    """
+    Rescan media properties for a track and update database.
+    
+    This is a common utility method that can be reused by different parts of the system
+    (Rescan API, download workers, etc.) to avoid code duplication.
+    
+    Args:
+        video_id: YouTube video ID of the track
+        file_path: Path to the media file to probe
+        refresh_duration: Whether to refresh duration in database
+        refresh_size: Whether to refresh file size in database
+        
+    Returns:
+        Dict with probe results and update status:
+        {
+            "success": bool,
+            "bitrate": int | None,
+            "resolution": str | None,
+            "duration": float | None,
+            "size_bytes": int | None,
+            "video_fps": float | None,
+            "video_codec": str | None,
+            "audio_codec": str | None,
+            "audio_bitrate": int | None,
+            "audio_sample_rate": int | None,
+            "fields_updated": list[str],
+            "error": str | None
+        }
+    """
+    print(f"[MediaProbe] Starting rescan for {video_id}, file: {file_path}")
+    print(f"[MediaProbe] Parameters: refresh_duration={refresh_duration}, refresh_size={refresh_size}")
+    try:
+        from database import get_connection, update_track_media_properties
+        from controllers.api.shared import log_message
+        
+        # Ensure file exists
+        if not file_path.exists() or not file_path.is_file():
+            return {
+                "success": False,
+                "error": f"File not found: {file_path}"
+            }
+        
+        # Probe media (extended)
+        probe = ffprobe_media_properties_ex(file_path)
+        duration = probe.get("duration")
+        bitrate = probe.get("bitrate")
+        resolution = probe.get("resolution")
+        video_fps = probe.get("video_fps")
+        video_codec = probe.get("video_codec")
+        size_bytes = file_path.stat().st_size
+        
+        # Determine which fields to update
+        fields_updated = []
+        update_kwargs = {
+            "bitrate": bitrate,
+            "resolution": resolution,
+            "video_fps": video_fps,
+            "video_codec": video_codec,
+            "audio_codec": probe.get("audio_codec"),
+            "audio_bitrate": probe.get("audio_bitrate"),
+            "audio_sample_rate": probe.get("audio_sample_rate"),
+        }
+        if refresh_duration:
+            update_kwargs["duration"] = duration
+        if refresh_size:
+            update_kwargs["size_bytes"] = size_bytes
+        
+        # Filter out None so we do not overwrite with NULL unintentionally
+        update_kwargs = {k: v for k, v in update_kwargs.items() if v is not None}
+        
+        # Update database if we have fields to update
+        if update_kwargs:
+            conn = get_connection()
+            try:
+                update_track_media_properties(conn, video_id, **update_kwargs)
+                fields_updated = list(update_kwargs.keys())
+                conn.close()
+            except Exception as e:
+                conn.close()
+                return {
+                    "success": False,
+                    "error": f"Database update failed: {e}"
+                }
+        
+        # Log the operation
+        log_message(
+            f"[MediaProbe] {video_id} -> updated: {fields_updated or 'none'}; "
+            f"bitrate={bitrate}, resolution={resolution}, fps={video_fps}, vcodec={video_codec}, "
+            f"acodec={probe.get('audio_codec')}, abitrate={probe.get('audio_bitrate')}, asr={probe.get('audio_sample_rate')}, "
+            f"duration={duration}, size={size_bytes}"
+        )
+        
+        return {
+            "success": True,
+            "bitrate": bitrate,
+            "resolution": resolution,
+            "duration": duration,
+            "size_bytes": size_bytes,
+            "video_fps": video_fps,
+            "video_codec": video_codec,
+            "audio_codec": probe.get("audio_codec"),
+            "audio_bitrate": probe.get("audio_bitrate"),
+            "audio_sample_rate": probe.get("audio_sample_rate"),
+            "fields_updated": fields_updated,
+            "error": None
+        }
+        
+    except Exception as e:
+        return {
+            "success": False,
+            "error": f"Probe failed: {e}"
+        }
+

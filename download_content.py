@@ -567,7 +567,7 @@ def build_ydl_opts(output_dir: pathlib.Path, audio_only: bool, is_channel: bool 
         ]
 
     opts = {
-        "format": "bestaudio/best" if audio_only else "bestvideo+bestaudio/best",
+        "format": "bestaudio/best" if audio_only else "bestvideo[ext=mp4][vcodec*=avc1][height>=2160]+bestaudio[ext=m4a]/bestvideo[ext=mp4][vcodec*=avc1][height>=1440]+bestaudio[ext=m4a]/bestvideo[ext=mp4][vcodec*=avc1][height>=1080]+bestaudio[ext=m4a]/137+140/bestvideo[height>=1080]+bestaudio",
         "outtmpl": output_template,
         # "download_archive": str(output_dir / "downloaded.txt"),  # DISABLED for debugging
         "ignoreerrors": True,

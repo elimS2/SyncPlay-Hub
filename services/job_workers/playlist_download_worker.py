@@ -435,7 +435,15 @@ class PlaylistDownloadWorker(JobWorker):
                     try:
                         video_id = (job_data.get('video_id') or '').strip()
                         skip_full_scan = bool(job_data.get('skip_full_scan'))
+                        print(f"[PostProcess] Debug: video_id='{video_id}', skip_full_scan={skip_full_scan}")
+                        print(f"[PostProcess] Debug: job_data keys: {list(job_data.keys())}")
                         if video_id and skip_full_scan:
+                            print(f"[PostProcess] Using optimized single-track update for {video_id}")
+                            # First run full scan to ensure track is in DB
+                            print(f"[PostProcess] Running full scan first to ensure track {video_id} is in DB")
+                            self._update_database_scan(config.get('DB_PATH'))
+                            # Then update media properties
+                            print(f"[PostProcess] Now updating media properties for {video_id}")
                             self._update_single_track_path_and_probe(config, output_dir, video_id)
                             # After DB relpath points to new file and file exists, cleanup old variants
                             try:
@@ -443,6 +451,7 @@ class PlaylistDownloadWorker(JobWorker):
                             except Exception as ce:
                                 print(f"[PostProcess] Cleanup skipped due to error: {ce}")
                         else:
+                            print(f"[PostProcess] Using fallback full database scan (video_id={bool(video_id)}, skip_full_scan={skip_full_scan})")
                             self._update_database_scan(config.get('DB_PATH'))
                     except Exception as e:
                         print(f"[PostProcess] Warning: failed to update DB optimally: {e}")
@@ -510,9 +519,9 @@ class PlaylistDownloadWorker(JobWorker):
         Looks for a file named '* [<video_id>].<ext>' in output_dir with latest mtime.
         Updates tracks.relpath if changed and triggers media probe to refresh bitrate/resolution/size.
         """
+        print(f"[PostProcess] Starting _update_single_track_path_and_probe for {video_id} in {output_dir}")
         try:
-            from database import get_connection, update_track_media_properties
-            from utils.media_probe import ffprobe_media_properties
+            from database import get_connection
             # Resolve ROOT_DIR for relpath computation
             root_dir = None
             if config.get('ROOT_DIR'):
@@ -550,9 +559,9 @@ class PlaylistDownloadWorker(JobWorker):
             row = cur.execute("SELECT relpath FROM tracks WHERE video_id = ? LIMIT 1", (video_id,)).fetchone()
             current_rel = row[0] if row else None
             if not current_rel:
-                # Track may not be in DB yet; create or fall back to scan
+                # Track may not be in DB yet; run full scan to add it properly
                 conn.close()
-                print(f"[PostProcess] Track {video_id} not found in DB; running fallback scan")
+                print(f"[PostProcess] Track {video_id} not found in DB; running full scan to add it")
                 self._update_database_scan(config.get('DB_PATH'))
                 return
 
@@ -562,12 +571,23 @@ class PlaylistDownloadWorker(JobWorker):
                 conn.commit()
                 print(f"[PostProcess] Updated relpath for {video_id}: {current_rel} -> {relpath}")
 
-            # Probe media properties and update
-            duration, bitrate, resolution = ffprobe_media_properties(target_file)
-            size_bytes = target_file.stat().st_size
-            update_track_media_properties(conn, video_id, bitrate=bitrate, resolution=resolution, duration=duration, size_bytes=size_bytes)
+            # Use common utility method for media probing and database update
+            from utils.media_probe import rescan_track_media_properties
+            
+            result = rescan_track_media_properties(
+                video_id=video_id,
+                file_path=target_file,
+                refresh_duration=True,  # Always refresh duration for new downloads
+                refresh_size=True       # Always refresh size for new downloads
+            )
+            
+            if result["success"]:
+                print(f"[PostProcess] Probed media for {video_id}: bitrate={result['bitrate']}, resolution={result['resolution']}, fps={result['video_fps']}, codec={result['video_codec']}")
+                print(f"[PostProcess] Updated fields: {result['fields_updated']}")
+            else:
+                print(f"[PostProcess] Warning: Media probe failed for {video_id}: {result['error']}")
+            
             conn.close()
-            print(f"[PostProcess] Probed media for {video_id}: bitrate={bitrate}, resolution={resolution}")
         except Exception as e:
             print(f"[PostProcess] Error updating single track: {e}")
 
@@ -702,7 +722,7 @@ class PlaylistDownloadWorker(JobWorker):
 
             print(f"[yt-dlp] Detected yt-dlp version: {version_str}")
 
-            min_required = str(config.get('YTDLP_MIN_VERSION', '2024.12.01')).strip()
+            min_required = str(config.get('YTDLP_MIN_VERSION', '2025.8.11')).strip()
 
             def parse_v(s: str):
                 try:

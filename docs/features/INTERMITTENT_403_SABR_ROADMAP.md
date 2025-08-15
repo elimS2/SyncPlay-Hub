@@ -248,7 +248,7 @@ Progress (2025-08-09):
 - [x] Cookie health scoring: select healthier cookies, record outcomes with atomic JSON, integrate with worker.
 - [x] Playlist parity: enforce `137+251/best[height<=1080]/best`, add `player_client` (env `YTDLP_PLAYLIST_CLIENT`, default `android`) and optional UA alignment in `download_playlist.py`.
 - [x] Queue coordination: in single-video worker, raise `RuntimeError("network: SABR/403...")` after exhausted attempts to classify as retryable; existing queue will mark as retry with backoff.
-- [x] yt-dlp version check logging: log detected version in both single-video worker and playlist script; warn if below `YTDLP_MIN_VERSION` (default `2024.12.01`).
+- [x] yt-dlp version check logging: log detected version in both single-video worker and playlist script; warn if below `YTDLP_MIN_VERSION` (default `2025.8.11`).
 - [x] Optional proxy rotation: support `PROXY_URLS` (comma-separated) and per-attempt proxy selection/rotation in single-video ladder.
 - [x] Admin UI and API: add `/api/system/cookies/health` endpoint and "Show Cookies Health" section to `templates/maintenance.html` to visualize cookie success/failure stats from `_health.json`.
 
