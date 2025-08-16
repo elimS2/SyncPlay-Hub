@@ -82,6 +82,115 @@
           Search results for: <span class="search-query">"{{ search_query }}"</span>
         </div>
         {% endif %}
+        
+        <!-- Column Visibility Panel -->
+        <div class="columns-panel">
+          <div class="columns-header">
+            <h3>Columns</h3>
+            <div class="column-actions">
+              <button type="button" id="selectAllColumns" class="btn btn-secondary btn-sm">Select All</button>
+              <button type="button" id="resetColumns" class="btn btn-secondary btn-sm">Reset to Defaults</button>
+            </div>
+          </div>
+          
+          <div class="columns-groups">
+            <!-- Core Columns -->
+            <div class="column-group">
+              <h4>Core</h4>
+              <div class="column-checkboxes">
+                <label class="checkbox-label">
+                  <input type="checkbox" data-col="index" checked disabled>
+                  <span class="checkbox-text">#</span>
+                </label>
+                <label class="checkbox-label">
+                  <input type="checkbox" data-col="title" checked disabled>
+                  <span class="checkbox-text">Title</span>
+                </label>
+                <label class="checkbox-label">
+                  <input type="checkbox" data-col="video_id">
+                  <span class="checkbox-text">Video ID</span>
+                </label>
+              </div>
+            </div>
+            
+            <!-- Media Columns -->
+            <div class="column-group">
+              <h4>Media</h4>
+              <div class="column-checkboxes">
+                <label class="checkbox-label">
+                  <input type="checkbox" data-col="playlists">
+                  <span class="checkbox-text">Playlists</span>
+                </label>
+                <label class="checkbox-label">
+                  <input type="checkbox" data-col="duration" checked>
+                  <span class="checkbox-text">Duration</span>
+                </label>
+                <label class="checkbox-label">
+                  <input type="checkbox" data-col="size">
+                  <span class="checkbox-text">Size</span>
+                </label>
+                <label class="checkbox-label">
+                  <input type="checkbox" data-col="bitrate">
+                  <span class="checkbox-text">Bitrate</span>
+                </label>
+                <label class="checkbox-label">
+                  <input type="checkbox" data-col="resolution">
+                  <span class="checkbox-text">Resolution</span>
+                </label>
+                <label class="checkbox-label">
+                  <input type="checkbox" data-col="type">
+                  <span class="checkbox-text">Type</span>
+                </label>
+              </div>
+            </div>
+            
+            <!-- Stats Columns -->
+            <div class="column-group">
+              <h4>Stats</h4>
+              <div class="column-checkboxes">
+                <label class="checkbox-label">
+                  <input type="checkbox" data-col="starts">
+                  <span class="checkbox-text">Starts</span>
+                </label>
+                <label class="checkbox-label">
+                  <input type="checkbox" data-col="finishes">
+                  <span class="checkbox-text">Finishes</span>
+                </label>
+                <label class="checkbox-label">
+                  <input type="checkbox" data-col="nexts">
+                  <span class="checkbox-text">Nexts</span>
+                </label>
+                <label class="checkbox-label">
+                  <input type="checkbox" data-col="prevs">
+                  <span class="checkbox-text">Prevs</span>
+                </label>
+                <label class="checkbox-label">
+                  <input type="checkbox" data-col="likes">
+                  <span class="checkbox-text">Likes</span>
+                </label>
+              </div>
+            </div>
+            
+            <!-- Activity/Status Columns -->
+            <div class="column-group">
+              <h4>Activity / Status</h4>
+              <div class="column-checkboxes">
+                <label class="checkbox-label">
+                  <input type="checkbox" data-col="last_start">
+                  <span class="checkbox-text">Last Start</span>
+                </label>
+                <label class="checkbox-label">
+                  <input type="checkbox" data-col="last_finish">
+                  <span class="checkbox-text">Last Finish</span>
+                </label>
+                <label class="checkbox-label">
+                  <input type="checkbox" data-col="deleted">
+                  <span class="checkbox-text">Deleted</span>
+                </label>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
       
       <!-- Tracks Table -->
@@ -89,52 +198,52 @@
         <table id="trackTable">
           <thead>
             <tr>
-              <th>#</th>
-              <th>Title</th>
-              <th>Video ID</th>
-              <th>Playlists</th>
-              <th>Duration</th>
-              <th>Size</th>
-              <th>Bitrate</th>
-              <th>Resolution</th>
-              <th>Type</th>
-              <th>Starts</th>
-              <th>Finishes</th>
-              <th>Nexts</th>
-              <th>Prevs</th>
-              <th>Likes</th>
-              <th>Last Start</th>
-              <th>Last Finish</th>
-              <th>Deleted</th>
+              <th data-col="index" class="col col-index">#</th>
+              <th data-col="title" class="col col-title">Title</th>
+              <th data-col="video_id" class="col col-video_id">Video ID</th>
+              <th data-col="playlists" class="col col-playlists">Playlists</th>
+              <th data-col="duration" class="col col-duration">Duration</th>
+              <th data-col="size" class="col col-size">Size</th>
+              <th data-col="bitrate" class="col col-bitrate">Bitrate</th>
+              <th data-col="resolution" class="col col-resolution">Resolution</th>
+              <th data-col="type" class="col col-type">Type</th>
+              <th data-col="starts" class="col col-starts">Starts</th>
+              <th data-col="finishes" class="col col-finishes">Finishes</th>
+              <th data-col="nexts" class="col col-nexts">Nexts</th>
+              <th data-col="prevs" class="col col-prevs">Prevs</th>
+              <th data-col="likes" class="col col-likes">Likes</th>
+              <th data-col="last_start" class="col col-last_start">Last Start</th>
+              <th data-col="last_finish" class="col col-last_finish">Last Finish</th>
+              <th data-col="deleted" class="col col-deleted">Deleted</th>
             </tr>
           </thead>
           <tbody>
             {% for t in tracks %}
               <tr class="{% if t['is_deleted'] %}track-deleted{% endif %}">
-                <td>{{ loop.index }}</td>
-                <td>
+                <td data-col="index" class="col col-index">{{ loop.index }}</td>
+                <td data-col="title" class="col col-title">
                   <a href="/track/{{ t['video_id'] }}" class="track-link">{{ t['display_name'] }}</a>
                 </td>
-                <td>
+                <td data-col="video_id" class="col col-video_id">
                   <a href="/track/{{ t['video_id'] }}" class="track-link mono">{{ t['video_id'] }}</a>
                   <a href="https://youtu.be/{{ t['video_id'] }}" target="_blank" rel="noopener" title="Open on YouTube" style="margin-left:6px;">🔗</a>
                 </td>
-                <td>{{ t['playlists'] or '-' }}</td>
-                <td>{% if t['duration'] %}{{ (t['duration'] // 60)|int }}:{{ ('%02d' % (t['duration'] % 60)) }}{% else %}-{% endif %}</td>
-                <td>{{ '%.1f' % (t['size_bytes']/1048576) }} MB</td>
-                <td>{% if t['bitrate'] %}{{ (t['bitrate']/1000)|int }} kbps{% else %}-{% endif %}</td>
-                <td>{{ t['resolution'] or '-' }}</td>
-                <td>{{ t['filetype'] }}</td>
-                <td>{{ t['play_starts'] }}</td>
-                <td>{{ t['play_finishes'] }}</td>
-                <td>{{ t['play_nexts'] }}</td>
-                <td>{{ t['play_prevs'] }}</td>
-                <td>{{ t['play_likes'] }}</td>
-                <td>{{ t['last_start_ts'] or '-' }}</td>
-                <td>{{ t['last_finish_ts'] or '-' }}</td>
-                <td>
+                <td data-col="playlists" class="col col-playlists">{{ t['playlists'] or '-' }}</td>
+                <td data-col="duration" class="col col-duration">{% if t['duration'] %}{{ (t['duration'] // 60)|int }}:{{ ('%02d' % (t['duration'] % 60)) }}{% else %}-{% endif %}</td>
+                <td data-col="size" class="col col-size">{{ '%.1f' % (t['size_bytes']/1048576) }} MB</td>
+                <td data-col="bitrate" class="col col-bitrate">{% if t['bitrate'] %}{{ (t['bitrate']/1000)|int }} kbps{% else %}-{% endif %}</td>
+                <td data-col="resolution" class="col col-resolution">{{ t['resolution'] or '-' }}</td>
+                <td data-col="type" class="col col-type">{{ t['filetype'] }}</td>
+                <td data-col="starts" class="col col-starts">{{ t['play_starts'] }}</td>
+                <td data-col="finishes" class="col col-finishes">{{ t['play_finishes'] }}</td>
+                <td data-col="nexts" class="col col-nexts">{{ t['play_nexts'] }}</td>
+                <td data-col="prevs" class="col col-prevs">{{ t['play_prevs'] }}</td>
+                <td data-col="likes" class="col col-likes">{{ t['play_likes'] }}</td>
+                <td data-col="last_start" class="col col-last_start">{{ t['last_start_ts'] or '-' }}</td>
+                <td data-col="last_finish" class="col col-last_finish">{{ t['last_finish_ts'] or '-' }}</td>
+                <td data-col="deleted" class="col col-deleted">
                   {% if t['is_deleted'] %}
-                    <span class="deleted-status deleted" title="Deleted on {{ t['deletion_date'] }} ({{ t['deletion_reason'] }})">
+                    <span class="deleted-status deleted" title="Deleted on {{ t['deleted_date'] }} ({{ t['deletion_reason'] }})">
                       ❌ Deleted
                     </span>
                   {% else %}
@@ -262,6 +371,158 @@
             setTimeout(() => location.reload(), 4000);
         }
     });
+
+    // Column Visibility Management
+    (function() {
+        const STORAGE_KEY = 'tracks_column_prefs_v1';
+        
+        // Default visibility by viewport width
+        function getDefaultVisibility() {
+            const width = window.innerWidth;
+            if (width >= 1440) {
+                return {
+                    index: true, title: true, video_id: true, playlists: true, duration: true,
+                    size: true, bitrate: true, resolution: true, type: true, starts: true,
+                    finishes: true, nexts: true, prevs: true, likes: true, last_start: true,
+                    last_finish: true, deleted: true
+                };
+            } else if (width >= 1280) {
+                return {
+                    index: true, title: true, video_id: true, playlists: true, duration: true,
+                    size: true, bitrate: true, resolution: true, type: true, starts: false,
+                    finishes: false, nexts: false, prevs: false, likes: false, last_start: false,
+                    last_finish: false, deleted: true
+                };
+            } else if (width >= 1024) {
+                return {
+                    index: true, title: true, video_id: true, playlists: false, duration: true,
+                    size: false, bitrate: false, resolution: true, type: false, starts: false,
+                    finishes: false, nexts: false, prevs: false, likes: false, last_start: false,
+                    last_finish: false, deleted: false
+                };
+            } else {
+                return {
+                    index: true, title: true, video_id: false, playlists: false, duration: true,
+                    size: false, bitrate: false, resolution: false, type: false, starts: false,
+                    finishes: false, nexts: false, prevs: false, likes: false, last_start: false,
+                    last_finish: false, deleted: false
+                };
+            }
+        }
+        
+        // Load preferences from localStorage or use defaults
+        function loadPreferences() {
+            const saved = localStorage.getItem(STORAGE_KEY);
+            if (saved) {
+                try {
+                    return JSON.parse(saved);
+                } catch (e) {
+                    console.warn('Failed to parse saved column preferences, using defaults');
+                }
+            }
+            return getDefaultVisibility();
+        }
+        
+        // Save preferences to localStorage
+        function savePreferences(prefs) {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(prefs));
+        }
+        
+        // Apply column visibility to the table
+        function applyColumnVisibility(prefs) {
+            const table = document.getElementById('trackTable');
+            if (!table) return;
+            
+            // Update headers
+            table.querySelectorAll('thead th[data-col]').forEach(th => {
+                const colKey = th.getAttribute('data-col');
+                if (prefs[colKey]) {
+                    th.classList.remove('hidden');
+                } else {
+                    th.classList.add('hidden');
+                }
+            });
+            
+            // Update body cells
+            table.querySelectorAll('tbody td[data-col]').forEach(td => {
+                const colKey = td.getAttribute('data-col');
+                if (prefs[colKey]) {
+                    td.classList.remove('hidden');
+                } else {
+                    td.classList.add('hidden');
+                }
+            });
+            
+            // Update checkboxes to match
+            document.querySelectorAll('.columns-panel input[data-col]').forEach(checkbox => {
+                const colKey = checkbox.getAttribute('data-col');
+                checkbox.checked = prefs[colKey];
+            });
+        }
+        
+        // Initialize column visibility
+        function initColumnVisibility() {
+            const prefs = loadPreferences();
+            applyColumnVisibility(prefs);
+            
+            // Wire up checkbox events
+            document.querySelectorAll('.columns-panel input[data-col]').forEach(checkbox => {
+                checkbox.addEventListener('change', function() {
+                    const colKey = this.getAttribute('data-col');
+                    const isVisible = this.checked;
+                    
+                    // Prevent hiding both index and title
+                    if (colKey === 'index' || colKey === 'title') {
+                        if (!isVisible) {
+                            const otherKey = colKey === 'index' ? 'title' : 'index';
+                            const otherCheckbox = document.querySelector(`input[data-col="${otherKey}"]`);
+                            if (!otherCheckbox.checked) {
+                                this.checked = true;
+                                return;
+                            }
+                        }
+                    }
+                    
+                    prefs[colKey] = isVisible;
+                    applyColumnVisibility(prefs);
+                    savePreferences(prefs);
+                });
+            });
+            
+            // Wire up action buttons
+            document.getElementById('selectAllColumns')?.addEventListener('click', function() {
+                const allPrefs = {};
+                document.querySelectorAll('.columns-panel input[data-col]').forEach(checkbox => {
+                    const colKey = checkbox.getAttribute('data-col');
+                    allPrefs[colKey] = true;
+                });
+                applyColumnVisibility(allPrefs);
+                savePreferences(allPrefs);
+            });
+            
+            document.getElementById('resetColumns')?.addEventListener('click', function() {
+                const defaultPrefs = getDefaultVisibility();
+                applyColumnVisibility(defaultPrefs);
+                savePreferences(defaultPrefs);
+            });
+        }
+        
+        // Initialize when DOM is ready
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initColumnVisibility);
+        } else {
+            initColumnVisibility();
+        }
+        
+        // Handle window resize to update defaults if no preferences are saved
+        window.addEventListener('resize', function() {
+            const saved = localStorage.getItem(STORAGE_KEY);
+            if (!saved) {
+                const defaultPrefs = getDefaultVisibility();
+                applyColumnVisibility(defaultPrefs);
+            }
+        });
+    })();
   </script>
 </body>
 </html> 

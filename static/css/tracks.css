@@ -172,14 +172,12 @@ body {
   border-radius: 8px;
   border: 1px solid var(--border);
   overflow: hidden;
-  overflow-x: auto;
 }
 
 table {
   width: 100%;
   border-collapse: collapse;
   font-size: 14px;
-  min-width: 1300px;
 }
 
 th, td {
@@ -270,6 +268,101 @@ tbody tr:nth-child(even):hover {
   background: rgba(239, 68, 68, 0.1) !important;
 }
 
+/* Column Visibility Panel */
+.columns-panel {
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
+}
+
+.columns-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 15px;
+}
+
+.columns-header h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.column-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.btn-sm {
+  padding: 6px 12px;
+  font-size: 12px;
+}
+
+.columns-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.column-group {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.column-group h4 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  min-width: 130px;
+  flex-shrink: 0;
+}
+
+.column-checkboxes {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 15px;
+  justify-content: flex-start;
+  flex: 1;
+}
+
+.column-checkboxes .checkbox-label {
+  margin: 0;
+  padding: 4px 0;
+  min-width: 120px;
+  flex-shrink: 0;
+}
+
+/* Hidden column styles */
+.col.hidden {
+  display: none !important;
+}
+
+/* Table responsiveness improvements */
+.table-container {
+  overflow: hidden; /* Remove horizontal scroll */
+}
+
+table {
+  min-width: auto; /* Remove fixed minimum width */
+  table-layout: auto;
+}
+
+th, td {
+  white-space: normal;
+  word-break: break-word;
+  max-width: 200px; /* Prevent extremely wide columns */
+}
+
+.mono {
+  word-break: break-all; /* Allow breaking of long video IDs */
+}
+
 /* Mobile responsive */
 @media (max-width: 768px) {
   .search-form {
@@ -297,5 +390,34 @@ tbody tr:nth-child(even):hover {
   th, td {
     padding: 8px 6px;
     font-size: 12px;
+  }
+  
+  .columns-groups {
+    gap: 0;
+  }
+  
+  .column-group {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+  
+  .column-group h4 {
+    min-width: auto;
+    text-align: center;
+  }
+  
+  .column-checkboxes {
+    justify-content: center;
+  }
+  
+  .columns-header {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+  
+  .column-actions {
+    justify-content: center;
   }
 } 
