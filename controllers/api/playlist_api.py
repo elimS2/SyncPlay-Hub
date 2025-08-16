@@ -320,7 +320,7 @@ def api_tracks_by_likes(like_count):
             t.play_prevs,
             t.last_start_ts,
             t.last_finish_ts,
-            COALESCE(t.last_finish_ts, t.last_start_ts) as last_play,
+            MAX(t.last_finish_ts, t.last_start_ts) as last_play,
             ym.timestamp,
             ym.release_timestamp,
             ym.release_year,
