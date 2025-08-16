@@ -23,6 +23,12 @@ from controllers.api.trash_api import trash_bp
 from database import (
     get_connection,
     iter_tracks_with_playlists,
+    iter_tracks_with_playlists_filtered,
+    get_distinct_resolutions,
+    get_distinct_filetypes,
+    get_tracks_with_filters_page,
+    get_resolution_counts,
+    get_filetype_counts,
     get_history_page,
     get_user_setting,
     set_user_setting,
@@ -238,10 +244,120 @@ def tracks_page():
     from flask import request
     search_query = request.args.get("search", "").strip()
     include_deleted = request.args.get("include_deleted") == "1"
-    
+
+    # Parse filters from query params
+    # resolution can be comma-separated and/or repeated multiple times (checkboxes)
+    # Support both resolution and resolution[] naming schemes
+    raw_resolution_params = request.args.getlist("resolution") + request.args.getlist("resolution[]")
+    # Fallback: if only a single 'resolution' present in query string, getlist still returns [value]
+    resolutions_selected = []
+    for p in raw_resolution_params:
+        if p:
+            resolutions_selected.extend([s.strip() for s in p.split(",") if s.strip()])
+    # Deduplicate while preserving order
+    resolutions_selected = list(dict.fromkeys(resolutions_selected))
+
+    # filetypes multi-select (checkboxes)
+    raw_filetype_params = request.args.getlist("filetype") + request.args.getlist("filetype[]")
+    filetypes_selected = []
+    for ft in raw_filetype_params:
+        if ft:
+            filetypes_selected.extend([s.strip() for s in ft.split(",") if s.strip()])
+    filetypes_selected = list(dict.fromkeys(filetypes_selected))
+
+    # Duration range (seconds)
+    min_duration = request.args.get("min_duration")
+    max_duration = request.args.get("max_duration")
+    try:
+        min_duration_val = int(min_duration) if (min_duration is not None and str(min_duration).strip() != "") else None
+        if min_duration_val is not None and min_duration_val < 0:
+            min_duration_val = 0
+    except ValueError:
+        min_duration_val = None
+    try:
+        max_duration_val = int(max_duration) if (max_duration is not None and str(max_duration).strip() != "") else None
+        if max_duration_val is not None and max_duration_val < 0:
+            max_duration_val = 0
+    except ValueError:
+        max_duration_val = None
+
+    # Bitrate range (kbps in UI → convert to bps for DB)
+    min_bitrate = request.args.get("min_bitrate_kbps")
+    max_bitrate = request.args.get("max_bitrate_kbps")
+    try:
+        min_bitrate_bps = int(min_bitrate) * 1000 if (min_bitrate is not None and str(min_bitrate).strip() != "") else None
+        if min_bitrate_bps is not None and min_bitrate_bps < 0:
+            min_bitrate_bps = 0
+    except ValueError:
+        min_bitrate_bps = None
+    try:
+        max_bitrate_bps = int(max_bitrate) * 1000 if (max_bitrate is not None and str(max_bitrate).strip() != "") else None
+        if max_bitrate_bps is not None and max_bitrate_bps < 0:
+            max_bitrate_bps = 0
+    except ValueError:
+        max_bitrate_bps = None
+
+    # min_likes integer parsing
+    min_likes_param = request.args.get("min_likes")
+    min_likes = None
+    if min_likes_param is not None and str(min_likes_param).strip() != "":
+        try:
+            min_likes = max(0, int(min_likes_param))
+        except ValueError:
+            min_likes = None
+
     conn = get_connection()
-    tracks = list(iter_tracks_with_playlists(conn, search_query if search_query else None, include_deleted))
-    conn.close()
+    try:
+        # Facets: list of available resolutions
+        facets_resolutions = get_distinct_resolutions(conn)
+        facets_filetypes = get_distinct_filetypes(conn)
+
+        # Pagination
+        page = request.args.get("page", default=1, type=int)
+        per_page = request.args.get("per_page", default=200, type=int)
+        if per_page <= 0 or per_page > 1000:
+            per_page = 200
+
+        tracks, total_count = get_tracks_with_filters_page(
+            conn,
+            search_query=search_query if search_query else None,
+            include_deleted=include_deleted,
+            resolutions=resolutions_selected if resolutions_selected else None,
+            filetypes=filetypes_selected if filetypes_selected else None,
+            min_duration=min_duration_val,
+            max_duration=max_duration_val,
+            min_bitrate_bps=min_bitrate_bps,
+            max_bitrate_bps=max_bitrate_bps,
+            min_likes=min_likes,
+            page=page,
+            per_page=per_page,
+        )
+
+        # Faceted counts (computed excluding the facet itself)
+        resolution_counts = get_resolution_counts(
+            conn,
+            search_query=search_query if search_query else None,
+            include_deleted=include_deleted,
+            filetypes=filetypes_selected if filetypes_selected else None,
+            min_duration=min_duration_val,
+            max_duration=max_duration_val,
+            min_bitrate_bps=min_bitrate_bps,
+            max_bitrate_bps=max_bitrate_bps,
+            min_likes=min_likes,
+        )
+        filetype_counts = get_filetype_counts(
+            conn,
+            search_query=search_query if search_query else None,
+            include_deleted=include_deleted,
+            resolutions=resolutions_selected if resolutions_selected else None,
+            min_duration=min_duration_val,
+            max_duration=max_duration_val,
+            min_bitrate_bps=min_bitrate_bps,
+            max_bitrate_bps=max_bitrate_bps,
+            min_likes=min_likes,
+        )
+    finally:
+        conn.close()
     
     # Calculate uptime for server info
     uptime = datetime.datetime.now() - SERVER_START_TIME
@@ -254,8 +370,41 @@ def tracks_page():
         "uptime": uptime_str
     }
     
-    return render_template("tracks.html", tracks=tracks, search_query=search_query, 
-                         include_deleted=include_deleted, server_info=server_info)
+    # Filters model passed to template
+    filters = {
+        "resolutions": resolutions_selected,
+        "filetypes": filetypes_selected,
+        "min_likes": min_likes if min_likes is not None else "",
+        "min_duration": min_duration_val if min_duration_val is not None else "",
+        "max_duration": max_duration_val if max_duration_val is not None else "",
+        "min_bitrate_kbps": int(min_bitrate_bps/1000) if isinstance(min_bitrate_bps, int) else "",
+        "max_bitrate_kbps": int(max_bitrate_bps/1000) if isinstance(max_bitrate_bps, int) else "",
+        "applied": bool(resolutions_selected) or bool(filetypes_selected) or (min_likes is not None) or (min_duration_val is not None) or (max_duration_val is not None) or (min_bitrate_bps is not None) or (max_bitrate_bps is not None),
+    }
+    facets = {
+        "resolutions": facets_resolutions,
+        "filetypes": facets_filetypes,
+        "resolution_counts": resolution_counts if 'resolution_counts' in locals() else {},
+        "filetype_counts": filetype_counts if 'filetype_counts' in locals() else {},
+    }
+
+    # Pagination info
+    pagination = {
+        "page": page,
+        "per_page": per_page,
+        "total": total_count if 'total_count' in locals() else len(tracks),
+    }
+
+    return render_template(
+        "tracks.html",
+        tracks=tracks,
+        search_query=search_query,
+        include_deleted=include_deleted,
+        server_info=server_info,
+        filters=filters,
+        facets=facets,
+        pagination=pagination,
+    )
 
 @app.route("/track")
 def track_redirect():

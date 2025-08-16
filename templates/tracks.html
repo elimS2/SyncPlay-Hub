@@ -82,12 +82,117 @@
           Search results for: <span class="search-query">"{{ search_query }}"</span>
         </div>
         {% endif %}
+
+        <!-- Filters Panel -->
+        <div class="filters-panel {% if not filters.applied %}collapsed{% endif %}">
+          <div class="filters-header">
+            <h3>Filters</h3>
+            <div class="filters-actions">
+              <button type="button" class="btn btn-secondary btn-sm" id="toggleFiltersBtn">Show Filters</button>
+              {% if filters.applied %}
+                <span class="filters-applied-indicator">Filters applied</span>
+              {% endif %}
+              <!-- Clear Filters: preserve search/include_deleted if present -->
+              <a class="btn btn-secondary btn-sm" href="/tracks{% if search_query or include_deleted %}?{% endif %}{% if search_query %}search={{ search_query | urlencode }}{% endif %}{% if search_query and include_deleted %}&{% endif %}{% if include_deleted %}include_deleted=1{% endif %}">Clear Filters</a>
+            </div>
+          </div>
+
+          <form method="GET" action="/tracks" class="filters-form">
+            <!-- Preserve existing search and include_deleted state -->
+            {% if search_query %}
+              <input type="hidden" name="search" value="{{ search_query }}" />
+            {% endif %}
+            {% if include_deleted %}
+              <input type="hidden" name="include_deleted" value="1" />
+            {% endif %}
+
+            <div class="filters-groups">
+              <!-- Resolutions facet -->
+              <div class="filters-group">
+                <h4>Resolution</h4>
+                <div class="filters-controls">
+                  <button type="button" class="btn btn-secondary btn-sm" id="selectAllResBtn">Select All</button>
+                  <button type="button" class="btn btn-secondary btn-sm" id="clearResBtn">Clear</button>
+                  <button type="button" class="btn btn-secondary btn-sm" data-preset="2160p">2160p</button>
+                  <button type="button" class="btn btn-secondary btn-sm" data-preset="1440p">1440p</button>
+                  <button type="button" class="btn btn-secondary btn-sm" data-preset="1080p">1080p</button>
+                  <button type="button" class="btn btn-secondary btn-sm" data-preset="lte720p">≤ 720p</button>
+                  <button type="button" class="btn btn-secondary btn-sm" id="toggleResolutionsBtn" style="display:none;">Show more</button>
+                </div>
+                <div class="filters-summary" id="resSummary"></div>
+                <div class="filters-checkboxes" id="resolutionsContainer">
+                  {% for res in facets.resolutions %}
+                    <label class="checkbox-label">
+                      <input type="checkbox" name="resolution[]" value="{{ res }}" {% if filters.resolutions and res in filters.resolutions %}checked{% endif %}>
+                      <span class="checkbox-text">{{ res }}{% if facets.resolution_counts and facets.resolution_counts.get(res) %} ({{ facets.resolution_counts.get(res) }}){% endif %}</span>
+                    </label>
+                  {% endfor %}
+                  {% if not facets.resolutions %}
+                    <div class="empty-state" style="padding:8px 0;">No resolution data</div>
+                  {% endif %}
+                </div>
+              </div>
+
+              <!-- Likes threshold -->
+              <div class="filters-group">
+                <h4>Minimum Likes</h4>
+                <div class="filters-field">
+                  <input type="number" name="min_likes" min="0" step="1" placeholder="0" class="number-input" value="{{ filters.min_likes }}" />
+                </div>
+              </div>
+
+              <!-- Duration range (seconds) -->
+              <div class="filters-group">
+                <h4>Duration (sec)</h4>
+                <div class="filters-field" style="display:flex; gap:8px; align-items:center;">
+                  <input type="number" name="min_duration" min="0" step="1" placeholder="Min" class="number-input" value="{{ filters.min_duration }}" />
+                  <span style="color:var(--text-secondary);">–</span>
+                  <input type="number" name="max_duration" min="0" step="1" placeholder="Max" class="number-input" value="{{ filters.max_duration }}" />
+                </div>
+              </div>
+
+              <!-- Bitrate range (kbps) -->
+              <div class="filters-group">
+                <h4>Bitrate (kbps)</h4>
+                <div class="filters-field" style="display:flex; gap:8px; align-items:center;">
+                  <input type="number" name="min_bitrate_kbps" min="0" step="1" placeholder="Min" class="number-input" value="{{ filters.min_bitrate_kbps }}" />
+                  <span style="color:var(--text-secondary);">–</span>
+                  <input type="number" name="max_bitrate_kbps" min="0" step="1" placeholder="Max" class="number-input" value="{{ filters.max_bitrate_kbps }}" />
+                </div>
+              </div>
+
+              <!-- File Types facet -->
+              <div class="filters-group">
+                <h4>File Type</h4>
+                <div class="filters-checkboxes">
+                  {% for ft in facets.filetypes %}
+                    <label class="checkbox-label">
+                      <input type="checkbox" name="filetype[]" value="{{ ft }}" {% if filters.filetypes and ft in filters.filetypes %}checked{% endif %}>
+                      <span class="checkbox-text">{{ ft }}{% if facets.filetype_counts and facets.filetype_counts.get(ft.lower()) %} ({{ facets.filetype_counts.get(ft.lower()) }}){% endif %}</span>
+                    </label>
+                  {% endfor %}
+                  {% if not facets.filetypes %}
+                    <div class="empty-state" style="padding:8px 0;">No file type data</div>
+                  {% endif %}
+                </div>
+              </div>
+            </div>
+
+            <div class="filters-footer">
+              <button type="submit" class="btn btn-primary">Apply Filters</button>
+              {% if filters.applied %}
+                <span class="filters-applied-indicator">Filters applied</span>
+              {% endif %}
+            </div>
+          </form>
+        </div>
         
         <!-- Column Visibility Panel -->
-        <div class="columns-panel">
+        <div class="columns-panel collapsed">
           <div class="columns-header">
             <h3>Columns</h3>
             <div class="column-actions">
+              <button type="button" id="toggleColumnsBtn" class="btn btn-secondary btn-sm">Show Columns</button>
               <button type="button" id="selectAllColumns" class="btn btn-secondary btn-sm">Select All</button>
               <button type="button" id="resetColumns" class="btn btn-secondary btn-sm">Reset to Defaults</button>
             </div>
@@ -262,6 +367,22 @@
             {% endfor %}
           </tbody>
         </table>
+        {% if pagination and pagination.total > pagination.per_page %}
+        <div class="pagination">
+          {% set total_pages = (pagination.total // pagination.per_page) + (1 if (pagination.total % pagination.per_page) else 0) %}
+          <div class="pagination-info">Page {{ pagination.page }} of {{ total_pages }} — {{ pagination.total }} items</div>
+          <div class="pagination-controls">
+            {% set prev_page = pagination.page - 1 %}
+            {% set next_page = pagination.page + 1 %}
+            {% if pagination.page > 1 %}
+              <a class="btn btn-secondary btn-sm" href="{{ request.full_path | replace('page=' ~ pagination.page, 'page=' ~ prev_page) }}">Prev</a>
+            {% endif %}
+            {% if pagination.page < total_pages %}
+              <a class="btn btn-secondary btn-sm" href="{{ request.full_path | replace('page=' ~ pagination.page, 'page=' ~ next_page) }}">Next</a>
+            {% endif %}
+          </div>
+        </div>
+        {% endif %}
       </div>
     </div>
   </div>
@@ -522,6 +643,131 @@
                 applyColumnVisibility(defaultPrefs);
             }
         });
+    })();
+
+    // Filters: Resolutions helpers
+    (function(){
+      const container = document.getElementById('resolutionsContainer');
+      if(!container) return;
+      const selectAllBtn = document.getElementById('selectAllResBtn');
+      const clearBtn = document.getElementById('clearResBtn');
+      const presetBtns = document.querySelectorAll('[data-preset]');
+      const toggleBtn = document.getElementById('toggleResolutionsBtn');
+      const summaryEl = document.getElementById('resSummary');
+      const COLLAPSE_AFTER = 12; // show first N, collapse the rest by default if many
+
+      function getCheckboxes(){
+        return Array.from(container.querySelectorAll('input[type="checkbox"][name="resolution[]"]'));
+      }
+
+      function selectAll(){
+        getCheckboxes().forEach(cb=>cb.checked = true);
+      }
+
+      function clearAll(){
+        getCheckboxes().forEach(cb=>cb.checked = false);
+      }
+
+      function applyPreset(tag){
+        const cbs = getCheckboxes();
+        // Start by clearing, then select matching ones
+        cbs.forEach(cb=>cb.checked = false);
+        cbs.forEach(cb=>{
+          const val = String(cb.value || '');
+          if(tag === '2160p' && /x2160$/i.test(val)) cb.checked = true;
+          else if(tag === '1440p' && /x1440$/i.test(val)) cb.checked = true;
+          else if(tag === '1080p' && /x1080$/i.test(val)) cb.checked = true;
+          else if(tag === 'lte720p'){
+            const parts = val.split('x');
+            const h = parts.length === 2 ? parseInt(parts[1], 10) : NaN;
+            if(!isNaN(h) && h <= 720) cb.checked = true;
+          }
+        });
+      }
+
+      function initCollapse(){
+        const items = Array.from(container.querySelectorAll('.checkbox-label'));
+        if(items.length <= COLLAPSE_AFTER){
+          if(toggleBtn) toggleBtn.style.display = 'none';
+          return;
+        }
+        let expanded = false;
+        function update(){
+          items.forEach((el, idx)=>{
+            const cb = el.querySelector('input[type="checkbox"]');
+            const isSelected = !!(cb && cb.checked);
+            el.style.display = (expanded || idx < COLLAPSE_AFTER || isSelected) ? '' : 'none';
+          });
+          if(toggleBtn){
+            toggleBtn.textContent = expanded ? 'Show less' : 'Show more';
+            toggleBtn.style.display = '';
+          }
+        }
+        update();
+        if(toggleBtn){
+          toggleBtn.addEventListener('click', ()=>{ expanded = !expanded; update(); });
+        }
+        // Expose updater so summary changes can re-evaluate visibility
+        initCollapse.updateVisibility = update;
+      }
+
+      function updateSummary(){
+        if(!summaryEl) return;
+        const selected = getCheckboxes().filter(cb=>cb.checked).map(cb=>cb.value);
+        if(selected.length === 0){
+          summaryEl.textContent = 'No resolution selected';
+          summaryEl.className = 'filters-summary';
+        } else {
+          const maxShow = 5;
+          const shown = selected.slice(0, maxShow).join(', ');
+          const more = selected.length - maxShow;
+          summaryEl.textContent = more > 0 ? `Selected: ${shown} +${more} more` : `Selected: ${shown}`;
+          summaryEl.className = 'filters-summary active';
+        }
+        // If collapse logic exists, re-apply to ensure selected remain visible
+        if(typeof initCollapse.updateVisibility === 'function'){
+          initCollapse.updateVisibility();
+        }
+      }
+
+      selectAllBtn?.addEventListener('click', selectAll);
+      clearBtn?.addEventListener('click', clearAll);
+      presetBtns.forEach(btn=>{
+        btn.addEventListener('click', ()=> { applyPreset(btn.getAttribute('data-preset')); updateSummary(); });
+      });
+      // Update summary on checkbox changes
+      container.addEventListener('change', (e)=>{
+        if(e.target && e.target.matches('input[type="checkbox"][name="resolution[]"]')){
+          updateSummary();
+        }
+      });
+      initCollapse();
+      // Initial summary
+      updateSummary();
+    })();
+
+    // Filters panel collapse toggle
+    (function(){
+      const panel = document.querySelector('.filters-panel');
+      const btn = document.getElementById('toggleFiltersBtn');
+      if(!panel || !btn) return;
+      function updateLabel(){
+        btn.textContent = panel.classList.contains('collapsed') ? 'Show Filters' : 'Hide Filters';
+      }
+      btn.addEventListener('click', ()=>{ panel.classList.toggle('collapsed'); updateLabel(); });
+      updateLabel();
+    })();
+
+    // Columns panel collapse toggle
+    (function(){
+      const panel = document.querySelector('.columns-panel');
+      const btn = document.getElementById('toggleColumnsBtn');
+      if(!panel || !btn) return;
+      function updateLabel(){
+        btn.textContent = panel.classList.contains('collapsed') ? 'Show Columns' : 'Hide Columns';
+      }
+      btn.addEventListener('click', ()=>{ panel.classList.toggle('collapsed'); updateLabel(); });
+      updateLabel();
     })();
   </script>
 </body>

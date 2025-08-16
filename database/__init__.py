@@ -35,6 +35,7 @@ get_playlist_by_relpath = database_core.get_playlist_by_relpath
 upsert_track = database_core.upsert_track
 link_track_playlist = database_core.link_track_playlist
 iter_tracks_with_playlists = database_core.iter_tracks_with_playlists
+iter_tracks_with_playlists_filtered = database_core.iter_tracks_with_playlists_filtered
 get_track_with_playlists = database_core.get_track_with_playlists
 increment_play = database_core.increment_play
 update_track_media_properties = database_core.update_track_media_properties
@@ -91,6 +92,11 @@ get_youtube_metadata_by_playlist = database_core.get_youtube_metadata_by_playlis
 delete_youtube_metadata = database_core.delete_youtube_metadata
 search_youtube_metadata = database_core.search_youtube_metadata
 get_youtube_metadata_stats = database_core.get_youtube_metadata_stats
+get_distinct_resolutions = database_core.get_distinct_resolutions
+get_distinct_filetypes = database_core.get_distinct_filetypes
+get_tracks_with_filters_page = database_core.get_tracks_with_filters_page
+get_resolution_counts = database_core.get_resolution_counts
+get_filetype_counts = database_core.get_filetype_counts
 
 # Quick Sync functions
 get_latest_downloaded_track_date = database_core.get_latest_downloaded_track_date
@@ -120,6 +126,7 @@ __all__ = [
     'upsert_track',
     'link_track_playlist',
     'iter_tracks_with_playlists',
+    'iter_tracks_with_playlists_filtered',
      'get_track_with_playlists',
     'increment_play',
     'update_track_media_properties',
@@ -174,6 +181,11 @@ __all__ = [
     'delete_youtube_metadata',
     'search_youtube_metadata',
     'get_youtube_metadata_stats',
+    'get_distinct_resolutions',
+    'get_distinct_filetypes',
+    'get_tracks_with_filters_page',
+    'get_resolution_counts',
+    'get_filetype_counts',
     
     # Quick Sync functions
     'get_latest_downloaded_track_date',

@@ -579,6 +579,387 @@ def iter_tracks_with_playlists(conn: sqlite3.Connection, search_query: str = Non
                 yield row
 
 
+def iter_tracks_with_playlists_filtered(
+    conn: sqlite3.Connection,
+    *,
+    search_query: Optional[str] = None,
+    include_deleted: bool = False,
+    resolutions: Optional[List[str]] = None,
+    filetypes: Optional[List[str]] = None,
+    min_duration: Optional[int] = None,
+    max_duration: Optional[int] = None,
+    min_bitrate_bps: Optional[int] = None,
+    max_bitrate_bps: Optional[int] = None,
+    min_likes: Optional[int] = None,
+) -> Iterator[sqlite3.Row]:
+    """Yield tracks with playlists and optional server-side filtering.
+
+    Filters:
+        - search_query: case-insensitive LIKE match against COALESCE(ym.title, t.name)
+        - include_deleted: include rows with deleted marker (default False excludes)
+        - resolutions: list of resolution strings (exact match, IN clause)
+        - min_likes: minimum likes threshold (t.play_likes >= min_likes)
+
+    Notes:
+        - Keeps ordering by display title (YouTube title fallback to file name)
+        - Uses LEFT JOIN on deleted_tracks and filters out deleted when include_deleted is False
+    """
+    where_clauses: List[str] = ["1=1"]
+    params: List = []
+
+    # Build base SELECT with joins (same columns as iter_tracks_with_playlists)
+    base_select = (
+        """
+        SELECT t.*,
+               GROUP_CONCAT(p.name, ', ') AS playlists,
+               COALESCE(ym.title, t.name) AS display_name,
+               CASE WHEN dt.video_id IS NOT NULL THEN 1 ELSE 0 END AS is_deleted,
+               dt.deleted_at AS deletion_date,
+               dt.deletion_reason AS deletion_reason
+        FROM tracks t
+        LEFT JOIN track_playlists tp ON tp.track_id = t.id
+        LEFT JOIN playlists p ON p.id = tp.playlist_id
+        LEFT JOIN youtube_video_metadata ym ON ym.youtube_id = t.video_id
+        LEFT JOIN deleted_tracks dt ON dt.video_id = t.video_id
+        """
+    )
+
+    # Apply filters
+    if resolutions:
+        # Clean and deduplicate
+        cleaned = [r.strip() for r in resolutions if r and r.strip()]
+        cleaned = list(dict.fromkeys(cleaned))
+        if cleaned:
+            placeholders = ",".join(["?"] * len(cleaned))
+            where_clauses.append(f"t.resolution IN ({placeholders})")
+            params.extend(cleaned)
+
+    if filetypes:
+        cleaned_ft = [ft.strip() for ft in filetypes if ft and ft.strip()]
+        cleaned_ft = list(dict.fromkeys(cleaned_ft))
+        if cleaned_ft:
+            placeholders = ",".join(["?"] * len(cleaned_ft))
+            where_clauses.append(f"LOWER(t.filetype) IN ({placeholders})")
+            params.extend([ft.lower() for ft in cleaned_ft])
+
+    if isinstance(min_likes, int) and min_likes is not None:
+        if min_likes < 0:
+            min_likes = 0
+        where_clauses.append("t.play_likes >= ?")
+        params.append(int(min_likes))
+
+    # Duration range (seconds)
+    if isinstance(min_duration, (int, float)) and min_duration is not None:
+        if min_duration < 0:
+            min_duration = 0
+        where_clauses.append("t.duration >= ?")
+        params.append(float(min_duration))
+    if isinstance(max_duration, (int, float)) and max_duration is not None:
+        if max_duration < 0:
+            max_duration = 0
+        where_clauses.append("t.duration <= ?")
+        params.append(float(max_duration))
+
+    # Bitrate range (bps)
+    if isinstance(min_bitrate_bps, int) and min_bitrate_bps is not None:
+        if min_bitrate_bps < 0:
+            min_bitrate_bps = 0
+        where_clauses.append("t.bitrate >= ?")
+        params.append(int(min_bitrate_bps))
+    if isinstance(max_bitrate_bps, int) and max_bitrate_bps is not None:
+        if max_bitrate_bps < 0:
+            max_bitrate_bps = 0
+        where_clauses.append("t.bitrate <= ?")
+        params.append(int(max_bitrate_bps))
+
+    if search_query:
+        term = (search_query or "").strip()
+        if term:
+            where_clauses.append("COALESCE(ym.title, t.name) LIKE ? COLLATE NOCASE")
+            params.append(f"%{term}%")
+
+    if not include_deleted:
+        where_clauses.append("dt.video_id IS NULL")
+
+    where_sql = " WHERE " + " AND ".join(where_clauses) if where_clauses else ""
+
+    group_order_sql = (
+        " GROUP BY t.id "
+        " ORDER BY COALESCE(ym.title, t.name) COLLATE NOCASE"
+    )
+
+    sql = base_select + where_sql + group_order_sql
+
+    cur = conn.cursor()
+    for row in cur.execute(sql, params):
+        yield row
+
+
+def get_tracks_with_filters_page(
+    conn: sqlite3.Connection,
+    *,
+    search_query: Optional[str] = None,
+    include_deleted: bool = False,
+    resolutions: Optional[List[str]] = None,
+    filetypes: Optional[List[str]] = None,
+    min_duration: Optional[int] = None,
+    max_duration: Optional[int] = None,
+    min_bitrate_bps: Optional[int] = None,
+    max_bitrate_bps: Optional[int] = None,
+    min_likes: Optional[int] = None,
+    page: int = 1,
+    per_page: int = 100,
+) -> tuple[list[sqlite3.Row], int]:
+    """Return a page of filtered tracks and total count for pagination.
+
+    Returns (rows, total_count).
+    """
+    where_clauses: List[str] = ["1=1"]
+    params: List = []
+
+    # Filters (same as iter_tracks_with_playlists_filtered)
+    if resolutions:
+        cleaned = [r.strip() for r in resolutions if r and r.strip()]
+        cleaned = list(dict.fromkeys(cleaned))
+        if cleaned:
+            placeholders = ",".join(["?"] * len(cleaned))
+            where_clauses.append(f"t.resolution IN ({placeholders})")
+            params.extend(cleaned)
+
+    if filetypes:
+        cleaned_ft = [ft.strip() for ft in filetypes if ft and ft.strip()]
+        cleaned_ft = list(dict.fromkeys(cleaned_ft))
+        if cleaned_ft:
+            placeholders = ",".join(["?"] * len(cleaned_ft))
+            where_clauses.append(f"LOWER(t.filetype) IN ({placeholders})")
+            params.extend([ft.lower() for ft in cleaned_ft])
+
+    if isinstance(min_likes, int) and min_likes is not None:
+        if min_likes < 0:
+            min_likes = 0
+        where_clauses.append("t.play_likes >= ?")
+        params.append(int(min_likes))
+
+    if isinstance(min_duration, (int, float)) and min_duration is not None:
+        if min_duration < 0:
+            min_duration = 0
+        where_clauses.append("t.duration >= ?")
+        params.append(float(min_duration))
+    if isinstance(max_duration, (int, float)) and max_duration is not None:
+        if max_duration < 0:
+            max_duration = 0
+        where_clauses.append("t.duration <= ?")
+        params.append(float(max_duration))
+
+    if isinstance(min_bitrate_bps, int) and min_bitrate_bps is not None:
+        if min_bitrate_bps < 0:
+            min_bitrate_bps = 0
+        where_clauses.append("t.bitrate >= ?")
+        params.append(int(min_bitrate_bps))
+    if isinstance(max_bitrate_bps, int) and max_bitrate_bps is not None:
+        if max_bitrate_bps < 0:
+            max_bitrate_bps = 0
+        where_clauses.append("t.bitrate <= ?")
+        params.append(int(max_bitrate_bps))
+
+    if search_query:
+        term = (search_query or "").strip()
+        if term:
+            where_clauses.append("COALESCE(ym.title, t.name) LIKE ? COLLATE NOCASE")
+            params.append(f"%{term}%")
+
+    if not include_deleted:
+        where_clauses.append("dt.video_id IS NULL")
+
+    where_sql = " WHERE " + " AND ".join(where_clauses) if where_clauses else ""
+
+    # Total count (distinct t.id)
+    count_sql = (
+        "SELECT COUNT(DISTINCT t.id) FROM tracks t "
+        "LEFT JOIN track_playlists tp ON tp.track_id = t.id "
+        "LEFT JOIN playlists p ON p.id = tp.playlist_id "
+        "LEFT JOIN youtube_video_metadata ym ON ym.youtube_id = t.video_id "
+        "LEFT JOIN deleted_tracks dt ON dt.video_id = t.video_id "
+        + where_sql
+    )
+
+    cur = conn.cursor()
+    total_count = cur.execute(count_sql, params).fetchone()[0]
+
+    # Page query
+    offset = max(0, (max(1, int(page)) - 1) * max(1, int(per_page)))
+    page_sql = (
+        "SELECT t.*, GROUP_CONCAT(p.name, ', ') AS playlists, "
+        "COALESCE(ym.title, t.name) AS display_name, "
+        "CASE WHEN dt.video_id IS NOT NULL THEN 1 ELSE 0 END AS is_deleted, "
+        "dt.deleted_at AS deletion_date, dt.deletion_reason AS deletion_reason "
+        "FROM tracks t "
+        "LEFT JOIN track_playlists tp ON tp.track_id = t.id "
+        "LEFT JOIN playlists p ON p.id = tp.playlist_id "
+        "LEFT JOIN youtube_video_metadata ym ON ym.youtube_id = t.video_id "
+        "LEFT JOIN deleted_tracks dt ON dt.video_id = t.video_id "
+        + where_sql +
+        " GROUP BY t.id ORDER BY COALESCE(ym.title, t.name) COLLATE NOCASE "
+        " LIMIT ? OFFSET ?"
+    )
+
+    page_params = list(params)
+    page_params.extend([int(per_page), int(offset)])
+    rows = cur.execute(page_sql, page_params).fetchall()
+    return rows, int(total_count)
+
+
+def get_resolution_counts(
+    conn: sqlite3.Connection,
+    *,
+    search_query: Optional[str] = None,
+    include_deleted: bool = False,
+    # Exclude resolutions filter itself to show available counts
+    filetypes: Optional[List[str]] = None,
+    min_duration: Optional[int] = None,
+    max_duration: Optional[int] = None,
+    min_bitrate_bps: Optional[int] = None,
+    max_bitrate_bps: Optional[int] = None,
+    min_likes: Optional[int] = None,
+) -> dict:
+    """Return counts per resolution given other filters."""
+    where_clauses: List[str] = ["1=1", "t.resolution IS NOT NULL", "TRIM(t.resolution) != ''", "t.resolution LIKE '%x%'"]
+    params: List = []
+
+    if filetypes:
+        cleaned_ft = [ft.strip() for ft in filetypes if ft and ft.strip()]
+        cleaned_ft = list(dict.fromkeys(cleaned_ft))
+        if cleaned_ft:
+            placeholders = ",".join(["?"] * len(cleaned_ft))
+            where_clauses.append(f"LOWER(t.filetype) IN ({placeholders})")
+            params.extend([ft.lower() for ft in cleaned_ft])
+
+    if isinstance(min_likes, int) and min_likes is not None:
+        if min_likes < 0:
+            min_likes = 0
+        where_clauses.append("t.play_likes >= ?")
+        params.append(int(min_likes))
+
+    if isinstance(min_duration, (int, float)) and min_duration is not None:
+        if min_duration < 0:
+            min_duration = 0
+        where_clauses.append("t.duration >= ?")
+        params.append(float(min_duration))
+    if isinstance(max_duration, (int, float)) and max_duration is not None:
+        if max_duration < 0:
+            max_duration = 0
+        where_clauses.append("t.duration <= ?")
+        params.append(float(max_duration))
+
+    if isinstance(min_bitrate_bps, int) and min_bitrate_bps is not None:
+        where_clauses.append("t.bitrate >= ?")
+        params.append(int(min_bitrate_bps))
+    if isinstance(max_bitrate_bps, int) and max_bitrate_bps is not None:
+        where_clauses.append("t.bitrate <= ?")
+        params.append(int(max_bitrate_bps))
+
+    if search_query:
+        term = (search_query or "").strip()
+        if term:
+            where_clauses.append("COALESCE(ym.title, t.name) LIKE ? COLLATE NOCASE")
+            params.append(f"%{term}%")
+
+    if not include_deleted:
+        where_clauses.append("dt.video_id IS NULL")
+
+    where_sql = " WHERE " + " AND ".join(where_clauses)
+    sql = (
+        "SELECT t.resolution, COUNT(DISTINCT t.id) as cnt FROM tracks t "
+        "LEFT JOIN track_playlists tp ON tp.track_id = t.id "
+        "LEFT JOIN playlists p ON p.id = tp.playlist_id "
+        "LEFT JOIN youtube_video_metadata ym ON ym.youtube_id = t.video_id "
+        "LEFT JOIN deleted_tracks dt ON dt.video_id = t.video_id "
+        + where_sql +
+        " GROUP BY t.resolution"
+    )
+    result = {}
+    cur = conn.cursor()
+    for res, cnt in cur.execute(sql, params).fetchall():
+        if res:
+            result[res] = int(cnt)
+    return result
+
+
+def get_filetype_counts(
+    conn: sqlite3.Connection,
+    *,
+    search_query: Optional[str] = None,
+    include_deleted: bool = False,
+    # Exclude filetypes filter itself to show available counts
+    resolutions: Optional[List[str]] = None,
+    min_duration: Optional[int] = None,
+    max_duration: Optional[int] = None,
+    min_bitrate_bps: Optional[int] = None,
+    max_bitrate_bps: Optional[int] = None,
+    min_likes: Optional[int] = None,
+) -> dict:
+    """Return counts per file type given other filters."""
+    where_clauses: List[str] = ["1=1", "t.filetype IS NOT NULL", "TRIM(t.filetype) != ''"]
+    params: List = []
+
+    if resolutions:
+        cleaned = [r.strip() for r in resolutions if r and r.strip()]
+        cleaned = list(dict.fromkeys(cleaned))
+        if cleaned:
+            placeholders = ",".join(["?"] * len(cleaned))
+            where_clauses.append(f"t.resolution IN ({placeholders})")
+            params.extend(cleaned)
+
+    if isinstance(min_likes, int) and min_likes is not None:
+        if min_likes < 0:
+            min_likes = 0
+        where_clauses.append("t.play_likes >= ?")
+        params.append(int(min_likes))
+
+    if isinstance(min_duration, (int, float)) and min_duration is not None:
+        if min_duration < 0:
+            min_duration = 0
+        where_clauses.append("t.duration >= ?")
+        params.append(float(min_duration))
+    if isinstance(max_duration, (int, float)) and max_duration is not None:
+        if max_duration < 0:
+            max_duration = 0
+        where_clauses.append("t.duration <= ?")
+        params.append(float(max_duration))
+
+    if isinstance(min_bitrate_bps, int) and min_bitrate_bps is not None:
+        where_clauses.append("t.bitrate >= ?")
+        params.append(int(min_bitrate_bps))
+    if isinstance(max_bitrate_bps, int) and max_bitrate_bps is not None:
+        where_clauses.append("t.bitrate <= ?")
+        params.append(int(max_bitrate_bps))
+
+    if search_query:
+        term = (search_query or "").strip()
+        if term:
+            where_clauses.append("COALESCE(ym.title, t.name) LIKE ? COLLATE NOCASE")
+            params.append(f"%{term}%")
+
+    if not include_deleted:
+        where_clauses.append("dt.video_id IS NULL")
+
+    where_sql = " WHERE " + " AND ".join(where_clauses)
+    sql = (
+        "SELECT LOWER(t.filetype) as ft, COUNT(DISTINCT t.id) as cnt FROM tracks t "
+        "LEFT JOIN track_playlists tp ON tp.track_id = t.id "
+        "LEFT JOIN playlists p ON p.id = tp.playlist_id "
+        "LEFT JOIN youtube_video_metadata ym ON ym.youtube_id = t.video_id "
+        "LEFT JOIN deleted_tracks dt ON dt.video_id = t.video_id "
+        + where_sql +
+        " GROUP BY LOWER(t.filetype)"
+    )
+    result = {}
+    cur = conn.cursor()
+    for ft, cnt in cur.execute(sql, params).fetchall():
+        if ft:
+            result[ft] = int(cnt)
+    return result
+
 # ---------- Single track fetcher ----------
 
 def get_track_with_playlists(conn: sqlite3.Connection, video_id: str) -> Optional[Dict]:
@@ -1859,6 +2240,52 @@ def get_last_play_timestamps_batch(conn: sqlite3.Connection, video_ids: List[str
             result[video_id] = None
     
     return result
+
+
+def get_distinct_resolutions(conn: sqlite3.Connection) -> List[str]:
+    """Return a list of distinct non-empty resolution strings ordered by height desc then width desc.
+
+    Resolution values are stored as TEXT in format like '1920x1080'. We filter out NULL/empty values
+    and those that do not contain the separator 'x'.
+
+    Args:
+        conn: Database connection
+
+    Returns:
+        List of unique resolution strings (e.g., ['3840x2160', '2560x1440', '1920x1080', ...])
+    """
+    cur = conn.cursor()
+    # Order primarily by height (after 'x'), then by width, both as integers, descending
+    cur.execute(
+        """
+        SELECT DISTINCT resolution
+        FROM tracks
+        WHERE resolution IS NOT NULL
+          AND TRIM(resolution) != ''
+          AND resolution LIKE '%x%'
+        ORDER BY 
+          CAST(SUBSTR(resolution, INSTR(resolution, 'x') + 1) AS INTEGER) DESC,
+          CAST(SUBSTR(resolution, 1, INSTR(resolution, 'x') - 1) AS INTEGER) DESC,
+          resolution DESC
+        """
+    )
+    rows = cur.fetchall()
+    return [row[0] for row in rows if row and row[0]]
+
+def get_distinct_filetypes(conn: sqlite3.Connection) -> List[str]:
+    """Return a list of distinct non-empty file types ordered alphabetically (case-insensitive)."""
+    cur = conn.cursor()
+    cur.execute(
+        """
+        SELECT DISTINCT filetype
+        FROM tracks
+        WHERE filetype IS NOT NULL
+          AND TRIM(filetype) != ''
+        ORDER BY LOWER(filetype) ASC
+        """
+    )
+    rows = cur.fetchall()
+    return [row[0] for row in rows if row and row[0]]
 
 
 def get_dislike_counts_batch(conn: sqlite3.Connection, video_ids: List[str]) -> Dict[str, int]:

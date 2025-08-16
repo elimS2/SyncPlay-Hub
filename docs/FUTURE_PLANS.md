@@ -83,4 +83,28 @@ For full context and rationale, see `docs/features/INTERMITTENT_403_SABR_ROADMAP
 - Keep `INTERMITTENT_403_SABR_ROADMAP.md` in sync
   - Mark the above items as “Future” in the checklist; review quarterly.
 
+---
+
+## Tracks Table Filters – Future Work (Concise)
+
+For full scope and decisions, see `docs/features/TRACKS_TABLE_COLUMN_FILTERS.md`.
+
+### UX & Accessibility
+- Persist collapsed/expanded state of Filters/Columns panels in localStorage.
+- Add “filter chips” (active filters summary) with one-click removal.
+- Improve empty-state when filters yield no results (show quick “Reset filters” action).
+- Keyboard navigation and ARIA for filters (fieldset/legend, aria-expanded, focus outlines).
+- Per-page selector (e.g., 100/200/500) and server-side sort controls (column + order) via query params.
+
+### Backend & Performance
+- Add indices if needed after measurement: `tracks(resolution)`, `tracks(filetype)`, `tracks(play_likes)`, optionally `tracks(duration)`, `tracks(bitrate)`.
+- Consider lightweight caching for facet counters (short TTL) to reduce repeated aggregations.
+- Harden query param parsing (limits on number of selections, sane defaults, clamp ranges).
+- Optional: expose `/api/tracks/facets` for dynamic (AJAX) facets in Phase 2.
+
+### Testing & Observability
+- Finalize manual checklist runs and mark results in the roadmap.
+- Add unit/integration tests for SQL filter builder and pagination.
+- Log timing metrics for page and facet-count queries (debug-level) to help future tuning.
+
 
