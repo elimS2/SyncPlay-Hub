@@ -117,6 +117,13 @@
                                 <span>⚡</span>
                                 Scan Limited (50 tracks)
                             </button>
+                            <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+                                <input id="qualitiesLimit" type="number" min="1" max="5000" step="1" placeholder="Limit (e.g., 100)" style="padding:6px 10px; width:140px;" />
+                                <button class="btn" onclick="scanMissingYoutubeQualities()">
+                                    <span>🎞️</span>
+                                    Enqueue Missing YouTube Qualities
+                                </button>
+                            </div>
                             <button class="btn btn-secondary" onclick="viewMetadataStats()">
                                 <span>📈</span>
                                 View Metadata Statistics
@@ -386,6 +393,31 @@
 
         function viewMetadataStats() {
             window.open('/api/metadata_statistics', '_blank');
+        }
+
+        async function scanMissingYoutubeQualities() {
+            showLoading('metadata-status');
+            try {
+                const limitVal = document.getElementById('qualitiesLimit')?.value;
+                const payload = { force_update: true };
+                if (limitVal && String(limitVal).trim() !== '') {
+                    const n = parseInt(limitVal, 10);
+                    if (!isNaN(n) && n > 0) payload.limit = n;
+                }
+                const response = await fetch('/api/scan_missing_youtube_qualities', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const data = await response.json();
+                if (response.ok) {
+                    showStatus('metadata-status', `YouTube Qualities scan started: ${data.jobs_created || 0} jobs created`, 'success');
+                } else {
+                    showStatus('metadata-status', `Qualities scan failed: ${data.error || data.message || 'Unknown error'}`, 'error');
+                }
+            } catch (error) {
+                showStatus('metadata-status', `Network error: ${error.message}`, 'error');
+            }
         }
 
         // System operations

@@ -176,6 +176,20 @@
                   {% endif %}
                 </div>
               </div>
+
+              <!-- Max YouTube Quality filter (server-side) -->
+              <div class="filters-group">
+                <h4>Max YouTube Quality</h4>
+                <input type="hidden" name="min_max_quality" id="minMaxQualityInput" value="{{ filters.min_max_quality }}" />
+                <div class="filters-controls" id="maxQualityControls">
+                  <button type="button" class="btn btn-secondary btn-sm" data-q="">All</button>
+                  <button type="button" class="btn btn-secondary btn-sm" data-q="2160">≥ 2160p</button>
+                  <button type="button" class="btn btn-secondary btn-sm" data-q="1440">≥ 1440p</button>
+                  <button type="button" class="btn btn-secondary btn-sm" data-q="1080">≥ 1080p</button>
+                  <button type="button" class="btn btn-secondary btn-sm" data-q="720">≥ 720p</button>
+                </div>
+                <div class="filters-summary" id="maxQualitySummary"></div>
+              </div>
             </div>
 
             <div class="filters-footer">
@@ -241,6 +255,10 @@
                 <label class="checkbox-label">
                   <input type="checkbox" data-col="resolution">
                   <span class="checkbox-text">Resolution</span>
+                </label>
+                <label class="checkbox-label">
+                  <input type="checkbox" data-col="max_quality">
+                  <span class="checkbox-text">Max YouTube Quality</span>
                 </label>
                 <label class="checkbox-label">
                   <input type="checkbox" data-col="type">
@@ -311,6 +329,7 @@
               <th data-col="size" class="col col-size">Size</th>
               <th data-col="bitrate" class="col col-bitrate">Bitrate</th>
               <th data-col="resolution" class="col col-resolution">Resolution</th>
+              <th data-col="max_quality" class="col col-max_quality">Max YouTube Quality</th>
               <th data-col="type" class="col col-type">Type</th>
               <th data-col="starts" class="col col-starts">Starts</th>
               <th data-col="finishes" class="col col-finishes">Finishes</th>
@@ -338,6 +357,7 @@
                 <td data-col="size" class="col col-size">{{ '%.1f' % (t['size_bytes']/1048576) }} MB</td>
                 <td data-col="bitrate" class="col col-bitrate">{% if t['bitrate'] %}{{ (t['bitrate']/1000)|int }} kbps{% else %}-{% endif %}</td>
                 <td data-col="resolution" class="col col-resolution">{{ t['resolution'] or '-' }}</td>
+                <td data-col="max_quality" class="col col-max_quality">{{ max_quality_map.get(t['video_id'], '-') }}</td>
                 <td data-col="type" class="col col-type">{{ t['filetype'] }}</td>
                 <td data-col="starts" class="col col-starts">{{ t['play_starts'] }}</td>
                 <td data-col="finishes" class="col col-finishes">{{ t['play_finishes'] }}</td>
@@ -374,11 +394,23 @@
           <div class="pagination-controls">
             {% set prev_page = pagination.page - 1 %}
             {% set next_page = pagination.page + 1 %}
+            {% set has_q = '?' in request.full_path %}
+            {% set has_page_param = 'page=' in request.full_path %}
             {% if pagination.page > 1 %}
-              <a class="btn btn-secondary btn-sm" href="{{ request.full_path | replace('page=' ~ pagination.page, 'page=' ~ prev_page) }}">Prev</a>
+              {% if has_page_param %}
+                {% set prev_url = request.full_path | replace('page=' ~ pagination.page, 'page=' ~ prev_page) %}
+              {% else %}
+                {% set prev_url = request.full_path ~ ('&' if has_q else '?') ~ 'page=' ~ prev_page %}
+              {% endif %}
+              <a class="btn btn-secondary btn-sm" href="{{ prev_url }}">Prev</a>
             {% endif %}
             {% if pagination.page < total_pages %}
-              <a class="btn btn-secondary btn-sm" href="{{ request.full_path | replace('page=' ~ pagination.page, 'page=' ~ next_page) }}">Next</a>
+              {% if has_page_param %}
+                {% set next_url = request.full_path | replace('page=' ~ pagination.page, 'page=' ~ next_page) %}
+              {% else %}
+                {% set next_url = request.full_path ~ ('&' if has_q else '?') ~ 'page=' ~ next_page %}
+              {% endif %}
+              <a class="btn btn-secondary btn-sm" href="{{ next_url }}">Next</a>
             {% endif %}
           </div>
         </div>
@@ -503,28 +535,28 @@
             if (width >= 1440) {
                 return {
                     index: true, title: true, video_id: true, playlists: true, duration: true,
-                    size: true, bitrate: true, resolution: true, type: true, starts: true,
+                    size: true, bitrate: true, resolution: true, max_quality: true, type: true, starts: true,
                     finishes: true, nexts: true, prevs: true, likes: true, last_start: true,
                     last_finish: true, deleted: true
                 };
             } else if (width >= 1280) {
                 return {
                     index: true, title: true, video_id: true, playlists: true, duration: true,
-                    size: true, bitrate: true, resolution: true, type: true, starts: false,
+                    size: true, bitrate: true, resolution: true, max_quality: true, type: true, starts: false,
                     finishes: false, nexts: false, prevs: false, likes: false, last_start: false,
                     last_finish: false, deleted: true
                 };
             } else if (width >= 1024) {
                 return {
                     index: true, title: true, video_id: true, playlists: false, duration: true,
-                    size: false, bitrate: false, resolution: true, type: false, starts: false,
+                    size: false, bitrate: false, resolution: true, max_quality: true, type: false, starts: false,
                     finishes: false, nexts: false, prevs: false, likes: false, last_start: false,
                     last_finish: false, deleted: false
                 };
             } else {
                 return {
                     index: true, title: true, video_id: false, playlists: false, duration: true,
-                    size: false, bitrate: false, resolution: false, type: false, starts: false,
+                    size: false, bitrate: false, resolution: false, max_quality: false, type: false, starts: false,
                     finishes: false, nexts: false, prevs: false, likes: false, last_start: false,
                     last_finish: false, deleted: false
                 };
@@ -744,6 +776,33 @@
       initCollapse();
       // Initial summary
       updateSummary();
+    })();
+
+    // Server-side Max YouTube Quality filter: set hidden field and submit form
+    (function(){
+      const controls = document.getElementById('maxQualityControls');
+      const summary = document.getElementById('maxQualitySummary');
+      const input = document.getElementById('minMaxQualityInput');
+      const form = document.querySelector('.filters-form');
+      if(!controls || !input || !form) return;
+
+      function updateSummary(val){
+        if(!summary) return;
+        const v = (val||'').trim();
+        summary.textContent = v ? (`Filtering by ≥ ${v}p`) : 'All qualities';
+        summary.className = 'filters-summary active';
+      }
+
+      controls.querySelectorAll('button[data-q]')?.forEach(btn => {
+        btn.addEventListener('click', () => {
+          const v = btn.getAttribute('data-q') || '';
+          input.value = v;
+          updateSummary(v);
+          form.submit();
+        });
+      });
+
+      updateSummary(input.value);
     })();
 
     // Filters panel collapse toggle

@@ -482,6 +482,11 @@ th, td {
   max-width: 200px; /* Prevent extremely wide columns */
 }
 
+/* Max YouTube Quality column tweaks */
+.col-max_quality {
+  white-space: nowrap;
+}
+
 .mono {
   word-break: break-all; /* Allow breaking of long video IDs */
 }

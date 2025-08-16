@@ -101,6 +101,29 @@ def _build_formats_summary(normalized_formats: List[Dict[str, Any]]) -> str:
     return " | ".join(parts)
 
 
+def _compute_max_quality_fields(normalized_formats: List[Dict[str, Any]]) -> tuple[int | None, str | None]:
+    """Compute (max_available_height, max_quality_label) from normalized formats.
+
+    Returns (height, label) where height is an integer like 2160 and label is '2160p'.
+    When no valid video formats found, returns (None, None).
+    """
+    if not isinstance(normalized_formats, list):
+        return None, None
+    max_height = 0
+    for f in normalized_formats:
+        if not isinstance(f, dict):
+            continue
+        vcodec = str(f.get('vcodec') or '').lower()
+        if not vcodec or vcodec == 'none':
+            continue
+        height = f.get('height')
+        if isinstance(height, (int, float)) and height and height > max_height:
+            max_height = int(height)
+    if max_height > 0:
+        return max_height, f"{max_height}p"
+    return None, None
+
+
 def create_metadata_dict_from_entry(entry: Dict[str, Any], channel_url: str = None) -> Dict[str, Any]:
     """
     Create standardized metadata dictionary from yt-dlp entry.
@@ -175,10 +198,16 @@ def create_metadata_dict_from_entry(entry: Dict[str, Any], channel_url: str = No
         # Store as JSON string to keep DB column TEXT
         metadata['available_formats'] = json.dumps(normalized_formats, ensure_ascii=False)
         metadata['available_qualities_summary'] = _build_formats_summary(normalized_formats)
+        # Denormalized max-quality fields for server-side filtering/pagination
+        max_h, max_label = _compute_max_quality_fields(normalized_formats)
+        metadata['max_available_height'] = max_h
+        metadata['max_quality_label'] = max_label
     except Exception:
         # Fail-safe: do not break metadata creation if formats are unexpected
         metadata['available_formats'] = None
         metadata['available_qualities_summary'] = None
+        metadata['max_available_height'] = None
+        metadata['max_quality_label'] = None
 
     return metadata
 

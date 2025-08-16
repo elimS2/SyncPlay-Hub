@@ -221,6 +221,114 @@ def api_scan_missing_metadata():
         return jsonify({"status": "error", "error": str(e)}), 500
 
 
+@metadata_bp.route("/scan_missing_youtube_qualities", methods=["POST"])
+def api_scan_missing_youtube_qualities():
+    """Find tracks missing YouTube Qualities and enqueue single-video metadata extraction jobs.
+
+    Request JSON (optional):
+      - limit: int (max number of tracks to process)
+      - force_update: bool (default True) – enforce refresh even if metadata exists
+      - dry_run: bool (default False) – preview without creating jobs
+
+    Behavior:
+      - Looks for tracks not marked deleted.
+      - Missing qualities criteria:
+          yvm.youtube_id IS NULL OR
+          yvm.available_formats IS NULL OR TRIM(yvm.available_formats) = '' OR
+          yvm.max_available_height IS NULL
+    """
+    try:
+        data = request.get_json(silent=True) or {}
+        limit = data.get('limit')
+        force_update = bool(data.get('force_update', True))
+        dry_run = bool(data.get('dry_run', False))
+
+        log_message(f"[Metadata API] Scan missing YouTube Qualities – limit={limit}, force_update={force_update}, dry_run={dry_run}")
+
+        conn = get_connection()
+        cur = conn.cursor()
+
+        sql = (
+            """
+            SELECT t.id, t.video_id, t.name
+            FROM tracks t
+            LEFT JOIN youtube_video_metadata yvm ON yvm.youtube_id = t.video_id
+            WHERE t.video_id NOT IN (
+                SELECT dt.video_id FROM deleted_tracks dt
+                WHERE dt.restored_at IS NULL
+            )
+            AND (
+                yvm.youtube_id IS NULL OR
+                yvm.available_formats IS NULL OR TRIM(yvm.available_formats) = '' OR
+                yvm.max_available_height IS NULL
+            )
+            ORDER BY t.id ASC
+            """
+        )
+        params = []
+        if isinstance(limit, int):
+            sql += " LIMIT ?"
+            params.append(int(limit))
+
+        rows = cur.execute(sql, params).fetchall()
+        tracks = [{"id": r[0], "video_id": r[1], "name": r[2]} for r in rows]
+        conn.close()
+
+        if dry_run:
+            return jsonify({
+                "status": "preview",
+                "tracks_found": len(tracks),
+                "sample_tracks": tracks[:10],
+            })
+
+        if not tracks:
+            return jsonify({
+                "status": "up_to_date",
+                "message": "No tracks missing YouTube Qualities found",
+                "tracks_found": 0,
+                "jobs_created": 0,
+            })
+
+        try:
+            from services.job_queue_service import get_job_queue_service
+            from services.job_types import JobType, JobPriority
+
+            job_service = get_job_queue_service()
+            jobs_created = 0
+            jobs_failed = 0
+
+            for tr in tracks:
+                try:
+                    job_id = job_service.create_and_add_job(
+                        JobType.SINGLE_VIDEO_METADATA_EXTRACTION,
+                        priority=JobPriority.LOW,
+                        video_id=tr['video_id'],
+                        force_update=force_update,
+                    )
+                    jobs_created += 1
+                except Exception as e:
+                    jobs_failed += 1
+                    log_message(f"[Qualities Scan] Failed to enqueue for {tr['video_id']}: {e}")
+
+            return jsonify({
+                "status": "started",
+                "message": f"Created {jobs_created} extraction jobs",
+                "tracks_found": len(tracks),
+                "jobs_created": jobs_created,
+                "jobs_failed": jobs_failed,
+            })
+
+        except ImportError:
+            return jsonify({
+                "status": "error",
+                "error": "Job Queue System not available",
+                "tracks_found": len(tracks),
+            }), 500
+
+    except Exception as e:
+        log_message(f"[Metadata API] Error during qualities scan: {e}")
+        return jsonify({"status": "error", "error": str(e)}), 500
+
 @metadata_bp.route("/metadata_statistics", methods=["GET"])
 def api_metadata_statistics():
     """Get metadata coverage statistics."""

@@ -8,6 +8,7 @@ import datetime
 import os
 import sys
 from pathlib import Path
+import json
 
 from flask import Flask, render_template, send_from_directory, abort, jsonify, redirect, url_for, request
 
@@ -34,6 +35,7 @@ from database import (
     set_user_setting,
     get_track_with_playlists,
     get_youtube_metadata_by_id,
+    get_youtube_metadata_batch,
 )
 
 import re
@@ -306,6 +308,15 @@ def tracks_page():
         except ValueError:
             min_likes = None
 
+    # Max YouTube Quality (height) threshold parsing (server-side filter)
+    min_max_quality_param = request.args.get("min_max_quality")
+    min_max_quality = None
+    if min_max_quality_param is not None and str(min_max_quality_param).strip() != "":
+        try:
+            min_max_quality = max(0, int(min_max_quality_param))
+        except ValueError:
+            min_max_quality = None
+
     conn = get_connection()
     try:
         # Facets: list of available resolutions
@@ -329,9 +340,44 @@ def tracks_page():
             min_bitrate_bps=min_bitrate_bps,
             max_bitrate_bps=max_bitrate_bps,
             min_likes=min_likes,
+            min_max_quality=min_max_quality,
             page=page,
             per_page=per_page,
         )
+
+        # Compute Max YouTube Quality per track for the current page using batch metadata fetch
+        max_quality_map = {}
+        try:
+            video_ids = [t['video_id'] for t in tracks] if tracks else []
+            if video_ids:
+                metadata_map = get_youtube_metadata_batch(conn, video_ids) or {}
+                for vid, row in metadata_map.items():
+                    raw_formats = None
+                    try:
+                        raw_formats = row['available_formats']
+                    except Exception:
+                        raw_formats = None
+                    formats = None
+                    try:
+                        formats = json.loads(raw_formats) if raw_formats else None
+                    except Exception:
+                        formats = None
+                    max_height = 0
+                    if isinstance(formats, list):
+                        for f in formats:
+                            if not isinstance(f, dict):
+                                continue
+                            vcodec = str(f.get('vcodec') or '').lower()
+                            if not vcodec or vcodec == 'none':
+                                continue
+                            height = f.get('height')
+                            if isinstance(height, (int, float)) and height and height > max_height:
+                                max_height = int(height)
+                    if max_height > 0:
+                        max_quality_map[vid] = f"{max_height}p"
+        except Exception:
+            # Fail-safe: do not block page rendering on unexpected errors
+            max_quality_map = {}
 
         # Faceted counts (computed excluding the facet itself)
         resolution_counts = get_resolution_counts(
@@ -379,7 +425,8 @@ def tracks_page():
         "max_duration": max_duration_val if max_duration_val is not None else "",
         "min_bitrate_kbps": int(min_bitrate_bps/1000) if isinstance(min_bitrate_bps, int) else "",
         "max_bitrate_kbps": int(max_bitrate_bps/1000) if isinstance(max_bitrate_bps, int) else "",
-        "applied": bool(resolutions_selected) or bool(filetypes_selected) or (min_likes is not None) or (min_duration_val is not None) or (max_duration_val is not None) or (min_bitrate_bps is not None) or (max_bitrate_bps is not None),
+        "min_max_quality": min_max_quality if min_max_quality is not None else "",
+        "applied": bool(resolutions_selected) or bool(filetypes_selected) or (min_likes is not None) or (min_duration_val is not None) or (max_duration_val is not None) or (min_bitrate_bps is not None) or (max_bitrate_bps is not None) or (min_max_quality is not None),
     }
     facets = {
         "resolutions": facets_resolutions,
@@ -404,6 +451,7 @@ def tracks_page():
         filters=filters,
         facets=facets,
         pagination=pagination,
+        max_quality_map=max_quality_map if 'max_quality_map' in locals() else {},
     )
 
 @app.route("/track")

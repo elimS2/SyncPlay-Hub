@@ -365,6 +365,11 @@ def _ensure_schema(conn: sqlite3.Connection):
         cur.execute("ALTER TABLE youtube_video_metadata ADD COLUMN available_formats TEXT")
     if "available_qualities_summary" not in ycols:
         cur.execute("ALTER TABLE youtube_video_metadata ADD COLUMN available_qualities_summary TEXT")
+    # New denormalized max quality fields
+    if "max_available_height" not in ycols:
+        cur.execute("ALTER TABLE youtube_video_metadata ADD COLUMN max_available_height INTEGER")
+    if "max_quality_label" not in ycols:
+        cur.execute("ALTER TABLE youtube_video_metadata ADD COLUMN max_quality_label TEXT")
     conn.commit()
 
     # Ensure valid event types include new channel events
@@ -707,6 +712,7 @@ def get_tracks_with_filters_page(
     min_bitrate_bps: Optional[int] = None,
     max_bitrate_bps: Optional[int] = None,
     min_likes: Optional[int] = None,
+    min_max_quality: Optional[int] = None,
     page: int = 1,
     per_page: int = 100,
 ) -> tuple[list[sqlite3.Row], int]:
@@ -770,6 +776,11 @@ def get_tracks_with_filters_page(
 
     if not include_deleted:
         where_clauses.append("dt.video_id IS NULL")
+
+    # Max YouTube Quality threshold (server-side filter)
+    if isinstance(min_max_quality, int) and min_max_quality is not None:
+        where_clauses.append("(ym.max_available_height IS NOT NULL AND ym.max_available_height >= ?)")
+        params.append(int(min_max_quality))
 
     where_sql = " WHERE " + " AND ".join(where_clauses) if where_clauses else ""
 
@@ -2039,7 +2050,9 @@ def upsert_youtube_metadata(conn: sqlite3.Connection, metadata: dict) -> int:
         'n_entries', 'playlist_index', '__last_playlist_index', 'playlist_autonumber',
         'epoch', 'duration_string', 'release_year',
         # New available qualities fields
-        'available_formats', 'available_qualities_summary'
+        'available_formats', 'available_qualities_summary',
+        # Denormalized max quality fields
+        'max_available_height', 'max_quality_label'
     ]
     
     # Build column list and value placeholders
