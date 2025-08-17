@@ -118,10 +118,10 @@
       Uptime: <span id="server-uptime">{{ server_info.uptime if server_info else 'N/A' }}</span>
     </div>
     <div class="server-info-row">
-      Started: <span id="server-start-time">{{ server_info.start_time if server_info else 'N/A' }}</span>
+      Started: <span id="server-start-time">{{ (server_info.start_time[5:]) if server_info and server_info.start_time else 'N/A' }}</span>
     </div>
     <div class="server-info-row">
-      Current: <span id="server-current-time">{{ server_info.current_time if server_info else 'N/A' }}</span>
+      Current: <span id="server-current-time">{{ (server_info.current_time[5:]) if server_info and server_info.current_time else 'N/A' }}</span>
     </div>
     <div class="server-info-row">
       <a href="https://github.com/elimS2" target="_blank" class="github-link">
@@ -180,7 +180,7 @@ function updateServerInfo() {
       const uptimeElement = document.getElementById('server-uptime');
       
       if (currentTimeElement) {
-        currentTimeElement.textContent = data.current_time;
+        currentTimeElement.textContent = (data.current_time && data.current_time.length > 5) ? data.current_time.slice(5) : data.current_time;
       }
       if (uptimeElement) {
         uptimeElement.textContent = data.uptime;
