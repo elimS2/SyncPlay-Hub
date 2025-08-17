@@ -106,7 +106,10 @@
   
   <div class="server-info">
     <div class="server-info-row">
-      PID: <span id="server-pid">{{ server_info.pid if server_info else 'N/A' }}</span> | Uptime: <span id="server-uptime">{{ server_info.uptime if server_info else 'N/A' }}</span>
+      PID: <span id="server-pid">{{ server_info.pid if server_info else 'N/A' }}</span>
+    </div>
+    <div class="server-info-row">
+      Uptime: <span id="server-uptime">{{ server_info.uptime if server_info else 'N/A' }}</span>
     </div>
     <div class="server-info-row">
       Started: <span id="server-start-time">{{ server_info.start_time if server_info else 'N/A' }}</span>
