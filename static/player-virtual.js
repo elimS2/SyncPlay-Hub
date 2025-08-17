@@ -1,4 +1,4 @@
-import { shuffle, smartShuffle, detectChannelGroup, smartChannelShuffle, getGroupPlaybackInfo, orderByPublishDate as utilsOrderByPublishDate, formatTime, updateSpeedDisplay as utilsUpdateSpeedDisplay, showNotification, handleVolumeWheel as utilsHandleVolumeWheel, stopTick as utilsStopTick, stopPlayback as utilsStopPlayback, playIndex as utilsPlayIndex, updateMuteIcon as utilsUpdateMuteIcon, nextTrack as utilsNextTrack, prevTrack as utilsPrevTrack, sendStreamEvent as utilsSendStreamEvent, startTick as utilsStartTick, reportEvent as utilsReportEvent, triggerAutoDeleteCheck as utilsTriggerAutoDeleteCheck, recordSeekEvent, saveVolumeToDatabase as utilsSaveVolumeToDatabase, loadSavedVolume as utilsLoadSavedVolume, performKeyboardSeek as utilsPerformKeyboardSeek, syncLikeButtonsWithRemote as utilsSyncLikeButtonsWithRemote, syncLikesAfterAction as utilsSyncLikesAfterAction, setupLikeSyncHandlers as utilsSetupLikeSyncHandlers, togglePlayback as utilsTogglePlayback, showFsControls as utilsShowFsControls, updateFsVisibility as utilsUpdateFsVisibility, syncRemoteState as utilsSyncRemoteState, setupGlobalTooltip as utilsSetupGlobalTooltip, createTrackTooltipHTML, pollRemoteCommands as utilsPollRemoteCommands, cyclePlaybackSpeed as utilsCyclePlaybackSpeed, executeRemoteCommand as utilsExecuteRemoteCommand, deleteTrack as utilsDeleteTrack, initializeGoogleCastIntegration as utilsInitializeGoogleCastIntegration, castLoad as utilsCastLoad, loadTrack as utilsLoadTrack, setupMediaEndedHandler, setupMediaPlayPauseHandlers, setupMediaTimeUpdateHandler, setupMediaSeekedHandler, setupKeyboardHandler, setupProgressClickHandler, setupMediaSessionAPI, setupPlaylistToggleHandler, setupDeleteCurrentHandler, setupLikeDislikeHandlers, setupYouTubeHandler, setupFullscreenHandlers, setupSimpleControlHandlers, setupStreamHandler, setupBeforeUnloadHandler, setupAutoPlayInitialization, setupRemoteControlOverrides, setupRemoteControlInitialization, initializePlaylistPreferences, savePlaylistPreference as savePlaylistPreferenceModule, savePlaylistSpeed as savePlaylistSpeedModule, initializePlaylistLayoutManager, initializeTrackOrderManager } from '/static/js/modules/index.js';
+import { shuffle, smartShuffle, detectChannelGroup, smartChannelShuffle, getGroupPlaybackInfo, orderByPublishDate as utilsOrderByPublishDate, formatTime, updateSpeedDisplay as utilsUpdateSpeedDisplay, showNotification, handleVolumeWheel as utilsHandleVolumeWheel, stopTick as utilsStopTick, stopPlayback as utilsStopPlayback, playIndex as utilsPlayIndex, updateMuteIcon as utilsUpdateMuteIcon, nextTrack as utilsNextTrack, prevTrack as utilsPrevTrack, sendStreamEvent as utilsSendStreamEvent, startTick as utilsStartTick, reportEvent as utilsReportEvent, triggerAutoDeleteCheck as utilsTriggerAutoDeleteCheck, recordSeekEvent, saveVolumeToDatabase as utilsSaveVolumeToDatabase, loadSavedVolume as utilsLoadSavedVolume, performKeyboardSeek as utilsPerformKeyboardSeek, syncLikeButtonsWithRemote as utilsSyncLikeButtonsWithRemote, syncLikesAfterAction as utilsSyncLikesAfterAction, setupLikeSyncHandlers as utilsSetupLikeSyncHandlers, togglePlayback as utilsTogglePlayback, showFsControls as utilsShowFsControls, updateFsVisibility as utilsUpdateFsVisibility, syncRemoteState as utilsSyncRemoteState, setupGlobalTooltip as utilsSetupGlobalTooltip, createTrackTooltipHTML, pollRemoteCommands as utilsPollRemoteCommands, cyclePlaybackSpeed as utilsCyclePlaybackSpeed, executeRemoteCommand as utilsExecuteRemoteCommand, deleteTrack as utilsDeleteTrack, initializeGoogleCastIntegration as utilsInitializeGoogleCastIntegration, castLoad as utilsCastLoad, loadTrack as utilsLoadTrack, setupMediaEndedHandler, setupMediaPlayPauseHandlers, setupMediaTimeUpdateHandler, setupMediaSeekedHandler, setupKeyboardHandler, setupProgressClickHandler, setupMediaSessionAPI, setupPlaylistToggleHandler, setupDeleteCurrentHandler, setupLikeDislikeHandlers, setupYouTubeHandler, setupFullscreenHandlers, setupSimpleControlHandlers, setupStreamHandler, setupBeforeUnloadHandler, setupAutoPlayInitialization, setupRemoteControlOverrides, setupRemoteControlInitialization, initializePlaylistPreferences, savePlaylistPreference as savePlaylistPreferenceModule, savePlaylistSpeed as savePlaylistSpeedModule, initializePlaylistLayoutManager, initializeTrackOrderManager, ORDER_MODES, getCurrentOrderMode, getSmartBucketLabel, getSmartBucketSlug, renderTrackList } from '/static/js/modules/index.js';
 
 import { updateCurrentTrackTitle } from '/static/js/modules/track-title-manager.js';
 
@@ -140,91 +140,36 @@ const cDislike = document.getElementById('cDislike');
   console.log('🔍 [DEBUG] Cast integration completed, starting main player logic...');
 
   function renderList() {
-    listElem.innerHTML = '';
-    queue.forEach((t, idx) => {
-      const li = document.createElement('li');
-      li.dataset.index = idx;
-      if (idx === currentIndex) li.classList.add('playing');
-      
-      // Create custom tooltip using centralized function
-      const tooltipHTML = createTrackTooltipHTML(t);
-      
-      // DEBUG: Log track data for first few tracks
-      if (idx < 3) {
-        console.log(`🔍 [DEBUG] Track ${idx + 1} data:`, t);
-        console.log(`🔍 [DEBUG] youtube_channel_handle: ${t.youtube_channel_handle}`);
-        console.log(`🔍 [DEBUG] youtube_timestamp: ${t.youtube_timestamp}`);
-        console.log(`🔍 [DEBUG] youtube_view_count: ${t.youtube_view_count}`);
-        console.log(`🔍 [DEBUG] youtube_metadata_updated: ${t.youtube_metadata_updated}`);
-        console.log(`🔍 [DEBUG] youtube_duration_string: ${t.youtube_duration_string}`);
-      }
-      
+    const orderMode = (typeof getCurrentOrderMode === 'function') ? getCurrentOrderMode() : null;
+    const isSmart = orderMode === ORDER_MODES.SMART_SHUFFLE;
 
-      
-      // Store tooltip content in data attribute
-      li.setAttribute('data-tooltip-html', tooltipHTML);
-      
-      // Create track content container
-      const trackContent = document.createElement('div');
-      trackContent.className = 'track-content';
-      trackContent.style.cssText = 'display: flex; justify-content: space-between; align-items: center; width: 100%;';
-      
-      // Track name and number
-      const trackInfo = document.createElement('div');
-      trackInfo.className = 'track-info';
-      trackInfo.style.cssText = 'flex: 1; cursor: pointer;';
-      const displayName = t.name.replace(/\s*\[.*?\]$/, '');
-      trackInfo.textContent = `${idx + 1}. ${displayName}`;
-      trackInfo.onclick = () => playIndex(idx);
-      
-      // Delete button
-      const deleteBtn = document.createElement('button');
-      deleteBtn.className = 'delete-btn';
-      deleteBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"></path><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path><path d="M8 6V4c0-1 1-2 2-2h4c0 1 1 2 1 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>';
-      deleteBtn.title = `Delete track: ${t.name.replace(/\s*\[.*?\]$/, '')} (${t.video_id})`;
-      deleteBtn.style.cssText = `
-        background: none;
-        border: none;
-        color: #ff4444;
-        cursor: pointer;
-        font-size: 16px;
-        padding: 4px 8px;
-        border-radius: 4px;
-        margin-left: 8px;
-        opacity: 0.7;
-        transition: opacity 0.2s ease, background-color 0.2s ease;
-      `;
-      
-      // Hover effects for delete button
-      deleteBtn.onmouseenter = () => {
-        deleteBtn.style.opacity = '1';
-        deleteBtn.style.backgroundColor = 'rgba(255, 68, 68, 0.1)';
-      };
-      deleteBtn.onmouseleave = () => {
-        deleteBtn.style.opacity = '0.7';
-        deleteBtn.style.backgroundColor = 'transparent';
-      };
-      
-      deleteBtn.onclick = (e) => {
-        e.stopPropagation(); // Prevent track selection
-        deleteTrack(t, idx);
-      };
-      
-      trackContent.appendChild(trackInfo);
-      trackContent.appendChild(deleteBtn);
-      li.appendChild(trackContent);
-      listElem.appendChild(li);
+    renderTrackList({
+      listElem,
+      queue,
+      currentIndex,
+      isSmart,
+      getBucketLabel: getSmartBucketLabel,
+      getBucketSlug: getSmartBucketSlug,
+      createTrackTooltipHTML,
+      onPlayIndex: (idx) => playIndex(idx),
+      createDeleteButton: (t, idx) => {
+        const deleteBtn = document.createElement('button');
+        deleteBtn.className = 'delete-btn';
+        deleteBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"></path><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path><path d="M8 6V4c0-1 1-2 2-2h4c0 1 1 2 1 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>';
+        deleteBtn.title = `Delete track: ${t.name.replace(/\s*\[.*?\]$/, '')} (${t.video_id})`;
+        deleteBtn.style.cssText = 'background: none; border: none; color: #ff4444; cursor: pointer; font-size: 16px; padding: 4px 8px; border-radius: 4px; margin-left: 8px; opacity: 0.7; transition: opacity 0.2s ease, background-color 0.2s ease;';
+        deleteBtn.onmouseenter = () => { deleteBtn.style.opacity = '1'; deleteBtn.style.backgroundColor = 'rgba(255, 68, 68, 0.1)'; };
+        deleteBtn.onmouseleave = () => { deleteBtn.style.opacity = '0.7'; deleteBtn.style.backgroundColor = 'transparent'; };
+        deleteBtn.onclick = (e) => { e.stopPropagation(); deleteTrack(t, idx); };
+        return deleteBtn;
+      }
     });
-    
+
     console.log(`🎵 Rendered ${queue.length} tracks in playlist`);
-    
-    // Update delete button tooltip
     const deleteCurrentBtn = document.getElementById('deleteCurrentBtn');
     if (deleteCurrentBtn && deleteCurrentBtn.updateTooltip) {
       deleteCurrentBtn.updateTooltip();
     }
-    
-    // Create global tooltip system (like in player.js)
     setupGlobalTooltip();
   }
 

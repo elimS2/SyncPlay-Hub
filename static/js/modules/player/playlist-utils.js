@@ -14,6 +14,49 @@ export function shuffle(array) {
 }
 
 /**
+ * Parse SQLite UTC timestamp string ("YYYY-MM-DD HH:MM:SS") to ms since epoch.
+ * Returns null if input is falsy or unparsable.
+ * Always treats the input as UTC.
+ * @param {string} tsStr
+ * @returns {number|null}
+ */
+export function parseUtcTimestamp(tsStr) {
+  if (!tsStr || typeof tsStr !== 'string') return null;
+  try {
+    const iso = tsStr.replace(' ', 'T') + 'Z';
+    const ms = Date.parse(iso);
+    return Number.isNaN(ms) ? null : ms;
+  } catch (_) {
+    return null;
+  }
+}
+
+/**
+ * Get the latest interaction timestamp (ms since epoch, UTC) for a track.
+ * Tries last_play → last_finish_ts → last_start_ts; returns null if none are valid.
+ * @param {Object} track
+ * @returns {number|null}
+ */
+export function getLastInteractionMs(track) {
+  return (
+    parseUtcTimestamp(track && track.last_play) ??
+    parseUtcTimestamp(track && track.last_finish_ts) ??
+    parseUtcTimestamp(track && track.last_start_ts) ??
+    null
+  );
+}
+
+/**
+ * Start of UTC day for the given timestamp (ms).
+ * @param {number} ms
+ * @returns {number} ms at 00:00:00 UTC of that day
+ */
+export function startOfUtcDay(ms) {
+  const d = new Date(ms);
+  return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+}
+
+/**
  * Smart shuffle based on last playback date
  * Groups tracks by last playback time: 
  * never played > year ago > month ago > week ago > day ago > today
@@ -21,27 +64,100 @@ export function shuffle(array) {
  * @returns {Array} - shuffled list of tracks
  */
 export function smartShuffle(list){
-   const now = new Date();
-   const group1=[];const group2=[];const group3=[];const group4=[];const group5=[];const group6=[];
+  const MS_PER_DAY = 86400000;
+  const nowMs = Date.now();
+  const todayUtcStart = startOfUtcDay(nowMs);
 
-   const getWeekOfYear=(d)=>{
-     const onejan=new Date(d.getFullYear(),0,1);
-     return Math.ceil((((d - onejan)/86400000)+onejan.getDay()+1)/7);
-   };
+  const groupNever = [];
+  const groupYear = [];
+  const groupMonth = [];
+  const groupWeek = [];
+  const groupDay = [];
+  const groupToday = [];
 
-   for(const t of list){
-      if(!t.last_play){group1.push(t);continue;}
-      const tsStr = t.last_play.replace(' ', 'T')+'Z';
-      const ts=new Date(tsStr);
-      if(ts.getFullYear()<now.getFullYear()){group2.push(t);continue;}
-      if(ts.getMonth()<now.getMonth()){group3.push(t);continue;}
-      if(getWeekOfYear(ts)<getWeekOfYear(now)){group4.push(t);continue;}
-      if(ts.getDate()<now.getDate()){group5.push(t);continue;}
-      group6.push(t);
-   }
+  for (const t of list) {
+    // Prefer backend numeric timestamp if present
+    const tsMs = (typeof t.last_play_unix === 'number' && !Number.isNaN(t.last_play_unix))
+      ? (t.last_play_unix * 1000)
+      : getLastInteractionMs(t);
 
-   const all=[group1,group2,group3,group4,group5,group6].flatMap(arr=>{shuffle(arr);return arr;});
-   return all;
+    if (tsMs === null) {
+      groupNever.push(t);
+      continue;
+    }
+
+    const tsDayStart = startOfUtcDay(tsMs);
+    const daysDiff = Math.floor((todayUtcStart - tsDayStart) / MS_PER_DAY);
+
+    if (daysDiff >= 365) { groupYear.push(t); continue; }
+    if (daysDiff >= 30)  { groupMonth.push(t); continue; }
+    if (daysDiff >= 7)   { groupWeek.push(t); continue; }
+    if (daysDiff >= 1)   { groupDay.push(t); continue; }
+    groupToday.push(t);
+  }
+
+  const buckets = [groupNever, groupYear, groupMonth, groupWeek, groupDay, groupToday];
+  const result = buckets.flatMap(arr => { shuffle(arr); return arr; });
+  return result;
+}
+
+/**
+ * Classify a single track into Smart bucket label based on last interaction time.
+ * Uses backend numeric timestamp when available, otherwise falls back to string parsing.
+ * @param {Object} track
+ * @returns {string} One of: 'Never', 'Year+', 'Month+', 'Week+', 'Earlier than today', 'Today'
+ */
+export function getSmartBucketLabel(track) {
+  const MS_PER_DAY = 86400000;
+  const nowMs = Date.now();
+  const todayUtcStart = startOfUtcDay(nowMs);
+
+  const tsMs = (typeof track?.last_play_unix === 'number' && !Number.isNaN(track.last_play_unix))
+    ? (track.last_play_unix * 1000)
+    : getLastInteractionMs(track);
+
+  if (tsMs === null) return 'Never Played';
+
+  const tsDayStart = startOfUtcDay(tsMs);
+  const daysDiff = Math.floor((todayUtcStart - tsDayStart) / MS_PER_DAY);
+
+  if (daysDiff >= 365) return 'Played Over a Year Ago';
+  if (daysDiff >= 30)  return 'Played Over a Month Ago';
+  if (daysDiff >= 7)   return 'Played Over a Week Ago';
+  if (daysDiff >= 1)   return 'Played Earlier This Week';
+  return 'Played Today';
+}
+
+/**
+ * Map Smart bucket label to a stable slug for CSS/data attributes.
+ * @param {string} label
+ * @returns {string} slug id
+ */
+export function getSmartBucketSlug(label) {
+  const l = (label || '').toString().toLowerCase();
+  switch (l) {
+    // legacy labels
+    case 'never':
+    case 'never played':
+      return 'never';
+    case 'year+':
+    case 'played over a year ago':
+      return 'year';
+    case 'month+':
+    case 'played over a month ago':
+      return 'month';
+    case 'week+':
+    case 'played over a week ago':
+      return 'week';
+    case 'earlier than today':
+    case 'played earlier this week':
+      return 'earlier';
+    case 'today':
+    case 'played today':
+      return 'today';
+    default:
+      return 'other';
+  }
 }
 
 /**

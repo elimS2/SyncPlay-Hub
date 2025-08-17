@@ -76,6 +76,10 @@ export async function applyOrderMode(mode, skipSave = false) {
       return;
   }
 
+  // Update mode EARLY so dependent renders read the correct state
+  currentOrderMode = mode;
+  updateOrderButtonText(mode);
+
   // Apply the new queue
   setQueue(newQueue);
   console.log(logMessage);
@@ -112,10 +116,7 @@ export async function applyOrderMode(mode, skipSave = false) {
     deleteCurrentBtn.updateTooltip();
   }
   
-  // Update button text
-  updateOrderButtonText(mode);
-  
-  currentOrderMode = mode;
+  // currentOrderMode already set above
 }
 
 /**
@@ -215,6 +216,10 @@ export async function initializeTrackOrderManager(orderConfig) {
   // Apply initial order mode (skip saving since this is loading saved preference)
   setTimeout(async () => {
     await applyOrderMode(currentOrderMode, true);
+    try {
+      const list = document.getElementById('tracklist');
+      if (list) list.dataset.smart = (currentOrderMode === ORDER_MODES.SMART_SHUFFLE) ? '1' : '0';
+    } catch (e) {}
     // Force set first track and update UI after applying order
     if (typeof config?.playIndex === 'function') {
       config.playIndex(0);

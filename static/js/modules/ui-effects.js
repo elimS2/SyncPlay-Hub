@@ -2,6 +2,7 @@
 
 // Import dependencies
 import { formatFileSize } from './dom-utils.js';
+import { parseUtcTimestamp } from './player/playlist-utils.js';
 import { getCurrentLayoutMode, LAYOUT_MODES } from './playlist-layout-manager.js';
 
 /**
@@ -274,24 +275,44 @@ export function createTrackTooltipHTML(track) {
     audioInfoRowHTML = `<div class=\"tooltip-row\"><svg width=\"14\" height=\"14\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><path d=\"M11 5l6 2v10l-6 2V5z\"></path><rect x=\"3\" y=\"7\" width=\"4\" height=\"10\" rx=\"1\"></rect></svg><strong>Audio:</strong> ${audioParts.join(' · ')}</div>`;
   }
   
-  // Add last play date info
-  if (track.last_play) {
-    try {
-      const lastPlayDate = new Date(track.last_play.replace(' ', 'T') + 'Z');
-      const lastPlayFormatted = lastPlayDate.toLocaleDateString('en-US', {
+  // Add last play date info (with robust fallbacks)
+  (function renderLastPlayed() {
+    const tryFormatTs = (ts) => {
+      const ms = parseUtcTimestamp(ts);
+      if (ms === null) return null;
+      const d = new Date(ms);
+      return d.toLocaleDateString('en-US', {
         year: 'numeric',
         month: 'long',
         day: 'numeric',
         hour: '2-digit',
         minute: '2-digit'
       });
-      tooltipHTML += `<div class="tooltip-row"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12,6 12,12 16,14"></polyline></svg><strong>Last Played:</strong> ${lastPlayFormatted}</div>`;
-    } catch (e) {
-      tooltipHTML += `<div class="tooltip-row"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12,6 12,12 16,14"></polyline></svg><strong>Last Played:</strong> Never</div>`;
+    };
+
+    // Prefer aggregated last_play; fall back to individual fields
+    const formatted =
+      tryFormatTs(track.last_play) ||
+      tryFormatTs(track.last_finish_ts) ||
+      tryFormatTs(track.last_start_ts);
+
+    if (formatted) {
+      tooltipHTML += `<div class="tooltip-row"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12,6 12,12 16,14"></polyline></svg><strong>Last Played:</strong> ${formatted}</div>`;
+      return;
     }
-  } else {
-    tooltipHTML += `<div class="tooltip-row"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12,6 12,12 16,14"></polyline></svg><strong>Last Played:</strong> Never</div>`;
-  }
+
+    // If there was activity but timestamp missing (legacy data), show Unknown
+    const activityCount =
+      (track.play_starts || 0) +
+      (track.play_finishes || 0) +
+      (track.play_nexts || 0) +
+      (track.play_prevs || 0) +
+      (track.play_likes || 0) +
+      (track.play_dislikes || 0);
+
+    const label = activityCount > 0 ? 'Unknown' : 'Never';
+    tooltipHTML += `<div class="tooltip-row"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><polyline points="12,6 12,12 16,14"></polyline></svg><strong>Last Played:</strong> ${label}</div>`;
+  })();
 
   // Add media properties section (grouped)
   tooltipHTML += `<div class="tooltip-section"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="6" width="18" height="12" rx="2"></rect></svg><strong>Media Properties:</strong></div>`;

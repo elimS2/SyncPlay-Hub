@@ -310,6 +310,91 @@ html, body {
   white-space: pre-line;
 }
 
+/* Group separators for Smart buckets */
+.group-separator {
+  padding: 6px 10px;
+  margin: 8px 0 6px;
+  font-size: 12px;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.75);
+  background: rgba(255,255,255,0.08);
+  border-left: 3px solid rgba(255,255,255,0.25);
+  border-radius: 4px;
+}
+/* Show separators only in Smart mode */
+#tracklist[data-smart="0"] .group-separator { display: none !important; }
+
+/* Color accents per group (dark theme baseline) */
+.group-separator[data-group="never"] {
+  color: #ffffff;
+  background: rgba(255,255,255,0.10);
+  border-left-color: rgba(255,255,255,0.35);
+}
+
+.group-separator[data-group="year"] {
+  color: #61dafb; /* light blue */
+  background: rgba(97,218,251,0.10);
+  border-left-color: #61dafb;
+}
+
+.group-separator[data-group="month"] {
+  /* Muted purple (Nord palette inspired) */
+  color: #b48ead;
+  background: rgba(180,142,173,0.10);
+  border-left-color: #b48ead;
+}
+
+.group-separator[data-group="week"] {
+  color: #4ecdc4; /* teal */
+  background: rgba(78,205,196,0.10);
+  border-left-color: #4ecdc4;
+}
+
+.group-separator[data-group="earlier"] {
+  /* Muted yellow (Nord palette inspired) */
+  color: #ebcb8b;
+  background: rgba(235,203,139,0.10);
+  border-left-color: #ebcb8b;
+}
+
+.group-separator[data-group="today"] {
+  color: #10ac84; /* emerald */
+  background: rgba(16,172,132,0.10);
+  border-left-color: #10ac84;
+}
+
+/* Match track text color to its group's accent when Smart is active */
+#tracklist[data-smart="1"] li[data-group="year"],
+#tracklist[data-smart="1"] li[data-group="year"] .track-info { color: #61dafb !important; }
+
+#tracklist[data-smart="1"] li[data-group="month"],
+#tracklist[data-smart="1"] li[data-group="month"] .track-info { color: #b48ead !important; }
+
+#tracklist[data-smart="1"] li[data-group="week"],
+#tracklist[data-smart="1"] li[data-group="week"] .track-info { color: #4ecdc4 !important; }
+
+#tracklist[data-smart="1"] li[data-group="earlier"],
+#tracklist[data-smart="1"] li[data-group="earlier"] .track-info { color: #ebcb8b !important; }
+
+#tracklist[data-smart="1"] li[data-group="today"],
+#tracklist[data-smart="1"] li[data-group="today"] .track-info { color: #10ac84 !important; }
+
+/* Avoid coloring the playing item too faintly; increase contrast */
+#tracklist li.playing[data-group] .track-info {
+  font-weight: 600;
+}
+
+/* Light theme overrides */
+@media (prefers-color-scheme: light) {
+  .group-separator[data-group] {
+    color: #333;
+    background: rgba(0,0,0,0.04);
+    border-left-color: rgba(0,0,0,0.25);
+  }
+  .group-separator[data-group="never"] { color: #000; }
+}
+
 /* Custom tooltip with SVG icons */
 .custom-tooltip {
   position: fixed;

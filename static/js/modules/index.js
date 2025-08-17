@@ -10,7 +10,9 @@ export {
     detectChannelGroup, 
     orderByPublishDate, 
     triggerAutoDeleteCheck, 
-    loadTrack 
+    loadTrack,
+    getSmartBucketLabel,
+    getSmartBucketSlug 
 } from './player/playlist-utils.js';
 
 // Re-export from time-format.js
@@ -135,6 +137,9 @@ export {
   setupOrderToggleButton,
   initializeTrackOrderManager
 } from './track-order-manager.js';
+
+// Re-export unified tracklist renderer
+export { renderTrackList } from './tracklist-render.js';
 
 // Legacy compatibility - re-export everything from the original player-utils.js
 // This ensures existing imports continue to work during the transition

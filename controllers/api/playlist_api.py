@@ -321,6 +321,7 @@ def api_tracks_by_likes(like_count):
             t.last_start_ts,
             t.last_finish_ts,
             MAX(t.last_finish_ts, t.last_start_ts) as last_play,
+            strftime('%s', MAX(t.last_finish_ts, t.last_start_ts)) as last_play_unix,
             ym.timestamp,
             ym.release_timestamp,
             ym.release_year,
@@ -404,39 +405,40 @@ def api_tracks_by_likes(like_count):
                 "last_start_ts": row[9],
                 "last_finish_ts": row[10],
                 "last_play": row[11],
-                "timestamp": row[12],  # YouTube publish timestamp
-                "release_timestamp": row[13],
-                "release_year": row[14],
+                "last_play_unix": row[12],
+                "timestamp": row[13],  # YouTube publish timestamp
+                "release_timestamp": row[14],
+                "release_year": row[15],
                 "play_dislikes": play_dislikes,  # From batch query
                 "net_likes": net_likes,  # Calculated in code
                 "url": f"/media/{row[2]}",  # Use relpath, not video_id
                 
                 # Add YouTube metadata fields for tooltips (matching scan_tracks format)
-                "youtube_title": row[15],
-                "youtube_channel": row[16],
-                "youtube_duration": row[17],
-                "youtube_duration_string": row[18],
-                "youtube_view_count": row[19],
-                "youtube_uploader": row[20],
-                "youtube_channel_url": row[21],
-                "youtube_uploader_url": row[22],
-                "youtube_uploader_id": row[23],
-                "youtube_metadata_updated": row[24],
-                "size_bytes": row[25] or 0,  # Add file size for tooltip
-                "bitrate": row[26],
-                "resolution": row[27],
-                "filetype": row[28],
-                "video_fps": row[29],
-                "video_codec": row[30],
-                "audio_codec": row[31],
-                "audio_bitrate": row[32],
-                "audio_sample_rate": row[33],
+                "youtube_title": row[16],
+                "youtube_channel": row[17],
+                "youtube_duration": row[18],
+                "youtube_duration_string": row[19],
+                "youtube_view_count": row[20],
+                "youtube_uploader": row[21],
+                "youtube_channel_url": row[22],
+                "youtube_uploader_url": row[23],
+                "youtube_uploader_id": row[24],
+                "youtube_metadata_updated": row[25],
+                "size_bytes": row[26] or 0,  # Add file size for tooltip
+                "bitrate": row[27],
+                "resolution": row[28],
+                "filetype": row[29],
+                "video_fps": row[30],
+                "video_codec": row[31],
+                "audio_codec": row[32],
+                "audio_bitrate": row[33],
+                "audio_sample_rate": row[34],
                 # No numeric codec-based guesses here to avoid misleading values
                 
                 # Add properly named timestamp fields for compatibility
-                "youtube_timestamp": row[12],
-                "youtube_release_timestamp": row[13],
-                "youtube_release_year": row[14]
+                "youtube_timestamp": row[13],
+                "youtube_release_timestamp": row[14],
+                "youtube_release_year": row[15]
             }
             
             # Add channel handle (@channelname) info - same logic as scan_tracks
