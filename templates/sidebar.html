@@ -17,6 +17,12 @@
         </a>
       </li>
       <li class="nav-item">
+        <a href="/likes" class="nav-link {{ 'active' if request.endpoint in ['likes_playlists_page', 'likes_player_page'] else '' }}">
+          <span class="nav-icon nav-icon-likes"></span>
+          Likes Playlists
+        </a>
+      </li>
+      <li class="nav-item">
         <a href="/tracks" class="nav-link {{ 'active' if request.endpoint == 'tracks' else '' }}">
           <span class="nav-icon nav-icon-tracks"></span>
           Track Library

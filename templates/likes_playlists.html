@@ -6,126 +6,12 @@
   <title>Virtual Playlists by Likes - YouTube Player</title>
   <!-- Favicon using emoji -->
   <link rel="icon" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='0.9em' font-size='90'>❤️</text></svg>">
+  <!-- Include shared sidebar styles for unified responsive behavior -->
+  {% include 'sidebar_styles.html' %}
   <style>
-    :root {
-      --bg-primary: #0a0a0a;
-      --bg-secondary: #1a1a1a;
-      --bg-card: #222;
-      --bg-hover: #333;
-      --text-primary: #fff;
-      --text-secondary: #aaa;
-      --text-muted: #666;
-      --accent: #61dafb;
-      --accent-hover: #4fa8c5;
-      --success: #4caf50;
-      --warning: #ff9800;
-      --error: #f44336;
-      --border: #333;
-      --shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
-      --sidebar-width: 250px;
-      --likes-color: #ff4757;
-    }
+    :root { --likes-color: #ff4757; }
 
-    @media (prefers-color-scheme: light) {
-      :root {
-        --bg-primary: #f8f9fa;
-        --bg-secondary: #fff;
-        --bg-card: #fff;
-        --bg-hover: #f0f0f0;
-        --text-primary: #333;
-        --text-secondary: #666;
-        --text-muted: #999;
-        --accent: #0066cc;
-        --accent-hover: #0052a3;
-        --success: #28a745;
-        --warning: #fd7e14;
-        --error: #dc3545;
-        --border: #dee2e6;
-        --shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-      }
-    }
-
-    * {
-      box-sizing: border-box;
-    }
-
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
-      background: var(--bg-primary);
-      color: var(--text-primary);
-      margin: 0;
-      padding: 0;
-      line-height: 1.6;
-    }
-
-    .layout {
-      display: flex;
-      min-height: 100vh;
-    }
-
-    /* Left Sidebar Navigation */
-    .sidebar {
-      width: var(--sidebar-width);
-      background: var(--bg-secondary);
-      border-right: 1px solid var(--border);
-      padding: 20px 0;
-      position: fixed;
-      height: 100vh;
-      overflow-y: auto;
-    }
-
-    .sidebar-header {
-      padding: 0 20px 20px 20px;
-      border-bottom: 1px solid var(--border);
-      margin-bottom: 20px;
-    }
-
-    .sidebar-title {
-      font-size: 18px;
-      font-weight: 600;
-      color: var(--accent);
-      margin: 0;
-    }
-
-    .nav-menu {
-      list-style: none;
-      padding: 0;
-      margin: 0;
-    }
-
-    .nav-item {
-      margin-bottom: 2px;
-    }
-
-    .nav-link {
-      display: flex;
-      align-items: center;
-      padding: 12px 20px;
-      color: var(--text-secondary);
-      text-decoration: none;
-      transition: all 0.2s ease;
-      font-size: 14px;
-      font-weight: 500;
-    }
-
-    .nav-link:hover, .nav-link.active {
-      background: var(--bg-hover);
-      color: var(--accent);
-    }
-
-    .nav-icon {
-      width: 20px;
-      margin-right: 12px;
-      text-align: center;
-    }
-
-    /* Main Content */
-    .main-content {
-      flex: 1;
-      margin-left: var(--sidebar-width);
-      padding: 20px;
-    }
-
+    /* Page-specific components */
     .header {
       display: flex;
       justify-content: space-between;
@@ -323,98 +209,26 @@
       margin: 20px 0;
     }
 
-    /* Responsive */
+    /* Responsive refinements specific to Likes table */
     @media (max-width: 768px) {
-      .sidebar {
-        display: none;
-      }
-      
-      .main-content {
-        margin-left: 0;
-        padding: 15px;
-      }
-
-      .likes-section {
-        overflow-x: auto;
-      }
-
-      table {
-        font-size: 12px;
-      }
-
-      th, td {
-        padding: 8px 12px;
-      }
-
-      .table-btn {
-        padding: 6px 12px;
-        font-size: 11px;
-      }
+      .main-content { padding: 15px; }
+      .likes-section { overflow-x: auto; }
+      table { font-size: 12px; }
+      th, td { padding: 8px 12px; }
+      .table-btn { padding: 6px 12px; font-size: 11px; }
     }
   </style>
 </head>
 <body>
+  <!-- Mobile Menu Button -->
+  <button class="mobile-menu-btn" onclick="toggleSidebar()">☰</button>
+
   <div class="layout">
-    <!-- Left Sidebar Navigation -->
-    <nav class="sidebar">
-      <div class="sidebar-header">
-        <h2 class="sidebar-title">🎵 YouTube Player</h2>
-      </div>
-      
-      <ul class="nav-menu">
-        <li class="nav-item">
-          <a href="/" class="nav-link">
-            <span class="nav-icon">🏠</span>
-            Home
-          </a>
-        </li>
-        <li class="nav-item">
-          <a href="/playlists" class="nav-link">
-            <span class="nav-icon">📋</span>
-            Playlists
-          </a>
-        </li>
-        <li class="nav-item">
-          <a href="/likes" class="nav-link active">
-            <span class="nav-icon">❤️</span>
-            Likes Playlists
-          </a>
-        </li>
-        <li class="nav-item">
-          <a href="/channels" class="nav-link">
-            <span class="nav-icon">📺</span>
-            Channels
-          </a>
-        </li>
-        <li class="nav-item">
-          <a href="/tracks" class="nav-link">
-            <span class="nav-icon">🎵</span>
-            All Tracks
-          </a>
-        </li>
-        <li class="nav-item">
-          <a href="/history" class="nav-link">
-            <span class="nav-icon">📊</span>
-            Events
-          </a>
-        </li>
-        <li class="nav-item">
-          <a href="/deleted" class="nav-link">
-            <span class="nav-icon">🗑️</span>
-            Deleted
-          </a>
-        </li>
-        <li class="nav-item">
-          <a href="/remote" class="nav-link">
-            <span class="nav-icon">📱</span>
-            Remote
-          </a>
-        </li>
-      </ul>
-    </nav>
+    <!-- Include Universal Sidebar -->
+    {% include 'sidebar.html' %}
 
     <!-- Main Content -->
-    <main class="main-content">
+    <div class="main-content">
       <div class="header">
         <h1 class="page-title">
           <span class="likes-icon">❤️</span>
@@ -475,7 +289,7 @@
         <h3>😔 No tracks with likes</h3>
         <p>Like tracks using the ❤️ button in the player to create virtual playlists!</p>
       </div>
-    </main>
+    </div>
   </div>
 
   <script>
@@ -568,6 +382,24 @@
 
     // Load data when page loads
     window.addEventListener('DOMContentLoaded', loadLikesStats);
+  </script>
+
+  <!-- Mobile sidebar toggle and outside-click close -->
+  <script>
+    function toggleSidebar() {
+      const sidebar = document.querySelector('.sidebar');
+      if (sidebar) sidebar.classList.toggle('open');
+    }
+
+    document.addEventListener('click', function(event) {
+      const sidebar = document.querySelector('.sidebar');
+      const menuBtn = document.querySelector('.mobile-menu-btn');
+      if (window.innerWidth <= 768 && sidebar && sidebar.classList.contains('open')) {
+        if (!sidebar.contains(event.target) && !menuBtn.contains(event.target)) {
+          sidebar.classList.remove('open');
+        }
+      }
+    });
   </script>
 </body>
 </html> 
