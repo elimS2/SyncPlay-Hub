@@ -104,6 +104,25 @@
             </div>
           </div>
         </div>
+        
+        <!-- YouTube Qualities (moved here between File Properties and Usage Stats) -->
+        <div class="card" id="ytQualitiesSection">
+          <h3 class="section-title">YouTube Qualities</h3>
+          <div class="kv">
+            <div class="muted">Summary</div>
+            <div>
+              <span id="ytQualitiesSummary">{% if metadata and metadata.get('available_qualities_summary') %}{{ metadata['available_qualities_summary'] }}{% else %}-{% endif %}</span>
+              <button id="rescanYoutubeBtn" class="inline-action" title="Rescan YouTube metadata" style="margin-left:8px; padding:2px 8px; font-size:12px;">⟲ Rescan YouTube</button>
+              <button id="refreshYoutubeBtn" class="inline-action" title="Refresh from database" style="margin-left:6px; padding:2px 8px; font-size:12px;">↻ Refresh</button>
+            </div>
+          </div>
+          <div id="ytFormatsToolbar" style="margin-top:8px; display:flex; flex-wrap:wrap; gap:6px; align-items:center;"></div>
+          <details style="margin-top:8px;">
+            <summary class="muted">Show details</summary>
+            <div id="ytFormatsContainer" class="mono" style="margin-top:6px; font-size:12px; white-space:pre-wrap;"></div>
+          </details>
+        </div>
+
         <div class="card">
           <h3 class="section-title">Usage Stats</h3>
           <div class="kv">
@@ -162,23 +181,7 @@
         {% endif %}
       </div>
 
-      <!-- YouTube Qualities -->
-      <div class="card section" id="ytQualitiesSection">
-        <h3 class="section-title">YouTube Qualities</h3>
-        <div class="kv">
-          <div class="muted">Summary</div>
-          <div>
-            <span id="ytQualitiesSummary">{% if metadata and metadata.get('available_qualities_summary') %}{{ metadata['available_qualities_summary'] }}{% else %}-{% endif %}</span>
-            <button id="rescanYoutubeBtn" class="inline-action" title="Rescan YouTube metadata" style="margin-left:8px; padding:2px 8px; font-size:12px;">⟲ Rescan YouTube</button>
-            <button id="refreshYoutubeBtn" class="inline-action" title="Refresh from database" style="margin-left:6px; padding:2px 8px; font-size:12px;">↻ Refresh</button>
-          </div>
-        </div>
-        <div id="ytFormatsToolbar" style="margin-top:8px; display:flex; flex-wrap:wrap; gap:6px; align-items:center;"></div>
-        <details style="margin-top:8px;">
-          <summary class="muted">Show details</summary>
-          <div id="ytFormatsContainer" class="mono" style="margin-top:6px; font-size:12px; white-space:pre-wrap;"></div>
-        </details>
-      </div>
+      
 
       <!-- Optional Raw Data (for debugging) -->
       <details class="section">
@@ -432,9 +435,9 @@
         parts.push(f.ext);
         if (f.note) parts.push(f.note);
         const label = parts.join(' · ');
-        rows.push(`<div style="display:flex; align-items:center; gap:8px; justify-content:space-between;">
-          <span>- ${f.id}: ${label}</span>
+        rows.push(`<div style="display:flex; align-items:center; gap:12px;">
           <button class="inline-action format-action" data-fid="${f.id}">Download this quality</button>
+          <span>- ${f.id}: ${label}</span>
         </div>`);
       }
       if (filtered.length > maxLines) rows.push(`<div class="muted">… and ${filtered.length - maxLines} more</div>`);

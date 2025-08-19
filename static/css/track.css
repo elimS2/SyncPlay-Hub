@@ -58,7 +58,7 @@
 .kv {
   display: grid;
   grid-template-columns: 120px 1fr;
-  gap: 10px 16px;
+  gap: 0px 16px;
 }
 
 .kv div {
@@ -120,6 +120,31 @@
 .format-action {
   padding: 8px 12px !important;
   font-size: 14px !important;
+}
+
+/* Make download buttons look more like matte buttons in YouTube Qualities */
+#ytQualitiesSection button.format-action[data-fid] {
+  background: rgba(37, 99, 235, 0.16); /* soft accent */
+  color: var(--text-primary);
+  border-color: rgba(37, 99, 235, 0.35);
+  font-weight: 600;
+  box-shadow: none;
+}
+#ytQualitiesSection button.format-action[data-fid]:hover {
+  background: rgba(37, 99, 235, 0.24);
+  border-color: rgba(37, 99, 235, 0.5);
+}
+#ytQualitiesSection button.format-action[data-fid]:focus {
+  outline: 2px solid rgba(37, 99, 235, 0.5);
+  outline-offset: 2px;
+}
+#ytQualitiesSection button.format-action[data-fid]:disabled {
+  opacity: 0.75;
+}
+
+/* Add vertical spacing between quality rows */
+#ytFormatsContainer > div {
+  margin: 6px 0;
 }
 
 /* Responsive adjustments */
