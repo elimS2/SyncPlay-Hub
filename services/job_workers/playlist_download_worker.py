@@ -722,7 +722,7 @@ class PlaylistDownloadWorker(JobWorker):
 
             print(f"[yt-dlp] Detected yt-dlp version: {version_str}")
 
-            min_required = str(config.get('YTDLP_MIN_VERSION', '2025.8.11')).strip()
+            min_required = str(config.get('YTDLP_MIN_VERSION', '2025.8.20')).strip()
 
             def parse_v(s: str):
                 try:
