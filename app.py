@@ -58,6 +58,32 @@ ROOT_DIR = None
 LOGS_DIR = None
 SERVER_START_TIME = None
 
+def build_server_info():
+    """Build server info dict once per request for templates and APIs."""
+    try:
+        now = datetime.datetime.now()
+        if not SERVER_START_TIME:
+            return {
+                'pid': os.getpid(),
+                'start_time': None,
+                'current_time': now.strftime('%Y-%m-%d %H:%M:%S'),
+                'uptime': 'N/A',
+            }
+        uptime = now - SERVER_START_TIME
+        uptime_str = str(uptime).split('.')[0]
+        return {
+            'pid': os.getpid(),
+            'start_time': SERVER_START_TIME.strftime('%Y-%m-%d %H:%M:%S'),
+            'current_time': now.strftime('%Y-%m-%d %H:%M:%S'),
+            'uptime': uptime_str,
+        }
+    except Exception:
+        return None
+
+@app.context_processor
+def inject_server_info():
+    return { 'server_info': build_server_info() }
+
 def _get_local_ip() -> str:
     """Get local IP address for external access."""
     import socket
@@ -217,19 +243,9 @@ def playlists_page():
     """Homepage – list all playlists (sub-folders)."""
     playlists = list_playlists(ROOT_DIR)
     
-    # Calculate uptime
-    uptime = datetime.datetime.now() - SERVER_START_TIME
-    uptime_str = str(uptime).split('.')[0]  # Remove microseconds
-    
-    server_info = {
-        "pid": os.getpid(),
-        "start_time": SERVER_START_TIME.strftime("%Y-%m-%d %H:%M:%S"),
-        "current_time": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        "uptime": uptime_str
-    }
     active_downloads = get_active_downloads()
     return render_template("playlists.html", playlists=playlists, server_ip=_get_local_ip(), 
-                          server_info=server_info, active_downloads=active_downloads)
+                          active_downloads=active_downloads)
 
 @app.route("/playlist/<path:playlist_path>")
 def playlist_page(playlist_path: str):
@@ -405,17 +421,6 @@ def tracks_page():
     finally:
         conn.close()
     
-    # Calculate uptime for server info
-    uptime = datetime.datetime.now() - SERVER_START_TIME
-    uptime_str = str(uptime).split('.')[0]  # Remove microseconds
-    
-    server_info = {
-        "pid": os.getpid(),
-        "start_time": SERVER_START_TIME.strftime("%Y-%m-%d %H:%M:%S"),
-        "current_time": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        "uptime": uptime_str
-    }
-    
     # Filters model passed to template
     filters = {
         "resolutions": resolutions_selected,
@@ -447,7 +452,6 @@ def tracks_page():
         tracks=tracks,
         search_query=search_query,
         include_deleted=include_deleted,
-        server_info=server_info,
         filters=filters,
         facets=facets,
         pagination=pagination,
@@ -608,32 +612,12 @@ def events_page():
         'video_id_filter': video_id_filter or ''
     }
     
-    # Calculate uptime for server info
-    uptime = datetime.datetime.now() - SERVER_START_TIME
-    uptime_str = str(uptime).split('.')[0]  # Remove microseconds
-    server_info = {
-        'pid': os.getpid(),
-        'start_time': SERVER_START_TIME.strftime('%Y-%m-%d %H:%M:%S'),
-        'current_time': datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-        'uptime': uptime_str
-    }
-    
-    return render_template("history.html", history=rows, page=page, has_next=has_next, filters=filter_params, request=request, server_info=server_info)
+    return render_template("history.html", history=rows, page=page, has_next=has_next, filters=filter_params, request=request)
 
 @app.route("/backups")
 def backups_page():
     """Database Backups Page."""
-    # Calculate uptime for server info
-    uptime = datetime.datetime.now() - SERVER_START_TIME
-    uptime_str = str(uptime).split('.')[0]  # Remove microseconds
-    server_info = {
-        'pid': os.getpid(),
-        'start_time': SERVER_START_TIME.strftime('%Y-%m-%d %H:%M:%S'),
-        'current_time': datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-        'uptime': uptime_str
-    }
-    
-    return render_template("backups.html", server_info=server_info)
+    return render_template("backups.html")
 
 @app.route("/favicon.ico")
 def favicon():
@@ -799,17 +783,7 @@ def channels_page():
 @app.route("/deleted")
 def deleted_tracks_page():
     """Deleted tracks restoration page."""
-    # Calculate uptime for server info
-    uptime = datetime.datetime.now() - SERVER_START_TIME
-    uptime_str = str(uptime).split('.')[0]  # Remove microseconds
-    server_info = {
-        'pid': os.getpid(),
-        'start_time': SERVER_START_TIME.strftime('%Y-%m-%d %H:%M:%S'),
-        'current_time': datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-        'uptime': uptime_str
-    }
-    
-    return render_template("deleted.html", server_info=server_info)
+    return render_template("deleted.html")
 
 @app.route("/jobs")
 def jobs_page():
@@ -896,15 +870,6 @@ def likes_player_page(like_count: int):
 @app.route("/tests")
 def tests_index():
     """Manual tests index page."""
-    # Server info for sidebar
-    uptime = datetime.datetime.now() - SERVER_START_TIME
-    uptime_str = str(uptime).split('.')[0]
-    server_info = {
-        'pid': os.getpid(),
-        'start_time': SERVER_START_TIME.strftime('%Y-%m-%d %H:%M:%S'),
-        'current_time': datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-        'uptime': uptime_str
-    }
     tests = [
         {
             'id': 'track_detail',
@@ -912,35 +877,17 @@ def tests_index():
             'description': 'End-to-end manual validation of the /track/<video_id> page.'
         },
     ]
-    return render_template('tests/index.html', tests=tests, server_info=server_info)
+    return render_template('tests/index.html', tests=tests)
 
 @app.route("/tests/track_detail")
 def tests_track_detail():
     """Manual test page for Track Detail feature with pass/fail controls."""
-    # Server info for sidebar
-    uptime = datetime.datetime.now() - SERVER_START_TIME
-    uptime_str = str(uptime).split('.')[0]
-    server_info = {
-        'pid': os.getpid(),
-        'start_time': SERVER_START_TIME.strftime('%Y-%m-%d %H:%M:%S'),
-        'current_time': datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-        'uptime': uptime_str
-    }
-    return render_template('tests/track_detail.html', server_info=server_info)
+    return render_template('tests/track_detail.html')
 
 @app.route("/tests/media_rescan")
 def tests_media_rescan():
     """Manual links page for Media Properties Rescan feature."""
-    # Server info for sidebar
-    uptime = datetime.datetime.now() - SERVER_START_TIME
-    uptime_str = str(uptime).split('.')[0]
-    server_info = {
-        'pid': os.getpid(),
-        'start_time': SERVER_START_TIME.strftime('%Y-%m-%d %H:%M:%S'),
-        'current_time': datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-        'uptime': uptime_str
-    }
-    return render_template('tests/media_properties_rescan.html', server_info=server_info)
+    return render_template('tests/media_properties_rescan.html')
 
 # Register API blueprints
 app.register_blueprint(api_bp)
@@ -967,16 +914,7 @@ def _load_env_config():
 @app.route("/api/server_info")
 def get_server_info():
     """API endpoint to get current server information for dynamic updates."""
-    uptime = datetime.datetime.now() - SERVER_START_TIME
-    uptime_str = str(uptime).split('.')[0]  # Remove microseconds
-    
-    server_info = {
-        "pid": os.getpid(),
-        "start_time": SERVER_START_TIME.strftime("%Y-%m-%d %H:%M:%S"),
-        "current_time": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        "uptime": uptime_str
-    }
-    
+    server_info = build_server_info()
     return jsonify(server_info)
 
 def main():
