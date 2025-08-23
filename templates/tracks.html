@@ -426,6 +426,22 @@
       sidebar.classList.toggle('open');
     }
     
+    // Ensure search query with special chars (e.g., #) is properly encoded on submit
+    (function(){
+      const form = document.querySelector('.search-form');
+      if(!form) return;
+      form.addEventListener('submit', function(e){
+        try{
+          const params = new URLSearchParams(new FormData(form));
+          const url = '/tracks?' + params.toString();
+          e.preventDefault();
+          window.location.assign(url);
+        }catch(err){
+          // Fallback to default form submit if URLSearchParams is unavailable
+        }
+      });
+    })();
+    
     // Close sidebar when clicking outside on mobile
     document.addEventListener('click', function(event) {
       const sidebar = document.querySelector('.sidebar');
