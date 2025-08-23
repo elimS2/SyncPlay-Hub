@@ -78,8 +78,14 @@ class JobQueueService:
             'total_jobs': 0,
             'completed_jobs': 0,
             'failed_jobs': 0,
-            'start_time': datetime.utcnow()
+            'start_time': datetime.utcnow(),
+            'recovered_jobs': 0,
+            'prepared_for_resume': 0,
+            'priority_boosted': 0
         }
+        
+        # Queue control
+        self._paused = False
         
         # Phase 7: Performance monitoring and database optimization
         self._performance_monitor = None
@@ -94,7 +100,36 @@ class JobQueueService:
         
         # Initialization
         self._init_database()
+        # Pause dequeuing during startup recovery
+        self._paused = True
+        try:
+            # Load recovery strategy settings
+            recovery_strategy = 'retrying'
+            increment_retry = False
+            boost_priority = True
+            boost_target = 'HIGH'
+            try:
+                with sqlite3.connect(self.db_path) as conn:
+                    # use DB user settings if available
+                    recovery_strategy = get_user_setting(conn, 'job_restart_recovery_strategy', 'retrying') or 'retrying'
+                    increment_retry = (get_user_setting(conn, 'job_restart_increment_retry_on_recover', 'false') or 'false').lower() == 'true'
+                    boost_priority = (get_user_setting(conn, 'job_restart_boost_priority', 'true') or 'true').lower() == 'true'
+                    boost_target = (get_user_setting(conn, 'job_restart_boost_target_priority', 'HIGH') or 'HIGH').upper()
+            except Exception:
+                pass
+
+            recovered = self._startup_recovery_sweep(strategy=recovery_strategy, increment_retry=increment_retry, boost_priority=boost_priority, boost_target=boost_target)
+            if recovered:
+                print(f"Startup recovery sweep: re-queued {recovered} orphaned running job(s)")
+            with self._lock:
+                self._stats['recovered_jobs'] += int(recovered or 0)
+        except Exception as e:
+            print(f"Warning: startup recovery sweep failed: {e}")
+        # Start workers; they will respect pause until unpaused below
         self._start_worker_threads()
+        # Unpause after workers started
+        with self._lock:
+            self._paused = False
     
     def _init_database(self):
         """Initialize database for job queue operations."""
@@ -184,6 +219,9 @@ class JobQueueService:
     def _get_next_job(self) -> Optional[Job]:
         """Get next job for execution."""
         with self._lock:
+            # If paused (e.g., preparing for restart), do not dequeue new jobs
+            if self._paused:
+                return None
             # Use optimized database connection if available
             if self._database_optimizer:
                 with self._database_optimizer.get_optimized_connection() as conn:
@@ -279,6 +317,202 @@ class JobQueueService:
         job.started_at = datetime.utcnow()
         
         return job
+
+    def _startup_recovery_sweep(self, strategy: str = 'retrying', increment_retry: bool = False, boost_priority: bool = True, boost_target: str = 'HIGH') -> int:
+        """On startup, recover orphaned jobs left in 'running' state.
+
+        Args:
+            strategy: 'retrying' (default) or 'pending'.
+            increment_retry: whether to increase retry_count when recovering.
+
+        Returns:
+            Number of jobs recovered.
+        """
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            # Derive numeric priority for boost
+            boost_map = {
+                'LOW': 0,
+                'NORMAL': 5,
+                'HIGH': 10,
+                'URGENT': 15,
+                'CRITICAL': 20,
+            }
+            boost_value = boost_map.get(boost_target.upper(), 10)
+            if strategy == 'pending':
+                if boost_priority:
+                    cursor.execute(
+                        """
+                        UPDATE job_queue
+                        SET status = 'pending',
+                            started_at = NULL,
+                            worker_id = NULL,
+                            next_retry_at = NULL,
+                            priority = CASE WHEN priority < ? THEN ? ELSE priority END,
+                            error_message = COALESCE(NULLIF(error_message, ''), 'Recovered after server restart')
+                        WHERE status = 'running'
+                        """,
+                        (boost_value, boost_value)
+                    )
+                else:
+                    cursor.execute(
+                        """
+                        UPDATE job_queue
+                        SET status = 'pending',
+                            started_at = NULL,
+                            worker_id = NULL,
+                            next_retry_at = NULL,
+                            error_message = COALESCE(NULLIF(error_message, ''), 'Recovered after server restart')
+                        WHERE status = 'running'
+                        """
+                    )
+            else:
+                # default: retrying
+                if increment_retry:
+                    if boost_priority:
+                        cursor.execute(
+                            """
+                            UPDATE job_queue
+                            SET status = 'retrying',
+                                started_at = NULL,
+                                worker_id = NULL,
+                                next_retry_at = CURRENT_TIMESTAMP,
+                                retry_count = retry_count + 1,
+                                priority = CASE WHEN priority < ? THEN ? ELSE priority END,
+                                error_message = COALESCE(NULLIF(error_message, ''), 'Recovered after server restart')
+                            WHERE status = 'running'
+                            """,
+                            (boost_value, boost_value)
+                        )
+                    else:
+                        cursor.execute(
+                            """
+                            UPDATE job_queue
+                            SET status = 'retrying',
+                                started_at = NULL,
+                                worker_id = NULL,
+                                next_retry_at = CURRENT_TIMESTAMP,
+                                retry_count = retry_count + 1,
+                                error_message = COALESCE(NULLIF(error_message, ''), 'Recovered after server restart')
+                            WHERE status = 'running'
+                            """
+                        )
+                else:
+                    if boost_priority:
+                        cursor.execute(
+                            """
+                            UPDATE job_queue
+                            SET status = 'retrying',
+                                started_at = NULL,
+                                worker_id = NULL,
+                                next_retry_at = CURRENT_TIMESTAMP,
+                                priority = CASE WHEN priority < ? THEN ? ELSE priority END,
+                                error_message = COALESCE(NULLIF(error_message, ''), 'Recovered after server restart')
+                            WHERE status = 'running'
+                            """,
+                            (boost_value, boost_value)
+                        )
+                    else:
+                        cursor.execute(
+                            """
+                            UPDATE job_queue
+                            SET status = 'retrying',
+                                started_at = NULL,
+                                worker_id = NULL,
+                                next_retry_at = CURRENT_TIMESTAMP,
+                                error_message = COALESCE(NULLIF(error_message, ''), 'Recovered after server restart')
+                            WHERE status = 'running'
+                            """
+                        )
+            conn.commit()
+            return cursor.rowcount
+
+    def pause_dequeuing(self) -> None:
+        """Pause taking new jobs from the queue (does not interrupt current executions)."""
+        with self._lock:
+            self._paused = True
+
+    def prepare_for_restart(self, eager_resume: bool = True, boost_priority: bool = True, boost_target: str = 'HIGH') -> int:
+        """Prepare queue for process restart.
+
+        - Pauses dequeuing so no new jobs start during restart.
+        - Optionally marks currently running jobs for immediate resume after restart
+          by converting them to 'retrying' with next_retry_at = NOW and clearing
+          started_at/worker_id. This does not interrupt their execution; it only
+          ensures that, if the process exits, the job will be re-queued on boot.
+
+        Returns:
+            Number of jobs marked for resume.
+        """
+        self.pause_dequeuing()
+        if not eager_resume:
+            return 0
+
+        # Collect currently running job IDs (in-memory authoritative for this process)
+        with self._lock:
+            running_ids = list(self._running_jobs.keys())
+
+        if not running_ids:
+            return 0
+
+        # Update only those running jobs owned by this process to avoid broad changes
+        placeholders = ",".join(["?"] * len(running_ids))
+        updated = 0
+        with sqlite3.connect(self.db_path) as conn:
+            cursor = conn.cursor()
+            if boost_priority:
+                boost_map = {
+                    'LOW': 0,
+                    'NORMAL': 5,
+                    'HIGH': 10,
+                    'URGENT': 15,
+                    'CRITICAL': 20,
+                }
+                boost_value = boost_map.get(boost_target.upper(), 10)
+                cursor.execute(
+                    f"""
+                    UPDATE job_queue
+                    SET status = 'retrying',
+                        started_at = NULL,
+                        worker_id = NULL,
+                        next_retry_at = CURRENT_TIMESTAMP,
+                        priority = CASE WHEN priority < ? THEN ? ELSE priority END,
+                        error_message = COALESCE(NULLIF(error_message, ''), 'Prepared for resume after restart')
+                    WHERE id IN ({placeholders})
+                    """,
+                    [boost_value, boost_value, *running_ids]
+                )
+            else:
+                cursor.execute(
+                    f"""
+                    UPDATE job_queue
+                    SET status = 'retrying',
+                        started_at = NULL,
+                        worker_id = NULL,
+                        next_retry_at = CURRENT_TIMESTAMP,
+                        error_message = COALESCE(NULLIF(error_message, ''), 'Prepared for resume after restart')
+                    WHERE id IN ({placeholders})
+                    """,
+                    running_ids
+                )
+            conn.commit()
+            updated = cursor.rowcount
+        with self._lock:
+            self._stats['prepared_for_resume'] += int(updated or 0)
+            if boost_priority and updated:
+                self._stats['priority_boosted'] += int(updated or 0)
+
+        # Reflect changes in memory as well
+        with self._lock:
+            for job_id in running_ids:
+                job = self._running_jobs.get(job_id)
+                if job:
+                    job.status = JobStatus.RETRYING
+                    job.started_at = None
+                    job.worker_id = None
+                    if not job.error_message:
+                        job.error_message = 'Prepared for resume after restart'
+        return updated
     
     def _execute_job(self, job: Job, worker_name: str):
         """Execute a job."""
@@ -1048,7 +1282,12 @@ class JobQueueService:
                 'completed_jobs': completed_jobs,
                 'failed_jobs': failed_jobs,
                 'pending_jobs': pending_jobs,
-                'uptime_seconds': uptime
+                'uptime_seconds': uptime,
+                'recovery': {
+                    'recovered_jobs': self._stats.get('recovered_jobs', 0),
+                    'prepared_for_resume': self._stats.get('prepared_for_resume', 0),
+                    'priority_boosted': self._stats.get('priority_boosted', 0)
+                }
             }
             
         except Exception as e:
@@ -1076,6 +1315,9 @@ class JobQueueService:
             print("Starting Job Queue Service workers...")
             self._stop_event.clear()
             self._worker_threads.clear()
+            # Ensure queue is unpaused on (re)start
+            with self._lock:
+                self._paused = False
             self._start_worker_threads()
             print(f"Job Queue Service started with {len(self._worker_threads)} workers")
     

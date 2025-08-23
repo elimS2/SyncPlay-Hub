@@ -24,6 +24,25 @@ def api_restart():
         # Give a moment for the response to be sent
         time.sleep(0.5)
         
+        # Prepare job queue for restart: pause and mark running jobs for eager resume
+        try:
+            from services.job_queue_service import get_job_queue_service
+            job_service = get_job_queue_service()
+            # Read eager resume toggle from settings if available
+            eager_resume = True
+            try:
+                from database import get_user_setting, get_connection
+                with get_connection() as conn:
+                    eager_resume = (get_user_setting(conn, 'job_restart_eager_resume', 'true') or 'true').lower() == 'true'
+                    boost_priority = (get_user_setting(conn, 'job_restart_boost_priority', 'true') or 'true').lower() == 'true'
+                    boost_target = (get_user_setting(conn, 'job_restart_boost_target_priority', 'HIGH') or 'HIGH').upper()
+            except Exception:
+                pass
+            resumed = job_service.prepare_for_restart(eager_resume=eager_resume, boost_priority=boost_priority, boost_target=boost_target)
+            log_message(f"Prepared job queue for restart. Jobs marked for resume: {resumed}")
+        except Exception as e:
+            log_message(f"Warning: Failed to prepare job queue for restart: {e}")
+
         # Log current PID before restart
         current_pid = os.getpid()
         log_message(f"Initiating restart of server PID {current_pid} at {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")

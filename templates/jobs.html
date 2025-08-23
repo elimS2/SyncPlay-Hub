@@ -60,6 +60,10 @@
                         Queue Status
                     </div>
                     <div class="card-body">
+                        <div id="recoveryBanner" class="alert" style="display:none; margin-bottom:12px;">
+                            <strong>Jobs recovered after restart:</strong>
+                            <span id="recoveryCounts"></span>
+                        </div>
                         <div class="status-grid" id="statusGrid">
                             <div class="loading">
                                 <div class="spinner"></div>
@@ -532,6 +536,19 @@
 
         function renderQueueStatus(stats) {
             const container = document.getElementById('statusGrid');
+            const recovery = stats.recovery || {};
+            const recovered = recovery.recovered_jobs || 0;
+            const prepared = recovery.prepared_for_resume || 0;
+            const boosted = recovery.priority_boosted || 0;
+            const banner = document.getElementById('recoveryBanner');
+            const counts = document.getElementById('recoveryCounts');
+            if ((recovered + prepared) > 0) {
+                banner.style.display = 'block';
+                counts.textContent = `recovered=${recovered}, prepared=${prepared}, boosted=${boosted}`;
+                banner.className = 'alert success';
+            } else {
+                banner.style.display = 'none';
+            }
             
             const html = `
                 <div class="status-item">
@@ -561,6 +578,18 @@
                 <div class="status-item">
                     <h3>${Math.floor(stats.uptime_seconds / 60)}m</h3>
                     <p>Uptime</p>
+                </div>
+                <div class="status-item">
+                    <h3>${recovered}</h3>
+                    <p>Recovered Jobs</p>
+                </div>
+                <div class="status-item">
+                    <h3>${prepared}</h3>
+                    <p>Prepared for Resume</p>
+                </div>
+                <div class="status-item">
+                    <h3>${boosted}</h3>
+                    <p>Priority Boosted</p>
                 </div>
             `;
 
