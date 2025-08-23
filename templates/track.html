@@ -108,8 +108,19 @@
         <div class="card">
           <h3 class="section-title">Preview</h3>
           <div style="display:flex; flex-direction:column; gap:8px;">
-            <img src="/api/track/{{ video_id }}/preview.png" alt="Preview" style="max-width:100%; height:auto; border-radius:8px; border:1px solid var(--border); background: var(--bg-card);" title="Thumbnail path: {{ preview_abs_hint or '' }}" />
-            <div class="muted" style="font-size:12px;" title="Thumbnail path: {{ preview_abs_hint or '' }}">{{ preview_label }}</div>
+            <img id="previewImage" src="/api/track/{{ video_id }}/preview.png" alt="Preview" style="max-width:100%; height:auto; border-radius:8px; border:1px solid var(--border); background: var(--bg-card);" title="Thumbnail path: {{ preview_abs_hint or '' }}" />
+            <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+              <button id="fetchYoutubeBtn" class="inline-action" title="Fetch thumbnail from YouTube">Fetch from YouTube</button>
+              <div style="flex:1; display:flex; justify-content:center;">
+                <div id="previewDots" style="display:flex; gap:6px; align-items:center;"></div>
+              </div>
+              <div style="display:flex; gap:6px; align-items:center;">
+                <button id="prevPreviewBtn" class="inline-action" title="Previous preview">◀ Prev</button>
+                <button id="nextPreviewBtn" class="inline-action" title="Next preview">Next ▶</button>
+                <button id="promoteManualBtn" class="inline-action" title="Save current preview as Manual">Set as Manual</button>
+              </div>
+            </div>
+            <div id="previewCaption" class="muted" style="font-size:12px;" title="Thumbnail path: {{ preview_abs_hint or '' }}">{{ preview_label }}</div>
           </div>
         </div>
         
@@ -210,7 +221,8 @@
   </div>
 
   <script src="/static/js/modules/toast-notifications.js"></script>
-  <script>
+  <script type="module">
+    import { initPreviewGallery } from '/static/js/modules/preview-gallery.js';
     function toggleSidebar() {
       const sidebar = document.querySelector('.sidebar');
       if (sidebar) sidebar.classList.toggle('open');
@@ -492,6 +504,18 @@
     (function initYoutubeQualities() {
       fetchYoutubeFormats();
     })();
+    // Initialize Preview Gallery (module)
+    const gallery = initPreviewGallery({
+      videoId: '{{ video_id }}',
+      imgEl: document.getElementById('previewImage'),
+      captionEl: document.getElementById('previewCaption'),
+      dotsEl: document.getElementById('previewDots'),
+      prevBtn: document.getElementById('prevPreviewBtn'),
+      nextBtn: document.getElementById('nextPreviewBtn'),
+      fetchBtn: document.getElementById('fetchYoutubeBtn'),
+      promoteBtn: document.getElementById('promoteManualBtn'),
+    });
+    gallery.init();
   </script>
 </body>
 </html>

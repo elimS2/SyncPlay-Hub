@@ -42,9 +42,9 @@ api_bp.register_blueprint(cleanup_bp)
 api_bp.register_blueprint(trash_bp)
 api_bp.register_blueprint(tracks_bp)
 
-def init_api_router(root_dir, thumbnails_dir=None):
-    """Initialize the API router with root and optional thumbnails directory."""
-    init_api_controller(root_dir, thumbnails_dir)
+def init_api_router(root_dir, thumbnails_dir=None, yt_timeout=5.0, yt_order=None, preview_priority=None):
+    """Initialize the API router with root and optional thumbnails directory and YouTube config."""
+    init_api_controller(root_dir, thumbnails_dir, yt_timeout, yt_order, preview_priority)
 
 # Export main blueprint for app registration
 __all__ = ['api_bp', 'init_api_router'] 

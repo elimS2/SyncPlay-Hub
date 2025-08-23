@@ -12,7 +12,7 @@ from typing import Any, Dict
 
 from flask import Blueprint, jsonify, request, send_file, current_app
 
-from .shared import get_connection, get_root_dir, get_thumbnails_dir, log_message
+from .shared import get_connection, get_root_dir, get_thumbnails_dir, get_youtube_thumb_config, get_preview_priority, log_message
 import database as db
 from utils.media_probe import ffprobe_media_properties, ffprobe_media_properties_ex
 from services.job_queue_service import get_job_queue_service
@@ -21,6 +21,10 @@ import subprocess
 import os
 import tempfile
 from glob import glob
+import urllib.request
+import urllib.error
+import math
+import shutil
 
 
 tracks_bp = Blueprint("tracks", __name__)
@@ -372,12 +376,21 @@ def _ensure_from_youtube_png(previews_dir: Path, src_image: Path, video_id: str)
         subprocess.run(cmd, check=True)
         return out_path if out_path.exists() else None
     except Exception:
+        # Fallback: try saving to static/previews when writing to THUMBNAILS_DIR fails
         try:
-            if out_path.exists():
-                out_path.unlink(missing_ok=True)
+            fb_dir = _get_previews_dir()
+            fb_dir.mkdir(parents=True, exist_ok=True)
+            fb_out = fb_dir / f"{video_id}_from_youtube.png"
+            cmd[-1] = str(fb_out)
+            subprocess.run(cmd, check=True)
+            return fb_out if fb_out.exists() else None
         except Exception:
-            pass
-        return None
+            try:
+                if out_path.exists():
+                    out_path.unlink(missing_ok=True)
+            except Exception:
+                pass
+            return None
 
 
 def _ensure_from_media_png(previews_dir: Path, src_media: Path, video_id: str, timestamp: float = 1.0, width: int = 640) -> Path | None:
@@ -407,12 +420,46 @@ def _ensure_from_media_png(previews_dir: Path, src_media: Path, video_id: str, t
         subprocess.run(cmd, check=True)
         return out_path if out_path.exists() else None
     except Exception:
+        # Fallback: save under static/previews if writing to THUMBNAILS_DIR failed
         try:
-            if out_path.exists():
-                out_path.unlink(missing_ok=True)
+            fb_dir = _get_previews_dir()
+            fb_dir.mkdir(parents=True, exist_ok=True)
+            fb_out = fb_dir / f"{video_id}_from_media_file.png"
+            cmd[-1] = str(fb_out)
+            subprocess.run(cmd, check=True)
+            return fb_out if fb_out.exists() else None
         except Exception:
-            pass
-        return None
+            try:
+                if out_path.exists():
+                    out_path.unlink(missing_ok=True)
+            except Exception:
+                pass
+            return None
+
+
+def _resolve_preview_files_all(video_id: str, primary_dir: Path) -> Dict[str, Path]:
+    """Return dictionaries of Paths for manual/youtube/media, preferring primary_dir
+    but falling back to static/previews if a file exists there. Keys:
+    - manual, from_youtube, from_media_file
+    """
+    result: Dict[str, Path] = {}
+    fallback_dir = _get_previews_dir()
+    pairs = [
+        ("manual", f"{video_id}_manual.png"),
+        ("from_youtube", f"{video_id}_from_youtube.png"),
+        ("from_media_file", f"{video_id}_from_media_file.png"),
+    ]
+    for key, name in pairs:
+        primary_path = primary_dir / name
+        fallback_path = fallback_dir / name
+        if primary_path.exists():
+            result[key] = primary_path
+        elif fallback_path.exists():
+            result[key] = fallback_path
+        else:
+            # Default to primary location for non-existing files
+            result[key] = primary_path
+    return result
 
 
 @tracks_bp.route("/track/<video_id>/preview.png", methods=["GET"])
@@ -435,35 +482,55 @@ def api_central_preview_png(video_id: str):
                 pass
         else:
             previews_dir = _get_previews_dir()
-        manual = previews_dir / f"{video_id}_manual.png"
-        from_youtube = previews_dir / f"{video_id}_from_youtube.png"
-        from_media = previews_dir / f"{video_id}_from_media_file.png"
+        files = _resolve_preview_files_all(video_id, previews_dir)
+        manual = files["manual"]
+        from_youtube = files["from_youtube"]
+        from_media = files["from_media_file"]
 
         # Optional refresh: force re-generate from source
         force_refresh = str(request.args.get("refresh", "0")).lower() in {"1", "true", "yes"}
         if force_refresh:
             try:
-                if from_youtube.exists():
-                    from_youtube.unlink(missing_ok=True)
+                # Remove in both primary and fallback locations
+                primary_y = (previews_dir / f"{video_id}_from_youtube.png")
+                fb_y = (_get_previews_dir() / f"{video_id}_from_youtube.png")
+                if primary_y.exists(): primary_y.unlink(missing_ok=True)
+                if fb_y.exists(): fb_y.unlink(missing_ok=True)
             except Exception:
                 pass
             try:
-                if from_media.exists():
-                    from_media.unlink(missing_ok=True)
+                primary_m = (previews_dir / f"{video_id}_from_media_file.png")
+                fb_m = (_get_previews_dir() / f"{video_id}_from_media_file.png")
+                if primary_m.exists(): primary_m.unlink(missing_ok=True)
+                if fb_m.exists(): fb_m.unlink(missing_ok=True)
             except Exception:
                 pass
 
-        # 1) manual
-        if manual.exists():
-            return send_file(str(manual), mimetype="image/png", max_age=0)
+        # If explicit source requested, serve only if exists (no generation)
+        src_param = (request.args.get("src") or "").strip().lower()
+        if src_param in {"manual", "youtube", "media"}:
+            if src_param == "manual" and manual.exists():
+                return send_file(str(manual), mimetype="image/png", max_age=0)
+            if src_param == "youtube" and from_youtube.exists():
+                return send_file(str(from_youtube), mimetype="image/png", max_age=0)
+            if src_param == "media" and from_media.exists():
+                return send_file(str(from_media), mimetype="image/png", max_age=0)
+            return jsonify({"status": "error", "error": "Requested source not available"}), 404
 
-        # 2) from_youtube (existing)
-        if from_youtube.exists():
-            return send_file(str(from_youtube), mimetype="image/png", max_age=0)
-
-        # 3) from_media (existing)
-        if from_media.exists():
-            return send_file(str(from_media), mimetype="image/png", max_age=0)
+        # Serve according to PREVIEW_PRIORITY
+        order = get_preview_priority() or ["manual", "youtube", "media"]
+        def _serve_existing() -> str | None:
+            for key in order:
+                if key == "manual" and manual.exists():
+                    return str(manual)
+                if key == "youtube" and from_youtube.exists():
+                    return str(from_youtube)
+                if key == "media" and from_media.exists():
+                    return str(from_media)
+            return None
+        existing = _serve_existing()
+        if existing:
+            return send_file(existing, mimetype="image/png", max_age=0)
 
         # Resolve media path from DB
         root_dir = get_root_dir()
@@ -523,21 +590,26 @@ def api_preview_info(video_id: str):
         else:
             previews_dir = _get_previews_dir()
 
-        manual = previews_dir / f"{video_id}_manual.png"
-        from_youtube = previews_dir / f"{video_id}_from_youtube.png"
-        from_media = previews_dir / f"{video_id}_from_media_file.png"
+        files = _resolve_preview_files_all(video_id, previews_dir)
+        manual = files["manual"]
+        from_youtube = files["from_youtube"]
+        from_media = files["from_media_file"]
 
         # Optional refresh toggles
         force_refresh = str(request.args.get("refresh", "0")).lower() in {"1", "true", "yes"}
         if force_refresh:
             try:
-                if from_youtube.exists():
-                    from_youtube.unlink(missing_ok=True)
+                primary_y = (previews_dir / f"{video_id}_from_youtube.png")
+                fb_y = (_get_previews_dir() / f"{video_id}_from_youtube.png")
+                if primary_y.exists(): primary_y.unlink(missing_ok=True)
+                if fb_y.exists(): fb_y.unlink(missing_ok=True)
             except Exception:
                 pass
             try:
-                if from_media.exists():
-                    from_media.unlink(missing_ok=True)
+                primary_m = (previews_dir / f"{video_id}_from_media_file.png")
+                fb_m = (_get_previews_dir() / f"{video_id}_from_media_file.png")
+                if primary_m.exists(): primary_m.unlink(missing_ok=True)
+                if fb_m.exists(): fb_m.unlink(missing_ok=True)
             except Exception:
                 pass
 
@@ -557,32 +629,288 @@ def api_preview_info(video_id: str):
         finally:
             conn.close()
 
+        # Prepare available previews list (existing only)
+        available_previews = []
+        if manual.exists():
+            available_previews.append({"source": "manual", "path": str(manual)})
+        if from_youtube.exists():
+            available_previews.append({"source": "from_youtube", "path": str(from_youtube)})
+        if from_media.exists():
+            available_previews.append({"source": "from_media_file", "path": str(from_media)})
+
         # Decision tree (same as preview.png): manual -> from_youtube -> from_media
         if manual.exists():
-            return jsonify({"status": "ok", "source": "manual", "path": str(manual)})
+            return jsonify({"status": "ok", "source": "manual", "path": str(manual), "available_previews": available_previews})
 
         if from_youtube.exists():
-            return jsonify({"status": "ok", "source": "from_youtube", "path": str(from_youtube)})
+            return jsonify({"status": "ok", "source": "from_youtube", "path": str(from_youtube), "available_previews": available_previews, "youtube_url_tried": [], "selected_youtube_url": None})
 
         if from_media.exists():
-            return jsonify({"status": "ok", "source": "from_media_file", "path": str(from_media)})
+            return jsonify({"status": "ok", "source": "from_media_file", "path": str(from_media), "available_previews": available_previews})
 
         # Try find adjacent or in thumbnails dir and convert
         adj = _find_in_thumbnails_dir(video_id) or _find_adjacent_thumbnail(root_dir, relpath, video_id)
         if adj and adj.exists():
             conv = _ensure_from_youtube_png(previews_dir, adj, video_id)
             if conv and conv.exists():
-                return jsonify({"status": "ok", "source": "from_youtube", "path": str(conv)})
+                # Update available previews after conversion
+                available_previews.append({"source": "from_youtube", "path": str(conv)})
+                return jsonify({"status": "ok", "source": "from_youtube", "path": str(conv), "available_previews": available_previews, "youtube_url_tried": [], "selected_youtube_url": None})
 
         # Fallback generate from media
         media_abs = (root_dir / relpath).resolve()
         gen = _ensure_from_media_png(previews_dir, media_abs, video_id, timestamp=1.0, width=640)
         if gen and gen.exists():
-            return jsonify({"status": "ok", "source": "from_media_file", "path": str(gen)})
+            available_previews.append({"source": "from_media_file", "path": str(gen)})
+            return jsonify({"status": "ok", "source": "from_media_file", "path": str(gen), "available_previews": available_previews})
 
         return jsonify({"status": "error", "error": "Failed to resolve preview"}), 500
     except Exception as exc:
         return jsonify({"status": "error", "error": str(exc)}), 500
+
+
+# ------------------------------
+# YouTube Thumbnail: Fetch Logic
+# ------------------------------
+
+_YT_HOST = "i.ytimg.com"
+
+def _youtube_candidate_urls(video_id: str, quality: str) -> list[str]:
+    order_map = {
+        "maxres": ["maxresdefault.jpg"],
+        "sd": ["sddefault.jpg"],
+        "hq": ["hqdefault.jpg"],
+        "mq": ["mqdefault.jpg"],
+        "default": ["default.jpg"],
+        "auto": [
+            "maxresdefault.jpg",
+            "sddefault.jpg",
+            "hqdefault.jpg",
+            "mqdefault.jpg",
+            "default.jpg",
+        ],
+    }
+    timeout, custom_order = get_youtube_thumb_config()
+    base_auto = custom_order or [
+        "maxresdefault.jpg", "sddefault.jpg", "hqdefault.jpg", "mqdefault.jpg", "default.jpg"
+    ]
+    suffixes = order_map.get(quality, base_auto if quality == "auto" else order_map["auto"])
+    if quality == "auto":
+        suffixes = base_auto
+    return [f"https://{_YT_HOST}/vi/{video_id}/{suf}" for suf in suffixes]
+
+
+def _download_url_to_temp(url: str, timeout: float = 5.0, max_bytes: int = 10 * 1024 * 1024) -> str | None:
+    """Download URL into a temporary file. Returns temp file path or None on failure.
+    Enforces host allowlist and size limit.
+    """
+    try:
+        # Basic SSRF guard: only allow i.ytimg.com
+        if _YT_HOST not in url:
+            return None
+        req = urllib.request.Request(url, headers={
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36",
+            "Accept": "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
+        })
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            ct = resp.headers.get("Content-Type", "").lower()
+            if "image" not in ct:
+                return None
+            # Stream to temp file with size limit
+            fd, tmp_path = tempfile.mkstemp(suffix=".jpg")
+            written = 0
+            with os.fdopen(fd, "wb") as out:
+                while True:
+                    chunk = resp.read(64 * 1024)
+                    if not chunk:
+                        break
+                    written += len(chunk)
+                    if written > max_bytes:
+                        try:
+                            out.close()
+                        except Exception:
+                            pass
+                        try:
+                            os.remove(tmp_path)
+                        except Exception:
+                            pass
+                        return None
+                    out.write(chunk)
+            return tmp_path
+    except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError, Exception):
+        return None
+
+
+def _ensure_from_youtube_png_bytes(previews_dir: Path, video_id: str, quality: str = "auto", timeout: float = 5.0) -> tuple[Path | None, list[str], str | None]:
+    """Try to fetch from YouTube CDN and convert to PNG in previews_dir.
+    Returns (saved_path, tried_urls, selected_url).
+    """
+    tried: list[str] = []
+    selected: str | None = None
+    for url in _youtube_candidate_urls(video_id, quality):
+        tried.append(url)
+        tmp = _download_url_to_temp(url, timeout=timeout)
+        if not tmp:
+            continue
+        try:
+            out_path = previews_dir / f"{video_id}_from_youtube.png"
+            cmd = [
+                "ffmpeg", "-hide_banner", "-loglevel", "error", "-nostdin",
+                "-i", tmp,
+                "-vf", "scale=640:-2:flags=bicubic",
+                "-q:v", "2",
+                "-y", str(out_path),
+            ]
+            subprocess.run(cmd, check=True)
+            if out_path.exists():
+                selected = url
+                return out_path, tried, selected
+        except Exception:
+            try:
+                if out_path.exists():
+                    out_path.unlink(missing_ok=True)
+            except Exception:
+                pass
+        finally:
+            try:
+                os.remove(tmp)
+            except Exception:
+                pass
+    return None, tried, selected
+
+
+@tracks_bp.route("/track/<video_id>/fetch_youtube_thumbnail", methods=["POST"])
+def api_fetch_youtube_thumbnail(video_id: str):
+    """Fetch a thumbnail from YouTube CDN and store normalized PNG.
+
+    JSON body (optional):
+      - quality: "auto" | "maxres" | "sd" | "hq" | "mq" | "default" (default: auto)
+      - force: bool (default False) — overwrite existing <video_id>_from_youtube.png
+      - timeout: number seconds (default: 5)
+    """
+    if not _YT_ID_RE.match(video_id or ""):
+        return jsonify({"status": "error", "error": "Invalid video_id"}), 400
+
+    payload = request.get_json(silent=True) or {}
+    quality = str(payload.get("quality", "auto")).lower()
+    force = bool(payload.get("force", False))
+    try:
+        timeout_env, _ = get_youtube_thumb_config()
+    except Exception:
+        timeout_env = 5.0
+    try:
+        timeout = float(payload.get("timeout", timeout_env))
+    except Exception:
+        timeout = timeout_env
+
+    # Resolve output dir
+    tdir = get_thumbnails_dir()
+    previews_dir = Path(tdir) if tdir else _get_previews_dir()
+    try:
+        previews_dir.mkdir(parents=True, exist_ok=True)
+    except Exception:
+        pass
+
+    out_path = previews_dir / f"{video_id}_from_youtube.png"
+    if out_path.exists() and not force:
+        return jsonify({
+            "status": "ok",
+            "video_id": video_id,
+            "saved_path": str(out_path),
+            "source_url": None,
+            "message": "Already exists"
+        })
+
+    saved, tried, selected = _ensure_from_youtube_png_bytes(previews_dir, video_id, quality=quality, timeout=timeout)
+    if not saved:
+        return jsonify({
+            "status": "error",
+            "video_id": video_id,
+            "tried": tried,
+            "error": "Failed to fetch from YouTube"
+        }), 502
+
+    return jsonify({
+        "status": "ok",
+        "video_id": video_id,
+        "saved_path": str(saved),
+        "source_url": selected,
+        "tried": tried,
+    })
+
+
+@tracks_bp.route("/track/<video_id>/promote_preview", methods=["POST"])
+def api_promote_preview_to_manual(video_id: str):
+    """Copy the selected preview source to <video_id>_manual.png.
+
+    JSON body:
+      - src: 'youtube' | 'media' | 'manual' (manual is a no-op)
+      - overwrite: bool (default false) — allow replacing existing manual file
+    """
+    if not _YT_ID_RE.match(video_id or ""):
+        return jsonify({"status": "error", "error": "Invalid video_id"}), 400
+
+    data = request.get_json(silent=True) or {}
+    src = str(data.get("src", "")).strip().lower()
+    overwrite = bool(data.get("overwrite", False))
+
+    tdir = get_thumbnails_dir()
+    previews_dir = Path(tdir) if tdir else _get_previews_dir()
+    try:
+        previews_dir.mkdir(parents=True, exist_ok=True)
+    except Exception:
+        pass
+
+    manual = previews_dir / f"{video_id}_manual.png"
+    from_youtube = previews_dir / f"{video_id}_from_youtube.png"
+    from_media = previews_dir / f"{video_id}_from_media_file.png"
+
+    if src == "manual":
+        if manual.exists():
+            return jsonify({"status": "ok", "message": "Already manual"})
+        else:
+            return jsonify({"status": "error", "error": "Manual image does not exist"}), 404
+
+    if src not in {"youtube", "media"}:
+        return jsonify({"status": "error", "error": "Unsupported source"}), 400
+
+    source_path = from_youtube if src == "youtube" else from_media
+    if not source_path.exists():
+        return jsonify({"status": "error", "error": "Source image not found"}), 404
+
+    if manual.exists() and not overwrite:
+        return jsonify({"status": "error", "error": "Manual already exists. Use overwrite=true."}), 409
+
+    # Copy atomically via temp file then replace (temp in same directory to avoid cross-device issues)
+    try:
+        fd, tmp_path = tempfile.mkstemp(suffix=".png", dir=str(manual.parent))
+        os.close(fd)
+        shutil.copyfile(str(source_path), tmp_path)
+        os.replace(tmp_path, str(manual))
+        return jsonify({"status": "ok", "video_id": video_id, "manual_path": str(manual)})
+    except Exception as exc:
+        # Fallback: try saving into static/previews when primary dir is not writable
+        try:
+            fb_dir = _get_previews_dir()
+            fb_dir.mkdir(parents=True, exist_ok=True)
+            fb_manual = fb_dir / f"{video_id}_manual.png"
+            fd2, tmp2 = tempfile.mkstemp(suffix=".png", dir=str(fb_dir))
+            os.close(fd2)
+            shutil.copyfile(str(source_path), tmp2)
+            os.replace(tmp2, str(fb_manual))
+            return jsonify({"status": "ok", "video_id": video_id, "manual_path": str(fb_manual), "fallback_used": True})
+        except Exception as exc2:
+            try:
+                if 'tmp_path' in locals() and os.path.exists(tmp_path):
+                    os.remove(tmp_path)
+            except Exception:
+                pass
+            try:
+                if 'tmp2' in locals() and os.path.exists(tmp2):
+                    os.remove(tmp2)
+            except Exception:
+                pass
+            return jsonify({"status": "error", "error": str(exc2)}), 500
 
 @tracks_bp.route("/track/<video_id>/youtube_formats", methods=["GET"])
 def api_get_youtube_formats(video_id: str):

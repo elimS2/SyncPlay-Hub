@@ -20,6 +20,9 @@ import queue
 # Global ROOT_DIR and THUMBNAILS_DIR will be set by main app
 ROOT_DIR = None
 THUMBNAILS_DIR = None
+YOUTUBE_THUMB_TIMEOUT = 5.0
+YOUTUBE_THUMB_ORDER = ["maxresdefault.jpg", "sddefault.jpg", "hqdefault.jpg", "mqdefault.jpg", "default.jpg"]
+PREVIEW_PRIORITY = ["manual", "youtube", "media"]
 
 def get_root_dir():
     """Get current ROOT_DIR value."""
@@ -47,12 +50,30 @@ PLAYER_STATE = {
 # Command queue for remote control
 COMMAND_QUEUE = []
 
-def init_api_controller(root_dir: Path, thumbnails_dir: Path | None = None):
+def init_api_controller(root_dir: Path, thumbnails_dir: Path | None = None, yt_timeout: float = 5.0, yt_order: list[str] | None = None, preview_priority: list[str] | None = None):
     """Initialize the API controller with directories."""
-    global ROOT_DIR, THUMBNAILS_DIR
+    global ROOT_DIR, THUMBNAILS_DIR, YOUTUBE_THUMB_TIMEOUT, YOUTUBE_THUMB_ORDER, PREVIEW_PRIORITY
     ROOT_DIR = root_dir
     THUMBNAILS_DIR = thumbnails_dir
+    try:
+        YOUTUBE_THUMB_TIMEOUT = float(yt_timeout) if yt_timeout else 5.0
+    except Exception:
+        YOUTUBE_THUMB_TIMEOUT = 5.0
+    if yt_order and isinstance(yt_order, list) and yt_order:
+        YOUTUBE_THUMB_ORDER = yt_order
+    if preview_priority and isinstance(preview_priority, list) and preview_priority:
+        # Sanitize values
+        allowed = {"manual", "youtube", "media"}
+        clean = [p for p in preview_priority if p in allowed]
+        if clean:
+            PREVIEW_PRIORITY = clean
     set_root_dir(root_dir)
+
+def get_youtube_thumb_config():
+    return YOUTUBE_THUMB_TIMEOUT, YOUTUBE_THUMB_ORDER
+
+def get_preview_priority():
+    return PREVIEW_PRIORITY
 
 def _format_file_size(size_bytes):
     """Format file size in human readable format."""

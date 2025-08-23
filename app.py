@@ -1038,16 +1038,39 @@ def main():
     
     # Initialize services
     set_root_dir(ROOT_DIR)
-    # Resolve optional thumbnails directory from .env
+    # Resolve optional thumbnails directory and YouTube config from .env
     thumbnails_dir = None
+    yt_timeout = 5.0
+    yt_order = None
+    preview_priority = None
     try:
         tdir = env_config.get('THUMBNAILS_DIR')
         if tdir:
             thumbnails_dir = Path(tdir).resolve()
             print(f"Using thumbnails directory from .env: {thumbnails_dir}")
+        if env_config.get('YOUTUBE_THUMB_TIMEOUT'):
+            yt_timeout = float(env_config.get('YOUTUBE_THUMB_TIMEOUT'))
+        if env_config.get('YOUTUBE_THUMB_ORDER'):
+            raw = env_config.get('YOUTUBE_THUMB_ORDER')
+            # Expect comma-separated suffixes (e.g., maxres,sd,hq,mq,default)
+            mapping = {
+                'maxres': 'maxresdefault.jpg',
+                'sd': 'sddefault.jpg',
+                'hq': 'hqdefault.jpg',
+                'mq': 'mqdefault.jpg',
+                'default': 'default.jpg',
+            }
+            parts = [p.strip().lower() for p in raw.split(',') if p.strip()]
+            resolved = [mapping.get(p, p) for p in parts]
+            if resolved:
+                yt_order = resolved
+        if env_config.get('PREVIEW_PRIORITY'):
+            rawp = env_config.get('PREVIEW_PRIORITY')
+            parts = [p.strip().lower() for p in rawp.split(',') if p.strip()]
+            preview_priority = parts if parts else None
     except Exception as _:
         thumbnails_dir = None
-    init_api_router(ROOT_DIR, thumbnails_dir)
+    init_api_router(ROOT_DIR, thumbnails_dir, yt_timeout, yt_order, preview_priority)
     
     # Make LOGS_DIR available globally for API controller
     from utils.logging_utils import set_logs_dir
