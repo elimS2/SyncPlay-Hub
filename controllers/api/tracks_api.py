@@ -10,13 +10,17 @@ from pathlib import Path
 import json
 from typing import Any, Dict
 
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, jsonify, request, send_file, current_app
 
-from .shared import get_connection, get_root_dir, log_message
+from .shared import get_connection, get_root_dir, get_thumbnails_dir, log_message
 import database as db
 from utils.media_probe import ffprobe_media_properties, ffprobe_media_properties_ex
 from services.job_queue_service import get_job_queue_service
 from services.job_types import JobType, JobPriority
+import subprocess
+import os
+import tempfile
+from glob import glob
 
 
 tracks_bp = Blueprint("tracks", __name__)
@@ -160,6 +164,425 @@ def api_rescan_youtube_metadata(video_id: str):
         log_message(f"[YouTubeRescan] Failed to enqueue for {video_id}: {exc}")
         return jsonify({"status": "error", "error": str(exc)}), 500
 
+
+@tracks_bp.route("/track/<video_id>/preview.jpg", methods=["GET"])
+def api_video_preview_image(video_id: str):
+    """Return a generated JPEG preview (first frame) for the specified video.
+
+    Query params:
+      - w: target width (int, default 480)
+      - t: timestamp in seconds for the frame (float, default 1.0)
+
+    Uses on-disk cache under static/cache/thumbs. Cache is invalidated when
+    source media mtime is newer than cached image.
+    """
+    try:
+        if not _YT_ID_RE.match(video_id or ""):
+            return jsonify({"status": "error", "error": "Invalid video_id"}), 400
+
+        # Resolve media path from DB
+        root_dir = get_root_dir()
+        if not root_dir:
+            return jsonify({"status": "error", "error": "Server not initialized"}), 500
+
+        conn = get_connection()
+        try:
+            row = conn.execute(
+                "SELECT relpath FROM tracks WHERE video_id = ? LIMIT 1",
+                (video_id,),
+            ).fetchone()
+            if not row:
+                return jsonify({"status": "error", "error": "Track not found"}), 404
+            relpath = row[0]
+        finally:
+            conn.close()
+
+        src_path = (root_dir / relpath).resolve()
+        if not src_path.exists() or not src_path.is_file():
+            return jsonify({"status": "error", "error": "File not found"}), 404
+
+        try:
+            width = int(request.args.get("w", 480))
+            if width < 64:
+                width = 64
+            if width > 1920:
+                width = 1920
+        except Exception:
+            width = 480
+        try:
+            timestamp = float(request.args.get("t", 1.0))
+            if timestamp < 0:
+                timestamp = 0.0
+        except Exception:
+            timestamp = 1.0
+
+        # Cache path incorporates source mtime and width
+        try:
+            src_mtime = int(src_path.stat().st_mtime)
+        except Exception:
+            src_mtime = 0
+        cache_dir = (Path(current_app.root_path) / "static" / "cache" / "thumbs").resolve()
+        try:
+            os.makedirs(cache_dir, exist_ok=True)
+        except Exception:
+            pass
+        cache_name = f"{video_id}_{width}_{src_mtime}.jpg"
+        cache_path = cache_dir / cache_name
+
+        if cache_path.exists():
+            try:
+                return send_file(str(cache_path), mimetype="image/jpeg", max_age=3600)
+            except Exception:
+                # fall through to regenerate
+                pass
+
+        # Generate with ffmpeg
+        # -ss before -i for faster seek, -frames:v 1 for single frame, scale width keep AR (use -2 for mod2)
+        tmp_fd, tmp_name = tempfile.mkstemp(suffix=".jpg")
+        os.close(tmp_fd)
+        cmd = [
+            "ffmpeg",
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-nostdin",
+            "-ss",
+            str(timestamp),
+            "-i",
+            str(src_path),
+            "-frames:v",
+            "1",
+            "-vf",
+            f"scale={width}:-2:flags=bicubic",
+            "-q:v",
+            "2",
+            "-y",
+            tmp_name,
+        ]
+        try:
+            subprocess.run(cmd, check=True)
+            # Move atomically into cache
+            try:
+                os.replace(tmp_name, cache_path)
+            except Exception:
+                # If cannot move, just send temp file without caching
+                return send_file(tmp_name, mimetype="image/jpeg")
+            return send_file(str(cache_path), mimetype="image/jpeg", max_age=3600)
+        except Exception as exc:
+            try:
+                if os.path.exists(tmp_name):
+                    os.remove(tmp_name)
+            except Exception:
+                pass
+            return jsonify({"status": "error", "error": f"ffmpeg failed: {exc}"}), 500
+    except Exception as exc:
+        return jsonify({"status": "error", "error": str(exc)}), 500
+
+
+def _get_previews_dir() -> Path:
+    base = Path(current_app.root_path) / "static" / "previews"
+    try:
+        base.mkdir(parents=True, exist_ok=True)
+    except Exception:
+        pass
+    return base
+
+
+def _find_adjacent_thumbnail(root_dir: Path, relpath: str, video_id: str) -> Path | None:
+    """Search only in the media file's parent directory for a YouTube thumbnail like *[VIDEO_ID].webp/jpg/png."""
+    try:
+        import re as _re
+        media_abs = (root_dir / relpath).resolve()
+        parent = media_abs.parent
+        pattern = _re.compile(r"\\[" + _re.escape(video_id) + r"\\]")
+        for p in parent.iterdir():
+            try:
+                if not p.is_file():
+                    continue
+                if p.suffix.lower() not in {".webp", ".jpg", ".jpeg", ".png"}:
+                    continue
+                if pattern.search(p.stem):
+                    return p
+            except Exception:
+                continue
+    except Exception:
+        return None
+    return None
+
+
+def _find_in_thumbnails_dir(video_id: str) -> Path | None:
+    """If THUMBNAILS_DIR is configured, search there for files named *[VIDEO_ID].webp/jpg/png or <video_id>_*.png."""
+    try:
+        import re as _re
+        tdir = get_thumbnails_dir()
+        if not tdir:
+            return None
+        p = Path(tdir)
+        if not p.exists() or not p.is_dir():
+            return None
+        # Prefer explicit centralized names first
+        preferred = [
+            p / f"{video_id}_manual.png",
+            p / f"{video_id}_from_youtube.png",
+            p / f"{video_id}_from_media_file.png",
+        ]
+        for cand in preferred:
+            if cand.exists() and cand.is_file():
+                return cand
+        # Otherwise scan for legacy downloaded thumbnails with [VIDEO_ID]
+        pattern = _re.compile(r"\\[" + _re.escape(video_id) + r"\\]")
+        for fp in p.iterdir():
+            try:
+                if not fp.is_file():
+                    continue
+                if fp.suffix.lower() not in {".webp", ".jpg", ".jpeg", ".png"}:
+                    continue
+                if pattern.search(fp.stem):
+                    return fp
+            except Exception:
+                continue
+    except Exception:
+        return None
+    return None
+
+
+def _ensure_from_youtube_png(previews_dir: Path, src_image: Path, video_id: str) -> Path | None:
+    """Convert/copy found thumbnail to centralized PNG path and return it."""
+    out_path = previews_dir / f"{video_id}_from_youtube.png"
+    # If already exists, return
+    if out_path.exists():
+        return out_path
+    # Try convert with ffmpeg (handles webp/jpg/png to png)
+    cmd = [
+        "ffmpeg",
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-nostdin",
+        "-i",
+        str(src_image),
+        "-vf",
+        "scale=640:-2:flags=bicubic",
+        "-q:v",
+        "2",
+        "-y",
+        str(out_path),
+    ]
+    try:
+        subprocess.run(cmd, check=True)
+        return out_path if out_path.exists() else None
+    except Exception:
+        try:
+            if out_path.exists():
+                out_path.unlink(missing_ok=True)
+        except Exception:
+            pass
+        return None
+
+
+def _ensure_from_media_png(previews_dir: Path, src_media: Path, video_id: str, timestamp: float = 1.0, width: int = 640) -> Path | None:
+    out_path = previews_dir / f"{video_id}_from_media_file.png"
+    if out_path.exists():
+        return out_path
+    cmd = [
+        "ffmpeg",
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-nostdin",
+        "-ss",
+        str(timestamp),
+        "-i",
+        str(src_media),
+        "-frames:v",
+        "1",
+        "-vf",
+        f"scale={width}:-2:flags=bicubic",
+        "-q:v",
+        "2",
+        "-y",
+        str(out_path),
+    ]
+    try:
+        subprocess.run(cmd, check=True)
+        return out_path if out_path.exists() else None
+    except Exception:
+        try:
+            if out_path.exists():
+                out_path.unlink(missing_ok=True)
+        except Exception:
+            pass
+        return None
+
+
+@tracks_bp.route("/track/<video_id>/preview.png", methods=["GET"])
+def api_central_preview_png(video_id: str):
+    """Serve centralized preview PNG from static/previews with priority:
+    manual -> from_youtube -> from_media_file. If none exist, attempt to
+    create from YouTube thumbnail (adjacent .webp/.jpg) or extract from media.
+    """
+    try:
+        if not _YT_ID_RE.match(video_id or ""):
+            return jsonify({"status": "error", "error": "Invalid video_id"}), 400
+
+        # Choose output directory: THUMBNAILS_DIR if configured, else static/previews
+        configured_tdir = get_thumbnails_dir()
+        if configured_tdir:
+            previews_dir = Path(configured_tdir)
+            try:
+                previews_dir.mkdir(parents=True, exist_ok=True)
+            except Exception:
+                pass
+        else:
+            previews_dir = _get_previews_dir()
+        manual = previews_dir / f"{video_id}_manual.png"
+        from_youtube = previews_dir / f"{video_id}_from_youtube.png"
+        from_media = previews_dir / f"{video_id}_from_media_file.png"
+
+        # Optional refresh: force re-generate from source
+        force_refresh = str(request.args.get("refresh", "0")).lower() in {"1", "true", "yes"}
+        if force_refresh:
+            try:
+                if from_youtube.exists():
+                    from_youtube.unlink(missing_ok=True)
+            except Exception:
+                pass
+            try:
+                if from_media.exists():
+                    from_media.unlink(missing_ok=True)
+            except Exception:
+                pass
+
+        # 1) manual
+        if manual.exists():
+            return send_file(str(manual), mimetype="image/png", max_age=0)
+
+        # 2) from_youtube (existing)
+        if from_youtube.exists():
+            return send_file(str(from_youtube), mimetype="image/png", max_age=0)
+
+        # 3) from_media (existing)
+        if from_media.exists():
+            return send_file(str(from_media), mimetype="image/png", max_age=0)
+
+        # Resolve media path from DB
+        root_dir = get_root_dir()
+        if not root_dir:
+            return jsonify({"status": "error", "error": "Server not initialized"}), 500
+        conn = get_connection()
+        try:
+            row = conn.execute(
+                "SELECT relpath FROM tracks WHERE video_id = ? LIMIT 1",
+                (video_id,),
+            ).fetchone()
+            if not row:
+                return jsonify({"status": "error", "error": "Track not found"}), 404
+            relpath = row[0]
+        finally:
+            conn.close()
+
+        # Try thumbnails dir first (if configured) for an existing image
+        adj = _find_in_thumbnails_dir(video_id)
+        if not adj:
+            # Try adjacent thumbnail conversion on demand
+            adj = _find_adjacent_thumbnail(root_dir, relpath, video_id)
+        if adj and adj.exists():
+            conv = _ensure_from_youtube_png(previews_dir, adj, video_id)
+            if conv and conv.exists():
+                return send_file(str(conv), mimetype="image/png", max_age=0)
+
+        # Fallback: extract first frame from media
+        media_abs = (root_dir / relpath).resolve()
+        gen = _ensure_from_media_png(previews_dir, media_abs, video_id, timestamp=1.0, width=640)
+        if gen and gen.exists():
+            return send_file(str(gen), mimetype="image/png", max_age=0)
+
+        return jsonify({"status": "error", "error": "Failed to create preview"}), 500
+    except Exception as exc:
+        return jsonify({"status": "error", "error": str(exc)}), 500
+
+
+@tracks_bp.route("/track/<video_id>/preview_info", methods=["GET"])
+def api_preview_info(video_id: str):
+    """Return JSON describing which preview will be served and its absolute path.
+
+    Query params:
+      - refresh: 1|true to clear cached generated files (from_youtube/from_media).
+    """
+    try:
+        if not _YT_ID_RE.match(video_id or ""):
+            return jsonify({"status": "error", "error": "Invalid video_id"}), 400
+
+        configured_tdir = get_thumbnails_dir()
+        if configured_tdir:
+            previews_dir = Path(configured_tdir)
+            try:
+                previews_dir.mkdir(parents=True, exist_ok=True)
+            except Exception:
+                pass
+        else:
+            previews_dir = _get_previews_dir()
+
+        manual = previews_dir / f"{video_id}_manual.png"
+        from_youtube = previews_dir / f"{video_id}_from_youtube.png"
+        from_media = previews_dir / f"{video_id}_from_media_file.png"
+
+        # Optional refresh toggles
+        force_refresh = str(request.args.get("refresh", "0")).lower() in {"1", "true", "yes"}
+        if force_refresh:
+            try:
+                if from_youtube.exists():
+                    from_youtube.unlink(missing_ok=True)
+            except Exception:
+                pass
+            try:
+                if from_media.exists():
+                    from_media.unlink(missing_ok=True)
+            except Exception:
+                pass
+
+        # Resolve media relpath
+        root_dir = get_root_dir()
+        if not root_dir:
+            return jsonify({"status": "error", "error": "Server not initialized"}), 500
+        conn = get_connection()
+        try:
+            row = conn.execute(
+                "SELECT relpath FROM tracks WHERE video_id = ? LIMIT 1",
+                (video_id,),
+            ).fetchone()
+            if not row:
+                return jsonify({"status": "error", "error": "Track not found"}), 404
+            relpath = row[0]
+        finally:
+            conn.close()
+
+        # Decision tree (same as preview.png): manual -> from_youtube -> from_media
+        if manual.exists():
+            return jsonify({"status": "ok", "source": "manual", "path": str(manual)})
+
+        if from_youtube.exists():
+            return jsonify({"status": "ok", "source": "from_youtube", "path": str(from_youtube)})
+
+        if from_media.exists():
+            return jsonify({"status": "ok", "source": "from_media_file", "path": str(from_media)})
+
+        # Try find adjacent or in thumbnails dir and convert
+        adj = _find_in_thumbnails_dir(video_id) or _find_adjacent_thumbnail(root_dir, relpath, video_id)
+        if adj and adj.exists():
+            conv = _ensure_from_youtube_png(previews_dir, adj, video_id)
+            if conv and conv.exists():
+                return jsonify({"status": "ok", "source": "from_youtube", "path": str(conv)})
+
+        # Fallback generate from media
+        media_abs = (root_dir / relpath).resolve()
+        gen = _ensure_from_media_png(previews_dir, media_abs, video_id, timestamp=1.0, width=640)
+        if gen and gen.exists():
+            return jsonify({"status": "ok", "source": "from_media_file", "path": str(gen)})
+
+        return jsonify({"status": "error", "error": "Failed to resolve preview"}), 500
+    except Exception as exc:
+        return jsonify({"status": "error", "error": str(exc)}), 500
 
 @tracks_bp.route("/track/<video_id>/youtube_formats", methods=["GET"])
 def api_get_youtube_formats(video_id: str):

@@ -48,6 +48,16 @@
   grid-template-columns: 1fr !important;
 }
 
+/* Two equal columns for 50/50 layout when space allows */
+.grid-2col {
+  grid-template-columns: 1fr 1fr;
+}
+@media (max-width: 900px) {
+  .grid-2col {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* Card base comes from components.css */
 
 .section-title {

@@ -41,8 +41,8 @@
         </div>
       </div>
 
-      <!-- Properties -->
-      <div class="grid section grid-1col">
+      <!-- Properties + Preview (50/50 row) -->
+      <div class="grid section grid-2col">
         <div class="card">
           <h3 class="section-title">File Properties</h3>
           <div class="kv">
@@ -102,6 +102,14 @@
                 <span class="muted">0</span>
               {% endif %}
             </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3 class="section-title">Preview</h3>
+          <div style="display:flex; flex-direction:column; gap:8px;">
+            <img src="/api/track/{{ video_id }}/preview.png" alt="Preview" style="max-width:100%; height:auto; border-radius:8px; border:1px solid var(--border); background: var(--bg-card);" title="Thumbnail path: {{ preview_abs_hint or '' }}" />
+            <div class="muted" style="font-size:12px;" title="Thumbnail path: {{ preview_abs_hint or '' }}">{{ preview_label }}</div>
           </div>
         </div>
         

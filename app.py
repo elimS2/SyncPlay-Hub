@@ -558,6 +558,68 @@ def track_page(video_id: str):
     except Exception:
         pass
 
+    # Try to find an image thumbnail among files with the same [VIDEO_ID]
+    thumbnail_rel = None
+    thumbnail_abs_hint = None
+    try:
+        preferred_exts = [".webp", ".jpg", ".jpeg", ".png"]
+        # Preserve order preference
+        for ext in preferred_exts:
+            for rel in same_id_files:
+                try:
+                    if rel.lower().endswith(ext):
+                        thumbnail_rel = rel
+                        try:
+                            if ROOT_DIR:
+                                thumbnail_abs_hint = str((ROOT_DIR / rel).resolve())
+                        except Exception:
+                            thumbnail_abs_hint = None
+                        break
+                except Exception:
+                    continue
+            if thumbnail_rel:
+                break
+    except Exception:
+        thumbnail_rel = None
+
+    # Prepare absolute hint for centralized preview location in static/previews
+    preview_abs_hint = None
+    try:
+        # Prefer THUMBNAILS_DIR if configured via env during startup (stored in API shared via init)
+        tdir = None
+        try:
+            from controllers.api.shared import THUMBNAILS_DIR as _TDIR
+            tdir = _TDIR
+        except Exception:
+            tdir = None
+        previews_dir = (Path(tdir) if tdir else (Path(app.root_path) / "static" / "previews")).resolve()
+        manual = previews_dir / f"{video_id}_manual.png"
+        from_yt = previews_dir / f"{video_id}_from_youtube.png"
+        from_media = previews_dir / f"{video_id}_from_media_file.png"
+        if manual.exists():
+            preview_abs_hint = str(manual)
+            preview_label = "Manual preview image"
+        elif from_yt.exists():
+            preview_abs_hint = str(from_yt)
+            preview_label = "From YouTube thumbnail"
+        elif from_media.exists():
+            preview_abs_hint = str(from_media)
+            preview_label = "Generated on the fly from media file"
+        else:
+            # Likely fallback that will be generated on first request
+            preview_abs_hint = str(from_media)
+            preview_label = "Generated on the fly from media file"
+    except Exception:
+        preview_abs_hint = None
+        preview_label = "Generated on the fly from media file"
+
+    # If adjacent thumbnail is in use, adjust label accordingly
+    try:
+        if thumbnail_rel:
+            preview_label = "From YouTube thumbnail"
+    except Exception:
+        pass
+
     return render_template(
         "track.html",
         track=track,
@@ -566,6 +628,10 @@ def track_page(video_id: str):
         same_id_files=same_id_files,
         same_id_files_info=sorted(same_id_files_info, key=lambda x: x.get('modified') or '' , reverse=True),
         same_id_count=len(same_id_files),
+        thumbnail_rel=thumbnail_rel,
+        thumbnail_abs_hint=thumbnail_abs_hint,
+        preview_abs_hint=preview_abs_hint,
+        preview_label=preview_label,
     )
 
 @app.route("/history")
@@ -972,7 +1038,16 @@ def main():
     
     # Initialize services
     set_root_dir(ROOT_DIR)
-    init_api_router(ROOT_DIR)
+    # Resolve optional thumbnails directory from .env
+    thumbnails_dir = None
+    try:
+        tdir = env_config.get('THUMBNAILS_DIR')
+        if tdir:
+            thumbnails_dir = Path(tdir).resolve()
+            print(f"Using thumbnails directory from .env: {thumbnails_dir}")
+    except Exception as _:
+        thumbnails_dir = None
+    init_api_router(ROOT_DIR, thumbnails_dir)
     
     # Make LOGS_DIR available globally for API controller
     from utils.logging_utils import set_logs_dir

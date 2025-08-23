@@ -42,9 +42,9 @@ api_bp.register_blueprint(cleanup_bp)
 api_bp.register_blueprint(trash_bp)
 api_bp.register_blueprint(tracks_bp)
 
-def init_api_router(root_dir):
-    """Initialize the API router with root directory."""
-    init_api_controller(root_dir)
+def init_api_router(root_dir, thumbnails_dir=None):
+    """Initialize the API router with root and optional thumbnails directory."""
+    init_api_controller(root_dir, thumbnails_dir)
 
 # Export main blueprint for app registration
 __all__ = ['api_bp', 'init_api_router'] 

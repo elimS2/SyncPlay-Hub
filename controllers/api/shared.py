@@ -17,12 +17,17 @@ from scan_to_db import scan as scan_library
 import database as db
 import queue
 
-# Global ROOT_DIR will be set by main app
+# Global ROOT_DIR and THUMBNAILS_DIR will be set by main app
 ROOT_DIR = None
+THUMBNAILS_DIR = None
 
 def get_root_dir():
     """Get current ROOT_DIR value."""
     return ROOT_DIR
+
+def get_thumbnails_dir():
+    """Get configured thumbnails directory root (may be None)."""
+    return THUMBNAILS_DIR
 
 # Global state for remote control - in a real app this would be in Redis/database
 PLAYER_STATE = {
@@ -42,10 +47,11 @@ PLAYER_STATE = {
 # Command queue for remote control
 COMMAND_QUEUE = []
 
-def init_api_controller(root_dir: Path):
-    """Initialize the API controller with root directory."""
-    global ROOT_DIR
+def init_api_controller(root_dir: Path, thumbnails_dir: Path | None = None):
+    """Initialize the API controller with directories."""
+    global ROOT_DIR, THUMBNAILS_DIR
     ROOT_DIR = root_dir
+    THUMBNAILS_DIR = thumbnails_dir
     set_root_dir(root_dir)
 
 def _format_file_size(size_bytes):
