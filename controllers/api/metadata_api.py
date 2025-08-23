@@ -301,7 +301,7 @@ def api_scan_missing_youtube_qualities():
                 try:
                     job_id = job_service.create_and_add_job(
                         JobType.SINGLE_VIDEO_METADATA_EXTRACTION,
-                        priority=JobPriority.LOW,
+                        priority=JobPriority.HIGH,
                         video_id=tr['video_id'],
                         force_update=force_update,
                     )
