@@ -287,7 +287,7 @@ class PlaylistDownloadWorker(JobWorker):
                 max_attempts = 1
 
             # Build command per attempt
-            def build_cmd(player_client: str | None, cookies_path: str | None, extra_flags: list[str], proxy_url: str | None) -> list[str]:
+            def build_cmd(player_client: str | None, cookies_path: str | None, extra_flags: list[str], proxy_url: str | None, current_format_selector: str) -> list[str]:
                 cmd = ['yt-dlp']
                 cmd.extend(['-o', output_template])
 
@@ -295,7 +295,7 @@ class PlaylistDownloadWorker(JobWorker):
                 if extract_audio:
                     cmd.extend(['-f', 'bestaudio', '--extract-audio', '--audio-format', 'mp3'])
                 else:
-                    cmd.extend(['-f', format_selector])
+                    cmd.extend(['-f', current_format_selector])
                     # Prefer MP4 container merge when possible (no re-encode)
                     if job_data.get('prefer_mp4', True):
                         cmd.extend(['--merge-output-format', 'mp4'])
@@ -389,7 +389,8 @@ class PlaylistDownloadWorker(JobWorker):
                     if proxy_list:
                         proxy_for_attempt = proxy_list[proxy_index % len(proxy_list)]
 
-                cmd = build_cmd(plan['player_client'], cookies_for_attempt, plan['extra_flags'], proxy_for_attempt)
+                # Initial command with requested format
+                cmd = build_cmd(plan['player_client'], cookies_for_attempt, plan['extra_flags'], proxy_for_attempt, format_selector)
 
                 # One-line attempt log
                 attempt_log = (
@@ -461,8 +462,85 @@ class PlaylistDownloadWorker(JobWorker):
                     self._cleanup_folder_temp_files(output_dir)
                     return True
 
-                # Decide if we should retry based on stderr markers
+                # If requested format is not available, try safe format fallbacks within the same attempt
                 stderr_lower = (result.stderr or '').lower()
+                format_unavailable = ('requested format is not available' in stderr_lower) or ('requested formats are incompatible' in stderr_lower) or ('format not available' in stderr_lower)
+
+                if (not extract_audio) and format_unavailable:
+                    try:
+                        target_height = int(job_data.get('target_height', 1080))
+                    except Exception:
+                        target_height = 1080
+                    # Construct ordered fallback selectors (most strict to most lenient)
+                    fallback_selectors: list[str] = [
+                        f"bestvideo[ext=mp4][vcodec*=avc1][height<={target_height}]+bestaudio[ext=m4a]",
+                        "136+140",
+                        "22/best[ext=mp4]",
+                        f"bestvideo[height<={target_height}]+bestaudio/best",
+                        "best",
+                    ]
+                    # Remove duplicates and the already tried selector
+                    fallback_selectors = [s for s in fallback_selectors if s and s != format_selector]
+
+                    for idx, fb_selector in enumerate(fallback_selectors, start=1):
+                        print(f"[FormatFallback] Trying fallback #{idx}: -f {fb_selector}")
+                        fb_cmd = build_cmd(plan['player_client'], cookies_for_attempt, plan['extra_flags'], proxy_for_attempt, fb_selector)
+                        print(f"Executing command: {' '.join(fb_cmd)}")
+                        fb_result = subprocess.run(
+                            fb_cmd,
+                            cwd=str(project_root),
+                            capture_output=True,
+                            text=True,
+                            encoding='utf-8',
+                            errors='replace',
+                            timeout=3600,
+                            env=env
+                        )
+                        if fb_result.stdout:
+                            print("=== STDOUT ===")
+                            print(fb_result.stdout)
+                        if fb_result.stderr:
+                            print("=== STDERR ===")
+                            print(fb_result.stderr)
+                        print(f"Process exit code: {fb_result.returncode}")
+
+                        if fb_result.returncode == 0:
+                            print("Single video download completed successfully (via format fallback)")
+                            if cookies_for_attempt:
+                                try:
+                                    record_cookie_outcome(cookies_for_attempt, success=True)
+                                except Exception:
+                                    pass
+                            try:
+                                video_id = (job_data.get('video_id') or '').strip()
+                                skip_full_scan = bool(job_data.get('skip_full_scan'))
+                                print(f"[PostProcess] Debug: video_id='{video_id}', skip_full_scan={skip_full_scan}")
+                                print(f"[PostProcess] Debug: job_data keys: {list(job_data.keys())}")
+                                if video_id and skip_full_scan:
+                                    print(f"[PostProcess] Using optimized single-track update for {video_id}")
+                                    print(f"[PostProcess] Running full scan first to ensure track {video_id} is in DB")
+                                    self._update_database_scan(config.get('DB_PATH'))
+                                    print(f"[PostProcess] Now updating media properties for {video_id}")
+                                    self._update_single_track_path_and_probe(config, output_dir, video_id)
+                                    try:
+                                        self._cleanup_old_variants_if_safe(config, video_id)
+                                    except Exception as ce:
+                                        print(f"[PostProcess] Cleanup skipped due to error: {ce}")
+                                else:
+                                    print(f"[PostProcess] Using fallback full database scan (video_id={bool(video_id)}, skip_full_scan={skip_full_scan})")
+                                    self._update_database_scan(config.get('DB_PATH'))
+                            except Exception as e:
+                                print(f"[PostProcess] Warning: failed to update DB optimally: {e}")
+                                self._update_database_scan(config.get('DB_PATH'))
+
+                            self._cleanup_folder_temp_files(output_dir)
+                            return True
+
+                        # Prepare for next decision loop by replacing result with the last fallback result
+                        result = fb_result
+                        stderr_lower = (result.stderr or '').lower()
+
+                # Decide if we should retry based on stderr markers
                 sabr_marker = 'sabr' in stderr_lower or 'missing a url' in stderr_lower
                 forbidden_403 = 'http error 403' in stderr_lower or 'forbidden' in stderr_lower
                 permanent_markers = ['this video is private', 'video unavailable', 'copyright']
