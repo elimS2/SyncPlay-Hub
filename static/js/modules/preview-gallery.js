@@ -12,12 +12,17 @@ export function initPreviewGallery(options) {
     nextBtn,
     fetchBtn,
     promoteBtn,
+    playBtn,
+    backBtn,
+    mediaUrl,
     toast = (msg)=>{ try { window.ToastNotifications?.showToast(msg, { position: 'bottom' }); } catch {} }
   } = options;
 
   const sourceKeys = ['manual', 'youtube', 'media'];
   let currentIdx = -1;
   let available = [];
+  let isPlayerActive = false;
+  let videoEl = null;
 
   function sourceLabel(src) {
     if (src === 'manual') return 'Manual preview image';
@@ -61,6 +66,71 @@ export function initPreviewGallery(options) {
     }).catch(()=>{});
   }
 
+  function getActiveSource() {
+    if (!available || !available.length || currentIdx < 0) return 'media';
+    return available[currentIdx];
+  }
+
+  function enterPlayerMode() {
+    if (isPlayerActive || !imgEl || !mediaUrl) return;
+    try {
+      // Create <video> next to the image
+      videoEl = document.createElement('video');
+      videoEl.src = mediaUrl;
+      videoEl.controls = true;
+      videoEl.preload = 'metadata';
+      videoEl.playsInline = true;
+      videoEl.autoplay = true;
+      const src = getActiveSource();
+      videoEl.poster = `/api/track/${videoId}/preview.png?src=${src}&t=${Date.now()}`;
+      videoEl.style.maxWidth = '100%';
+      videoEl.style.borderRadius = '8px';
+      videoEl.style.border = '1px solid var(--border)';
+      videoEl.style.background = 'var(--bg-card)';
+
+      imgEl.style.display = 'none';
+      imgEl.parentElement.insertBefore(videoEl, imgEl.nextSibling);
+      if (dotsEl) dotsEl.style.display = 'none';
+      playBtn && (playBtn.style.display = 'none');
+      backBtn && (backBtn.style.display = 'inline-flex');
+      isPlayerActive = true;
+
+      // Try to start playback immediately; fall back to starting when ready
+      const tryStart = () => {
+        try {
+          const p = videoEl.play();
+          if (p && typeof p.then === 'function') { p.catch(() => {}); }
+        } catch {}
+      };
+      if (videoEl.readyState >= 2) {
+        tryStart();
+      } else {
+        videoEl.addEventListener('canplay', tryStart, { once: true });
+        videoEl.addEventListener('loadeddata', tryStart, { once: true });
+      }
+    } catch (e) {
+      toast('Failed to open inline player');
+    }
+  }
+
+  function exitPlayerMode() {
+    if (!isPlayerActive) return;
+    try {
+      if (videoEl) {
+        try { videoEl.pause(); } catch {}
+        videoEl.remove();
+      }
+      videoEl = null;
+      imgEl.style.display = '';
+      if (dotsEl) dotsEl.style.display = '';
+      playBtn && (playBtn.style.display = 'inline-flex');
+      backBtn && (backBtn.style.display = 'none');
+      isPlayerActive = false;
+    } catch (e) {
+      isPlayerActive = false;
+    }
+  }
+
   function paintActive(idx) {
     if (!dotsEl) return;
     dotsEl.querySelectorAll('button[data-idx]')?.forEach((b, i)=>{
@@ -96,12 +166,14 @@ export function initPreviewGallery(options) {
     renderDots();
 
     prevBtn && prevBtn.addEventListener('click', () => {
+      if (isPlayerActive) exitPlayerMode();
       if (!available.length) return;
       currentIdx = (currentIdx - 1 + available.length) % available.length;
       setPreviewSource(available[currentIdx]);
       paintActive(currentIdx);
     });
     nextBtn && nextBtn.addEventListener('click', () => {
+      if (isPlayerActive) exitPlayerMode();
       if (!available.length) return;
       currentIdx = (currentIdx + 1) % available.length;
       setPreviewSource(available[currentIdx]);
@@ -109,6 +181,7 @@ export function initPreviewGallery(options) {
     });
 
     fetchBtn && fetchBtn.addEventListener('click', async () => {
+      if (isPlayerActive) exitPlayerMode();
       const btn = fetchBtn;
       const orig = btn.textContent;
       try {
@@ -145,6 +218,7 @@ export function initPreviewGallery(options) {
     });
 
     promoteBtn && promoteBtn.addEventListener('click', async () => {
+      if (isPlayerActive) exitPlayerMode();
       if (!available.length) return;
       const src = available[currentIdx];
       if (src === 'manual') { toast('Already manual'); return; }
@@ -174,6 +248,12 @@ export function initPreviewGallery(options) {
         promoteBtn.disabled = false;
       }
     });
+
+    // Play / Back buttons
+    playBtn && (playBtn.onclick = () => { enterPlayerMode(); });
+    backBtn && (backBtn.onclick = () => { exitPlayerMode(); });
+    // Initialize buttons state
+    backBtn && (backBtn.style.display = 'none');
   }
 
   return { init };

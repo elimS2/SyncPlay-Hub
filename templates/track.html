@@ -115,8 +115,10 @@
                 <div id="previewDots" style="display:flex; gap:6px; align-items:center;"></div>
               </div>
               <div style="display:flex; gap:6px; align-items:center;">
-                <button id="prevPreviewBtn" class="inline-action" title="Previous preview">◀ Prev</button>
-                <button id="nextPreviewBtn" class="inline-action" title="Next preview">Next ▶</button>
+                <button id="playInlineBtn" class="inline-action" title="Play">Play</button>
+                <button id="backToPreviewBtn" class="inline-action" title="Back to preview" style="display:none;">Back to preview</button>
+                <button id="prevPreviewBtn" class="inline-action" title="Previous preview">&larr;</button>
+                <button id="nextPreviewBtn" class="inline-action" title="Next preview">&rarr;</button>
                 <button id="promoteManualBtn" class="inline-action" title="Save current preview as Manual">Set as Manual</button>
               </div>
             </div>
@@ -504,18 +506,51 @@
     (function initYoutubeQualities() {
       fetchYoutubeFormats();
     })();
-    // Initialize Preview Gallery (module)
-    const gallery = initPreviewGallery({
-      videoId: '{{ video_id }}',
-      imgEl: document.getElementById('previewImage'),
-      captionEl: document.getElementById('previewCaption'),
-      dotsEl: document.getElementById('previewDots'),
-      prevBtn: document.getElementById('prevPreviewBtn'),
-      nextBtn: document.getElementById('nextPreviewBtn'),
-      fetchBtn: document.getElementById('fetchYoutubeBtn'),
-      promoteBtn: document.getElementById('promoteManualBtn'),
-    });
-    gallery.init();
+
+    // Resolve best media URL (track.relpath or same_id_files candidates)
+    const candidateFiles = (function() {
+      try {
+        const list = JSON.parse('{{ same_id_files | tojson | safe }}') || [];
+        const rel = '{{ track.get("relpath") or "" }}';
+        if (rel) list.unshift(rel);
+        return Array.from(new Set(list.map(x => String(x || '')))).filter(Boolean);
+      } catch (e) { return []; }
+    })();
+    function isVideoExt(path) {
+      return /\.(mp4|webm|mkv|avi|mov)$/i.test(path || '');
+    }
+    function toMediaUrl(rel) {
+      try { return '/media/' + encodeURI(String(rel).replace(/\\\\/g,'/')); } catch { return null; }
+    }
+    async function resolveMediaUrl() {
+      for (const rel of candidateFiles) {
+        if (!isVideoExt(rel)) continue;
+        const url = toMediaUrl(rel);
+        if (!url) continue;
+        try {
+          const resp = await fetch(url, { method: 'HEAD' });
+          if (resp && resp.ok) return url;
+        } catch {}
+      }
+      return null;
+    }
+    (async () => {
+      const mediaUrlVal = await resolveMediaUrl();
+      const gallery = initPreviewGallery({
+        videoId: '{{ video_id }}',
+        imgEl: document.getElementById('previewImage'),
+        captionEl: document.getElementById('previewCaption'),
+        dotsEl: document.getElementById('previewDots'),
+        prevBtn: document.getElementById('prevPreviewBtn'),
+        nextBtn: document.getElementById('nextPreviewBtn'),
+        fetchBtn: document.getElementById('fetchYoutubeBtn'),
+        promoteBtn: document.getElementById('promoteManualBtn'),
+        playBtn: document.getElementById('playInlineBtn'),
+        backBtn: document.getElementById('backToPreviewBtn'),
+        mediaUrl: mediaUrlVal,
+      });
+      gallery.init();
+    })();
   </script>
 </body>
 </html>
