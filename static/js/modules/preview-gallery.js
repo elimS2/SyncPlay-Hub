@@ -218,29 +218,60 @@ export function initPreviewGallery(options) {
     });
 
     promoteBtn && promoteBtn.addEventListener('click', async () => {
-      if (isPlayerActive) exitPlayerMode();
       if (!available.length) return;
       const src = available[currentIdx];
       if (src === 'manual') { toast('Already manual'); return; }
-      const confirmMsg = `Set current (${sourceLabel(src)}) as Manual? This may overwrite existing manual image.`;
-      if (!window.confirm(confirmMsg)) return;
+
       try {
         promoteBtn.disabled = true;
-        const resp = await fetch(`/api/track/${videoId}/promote_preview`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ src, overwrite: true })
-        });
-        const data = await resp.json();
-        if (!resp.ok || data.status !== 'ok') {
-          toast(data?.error || 'Failed to set manual');
-        } else {
-          toast('Manual image saved');
+        let ok = false;
+        // If player is active and we have a video element, capture current frame by timestamp
+        if (isPlayerActive && videoEl && typeof videoEl.currentTime === 'number') {
+          const ts = Math.max(0, Number(videoEl.currentTime) || 0);
+          const resp = await fetch(`/api/track/${videoId}/set_manual_from_timestamp`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ time: ts, width: 1280, overwrite: true })
+          });
+          const data = await resp.json().catch(()=>({}));
+          if (resp.ok && data && data.status === 'ok') {
+            ok = true;
+            toast('Manual image saved from current frame');
+          } else {
+            toast(data?.error || 'Failed to save manual from current frame');
+          }
+        }
+
+        // Otherwise fallback to promoting current preview source
+        if (!ok) {
+          const confirmMsg = `Set current (${sourceLabel(src)}) as Manual? This may overwrite existing manual image.`;
+          if (!window.confirm(confirmMsg)) { promoteBtn.disabled = false; return; }
+          const resp2 = await fetch(`/api/track/${videoId}/promote_preview`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ src, overwrite: true })
+          });
+          const data2 = await resp2.json().catch(()=>({}));
+          if (!resp2.ok || !data2 || data2.status !== 'ok') {
+            toast(data2?.error || 'Failed to set manual');
+          } else {
+            ok = true;
+            toast('Manual image saved');
+          }
+        }
+
+        if (ok) {
           // refresh available; manual should now be present
           available = await loadPreviewInfo();
           const idxM = available.indexOf('manual');
           if (idxM >= 0) currentIdx = idxM;
           renderDots();
+          // If player is active, update poster to manual for visual consistency
+          if (isPlayerActive && videoEl) {
+            videoEl.poster = `/api/track/${videoId}/preview.png?src=manual&t=${Date.now()}`;
+          } else {
+            setPreviewSource(available[currentIdx]);
+          }
         }
       } catch (e) {
         toast('Unexpected error');

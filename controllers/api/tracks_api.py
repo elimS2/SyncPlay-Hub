@@ -912,6 +912,127 @@ def api_promote_preview_to_manual(video_id: str):
                 pass
             return jsonify({"status": "error", "error": str(exc2)}), 500
 
+@tracks_bp.route("/track/<video_id>/set_manual_from_timestamp", methods=["POST"])
+def api_set_manual_from_timestamp(video_id: str):
+    """Extract a frame at the given timestamp and save as <video_id>_manual.png.
+
+    JSON body:
+      - time: float (seconds) — required
+      - width: int (optional, default 1280)
+      - overwrite: bool (optional, default True)
+      - timeout: float (optional, default 10.0 seconds)
+    """
+    if not _YT_ID_RE.match(video_id or ""):
+        return jsonify({"status": "error", "error": "Invalid video_id"}), 400
+
+    payload: Dict[str, Any] = request.get_json(silent=True) or {}
+    if "time" not in payload:
+        return jsonify({"status": "error", "error": "Missing 'time' in body"}), 400
+    try:
+        timestamp = float(payload.get("time", 0.0))
+    except Exception:
+        return jsonify({"status": "error", "error": "Invalid 'time' value"}), 400
+    try:
+        width = int(payload.get("width", 1280))
+        if width < 64:
+            width = 64
+        if width > 4096:
+            width = 4096
+    except Exception:
+        width = 1280
+    overwrite = bool(payload.get("overwrite", True))
+    try:
+        timeout = float(payload.get("timeout", 10.0))
+    except Exception:
+        timeout = 10.0
+
+    # Resolve media file path from DB
+    root_dir: Path = get_root_dir()
+    if not root_dir:
+        return jsonify({"status": "error", "error": "Server not initialized"}), 500
+    relpath: str | None = None
+    conn = get_connection()
+    try:
+        row = conn.execute("SELECT relpath FROM tracks WHERE video_id = ? LIMIT 1", (video_id,)).fetchone()
+        if not row:
+            return jsonify({"status": "error", "error": "Track not found"}), 404
+        relpath = row[0]
+    finally:
+        conn.close()
+
+    try:
+        media_path = (root_dir / relpath).resolve()
+    except Exception as exc:
+        return jsonify({"status": "error", "error": f"Bad media path: {exc}"}), 500
+    if not media_path.exists() or not media_path.is_file():
+        log_message(f"[SetManualTs] File not found for {video_id}: {media_path}")
+        return jsonify({"status": "error", "error": "File not found"}), 404
+
+    # Target directory (primary thumbnails, fallback to static/previews)
+    tdir = get_thumbnails_dir()
+    primary_dir = Path(tdir) if tdir else _get_previews_dir()
+    try:
+        primary_dir.mkdir(parents=True, exist_ok=True)
+    except Exception:
+        pass
+
+    manual = primary_dir / f"{video_id}_manual.png"
+    if manual.exists() and not overwrite:
+        return jsonify({"status": "error", "error": "Manual already exists. Use overwrite=true."}), 409
+
+    # Build ffmpeg command (accurate seek, scale to width, even height)
+    def _run_ffmpeg(out_path: Path) -> None:
+        cmd = [
+            "ffmpeg",
+            "-hide_banner",
+            "-loglevel", "error",
+            "-nostdin",
+            "-ss", str(max(0.0, timestamp)),
+            "-i", str(media_path),
+            "-frames:v", "1",
+            "-vf", f"scale={width}:-2:flags=bicubic",
+            "-q:v", "2",
+            "-y", str(out_path),
+        ]
+        subprocess.run(cmd, check=True, timeout=timeout)
+
+    # Try primary directory first with atomic replace
+    try:
+        fd, tmp_path = tempfile.mkstemp(suffix=".png", dir=str(manual.parent))
+        os.close(fd)
+        tmp_path_p = Path(tmp_path)
+        try:
+            _run_ffmpeg(tmp_path_p)
+            os.replace(str(tmp_path_p), str(manual))
+            return jsonify({"status": "ok", "video_id": video_id, "manual_path": str(manual) })
+        finally:
+            try:
+                if tmp_path_p.exists():
+                    tmp_path_p.unlink(missing_ok=True)
+            except Exception:
+                pass
+    except Exception as exc:
+        # Fallback to static/previews
+        try:
+            fb_dir = _get_previews_dir()
+            fb_dir.mkdir(parents=True, exist_ok=True)
+            fb_manual = fb_dir / f"{video_id}_manual.png"
+            fd2, tmp2 = tempfile.mkstemp(suffix=".png", dir=str(fb_dir))
+            os.close(fd2)
+            tmp2_p = Path(tmp2)
+            try:
+                _run_ffmpeg(tmp2_p)
+                os.replace(str(tmp2_p), str(fb_manual))
+                return jsonify({"status": "ok", "video_id": video_id, "manual_path": str(fb_manual), "fallback_used": True})
+            finally:
+                try:
+                    if tmp2_p.exists():
+                        tmp2_p.unlink(missing_ok=True)
+                except Exception:
+                    pass
+        except Exception as exc2:
+            return jsonify({"status": "error", "error": str(exc2)}), 500
+
 @tracks_bp.route("/track/<video_id>/youtube_formats", methods=["GET"])
 def api_get_youtube_formats(video_id: str):
     """Return available YouTube formats and summary stored in DB for a video.
