@@ -315,6 +315,22 @@ def tracks_page():
     except ValueError:
         max_bitrate_bps = None
 
+    # Size range (MB in UI → convert to bytes for DB)
+    min_size_mb = request.args.get("min_size_mb")
+    max_size_mb = request.args.get("max_size_mb")
+    try:
+        min_size_bytes = int(float(min_size_mb) * 1048576) if (min_size_mb is not None and str(min_size_mb).strip() != "") else None
+        if min_size_bytes is not None and min_size_bytes < 0:
+            min_size_bytes = 0
+    except (ValueError, TypeError):
+        min_size_bytes = None
+    try:
+        max_size_bytes = int(float(max_size_mb) * 1048576) if (max_size_mb is not None and str(max_size_mb).strip() != "") else None
+        if max_size_bytes is not None and max_size_bytes < 0:
+            max_size_bytes = 0
+    except (ValueError, TypeError):
+        max_size_bytes = None
+
     # min_likes integer parsing
     min_likes_param = request.args.get("min_likes")
     min_likes = None
@@ -355,6 +371,8 @@ def tracks_page():
             max_duration=max_duration_val,
             min_bitrate_bps=min_bitrate_bps,
             max_bitrate_bps=max_bitrate_bps,
+            min_size_bytes=min_size_bytes,
+            max_size_bytes=max_size_bytes,
             min_likes=min_likes,
             min_max_quality=min_max_quality,
             page=page,
@@ -405,6 +423,8 @@ def tracks_page():
             max_duration=max_duration_val,
             min_bitrate_bps=min_bitrate_bps,
             max_bitrate_bps=max_bitrate_bps,
+            min_size_bytes=min_size_bytes,
+            max_size_bytes=max_size_bytes,
             min_likes=min_likes,
         )
         filetype_counts = get_filetype_counts(
@@ -416,6 +436,8 @@ def tracks_page():
             max_duration=max_duration_val,
             min_bitrate_bps=min_bitrate_bps,
             max_bitrate_bps=max_bitrate_bps,
+            min_size_bytes=min_size_bytes,
+            max_size_bytes=max_size_bytes,
             min_likes=min_likes,
         )
     finally:
@@ -430,8 +452,10 @@ def tracks_page():
         "max_duration": max_duration_val if max_duration_val is not None else "",
         "min_bitrate_kbps": int(min_bitrate_bps/1000) if isinstance(min_bitrate_bps, int) else "",
         "max_bitrate_kbps": int(max_bitrate_bps/1000) if isinstance(max_bitrate_bps, int) else "",
+        "min_size_mb": round(min_size_bytes/1048576, 1) if isinstance(min_size_bytes, int) else "",
+        "max_size_mb": round(max_size_bytes/1048576, 1) if isinstance(max_size_bytes, int) else "",
         "min_max_quality": min_max_quality if min_max_quality is not None else "",
-        "applied": bool(resolutions_selected) or bool(filetypes_selected) or (min_likes is not None) or (min_duration_val is not None) or (max_duration_val is not None) or (min_bitrate_bps is not None) or (max_bitrate_bps is not None) or (min_max_quality is not None),
+        "applied": bool(resolutions_selected) or bool(filetypes_selected) or (min_likes is not None) or (min_duration_val is not None) or (max_duration_val is not None) or (min_bitrate_bps is not None) or (max_bitrate_bps is not None) or (min_size_bytes is not None) or (max_size_bytes is not None) or (min_max_quality is not None),
     }
     facets = {
         "resolutions": facets_resolutions,

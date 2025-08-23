@@ -216,6 +216,23 @@ body {
   min-width: 260px;
 }
 
+/* Individual filter card */
+.filter-card {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+}
+
+.filter-card .filters-controls {
+  margin-top: 2px;
+}
+
+.filter-card .filters-summary {
+  margin-top: 2px;
+}
+
 .filters-controls {
   display: flex;
   flex-wrap: wrap;

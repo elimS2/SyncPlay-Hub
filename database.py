@@ -595,6 +595,8 @@ def iter_tracks_with_playlists_filtered(
     max_duration: Optional[int] = None,
     min_bitrate_bps: Optional[int] = None,
     max_bitrate_bps: Optional[int] = None,
+    min_size_bytes: Optional[int] = None,
+    max_size_bytes: Optional[int] = None,
     min_likes: Optional[int] = None,
 ) -> Iterator[sqlite3.Row]:
     """Yield tracks with playlists and optional server-side filtering.
@@ -677,6 +679,18 @@ def iter_tracks_with_playlists_filtered(
         where_clauses.append("t.bitrate <= ?")
         params.append(int(max_bitrate_bps))
 
+    # Size range (bytes)
+    if isinstance(min_size_bytes, int) and min_size_bytes is not None:
+        if min_size_bytes < 0:
+            min_size_bytes = 0
+        where_clauses.append("t.size_bytes >= ?")
+        params.append(int(min_size_bytes))
+    if isinstance(max_size_bytes, int) and max_size_bytes is not None:
+        if max_size_bytes < 0:
+            max_size_bytes = 0
+        where_clauses.append("t.size_bytes <= ?")
+        params.append(int(max_size_bytes))
+
     if search_query:
         term = (search_query or "").strip()
         if term:
@@ -711,6 +725,8 @@ def get_tracks_with_filters_page(
     max_duration: Optional[int] = None,
     min_bitrate_bps: Optional[int] = None,
     max_bitrate_bps: Optional[int] = None,
+    min_size_bytes: Optional[int] = None,
+    max_size_bytes: Optional[int] = None,
     min_likes: Optional[int] = None,
     min_max_quality: Optional[int] = None,
     page: int = 1,
@@ -767,6 +783,18 @@ def get_tracks_with_filters_page(
             max_bitrate_bps = 0
         where_clauses.append("t.bitrate <= ?")
         params.append(int(max_bitrate_bps))
+
+    # Size range (bytes)
+    if isinstance(min_size_bytes, int) and min_size_bytes is not None:
+        if min_size_bytes < 0:
+            min_size_bytes = 0
+        where_clauses.append("t.size_bytes >= ?")
+        params.append(int(min_size_bytes))
+    if isinstance(max_size_bytes, int) and max_size_bytes is not None:
+        if max_size_bytes < 0:
+            max_size_bytes = 0
+        where_clauses.append("t.size_bytes <= ?")
+        params.append(int(max_size_bytes))
 
     if search_query:
         term = (search_query or "").strip()
@@ -831,6 +859,8 @@ def get_resolution_counts(
     max_duration: Optional[int] = None,
     min_bitrate_bps: Optional[int] = None,
     max_bitrate_bps: Optional[int] = None,
+    min_size_bytes: Optional[int] = None,
+    max_size_bytes: Optional[int] = None,
     min_likes: Optional[int] = None,
 ) -> dict:
     """Return counts per resolution given other filters."""
@@ -868,6 +898,18 @@ def get_resolution_counts(
     if isinstance(max_bitrate_bps, int) and max_bitrate_bps is not None:
         where_clauses.append("t.bitrate <= ?")
         params.append(int(max_bitrate_bps))
+
+    # Size range (bytes)
+    if isinstance(min_size_bytes, int) and min_size_bytes is not None:
+        if min_size_bytes < 0:
+            min_size_bytes = 0
+        where_clauses.append("t.size_bytes >= ?")
+        params.append(int(min_size_bytes))
+    if isinstance(max_size_bytes, int) and max_size_bytes is not None:
+        if max_size_bytes < 0:
+            max_size_bytes = 0
+        where_clauses.append("t.size_bytes <= ?")
+        params.append(int(max_size_bytes))
 
     if search_query:
         term = (search_query or "").strip()
@@ -907,6 +949,8 @@ def get_filetype_counts(
     max_duration: Optional[int] = None,
     min_bitrate_bps: Optional[int] = None,
     max_bitrate_bps: Optional[int] = None,
+    min_size_bytes: Optional[int] = None,
+    max_size_bytes: Optional[int] = None,
     min_likes: Optional[int] = None,
 ) -> dict:
     """Return counts per file type given other filters."""
@@ -944,6 +988,18 @@ def get_filetype_counts(
     if isinstance(max_bitrate_bps, int) and max_bitrate_bps is not None:
         where_clauses.append("t.bitrate <= ?")
         params.append(int(max_bitrate_bps))
+
+    # Size range (bytes)
+    if isinstance(min_size_bytes, int) and min_size_bytes is not None:
+        if min_size_bytes < 0:
+            min_size_bytes = 0
+        where_clauses.append("t.size_bytes >= ?")
+        params.append(int(min_size_bytes))
+    if isinstance(max_size_bytes, int) and max_size_bytes is not None:
+        if max_size_bytes < 0:
+            max_size_bytes = 0
+        where_clauses.append("t.size_bytes <= ?")
+        params.append(int(max_size_bytes))
 
     if search_query:
         term = (search_query or "").strip()

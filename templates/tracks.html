@@ -108,7 +108,7 @@
 
             <div class="filters-groups">
               <!-- Resolutions facet -->
-              <div class="filters-group">
+              <div class="filters-group filter-card">
                 <h4>Resolution</h4>
                 <div class="filters-controls">
                   <button type="button" class="btn btn-secondary btn-sm" id="selectAllResBtn">Select All</button>
@@ -134,7 +134,7 @@
               </div>
 
               <!-- Likes threshold -->
-              <div class="filters-group">
+              <div class="filters-group filter-card">
                 <h4>Minimum Likes</h4>
                 <div class="filters-field">
                   <input type="number" name="min_likes" min="0" step="1" placeholder="0" class="number-input" value="{{ filters.min_likes }}" />
@@ -142,7 +142,7 @@
               </div>
 
               <!-- Duration range (seconds) -->
-              <div class="filters-group">
+              <div class="filters-group filter-card">
                 <h4>Duration (sec)</h4>
                 <div class="filters-field" style="display:flex; gap:8px; align-items:center;">
                   <input type="number" name="min_duration" min="0" step="1" placeholder="Min" class="number-input" value="{{ filters.min_duration }}" />
@@ -152,7 +152,7 @@
               </div>
 
               <!-- Bitrate range (kbps) -->
-              <div class="filters-group">
+              <div class="filters-group filter-card">
                 <h4>Bitrate (kbps)</h4>
                 <div class="filters-field" style="display:flex; gap:8px; align-items:center;">
                   <input type="number" name="min_bitrate_kbps" min="0" step="1" placeholder="Min" class="number-input" value="{{ filters.min_bitrate_kbps }}" />
@@ -162,7 +162,7 @@
               </div>
 
               <!-- Size range (MB) -->
-              <div class="filters-group">
+              <div class="filters-group filter-card">
                 <h4>Size (MB)</h4>
                 <div class="filters-field" style="display:flex; gap:8px; align-items:center;">
                   <input type="number" name="min_size_mb" min="0" step="0.1" placeholder="Min" class="number-input" value="{{ filters.min_size_mb }}" />
@@ -172,7 +172,7 @@
               </div>
 
               <!-- File Types facet -->
-              <div class="filters-group">
+              <div class="filters-group filter-card">
                 <h4>File Type</h4>
                 <div class="filters-checkboxes">
                   {% for ft in facets.filetypes %}
@@ -188,7 +188,7 @@
               </div>
 
               <!-- Max YouTube Quality filter (server-side) -->
-              <div class="filters-group">
+              <div class="filters-group filter-card">
                 <h4>Max YouTube Quality</h4>
                 <input type="hidden" name="min_max_quality" id="minMaxQualityInput" value="{{ filters.min_max_quality }}" />
                 <div class="filters-controls" id="maxQualityControls">
