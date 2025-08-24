@@ -195,6 +195,11 @@
 
         function showAddChannelModal(groupId) {
             document.getElementById('selectedGroupId').value = groupId;
+            const headerEl = document.querySelector('#addChannelModal .modal-header h3');
+            const group = channelGroups.find(g => g.id === groupId);
+            if (headerEl) {
+                headerEl.textContent = group ? `Add YouTube Channel to "${group.name}"` : 'Add YouTube Channel';
+            }
             document.getElementById('addChannelModal').style.display = 'block';
         }
 
@@ -202,6 +207,10 @@
             document.getElementById('addChannelModal').style.display = 'none';
             document.getElementById('addChannelForm').reset();
             document.getElementById('customDateGroup').style.display = 'none';
+            const headerEl = document.querySelector('#addChannelModal .modal-header h3');
+            if (headerEl) {
+                headerEl.textContent = 'Add YouTube Channel';
+            }
         }
 
         // Date preset handling
