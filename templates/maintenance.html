@@ -115,13 +115,16 @@
                             <div><strong>Coverage</strong>: <span id="meta-coverage">-</span></div>
                             <div><strong>Recent Additions (7d)</strong>: <span id="meta-recent">-</span></div>
                         </div>
+                        <div id="qualities-stats-inline" style="font-size:12px; line-height:1.2; margin: -2px 0 8px 0; color: var(--text-secondary);">
+                            <div><strong>With YouTube Qualities</strong>: <span id="meta-with-qualities">-</span></div>
+                            <div><strong>Without YouTube Qualities</strong>: <span id="meta-without-qualities">-</span></div>
+                        </div>
                         <div class="action-buttons">
                             <button class="btn btn-primary" onclick="scanMissingMetadata()">
                                 <span>🔍</span>
                                 Scan Missing Metadata
                             </button>
                             <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
-                                <input id="qualitiesLimit" type="number" min="1" max="5000" step="1" placeholder="Limit (e.g., 100)" style="padding:6px 10px; width:140px;" />
                                 <button class="btn" onclick="scanMissingYoutubeQualities()">
                                     <span>🎞️</span>
                                     Enqueue Missing YouTube Qualities
@@ -267,6 +270,8 @@
                     setText('meta-without-metadata', md.tracks_without_metadata ?? '-');
                     setText('meta-coverage', (md.coverage_percent != null) ? `${md.coverage_percent}%` : '-');
                     setText('meta-recent', md.recent_additions ?? '-');
+                    setText('meta-with-qualities', md.tracks_with_qualities ?? '-');
+                    setText('meta-without-qualities', md.tracks_without_qualities ?? '-');
                 }
 
                 // Get job queue statistics

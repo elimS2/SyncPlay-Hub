@@ -331,7 +331,7 @@ def api_scan_missing_youtube_qualities():
 
 @metadata_bp.route("/metadata_statistics", methods=["GET"])
 def api_metadata_statistics():
-    """Get metadata coverage statistics."""
+    """Get metadata coverage statistics, including YouTube qualities coverage."""
     try:
         conn = get_connection()
         
@@ -365,6 +365,24 @@ def api_metadata_statistics():
         
         # Coverage percentage
         coverage_percent = (tracks_with_metadata / total_tracks * 100) if total_tracks > 0 else 0
+
+        # Tracks WITH YouTube qualities (yvm present, available_formats non-empty, max_available_height not null)
+        cur.execute(
+            """
+            SELECT COUNT(*) FROM tracks t
+            JOIN youtube_video_metadata yvm ON t.video_id = yvm.youtube_id
+            WHERE t.video_id NOT IN (
+                SELECT dt.video_id FROM deleted_tracks dt
+                WHERE dt.restored_at IS NULL
+            )
+            AND yvm.available_formats IS NOT NULL AND TRIM(yvm.available_formats) <> ''
+            AND yvm.max_available_height IS NOT NULL
+            """
+        )
+        tracks_with_qualities = cur.fetchone()[0]
+
+        # Tracks WITHOUT YouTube qualities
+        tracks_without_qualities = total_tracks - tracks_with_qualities
         
         # Recent metadata additions
         cur.execute("""
@@ -382,7 +400,9 @@ def api_metadata_statistics():
                 "tracks_with_metadata": tracks_with_metadata,
                 "tracks_without_metadata": tracks_without_metadata,
                 "coverage_percent": round(coverage_percent, 1),
-                "recent_additions": recent_additions
+                "recent_additions": recent_additions,
+                "tracks_with_qualities": tracks_with_qualities,
+                "tracks_without_qualities": tracks_without_qualities
             }
         })
         
