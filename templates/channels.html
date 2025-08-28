@@ -574,44 +574,63 @@
                 '<span class="likes-excluded-badge"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path><line x1="2" y1="2" x2="22" y2="22"></line></svg> Not in likes</span>';
 
             return `
-                <div class="channel-group">
-                    <div class="group-header">
+                <div class="channel-group" id="group-${group.id}">
+                    <div class="group-header" onclick="onGroupHeaderClick(event, ${group.id})">
                         <div class="group-header-row">
                             <div class="group-title-container">
-                                <button class="collapse-btn" onclick="toggleChannelList(${group.id})">
-                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                        <polyline points="9 6 15 12 9 18"/>
+                                <button class="collapse-btn" id="collapse-btn-${group.id}" type="button" aria-label="Toggle group" aria-expanded="false" aria-controls="channels-${group.id}" title="Expand group" onclick="event.stopPropagation(); toggleChannelList(${group.id})">
+                                    <svg class="chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                        <polyline points="9 18 15 12 9 6"></polyline>
                                     </svg>
                                 </button>
+                                ${group.channel_count > 0 ? `
+                                <div class="group-collapsed-actions">
+                                    <button class="btn btn-success btn-icon" onclick="quickSyncChannelGroup(${group.id})" title="Quick sync all channels">
+                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
+                                        </svg>
+                                    </button>
+                                    <button class="btn btn-primary btn-icon" onclick="window.open('/playlist/' + encodeURIComponent('${group.name}'), '_blank')" title="Play group playlist">
+                                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <polygon points="8,5 19,12 8,19 8,5" />
+                                        </svg>
+                                    </button>
+                                </div>
+                                ` : ''}
                                 <div class="group-title">
                                     ${icon} ${group.name}
                                     ${autoDeleteBadge}
                                     ${likesIncludedBadge}
                                 </div>
                             </div>
+                            <div class="group-stats-compact">
+                                ${group.channel_count} channels • playable: ${typeof group.playlist_tracks_count === 'number' ? group.playlist_tracks_count : '?'} • ${formatPlayOrder(group.play_order)} order
+                            </div>
                         </div>
                         <div class="group-header-row">
                             <div class="group-stats">
-                                ${group.channel_count} channels, ${group.total_tracks} tracks
+                                ${group.channel_count} channels
+                                • playable: ${typeof group.playlist_tracks_count === 'number' ? group.playlist_tracks_count : '?'}
+                                • indexed: ${typeof group.total_tracks === 'number' ? group.total_tracks : '?'}
                                 • ${formatPlayOrder(group.play_order)} order
                             </div>
                         </div>
                         <div class="group-header-row">
                             <div class="group-actions">
-                                <button class="btn" onclick="showAddChannelModal(${group.id})">
+                                <button class="btn" onclick="showAddChannelModal(${group.id})" title="Add channel to this group">
                                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                         <path d="M5 12h14m-7-7v14"/>
                                     </svg>
                                     Add Channel
                                 </button>
-                                <button class="btn ${group.include_in_likes ? 'btn-success' : 'btn-muted'}" onclick="toggleIncludeInLikes(${group.id}, ${group.include_in_likes})">
+                                <button class="btn ${group.include_in_likes ? 'btn-success' : 'btn-muted'}" onclick="toggleIncludeInLikes(${group.id}, ${group.include_in_likes})" title="${group.include_in_likes ? 'Disable likes inclusion' : 'Enable likes inclusion'}">
                                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                         <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
                                     </svg>
                                     ${group.include_in_likes ? 'Disable' : 'Enable'} Likes
                                 </button>
                                 ${group.channel_count > 0 ? `
-                                    <button class="btn btn-success" onclick="syncChannelGroup(${group.id})">
+                                    <button class="btn btn-success" onclick="syncChannelGroup(${group.id})" title="Full sync all group channels">
                                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                             <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 15.64-8.13M22 12.5a10 10 0 0 1-15.64 8.13"/>
                                         </svg>
@@ -627,7 +646,7 @@
                                         Play
                                     </button>
                                 ` : `
-                                    <button class="btn btn-danger" onclick="deleteEmptyChannelGroup(${group.id}, '${group.name}')">
+                                    <button class="btn btn-danger" onclick="deleteEmptyChannelGroup(${group.id}, '${group.name}')" title="Delete this empty group">
                                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                             <polyline points="3,6 5,6 21,6"></polyline>
                                             <path d="m19,6v14a2,2 0 0,1-2,2H7a2,2 0 0,1-2-2V6m3,0V4a2,2 0 0,1,2-2h4a2,2 0 0,1,2,2v2"></path>
@@ -827,29 +846,56 @@
 
         function toggleChannelList(groupId) {
             const channelsList = document.getElementById(`channels-${groupId}`);
-            const collapseBtn = document.querySelector(`[onclick="toggleChannelList(${groupId})"]`);
+            const collapseBtn = document.getElementById('collapse-btn-' + groupId);
+            const groupContainer = document.getElementById(`group-${groupId}`);
             const isCollapsed = channelsList.classList.contains('collapsed');
 
             if (isCollapsed) {
                 channelsList.classList.remove('collapsed');
                 channelsList.classList.add('expanded');
-                collapseBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>';
+                if (collapseBtn) {
+                    collapseBtn.classList.remove('collapsed');
+                    collapseBtn.setAttribute('aria-expanded', 'true');
+                    collapseBtn.setAttribute('title', 'Collapse group');
+                }
+                if (groupContainer) {
+                    groupContainer.classList.remove('is-collapsed');
+                    groupContainer.classList.add('is-expanded');
+                }
                 // Save expanded state to localStorage
                 localStorage.setItem(`channelGroup_${groupId}_expanded`, 'true');
             } else {
                 channelsList.classList.remove('expanded');
                 channelsList.classList.add('collapsed');
-                collapseBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 6 15 12 9 18"/></svg>';
+                if (collapseBtn) {
+                    collapseBtn.classList.add('collapsed');
+                    collapseBtn.setAttribute('aria-expanded', 'false');
+                    collapseBtn.setAttribute('title', 'Expand group');
+                }
+                if (groupContainer) {
+                    groupContainer.classList.remove('is-expanded');
+                    groupContainer.classList.add('is-collapsed');
+                }
                 // Save collapsed state to localStorage
                 localStorage.setItem(`channelGroup_${groupId}_expanded`, 'false');
             }
+        }
+
+        function onGroupHeaderClick(event, groupId) {
+            const target = event.target;
+            // ignore clicks on interactive elements
+            if (target.closest('button') || target.closest('a') || target.closest('input') || target.closest('select')) {
+                return;
+            }
+            toggleChannelList(groupId);
         }
 
         function initializeChannelGroupStates() {
             // Initialize collapse states for all groups
             channelGroups.forEach(group => {
                 const channelsList = document.getElementById(`channels-${group.id}`);
-                const collapseBtn = document.querySelector(`[onclick="toggleChannelList(${group.id})"]`);
+                const collapseBtn = document.getElementById('collapse-btn-' + group.id);
+                const groupContainer = document.getElementById(`group-${group.id}`);
                 
                 if (channelsList && collapseBtn) {
                     // Check if user has a saved preference, otherwise default to collapsed
@@ -859,11 +905,23 @@
                     if (isExpanded) {
                         channelsList.classList.remove('collapsed');
                         channelsList.classList.add('expanded');
-                        collapseBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>';
+                        collapseBtn.classList.remove('collapsed');
+                        collapseBtn.setAttribute('aria-expanded', 'true');
+                        collapseBtn.setAttribute('title', 'Collapse group');
+                        if (groupContainer) {
+                            groupContainer.classList.remove('is-collapsed');
+                            groupContainer.classList.add('is-expanded');
+                        }
                     } else {
                         channelsList.classList.remove('expanded');
                         channelsList.classList.add('collapsed');
-                        collapseBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 6 15 12 9 18"/></svg>';
+                        collapseBtn.classList.add('collapsed');
+                        collapseBtn.setAttribute('aria-expanded', 'false');
+                        collapseBtn.setAttribute('title', 'Expand group');
+                        if (groupContainer) {
+                            groupContainer.classList.remove('is-expanded');
+                            groupContainer.classList.add('is-collapsed');
+                        }
                     }
                 }
             });

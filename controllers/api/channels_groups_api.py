@@ -21,6 +21,66 @@ def api_get_channel_groups():
         groups = db.get_channel_groups(conn)
         conn.close()
         
+        # Augment with actual playlist (on-disk) track counts to reflect what the player shows
+        try:
+            root_dir = get_root_dir()
+        except Exception:
+            root_dir = None
+        # Short-lived cache to avoid repeated disk scans within a small window
+        if root_dir:
+            import time
+            media_exts = {".mp3", ".m4a", ".opus", ".webm", ".flac", ".mp4", ".mkv", ".mov"}
+            try:
+                # Lazy in-memory cache on the function object
+                cache = getattr(api_get_channel_groups, "_playlist_counts_cache", {})
+                cache_ts = getattr(api_get_channel_groups, "_playlist_counts_cache_ts", 0.0)
+                ttl_seconds = 15.0  # very short TTL to minimize staleness
+                now = time.time()
+                # Allow force refresh via query param
+                force_refresh = (request.args.get('refresh') == '1')
+                if force_refresh or not cache or (now - cache_ts) > ttl_seconds:
+                    new_cache = {}
+                    for g in groups:
+                        try:
+                            group_folder = Path(root_dir) / str(g.get('name') or '')
+                            if group_folder.exists() and group_folder.is_dir():
+                                cnt = 0
+                                for p in group_folder.rglob("*.*"):
+                                    try:
+                                        if p.is_file() and p.suffix.lower() in media_exts:
+                                            cnt += 1
+                                    except Exception:
+                                        continue
+                                new_cache[g.get('name')] = cnt
+                            else:
+                                new_cache[g.get('name')] = 0
+                        except Exception:
+                            new_cache[g.get('name')] = None
+                    api_get_channel_groups._playlist_counts_cache = new_cache
+                    api_get_channel_groups._playlist_counts_cache_ts = now
+                    cache = new_cache
+                # Apply cached values to response
+                for g in groups:
+                    g["playlist_tracks_count"] = cache.get(g.get('name'))
+            except Exception:
+                # Fallback to direct compute without cache if something goes wrong
+                for g in groups:
+                    try:
+                        group_folder = Path(root_dir) / str(g.get('name') or '')
+                        if group_folder.exists() and group_folder.is_dir():
+                            cnt = 0
+                            for p in group_folder.rglob("*.*"):
+                                try:
+                                    if p.is_file() and p.suffix.lower() in media_exts:
+                                        cnt += 1
+                                except Exception:
+                                    continue
+                            g["playlist_tracks_count"] = cnt
+                        else:
+                            g["playlist_tracks_count"] = 0
+                    except Exception:
+                        g["playlist_tracks_count"] = None
+        
         log_message(f"[Channels] Retrieved {len(groups)} channel groups")
         return jsonify({"status": "ok", "groups": groups})
         

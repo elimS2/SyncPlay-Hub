@@ -87,8 +87,53 @@ h1 {
     z-index: 1;
 }
 
+/* Compact header when group is collapsed */
+.channel-group.is-collapsed {
+    padding: 12px 16px;
+}
+
+.channel-group.is-collapsed .group-header {
+    margin-bottom: 0;
+}
+
+.channel-group.is-collapsed .group-header-row + .group-header-row {
+    display: none;
+}
+
+.channel-group.is-collapsed .group-collapsed-actions {
+    display: inline-flex;
+    align-items: center;
+}
+
+.channel-group.is-collapsed .group-title {
+    font-size: 1.1rem;
+}
+
+.channel-group.is-collapsed .auto-delete-badge,
+.channel-group.is-collapsed .likes-included-badge,
+.channel-group.is-collapsed .likes-excluded-badge {
+    transform: scale(0.95);
+}
+
+.channel-group.is-collapsed .collapse-btn.collapsed svg {
+    transform: rotate(-90deg);
+}
+
+/* Compact stats line visible only when collapsed */
+.group-stats-compact {
+    display: none;
+    color: var(--text-secondary);
+    font-size: 0.9rem;
+    white-space: nowrap;
+}
+
+.channel-group.is-collapsed .group-stats-compact {
+    display: inline-block;
+}
+
 .group-header {
     margin-bottom: 20px;
+    cursor: pointer;
 }
 
 .group-header-row {
@@ -118,6 +163,15 @@ h1 {
     min-width: 0;
 }
 
+.group-collapsed-actions {
+    display: none;
+    gap: 8px;
+}
+
+.btn-icon {
+    padding: 6px 8px;
+}
+
 .collapse-btn {
     background: none;
     border: none;
@@ -131,6 +185,11 @@ h1 {
     justify-content: center;
 }
 
+.collapse-btn:focus-visible {
+    outline: 2px solid var(--accent-primary);
+    outline-offset: 2px;
+}
+
 .collapse-btn:hover {
     background: rgba(255, 255, 255, 0.1);
     color: var(--text-primary);
@@ -142,6 +201,15 @@ h1 {
 
 .collapse-btn.collapsed svg {
     transform: rotate(-90deg);
+}
+
+/* Use a single chevron icon that rotates for expanded state */
+.collapse-btn .chevron {
+    transition: transform 0.2s ease;
+}
+
+.channel-group.is-expanded .collapse-btn .chevron {
+    transform: rotate(90deg);
 }
 
 .channels-list {
