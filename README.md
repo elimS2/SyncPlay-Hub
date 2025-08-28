@@ -235,6 +235,7 @@ Open `http://<your_ip>:8000/` in a modern browser – the UI is responsive and w
 - **`/tracks`** – Browse all tracks with statistics
 - **`/history`** – Complete playback history
 - **`/backups`** – Database backup management
+- **`/schedules`** – Recurring task scheduler (create/edit/disable schedules)
 
 ### File discovery
 
@@ -538,6 +539,40 @@ To restore from a backup:
 
 ---
 
+## 🆕 Recurring Task Scheduler
+
+The application includes a general-purpose scheduler to run recurring background tasks via the Job Queue.
+
+### What you can schedule
+
+- `DATABASE_BACKUP`: Create database backups on a schedule (daily/weekly/interval). Optional retention parameter is stored with the schedule.
+- `QUICK_SYNC_GROUP`: Run Quick Sync for a specific channel group on a schedule (daily/weekly/interval).
+
+### How it works
+
+- Schedules are persisted in the SQLite table `scheduled_tasks`.
+- A background thread `RecurringSchedulerService` evaluates schedules in UTC every 60 seconds and enqueues the appropriate jobs.
+- The scheduler is started automatically after the Job Queue service and stops on server shutdown.
+- You can manage schedules from the UI (`/schedules`) or via the API (see below).
+
+### UI integration
+
+- `/schedules`: Create, edit, toggle, delete, and run-now for any schedule.
+- `/backups`: "Schedule Backup" button opens a modal to manage the `DATABASE_BACKUP` schedule.
+- `/channels`: For each group, "Schedule Quick Sync" opens a modal to manage a `QUICK_SYNC_GROUP` schedule (by `group_id`).
+
+### Migration
+
+Apply the DB migration before using the scheduler:
+
+```bash
+python migrate.py migrate  # or python migrate.py migrate --db-path <path-to-DB/tracks.db>
+```
+
+> The app reads DB path from `.env` (DB_PATH) or defaults to `<root>/DB/tracks.db`.
+
+---
+
 ## API Endpoints
 
 The web player exposes several API endpoints for programmatic control:
@@ -575,6 +610,15 @@ The web player exposes several API endpoints for programmatic control:
 ### Database Backup
 - `POST /api/backup` – Create new database backup
 - `GET /api/backups` – List all available backups
+
+### 🆕 Scheduler
+- `GET /api/schedules` – List schedules (filters: `enabled`, `task_type`)
+- `POST /api/schedules` – Create schedule
+- `GET /api/schedules/<id>` – Get schedule
+- `PATCH /api/schedules/<id>` – Update schedule
+- `DELETE /api/schedules/<id>` – Delete schedule
+- `POST /api/schedules/<id>/toggle` – Enable/disable schedule
+- `POST /api/schedules/<id>/run_now` – Trigger schedule immediately
 
 ### Live Streaming
 - `GET /api/streams` – List active streaming sessions

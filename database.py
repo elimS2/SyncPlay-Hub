@@ -1,4 +1,5 @@
 import sqlite3
+import json
 import time
 from pathlib import Path
 from typing import Iterator, Optional, Union, List, Dict, Callable, TypeVar
@@ -2611,3 +2612,185 @@ def get_video_publication_date(conn: sqlite3.Connection, video_id: str) -> Optio
             return None
     
     return None 
+
+
+# ---------- Recurring Scheduler (Scheduled Tasks) ----------
+
+
+def create_scheduled_task(
+    conn: sqlite3.Connection,
+    *,
+    name: str,
+    task_type: str,
+    schedule_kind: str,
+    enabled: bool = True,
+    schedule_time: Optional[str] = None,
+    schedule_days: Optional[list[str]] = None,
+    interval_minutes: Optional[int] = None,
+    cron_expr: Optional[str] = None,
+    timezone: str = 'UTC',
+    params: Optional[Dict] = None,
+    last_run_at: Optional[str] = None,
+    next_run_at: Optional[str] = None,
+) -> int:
+    """Create a new scheduled task.
+
+    Args:
+        name: Human-readable schedule name.
+        task_type: Logical task type, e.g. 'DATABASE_BACKUP', 'QUICK_SYNC_GROUP'.
+        schedule_kind: One of: 'daily' | 'weekly' | 'interval' | 'cron'.
+        enabled: Whether the schedule is active.
+        schedule_time: HH:MM (UTC) for daily/weekly kinds.
+        schedule_days: Weekday list for weekly, e.g. ['mon','tue'].
+        interval_minutes: Interval minutes for interval kind.
+        cron_expr: Reserved for future cron support.
+        timezone: Timezone name; currently only 'UTC' supported.
+        params: Task-specific parameters dict stored as JSON.
+        last_run_at: ISO timestamp of the last run.
+        next_run_at: ISO timestamp of the next planned run (optional cache).
+
+    Returns:
+        New scheduled task ID.
+    """
+    cur = conn.cursor()
+    schedule_days_json = json.dumps(schedule_days) if schedule_days is not None else None
+    params_json = json.dumps(params or {})
+    cur.execute(
+        """
+        INSERT INTO scheduled_tasks (
+            name, task_type, enabled, schedule_kind, schedule_time,
+            schedule_days, interval_minutes, cron_expr, timezone,
+            params_json, last_run_at, next_run_at, created_at, updated_at
+        ) VALUES (
+            ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now')
+        )
+        """,
+        (
+            name, task_type, int(bool(enabled)), schedule_kind, schedule_time,
+            schedule_days_json, interval_minutes, cron_expr, timezone,
+            params_json, last_run_at, next_run_at,
+        ),
+    )
+    conn.commit()
+    return cur.lastrowid
+
+
+def get_scheduled_tasks(
+    conn: sqlite3.Connection,
+    *,
+    only_enabled: Optional[bool] = None,
+    task_type: Optional[str] = None,
+) -> List[Dict]:
+    """List scheduled tasks with optional filters."""
+    where = ["1=1"]
+    params: list = []
+    if only_enabled is not None:
+        where.append("enabled = ?")
+        params.append(1 if only_enabled else 0)
+    if task_type:
+        where.append("task_type = ?")
+        params.append(task_type)
+    where_sql = " WHERE " + " AND ".join(where)
+    sql = (
+        "SELECT * FROM scheduled_tasks" + where_sql + " ORDER BY enabled DESC, name COLLATE NOCASE"
+    )
+    rows = conn.execute(sql, params).fetchall()
+    results: List[Dict] = []
+    for row in rows:
+        item = dict(row)
+        try:
+            item['schedule_days'] = json.loads(item.get('schedule_days') or 'null')
+        except Exception:
+            item['schedule_days'] = None
+        try:
+            item['params'] = json.loads(item.get('params_json') or '{}')
+        except Exception:
+            item['params'] = {}
+        results.append(item)
+    return results
+
+
+def get_scheduled_task_by_id(conn: sqlite3.Connection, task_id: int) -> Optional[sqlite3.Row]:
+    """Fetch one scheduled task by ID (raw row)."""
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM scheduled_tasks WHERE id = ?", (task_id,))
+    return cur.fetchone()
+
+
+def update_scheduled_task(conn: sqlite3.Connection, task_id: int, **kwargs) -> bool:
+    """Update fields of a scheduled task. Returns True if updated."""
+    valid_fields = {
+        'name', 'task_type', 'enabled', 'schedule_kind', 'schedule_time',
+        'schedule_days', 'interval_minutes', 'cron_expr', 'timezone',
+        'params_json', 'last_run_at', 'next_run_at'
+    }
+    update_map = {k: v for k, v in kwargs.items() if k in valid_fields}
+    if not update_map:
+        return False
+
+    # Normalize JSON-bearing fields
+    if 'schedule_days' in update_map and not isinstance(update_map['schedule_days'], (str, bytes)):
+        update_map['schedule_days'] = json.dumps(update_map['schedule_days']) if update_map['schedule_days'] is not None else None
+    if 'params_json' not in update_map and 'params' in kwargs:
+        update_map['params_json'] = json.dumps(kwargs['params'] or {})
+
+    set_parts = []
+    values: list = []
+    for k, v in update_map.items():
+        set_parts.append(f"{k} = ?")
+        values.append(v)
+    # updated_at
+    set_parts.append("updated_at = datetime('now')")
+    values.append(task_id)
+
+    sql = f"UPDATE scheduled_tasks SET {', '.join(set_parts)} WHERE id = ?"
+    cur = conn.cursor()
+    cur.execute(sql, values)
+    conn.commit()
+    return cur.rowcount > 0
+
+
+def set_scheduled_task_enabled(conn: sqlite3.Connection, task_id: int, enabled: bool) -> bool:
+    """Enable/disable a scheduled task."""
+    cur = conn.cursor()
+    cur.execute(
+        "UPDATE scheduled_tasks SET enabled = ?, updated_at = datetime('now') WHERE id = ?",
+        (1 if enabled else 0, task_id),
+    )
+    conn.commit()
+    return cur.rowcount > 0
+
+
+def touch_scheduled_task_run(
+    conn: sqlite3.Connection,
+    task_id: int,
+    *,
+    last_run_at: Optional[str] = None,
+    next_run_at: Optional[str] = None,
+) -> bool:
+    """Update last/next run timestamps for a schedule."""
+    updates = []
+    params: list = []
+    if last_run_at is not None:
+        updates.append("last_run_at = ?")
+        params.append(last_run_at)
+    if next_run_at is not None:
+        updates.append("next_run_at = ?")
+        params.append(next_run_at)
+    if not updates:
+        return False
+    updates.append("updated_at = datetime('now')")
+    params.append(task_id)
+    sql = f"UPDATE scheduled_tasks SET {', '.join(updates)} WHERE id = ?"
+    cur = conn.cursor()
+    cur.execute(sql, params)
+    conn.commit()
+    return cur.rowcount > 0
+
+
+def delete_scheduled_task(conn: sqlite3.Connection, task_id: int) -> bool:
+    """Delete a scheduled task by ID."""
+    cur = conn.cursor()
+    cur.execute("DELETE FROM scheduled_tasks WHERE id = ?", (task_id,))
+    conn.commit()
+    return cur.rowcount > 0

@@ -79,6 +79,7 @@
         <button id="configAutoBackupBtn" class="btn">⚙️ Configure</button>
         <button id="forceBackupBtn" class="btn btn-warning">🚀 Force Backup Now</button>
         <button id="viewJobsBtn" class="btn btn-purple">📋 View Jobs</button>
+        <button id="scheduleBackupBtn" class="btn btn-purple">🗓️ Schedule Backup</button>
       </div>
     </div>
 
@@ -121,6 +122,58 @@
         </div>
         <div class="modal-actions">
           <button id="closeJobsBtn" class="btn">❌ Close</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Scheduler Modal for Backup -->
+    <div id="scheduleModal" class="modal">
+      <div class="modal-content">
+        <h3>Schedule Database Backup</h3>
+        <div class="form-group">
+          <label>Enabled:</label>
+          <select id="bk_enabled">
+            <option value="true" selected>true</option>
+            <option value="false">false</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Kind:</label>
+          <select id="bk_kind" onchange="bkOnKindChange()">
+            <option value="daily" selected>daily</option>
+            <option value="weekly">weekly</option>
+            <option value="interval">interval</option>
+          </select>
+        </div>
+        <div class="form-group" id="bk_row_time">
+          <label>Time (UTC):</label>
+          <input type="time" id="bk_time" value="02:00" pattern="^([01]\\d|2[0-3]):[0-5]\\d$" title="Use 24-hour format HH:MM (00:00–23:59)">
+        </div>
+        <div class="form-group" id="bk_row_days" style="display:none">
+          <label>Days:</label>
+          <div class="days">
+            <label><input type="checkbox" value="mon">Mon</label>
+            <label><input type="checkbox" value="tue">Tue</label>
+            <label><input type="checkbox" value="wed">Wed</label>
+            <label><input type="checkbox" value="thu">Thu</label>
+            <label><input type="checkbox" value="fri">Fri</label>
+            <label><input type="checkbox" value="sat">Sat</label>
+            <label><input type="checkbox" value="sun">Sun</label>
+          </div>
+        </div>
+        <div class="form-group" id="bk_row_interval" style="display:none">
+          <label>Interval (minutes):</label>
+          <input type="number" id="bk_interval" min="5" step="5" value="60">
+        </div>
+        <div class="form-group">
+          <label>Retention days:</label>
+          <input type="number" id="bk_retention" min="1" step="1" value="30">
+        </div>
+        <div class="btn-group">
+          <button id="bk_save_btn" class="btn btn-success">💾 Save</button>
+          <button id="bk_run_now_btn" class="btn">🚀 Run now</button>
+          <button id="bk_delete_btn" class="btn">🗑️ Delete</button>
+          <button id="bk_close_btn" class="btn">❌ Close</button>
         </div>
       </div>
     </div>
@@ -479,6 +532,124 @@
           document.getElementById('jobsModal').style.display = 'none';
         }
       });
+
+      // ================= Scheduler Integration (Database Backup) =================
+      let bkEditingId = null; // schedule id
+
+      document.getElementById('scheduleBackupBtn')?.addEventListener('click', async () => {
+        await bkOpenEditor();
+      });
+
+      document.getElementById('bk_close_btn')?.addEventListener('click', () => {
+        document.getElementById('scheduleModal').style.display = 'none';
+      });
+
+      document.getElementById('scheduleModal')?.addEventListener('click', (e) => {
+        if (e.target.id === 'scheduleModal') {
+          document.getElementById('scheduleModal').style.display = 'none';
+        }
+      });
+
+      document.getElementById('bk_save_btn')?.addEventListener('click', async () => {
+        await bkSave();
+      });
+
+      document.getElementById('bk_run_now_btn')?.addEventListener('click', async () => {
+        if (!bkEditingId) { alert('Create and save the schedule first'); return; }
+        try {
+          const res = await fetch(`/api/schedules/${bkEditingId}/run_now`, { method: 'POST' });
+          const data = await res.json();
+          if (data.status === 'ok') { alert('Backup triggered'); }
+          else { alert(data.error || 'Failed to trigger'); }
+        } catch (e) { alert(e.message || e); }
+      });
+
+      document.getElementById('bk_delete_btn')?.addEventListener('click', async () => {
+        if (!bkEditingId) { alert('No schedule to delete'); return; }
+        if (!confirm('Delete backup schedule?')) return;
+        try {
+          const res = await fetch(`/api/schedules/${bkEditingId}`, { method: 'DELETE' });
+          const data = await res.json();
+          if (data.status === 'ok') { bkEditingId = null; document.getElementById('scheduleModal').style.display = 'none'; }
+          else { alert(data.error || 'Delete failed'); }
+        } catch (e) { alert(e.message || e); }
+      });
+
+      function bkOnKindChange() {
+        const kind = document.getElementById('bk_kind').value;
+        document.getElementById('bk_row_time').style.display = (kind === 'daily' || kind === 'weekly') ? '' : 'none';
+        document.getElementById('bk_row_days').style.display = (kind === 'weekly') ? '' : 'none';
+        document.getElementById('bk_row_interval').style.display = (kind === 'interval') ? '' : 'none';
+      }
+      window.bkOnKindChange = bkOnKindChange;
+
+      async function bkOpenEditor() {
+        try {
+          // Load existing backup schedules (we manage the first one)
+          const res = await fetch('/api/schedules?task_type=DATABASE_BACKUP');
+          const data = await res.json();
+          let item = null;
+          if (data.status === 'ok' && Array.isArray(data.schedules) && data.schedules.length > 0) {
+            item = data.schedules[0];
+          }
+          bkEditingId = item?.id || null;
+          document.getElementById('bk_enabled').value = String(item?.enabled ?? true);
+          document.getElementById('bk_kind').value = item?.schedule_kind || 'daily';
+          document.getElementById('bk_time').value = item?.schedule_time || '02:00';
+          document.getElementById('bk_interval').value = item?.interval_minutes || 60;
+          // days
+          const dayInputs = document.querySelectorAll('#bk_row_days input[type="checkbox"]');
+          const days = item?.schedule_days || [];
+          dayInputs.forEach(cb => cb.checked = days.includes(cb.value));
+          // params
+          const retention = item?.params?.retention_days ?? 30;
+          document.getElementById('bk_retention').value = retention;
+          bkOnKindChange();
+          document.getElementById('scheduleModal').style.display = 'block';
+        } catch (e) {
+          alert('Failed to load schedule: ' + (e.message || e));
+        }
+      }
+
+      async function bkSave() {
+        const payload = {
+          name: 'Database Backup',
+          task_type: 'DATABASE_BACKUP',
+          schedule_kind: document.getElementById('bk_kind').value,
+          enabled: document.getElementById('bk_enabled').value === 'true',
+          params: {
+            backup_type: 'full',
+            retention_days: parseInt(document.getElementById('bk_retention').value || '30', 10),
+            cleanup_old: false
+          }
+        };
+        if (payload.schedule_kind === 'daily' || payload.schedule_kind === 'weekly') {
+          payload.schedule_time = document.getElementById('bk_time').value;
+        }
+        if (payload.schedule_kind === 'weekly') {
+          const days = Array.from(document.querySelectorAll('#bk_row_days input[type="checkbox"]:checked')).map(cb => cb.value);
+          payload.schedule_days = days;
+        }
+        if (payload.schedule_kind === 'interval') {
+          payload.interval_minutes = parseInt(document.getElementById('bk_interval').value || '60', 10);
+        }
+
+        const method = bkEditingId ? 'PATCH' : 'POST';
+        const url = bkEditingId ? `/api/schedules/${bkEditingId}` : '/api/schedules';
+        try {
+          const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+          const data = await res.json();
+          if (data.status === 'ok') {
+            if (!bkEditingId) bkEditingId = data.id;
+            alert('Backup schedule saved');
+            document.getElementById('scheduleModal').style.display = 'none';
+          } else {
+            alert(data.error || 'Save failed');
+          }
+        } catch (e) {
+          alert(e.message || e);
+        }
+      }
 
       // Restart Server
       const restartBtn = document.getElementById('restartBtn');

@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Schedules</title>
+  {% include 'sidebar_styles.html' %}
+  <style>
+    .content { padding: 20px; }
+    .toolbar { display:flex; gap:8px; align-items:center; margin-bottom:12px; }
+    .table { width:100%; border-collapse: collapse; }
+    .table th, .table td { border-bottom:1px solid #2a2a2a; padding:8px; text-align:left; }
+    .badge { padding:2px 6px; border-radius:6px; background:#2e2e2e; font-size:12px; }
+    .btn { padding:6px 10px; border-radius:6px; border:1px solid #3a3a3a; background:#1d1d1d; color:#eaeaea; cursor:pointer; }
+    .btn:hover { background:#242424; }
+    .modal { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.6); align-items:center; justify-content:center; }
+    .modal .modal-content { background:#151515; padding:16px; border-radius:10px; width:480px; max-width:95vw; }
+    .form-row { display:flex; gap:8px; margin-bottom:10px; }
+    .form-row label { width:160px; }
+    .form-row input, .form-row select { flex:1; background:#121212; border:1px solid #333; color:#eaeaea; padding:6px; border-radius:6px; }
+    .days { display:flex; gap:6px; flex-wrap:wrap; }
+    .days label { display:flex; gap:4px; align-items:center; }
+    /* Toasts */
+    .toast-container { position: fixed; right: 16px; bottom: 16px; display: flex; flex-direction: column; gap: 8px; z-index: 9999; }
+    .toast { background: #1f2937; color: #e5e7eb; padding: 10px 14px; border-radius: 8px; border: 1px solid #374151; min-width: 240px; box-shadow: 0 4px 12px rgba(0,0,0,0.4); }
+    .toast.success { border-color: #10b981; }
+    .toast.error { border-color: #ef4444; }
+  </style>
+</head>
+<body>
+  {% include 'sidebar.html' %}
+  <div class="main-content">
+    <div class="content">
+      <h1>Recurring Schedules</h1>
+      <div class="toolbar">
+        <button class="btn" onclick="openEditor()">+ New Schedule</button>
+        <button class="btn" onclick="reloadList()">Refresh</button>
+      </div>
+
+      <table class="table" id="schedulesTable">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Task</th>
+            <th>Kind</th>
+            <th>Time/Interval</th>
+            <th>Next Run (UTC)</th>
+            <th>Enabled</th>
+            <th>Last Run</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="modal" id="editorModal">
+    <div class="modal-content">
+      <h3 id="editorTitle">New Schedule</h3>
+      <div class="form-row">
+        <label>Name</label>
+        <input id="f_name" placeholder="My schedule" />
+      </div>
+      <div class="form-row">
+        <label>Task Type</label>
+        <select id="f_task_type">
+          <option value="DATABASE_BACKUP">DATABASE_BACKUP</option>
+          <option value="QUICK_SYNC_GROUP">QUICK_SYNC_GROUP</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <label>Schedule Kind</label>
+        <select id="f_kind" onchange="onKindChange()">
+          <option value="daily">daily</option>
+          <option value="weekly">weekly</option>
+          <option value="interval">interval</option>
+        </select>
+      </div>
+      <div class="form-row" id="row_time">
+        <label>Time (UTC)</label>
+        <input id="f_time" type="text" value="02:00" placeholder="HH:MM" pattern="^([01]\\d|2[0-3]):[0-5]\\d$" title="Use 24-hour format HH:MM (00:00–23:59)" />
+      </div>
+      <div class="form-row" id="row_days" style="display:none">
+        <label>Days</label>
+        <div class="days">
+          <label><input type="checkbox" value="mon"/>Mon</label>
+          <label><input type="checkbox" value="tue"/>Tue</label>
+          <label><input type="checkbox" value="wed"/>Wed</label>
+          <label><input type="checkbox" value="thu"/>Thu</label>
+          <label><input type="checkbox" value="fri"/>Fri</label>
+          <label><input type="checkbox" value="sat"/>Sat</label>
+          <label><input type="checkbox" value="sun"/>Sun</label>
+        </div>
+      </div>
+      <div class="form-row" id="row_interval" style="display:none">
+        <label>Interval (minutes)</label>
+        <input id="f_interval" type="number" min="5" step="5" value="60" />
+      </div>
+      <div class="form-row" id="row_params_group" style="display:none">
+        <label>Group</label>
+        <select id="f_group_select"></select>
+      </div>
+      <div class="form-row">
+        <label>Enabled</label>
+        <select id="f_enabled">
+          <option value="true" selected>true</option>
+          <option value="false">false</option>
+        </select>
+      </div>
+      <div class="form-row" style="justify-content:flex-end; gap:8px">
+        <button class="btn" onclick="saveSchedule()">Save</button>
+        <button class="btn" onclick="closeEditor()">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let editingId = null;
+
+    document.addEventListener('DOMContentLoaded', () => {
+      reloadList();
+      const typeSel = document.getElementById('f_task_type');
+      if (typeSel) {
+        typeSel.addEventListener('change', onTaskTypeChange);
+      }
+    });
+
+    function onKindChange() {
+      const kind = document.getElementById('f_kind').value;
+      document.getElementById('row_time').style.display = (kind === 'daily' || kind === 'weekly') ? '' : 'none';
+      document.getElementById('row_days').style.display = (kind === 'weekly') ? '' : 'none';
+      document.getElementById('row_interval').style.display = (kind === 'interval') ? '' : 'none';
+    }
+
+    async function ensureGroupsLoaded() {
+      if (window.__channelGroupsCache) return window.__channelGroupsCache;
+      try {
+        const res = await fetch('/api/channels/channel_groups');
+        const data = await res.json();
+        if (data.status !== 'ok') return [];
+        window.__channelGroupsCache = data.groups || [];
+        return window.__channelGroupsCache;
+      } catch (_) { return []; }
+    }
+
+    async function onTaskTypeChange() {
+      const type = document.getElementById('f_task_type').value;
+      const groupRow = document.getElementById('row_params_group');
+      if (type === 'QUICK_SYNC_GROUP') {
+        groupRow.style.display = '';
+        const groups = await ensureGroupsLoaded();
+        const select = document.getElementById('f_group_select');
+        if (select) {
+          select.innerHTML = '';
+          if (!groups || groups.length === 0) {
+            const opt = document.createElement('option');
+            opt.value = '';
+            opt.textContent = 'No groups available';
+            select.appendChild(opt);
+          } else {
+            for (const g of groups) {
+              const opt = document.createElement('option');
+              opt.value = String(g.id);
+              opt.textContent = `${g.name} (id:${g.id})`;
+              select.appendChild(opt);
+            }
+          }
+        }
+      } else {
+        groupRow.style.display = 'none';
+      }
+    }
+
+    async function openEditor(item) {
+      editingId = item?.id || null;
+      document.getElementById('editorTitle').textContent = editingId ? 'Edit Schedule' : 'New Schedule';
+      document.getElementById('f_name').value = item?.name || '';
+      document.getElementById('f_task_type').value = item?.task_type || 'DATABASE_BACKUP';
+      document.getElementById('f_kind').value = item?.schedule_kind || 'daily';
+      document.getElementById('f_time').value = item?.schedule_time || '02:00';
+      document.getElementById('f_interval').value = item?.interval_minutes || 60;
+      // days
+      const dayInputs = document.querySelectorAll('#row_days input[type="checkbox"]');
+      const days = item?.schedule_days || [];
+      dayInputs.forEach(cb => cb.checked = days.includes(cb.value));
+      // params (group select for QUICK_SYNC_GROUP)
+      await onTaskTypeChange();
+      const sel = document.getElementById('f_group_select');
+      if (sel && item?.params?.group_id) sel.value = String(item.params.group_id);
+      document.getElementById('f_enabled').value = String(item?.enabled ?? true);
+      onKindChange();
+      document.getElementById('editorModal').style.display = 'flex';
+    }
+
+    function closeEditor() {
+      document.getElementById('editorModal').style.display = 'none';
+    }
+
+    async function reloadList() {
+      const res = await fetch('/api/schedules');
+      const data = await res.json();
+      if (data.status !== 'ok') { showToast('Failed to load schedules', 'error'); return; }
+      const tbody = document.querySelector('#schedulesTable tbody');
+      tbody.innerHTML = '';
+      for (const s of data.schedules) {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${escapeHtml(s.name)}</td>
+          <td><span class="badge">${s.task_type}</span></td>
+          <td>${s.schedule_kind}</td>
+          <td>${renderTimeCell(s)}</td>
+          <td>${computeNextRunUtcCell(s)}</td>
+          <td>${s.enabled ? 'Yes' : 'No'}</td>
+          <td>${s.last_run_at || ''}</td>
+          <td>
+            <button class="btn" onclick='openEditor(${JSON.stringify(s)})'>Edit</button>
+            <button class="btn" onclick='toggleEnabled(${s.id}, ${!s.enabled})'>${s.enabled ? 'Disable' : 'Enable'}</button>
+            <button class="btn" onclick='runNow(${s.id})'>Run now</button>
+            <button class="btn" onclick='deleteSchedule(${s.id})'>Delete</button>
+          </td>`;
+        tbody.appendChild(tr);
+      }
+    }
+
+    function renderTimeCell(s) {
+      if (s.schedule_kind === 'interval') return `Every ${s.interval_minutes} min`;
+      if (s.schedule_kind === 'weekly') return `${s.schedule_time} UTC · ${(s.schedule_days||[]).join(',')}`;
+      return `${s.schedule_time || ''} UTC`;
+    }
+
+    function computeNextRunUtcCell(s) {
+      try {
+        const now = new Date();
+        const nowUTCms = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), now.getUTCHours(), now.getUTCMinutes(), now.getUTCSeconds());
+        const kind = (s.schedule_kind || '').toLowerCase();
+        if (kind === 'interval') {
+          const mins = parseInt(s.interval_minutes || 0, 10);
+          if (!mins || mins < 1) return '';
+          const last = s.last_run_at ? Date.parse(s.last_run_at.endsWith('Z') ? s.last_run_at : s.last_run_at + 'Z') : null;
+          const base = (last && last > nowUTCms) ? last : nowUTCms;
+          const next = base + mins * 60 * 1000;
+          return new Date(next).toISOString().replace('T', ' ').replace('Z',' UTC');
+        }
+        if (kind === 'daily') {
+          const hm = (s.schedule_time || '00:00').split(':');
+          const hh = parseInt(hm[0]||'0',10); const mm = parseInt(hm[1]||'0',10);
+          let next = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), hh, mm, 0);
+          if (next <= nowUTCms) next += 24*60*60*1000;
+          return new Date(next).toISOString().replace('T',' ').replace('Z',' UTC');
+        }
+        if (kind === 'weekly') {
+          const hm = (s.schedule_time || '00:00').split(':');
+          const hh = parseInt(hm[0]||'0',10); const mm = parseInt(hm[1]||'0',10);
+          const days = (s.schedule_days || []).map(d => String(d).toLowerCase());
+          if (!days.length) return '';
+          const labelToIdx = {sun:0, mon:1, tue:2, wed:3, thu:4, fri:5, sat:6};
+          const nowDay = new Date(nowUTCms).getUTCDay();
+          let best = null;
+          for (const d of days) {
+            const idx = labelToIdx[d];
+            if (idx === undefined) continue;
+            let delta = (idx - nowDay + 7) % 7;
+            let candidate = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), hh, mm, 0) + delta*24*60*60*1000;
+            if (delta === 0 && candidate <= nowUTCms) candidate += 7*24*60*60*1000;
+            if (best === null || candidate < best) best = candidate;
+          }
+          if (!best) return '';
+          return new Date(best).toISOString().replace('T',' ').replace('Z',' UTC');
+        }
+        return '';
+      } catch (_) { return ''; }
+    }
+
+    async function saveSchedule() {
+      const payload = {
+        name: document.getElementById('f_name').value.trim(),
+        task_type: document.getElementById('f_task_type').value,
+        schedule_kind: document.getElementById('f_kind').value,
+        enabled: document.getElementById('f_enabled').value === 'true'
+      };
+      if (payload.schedule_kind === 'daily' || payload.schedule_kind === 'weekly') {
+        payload.schedule_time = document.getElementById('f_time').value;
+      }
+      if (payload.schedule_kind === 'weekly') {
+        const days = Array.from(document.querySelectorAll('#row_days input[type="checkbox"]:checked')).map(cb => cb.value);
+        payload.schedule_days = days;
+      }
+      if (payload.schedule_kind === 'interval') {
+        payload.interval_minutes = parseInt(document.getElementById('f_interval').value || '60', 10);
+      }
+      if (payload.task_type === 'QUICK_SYNC_GROUP') {
+        const sel = document.getElementById('f_group_select');
+        const gid = sel ? parseInt(sel.value || '0', 10) : 0;
+        payload.params = { group_id: gid };
+      }
+
+      const method = editingId ? 'PATCH' : 'POST';
+      const url = editingId ? `/api/schedules/${editingId}` : '/api/schedules';
+      const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+      const data = await res.json();
+      if (data.status !== 'ok') { showToast(data.error || 'Save failed', 'error'); return; }
+      closeEditor();
+      editingId = null;
+      reloadList();
+      showToast('Schedule saved', 'success');
+    }
+
+    async function toggleEnabled(id, enabled) {
+      const res = await fetch(`/api/schedules/${id}/toggle`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ enabled }) });
+      const data = await res.json();
+      if (data.status !== 'ok') { showToast(data.error || 'Toggle failed', 'error'); return; }
+      reloadList();
+      showToast('Status updated', 'success');
+    }
+
+    async function runNow(id) {
+      const res = await fetch(`/api/schedules/${id}/run_now`, { method: 'POST' });
+      const data = await res.json();
+      if (data.status !== 'ok') { showToast(data.error || 'Run failed', 'error'); return; }
+      reloadList();
+      showToast('Triggered', 'success');
+    }
+
+    async function deleteSchedule(id) {
+      if (!confirm('Delete this schedule?')) return;
+      const res = await fetch(`/api/schedules/${id}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (data.status !== 'ok') { showToast(data.error || 'Delete failed', 'error'); return; }
+      reloadList();
+      showToast('Deleted', 'success');
+    }
+
+    function escapeHtml(str) {
+      return String(str || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
+    // Toast helpers
+    function ensureToastContainer() {
+      let c = document.querySelector('.toast-container');
+      if (!c) {
+        c = document.createElement('div');
+        c.className = 'toast-container';
+        document.body.appendChild(c);
+      }
+      return c;
+    }
+    function showToast(message, type='success', ttlMs=2500) {
+      const c = ensureToastContainer();
+      const t = document.createElement('div');
+      t.className = `toast ${type}`;
+      t.textContent = message;
+      c.appendChild(t);
+      setTimeout(() => { try { c.removeChild(t); } catch(_){} }, ttlMs);
+    }
+  </script>
+  <div class="toast-container" style="display:none"></div>
+</body>
+</html>
+

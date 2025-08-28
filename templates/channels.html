@@ -623,6 +623,9 @@
                                         </svg>
                                         Quick Sync All
                                     </button>
+                                    <button class="btn" onclick="openGroupScheduleModal(${group.id}, '${group.name.replace(/'/g, "\\'")}')" title="Schedule Quick Sync for this group">
+                                        🗓️ Schedule Quick Sync
+                                    </button>
                                     <button class="btn btn-primary" onclick="window.open('/playlist/' + encodeURIComponent('${group.name}'), '_blank')" title="Play group playlist">
                                         Play
                                     </button>
@@ -922,6 +925,158 @@
                 setTimeout(() => location.reload(), 4000);
             }
         });
+    </script>
+
+    <!-- Group Quick Sync Scheduler Modal -->
+    <div id="groupScheduleModal" class="modal" style="display:none">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="gs_title">Schedule Quick Sync</h3>
+                <span class="close" onclick="document.getElementById('groupScheduleModal').style.display='none'">&times;</span>
+            </div>
+            <div class="form-group">
+                <label>Enabled</label>
+                <select id="gs_enabled">
+                    <option value="true" selected>true</option>
+                    <option value="false">false</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Kind</label>
+                <select id="gs_kind" onchange="gsOnKindChange()">
+                    <option value="daily" selected>daily</option>
+                    <option value="weekly">weekly</option>
+                    <option value="interval">interval</option>
+                </select>
+            </div>
+            <div class="form-group" id="gs_row_time">
+                <label>Time (UTC)</label>
+                <input id="gs_time" type="time" value="05:30" />
+            </div>
+            <div class="form-group" id="gs_row_days" style="display:none">
+                <label>Days</label>
+                <div class="days">
+                    <label><input type="checkbox" value="mon"/>Mon</label>
+                    <label><input type="checkbox" value="tue"/>Tue</label>
+                    <label><input type="checkbox" value="wed"/>Wed</label>
+                    <label><input type="checkbox" value="thu"/>Thu</label>
+                    <label><input type="checkbox" value="fri"/>Fri</label>
+                    <label><input type="checkbox" value="sat"/>Sat</label>
+                    <label><input type="checkbox" value="sun"/>Sun</label>
+                </div>
+            </div>
+            <div class="form-group" id="gs_row_interval" style="display:none">
+                <label>Interval (minutes)</label>
+                <input id="gs_interval" type="number" min="5" step="5" value="60" />
+            </div>
+            <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:12px">
+                <button class="btn" onclick="gsSave()">💾 Save</button>
+                <button class="btn" onclick="gsRunNow()">🚀 Run now</button>
+                <button class="btn" onclick="gsDelete()">🗑️ Delete</button>
+                <button class="btn" onclick="document.getElementById('groupScheduleModal').style.display='none'">❌ Close</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Scheduler functions inserted
+        async function loadGroupSchedule(groupId) {
+            const res = await fetch('/api/schedules?task_type=QUICK_SYNC_GROUP');
+            const data = await res.json();
+            if (data.status !== 'ok') return null;
+            const items = Array.isArray(data.schedules) ? data.schedules : [];
+            for (const it of items) {
+                try { if (it.params && Number(it.params.group_id) === Number(groupId)) return it; } catch (_) {}
+            }
+            return null;
+        }
+
+        function openGroupScheduleModal(groupId, groupName) {
+            const modal = document.getElementById('groupScheduleModal');
+            const title = document.getElementById('gs_title');
+            title.textContent = `Schedule Quick Sync – ${groupName}`;
+            modal.dataset.groupId = String(groupId);
+            modal.dataset.scheduleId = '';
+            document.getElementById('gs_enabled').value = 'true';
+            document.getElementById('gs_kind').value = 'daily';
+            document.getElementById('gs_time').value = '05:30';
+            document.getElementById('gs_interval').value = 60;
+            document.querySelectorAll('#gs_row_days input[type="checkbox"]').forEach(cb => cb.checked = false);
+            gsOnKindChange();
+            loadGroupSchedule(groupId).then(item => {
+                if (!item) { modal.style.display = 'block'; return; }
+                modal.dataset.scheduleId = String(item.id);
+                document.getElementById('gs_enabled').value = String(item.enabled);
+                document.getElementById('gs_kind').value = item.schedule_kind || 'daily';
+                document.getElementById('gs_time').value = item.schedule_time || '05:30';
+                document.getElementById('gs_interval').value = item.interval_minutes || 60;
+                const days = item.schedule_days || [];
+                document.querySelectorAll('#gs_row_days input[type="checkbox"]').forEach(cb => cb.checked = days.includes(cb.value));
+                gsOnKindChange();
+                modal.style.display = 'block';
+            }).catch(() => { modal.style.display = 'block'; });
+        }
+
+        function gsOnKindChange() {
+            const kind = document.getElementById('gs_kind').value;
+            document.getElementById('gs_row_time').style.display = (kind === 'daily' || kind === 'weekly') ? '' : 'none';
+            document.getElementById('gs_row_days').style.display = (kind === 'weekly') ? '' : 'none';
+            document.getElementById('gs_row_interval').style.display = (kind === 'interval') ? '' : 'none';
+        }
+
+        async function gsSave() {
+            const modal = document.getElementById('groupScheduleModal');
+            const groupId = parseInt(modal.dataset.groupId || '0', 10);
+            const scheduleId = modal.dataset.scheduleId ? parseInt(modal.dataset.scheduleId, 10) : null;
+            const payload = {
+                name: `Quick Sync – Group ${groupId}`,
+                task_type: 'QUICK_SYNC_GROUP',
+                schedule_kind: document.getElementById('gs_kind').value,
+                enabled: document.getElementById('gs_enabled').value === 'true',
+                params: { group_id: groupId }
+            };
+            if (payload.schedule_kind === 'daily' || payload.schedule_kind === 'weekly') {
+                payload.schedule_time = document.getElementById('gs_time').value;
+            }
+            if (payload.schedule_kind === 'weekly') {
+                const days = Array.from(document.querySelectorAll('#gs_row_days input[type="checkbox"]:checked')).map(cb => cb.value);
+                payload.schedule_days = days;
+            }
+            if (payload.schedule_kind === 'interval') {
+                payload.interval_minutes = parseInt(document.getElementById('gs_interval').value || '60', 10);
+            }
+            const method = scheduleId ? 'PATCH' : 'POST';
+            const url = scheduleId ? `/api/schedules/${scheduleId}` : '/api/schedules';
+            const res = await fetch(url, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+            const data = await res.json();
+            if (data.status !== 'ok') { alert(data.error || 'Save failed'); return; }
+            if (!scheduleId) modal.dataset.scheduleId = String(data.id);
+            alert('Quick Sync schedule saved');
+            modal.style.display = 'none';
+        }
+
+        async function gsRunNow() {
+            const modal = document.getElementById('groupScheduleModal');
+            const scheduleId = modal.dataset.scheduleId ? parseInt(modal.dataset.scheduleId, 10) : null;
+            if (!scheduleId) { alert('Create and save the schedule first'); return; }
+            const res = await fetch(`/api/schedules/${scheduleId}/run_now`, { method: 'POST' });
+            const data = await res.json();
+            if (data.status !== 'ok') { alert(data.error || 'Run failed'); return; }
+            alert('Quick Sync triggered');
+        }
+
+        async function gsDelete() {
+            const modal = document.getElementById('groupScheduleModal');
+            const scheduleId = modal.dataset.scheduleId ? parseInt(modal.dataset.scheduleId, 10) : null;
+            if (!scheduleId) { alert('No schedule to delete'); return; }
+            if (!confirm('Delete Quick Sync schedule?')) return;
+            const res = await fetch(`/api/schedules/${scheduleId}`, { method: 'DELETE' });
+            const data = await res.json();
+            if (data.status !== 'ok') { alert(data.error || 'Delete failed'); return; }
+            modal.dataset.scheduleId = '';
+            alert('Schedule deleted');
+            modal.style.display = 'none';
+        }
     </script>
 </body>
 </html> 

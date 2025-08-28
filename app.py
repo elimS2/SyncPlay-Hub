@@ -760,6 +760,11 @@ def logs_page():
     
     return render_template("logs.html", logs=logs_info)
 
+@app.route("/schedules")
+def schedules_page():
+    """Recurring Schedules management page."""
+    return render_template("schedules.html")
+
 def _format_file_size(size_bytes):
     """Format file size in human readable format."""
     if size_bytes == 0:
@@ -1141,6 +1146,14 @@ def main():
         # Start the service
         job_service.start()
         log_message("Job Queue Service started successfully")
+
+        # Start Recurring Scheduler Service (after Job Queue is ready)
+        try:
+            from services.recurring_scheduler_service import start_recurring_scheduler_service
+            start_recurring_scheduler_service(check_interval_seconds=60)
+            log_message("Recurring Scheduler Service started successfully")
+        except Exception as e:
+            log_message(f"Warning: Failed to start Recurring Scheduler Service: {e}")
         
     except Exception as e:
         log_message(f"Warning: Failed to start Job Queue Service: {e}")
@@ -1173,6 +1186,14 @@ def main():
         # Stop auto backup service
         from services.auto_backup_service import stop_auto_backup_service
         stop_auto_backup_service()
+        
+        # Stop Recurring Scheduler Service
+        try:
+            from services.recurring_scheduler_service import stop_recurring_scheduler_service
+            stop_recurring_scheduler_service()
+            log_message("Recurring Scheduler Service stopped successfully")
+        except Exception as e:
+            log_message(f"Warning: Error stopping Recurring Scheduler Service: {e}")
         
         # Stop Job Queue Service
         try:

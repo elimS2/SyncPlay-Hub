@@ -21,6 +21,7 @@ from .metadata_api import metadata_bp
 from .cleanup_api import cleanup_bp
 from .trash_api import trash_bp
 from .tracks_api import tracks_bp
+from .scheduler_api import scheduler_bp
 
 # Create main API blueprint
 api_bp = Blueprint('api', __name__, url_prefix='/api')
@@ -41,6 +42,7 @@ api_bp.register_blueprint(metadata_bp)
 api_bp.register_blueprint(cleanup_bp)
 api_bp.register_blueprint(trash_bp)
 api_bp.register_blueprint(tracks_bp)
+api_bp.register_blueprint(scheduler_bp)
 
 def init_api_router(root_dir, thumbnails_dir=None, yt_timeout=5.0, yt_order=None, preview_priority=None):
     """Initialize the API router with root and optional thumbnails directory and YouTube config."""

@@ -107,6 +107,15 @@ get_video_publication_date = database_core.get_video_publication_date
 # Migration utilities
 migrate_existing_playlist_associations = database_core.migrate_existing_playlist_associations
 
+# Scheduled tasks (Recurring Scheduler)
+create_scheduled_task = database_core.create_scheduled_task
+get_scheduled_tasks = database_core.get_scheduled_tasks
+get_scheduled_task_by_id = database_core.get_scheduled_task_by_id
+update_scheduled_task = database_core.update_scheduled_task
+set_scheduled_task_enabled = database_core.set_scheduled_task_enabled
+touch_scheduled_task_run = database_core.touch_scheduled_task_run
+delete_scheduled_task = database_core.delete_scheduled_task
+
 __all__ = [
     # Migration classes
     'MigrationManager', 
@@ -195,4 +204,13 @@ __all__ = [
     
     # Migration utilities
     'migrate_existing_playlist_associations',
+
+    # Scheduled tasks (Recurring Scheduler)
+    'create_scheduled_task',
+    'get_scheduled_tasks',
+    'get_scheduled_task_by_id',
+    'update_scheduled_task',
+    'set_scheduled_task_enabled',
+    'touch_scheduled_task_run',
+    'delete_scheduled_task',
 ] 
