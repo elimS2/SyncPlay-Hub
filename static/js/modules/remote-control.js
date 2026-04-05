@@ -293,7 +293,7 @@ class RemoteControl {
       return;
     }
     if (this.currentStatus) {
-      this.updateFollowAudioAfterStatus(this.currentStatus, { fromUserGesture: true });
+      this.updateFollowAudioAfterStatus(this.currentStatus);
     }
     this.syncStatus();
   }
@@ -348,10 +348,8 @@ class RemoteControl {
   /**
    * Keep hidden media element in sync with PLAYER_STATE from /api/remote/status.
    * @param {object} status
-   * @param {{ fromUserGesture?: boolean }} [options]
    */
-  updateFollowAudioAfterStatus(status, options = {}) {
-    const fromUserGesture = options.fromUserGesture === true;
+  updateFollowAudioAfterStatus(status) {
     if (!this.followAudioActive) return;
 
     const track = status.current_track;
@@ -377,17 +375,21 @@ class RemoteControl {
       this._followLoadPending = true;
       mediaEl.src = absUrl;
 
-      if (fromUserGesture) {
-        mediaEl.muted = true;
-        const pr = mediaEl.play();
-        if (pr && typeof pr.then === 'function') {
-          pr.catch((e) => console.warn('Follow local play (gesture):', e));
-        }
+      // Every new src: start muted + play() immediately. Mobile browsers block
+      // unmuted play() from loadedmetadata (no user gesture); muted autoplay
+      // usually still works after the user enabled "Listen here" once.
+      mediaEl.muted = true;
+      const pr = mediaEl.play();
+      if (pr && typeof pr.then === 'function') {
+        pr.catch((e) => console.warn('Follow play after src change:', e));
       }
 
       const expectedKey = key;
+      let metaApplied = false;
       const onMeta = () => {
+        if (metaApplied) return;
         if (!this.followAudioActive || this._followTrackKey !== expectedKey) return;
+        metaApplied = true;
         this._followLoadPending = false;
         const st = this.currentStatus || status;
         const pos = Math.max(0, Number(st.progress) || 0);
@@ -406,6 +408,9 @@ class RemoteControl {
       };
 
       mediaEl.addEventListener('loadedmetadata', onMeta, { once: true });
+      if (mediaEl.readyState >= 1) {
+        queueMicrotask(() => onMeta());
+      }
       return;
     }
 
