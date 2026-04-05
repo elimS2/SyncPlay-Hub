@@ -130,7 +130,9 @@ export function initMainPlayerPingPong(opts) {
       setActiveMedia(passive);
       preloadKey = null;
       passiveReadyAbs = null;
-      void passive.play();
+      // Do not play() here: playIndex → loadTrack runs next in the same ended handler and must
+      // run setCurrentIndex first. An immediate play() fires sync with stale current_index and
+      // poisons PLAYER_STATE / remote "Listen here" clock anchor for the new track.
     } catch (e) {
       console.warn('Ping-pong stitch failed:', e);
     }

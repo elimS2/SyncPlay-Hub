@@ -57,6 +57,8 @@ class RemoteControl {
     this._statusSyncInFlight = false;
     this._statusSyncQueued = false;
     this._followLoadWatchdogTimer = null;
+    /** After server reports a new video_id, use raw progress only (no anchor extrapolation) to avoid post-advance jumps. */
+    this._followPostTrackServerGraceUntilMs = 0;
 
     this.initElements();
     this.attachEvents();
@@ -759,11 +761,14 @@ class RemoteControl {
    * @returns {number}
    */
   _expectedProgressSec(status) {
+    const raw = Math.max(0, Number(status.progress) || 0);
+    if (Date.now() < (this._followPostTrackServerGraceUntilMs || 0)) {
+      return raw;
+    }
     const anchorMs = status.playback_anchor_server_ms;
     const pos = status.playback_anchor_position;
     const playing = status.playback_anchor_playing;
     const anchorKey = status.playback_anchor_track_key;
-    const raw = Math.max(0, Number(status.progress) || 0);
     if (anchorMs == null || pos == null || anchorKey == null) {
       return raw;
     }
@@ -1003,11 +1008,14 @@ class RemoteControl {
     const hardSeekCooldownMs = 4500;
     const now = Date.now();
 
+    const inServerTrackGrace = Date.now() < (this._followPostTrackServerGraceUntilMs || 0);
+
     if (status.playing) {
       const sinceSeek = now - this._followLastHardSeekMs;
       const doHardSeek =
-        drift >= emergencySeekDrift ||
-        (drift >= hardSeekDrift && sinceSeek >= hardSeekCooldownMs);
+        !inServerTrackGrace &&
+        (drift >= emergencySeekDrift ||
+          (drift >= hardSeekDrift && sinceSeek >= hardSeekCooldownMs));
 
       if (doHardSeek) {
         try {
@@ -1024,7 +1032,11 @@ class RemoteControl {
         } catch (e) {
           console.warn('Follow-media resync seek failed:', e);
         }
-      } else if (!this._followDeckManualMode && now >= this._followRateNudgeGraceUntilMs) {
+      } else if (
+        !inServerTrackGrace &&
+        !this._followDeckManualMode &&
+        now >= this._followRateNudgeGraceUntilMs
+      ) {
         this._followNudgePlaybackRate(mediaEl, delta);
       }
       if (mediaEl.paused && !this._deckBrakeHeld) {
@@ -1160,6 +1172,10 @@ class RemoteControl {
       this.currentTrack = status.current_track || null;
       this.likeBtn.classList.remove('like-active');
       this.dislikeBtn.classList.remove('dislike-active');
+      if (this.followAudioActive) {
+        this._followPostTrackServerGraceUntilMs = Date.now() + 7000;
+        this._followLastHardSeekMs = 0;
+      }
     }
 
     // PLAYER_STATE.like_active may still be from the *previous* track for one poll after advance;

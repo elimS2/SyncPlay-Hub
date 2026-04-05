@@ -213,7 +213,8 @@ const cDislike = document.getElementById('cDislike');
         media,
         speedOptions, currentSpeedIndex, castLoad, renderList,
         cLike, cDislike, reportEvent, sendStreamEvent,
-        syncRemoteStateAfterReaction: syncRemoteState
+        syncRemoteStateAfterReaction: syncRemoteState,
+        syncRemoteStateImmediate: () => syncRemoteState(),
     });
     
     // Update track title display

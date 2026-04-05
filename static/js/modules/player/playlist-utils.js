@@ -510,4 +510,7 @@ export function loadTrack(idx, autoplay = false, context) {
     // report play start once per track
     reportEvent(track.video_id, 'start');
     sendStreamEvent({action:'seek', idx, paused: media.paused, position: media.currentTime});
+    if (typeof context.syncRemoteStateImmediate === 'function') {
+      void context.syncRemoteStateImmediate();
+    }
 }
