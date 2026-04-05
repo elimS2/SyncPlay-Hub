@@ -58,9 +58,9 @@ class RemoteControl {
     this.lastSync = document.getElementById('lastSync');
 
     this.playlistSourceSelect = document.getElementById('playlistSourceSelect');
-    this.playlistSwitchBtn = document.getElementById('playlistSwitchBtn');
     this.playlistSourcesRefreshBtn = document.getElementById('playlistSourcesRefreshBtn');
     this._playlistSources = null;
+    this._suppressPlaylistSourceChange = false;
   }
   
   attachEvents() {
@@ -186,8 +186,9 @@ class RemoteControl {
       this.volumeValue.textContent = newVolume + '%';
     }, { passive: true });
 
-    if (this.playlistSwitchBtn && this.playlistSourceSelect) {
-      this.playlistSwitchBtn.addEventListener('click', async () => {
+    if (this.playlistSourceSelect) {
+      this.playlistSourceSelect.addEventListener('change', async () => {
+        if (this._suppressPlaylistSourceChange) return;
         const path = this.playlistSourceSelect.value;
         if (!path) return;
         await this.sendCommand('switch_source', { path });
@@ -273,31 +274,36 @@ class RemoteControl {
       this.playerTypeInfo.style.display = 'none';
     }
     
-    // Check if track changed (reset like state)
-    const trackChanged = !this.currentTrack || 
-      (status.current_track && status.current_track.video_id !== this.currentTrack.video_id);
-    
-    if (trackChanged && status.current_track) {
-      this.currentTrack = status.current_track;
-      // Reset like and dislike state when track changes
+    const prevVideoId = this.currentTrack?.video_id ?? null;
+    const nextVideoId = status.current_track?.video_id ?? null;
+    const trackIdentityChanged = prevVideoId !== nextVideoId;
+
+    if (trackIdentityChanged) {
+      this.currentTrack = status.current_track || null;
       this.likeBtn.classList.remove('like-active');
       this.dislikeBtn.classList.remove('dislike-active');
     }
-    
-    // Sync like/dislike button states from player
-    if (status.like_active !== undefined) {
-      if (status.like_active) {
-        this.likeBtn.classList.add('like-active');
-      } else {
-        this.likeBtn.classList.remove('like-active');
+
+    // PLAYER_STATE.like_active may still be from the *previous* track for one poll after advance;
+    // re-applying it here would undo the reset above. Skip one cycle when video_id actually changed.
+    const skipReactionFromServer =
+      prevVideoId !== null && nextVideoId !== null && prevVideoId !== nextVideoId;
+
+    if (!skipReactionFromServer) {
+      if (status.like_active !== undefined) {
+        if (status.like_active) {
+          this.likeBtn.classList.add('like-active');
+        } else {
+          this.likeBtn.classList.remove('like-active');
+        }
       }
-    }
-    
-    if (status.dislike_active !== undefined) {
-      if (status.dislike_active) {
-        this.dislikeBtn.classList.add('dislike-active');
-      } else {
-        this.dislikeBtn.classList.remove('dislike-active');
+
+      if (status.dislike_active !== undefined) {
+        if (status.dislike_active) {
+          this.dislikeBtn.classList.add('dislike-active');
+        } else {
+          this.dislikeBtn.classList.remove('dislike-active');
+        }
       }
     }
     
@@ -412,8 +418,22 @@ class RemoteControl {
     appendGroup('Folders', data.regular);
     appendGroup('By net likes', data.virtual);
 
-    if (prev && [...sel.options].some((o) => o.value === prev)) {
-      sel.value = prev;
+    this._runPlaylistSelectProgrammatic(() => {
+      if (prev && [...sel.options].some((o) => o.value === prev)) {
+        sel.value = prev;
+      }
+    });
+  }
+
+  /** Avoid firing change → switch_source when syncing from player status. */
+  _runPlaylistSelectProgrammatic(fn) {
+    this._suppressPlaylistSourceChange = true;
+    try {
+      fn();
+    } finally {
+      queueMicrotask(() => {
+        this._suppressPlaylistSourceChange = false;
+      });
     }
   }
 
@@ -421,13 +441,15 @@ class RemoteControl {
     const sel = this.playlistSourceSelect;
     if (!sel || !this.currentStatus || !this.currentStatus.player_source) return;
     const want = this.decodePath(this.currentStatus.player_source);
-    for (const opt of sel.options) {
-      if (!opt.value) continue;
-      if (this.decodePath(opt.value) === want) {
-        sel.value = opt.value;
-        return;
+    this._runPlaylistSelectProgrammatic(() => {
+      for (const opt of sel.options) {
+        if (!opt.value) continue;
+        if (this.decodePath(opt.value) === want) {
+          sel.value = opt.value;
+          return;
+        }
       }
-    }
+    });
   }
 
   async loadPlaylistSources() {

@@ -286,19 +286,34 @@ def api_remote_sync_internal():
     """Internal sync endpoint for player to update server state."""
     global PLAYER_STATE
     data = request.get_json() or {}
-    
+
+    def _track_vid(track):
+        if not track or not isinstance(track, dict):
+            return None
+        return track.get('video_id')
+
+    prev_vid = _track_vid(PLAYER_STATE.get('current_track'))
+
     # Get player type from request
     player_type = data.get('player_type', 'regular')
     player_source = data.get('player_source', 'unknown')
-    
+
     # Update server state with player data
     PLAYER_STATE.update(data)
     PLAYER_STATE['last_update'] = time.time()
     PLAYER_STATE['player_type'] = player_type
     PLAYER_STATE['player_source'] = player_source
-    
+
+    new_vid = _track_vid(PLAYER_STATE.get('current_track'))
+    if prev_vid != new_vid:
+        # Periodic sync omits like_active/dislike_active; do not carry session reactions to a new track.
+        if 'like_active' not in data:
+            PLAYER_STATE['like_active'] = False
+        if 'dislike_active' not in data:
+            PLAYER_STATE['dislike_active'] = False
+
     # Note: Removed frequent sync logging to avoid log spam
-    
+
     return jsonify({"status": "ok"})
 
 @remote_bp.route("/remote/playlist_sources")

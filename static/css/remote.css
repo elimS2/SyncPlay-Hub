@@ -84,16 +84,9 @@ body {
   text-align: center;
 }
 
-.playlist-source-row {
-  display: flex;
-  gap: 8px;
-  align-items: stretch;
-  margin-bottom: 8px;
-}
-
 .playlist-source-select {
-  flex: 1;
-  min-width: 0;
+  width: 100%;
+  margin-bottom: 8px;
   padding: 10px 12px;
   font-size: 14px;
   border-radius: 10px;
@@ -102,29 +95,20 @@ body {
   color: var(--text);
 }
 
-.playlist-switch-btn,
-.playlist-refresh-btn {
-  padding: 10px 14px;
-  font-size: 14px;
-  font-weight: 600;
-  border: none;
-  border-radius: 10px;
-  cursor: pointer;
-  background: var(--accent);
-  color: var(--bg);
-}
-
-.playlist-switch-btn:active,
-.playlist-refresh-btn:active {
-  opacity: 0.9;
-}
-
 .playlist-refresh-btn {
   width: 100%;
+  padding: 10px 14px;
+  font-size: 14px;
+  font-weight: 500;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  cursor: pointer;
   background: transparent;
   color: var(--accent);
-  border: 1px solid var(--border);
-  font-weight: 500;
+}
+
+.playlist-refresh-btn:active {
+  opacity: 0.9;
 }
 
 .track-info {
