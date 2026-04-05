@@ -427,11 +427,13 @@ export async function triggerAutoDeleteCheck(track, detectChannelGroupFn, media)
  */
 import { updateCurrentTrackTitle } from '../track-title-manager.js';
 import { scrollActiveTrackToTop } from '../playlist-scroll.js';
+import { applyPersistedReactionToButtons, SVG_HEART_OUTLINE, SVG_THUMB_OUTLINE } from '../controls.js';
 
 export function loadTrack(idx, autoplay = false, context) {
     const { 
         queue, currentIndex, setCurrentIndex, media, speedOptions, currentSpeedIndex,
-        castLoad, renderList, cLike, cDislike, reportEvent, sendStreamEvent
+        castLoad, renderList, cLike, cDislike, reportEvent, sendStreamEvent,
+        syncRemoteStateAfterReaction
     } = context;
     
     if(idx < 0 || idx >= queue.length) return;
@@ -467,12 +469,29 @@ export function loadTrack(idx, autoplay = false, context) {
     renderList();
     // After the list is re-rendered, auto-scroll so the active item is at the top
     scrollActiveTrackToTop({ smooth: false });
-    // reset like state visual
-    let likedCurrent = false;
     cLike.classList.remove('like-active');
-    cLike.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>';
+    cLike.innerHTML = SVG_HEART_OUTLINE;
     cDislike.classList.remove('dislike-active');
-    cDislike.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3z"></path></svg>';
+    cDislike.innerHTML = SVG_THUMB_OUTLINE;
+
+    const pushReactionToRemote = () => {
+        if (typeof syncRemoteStateAfterReaction === 'function') {
+            syncRemoteStateAfterReaction({ includeReactions: true });
+        }
+    };
+
+    fetch(`/api/reaction/${encodeURIComponent(track.video_id)}`)
+        .then((r) => r.json())
+        .then((data) => {
+            if (data && data.status === 'ok' && (data.reaction === 'like' || data.reaction === 'dislike')) {
+                applyPersistedReactionToButtons(cLike, cDislike, data.reaction);
+            }
+        })
+        .catch(() => {})
+        .finally(() => {
+            pushReactionToRemote();
+        });
+
     // report play start once per track
     reportEvent(track.video_id, 'start');
     sendStreamEvent({action:'seek', idx: currentIndex, paused: media.paused, position: media.currentTime});

@@ -3,6 +3,7 @@
 from pathlib import Path
 from flask import Blueprint, request, jsonify
 from .shared import get_root_dir, get_connection, log_message, record_event
+import database as db
 from services.playlist_service import scan_tracks, _ensure_subdir, list_playlists
 from services.download_service import get_active_downloads
 
@@ -143,6 +144,20 @@ def api_event():
     record_event(conn, video_id, ev, position=pos)
     conn.close()
     return jsonify({"status": "ok"})
+
+
+@base_bp.route("/reaction/<video_id>", methods=["GET"])
+def api_last_reaction(video_id: str):
+    """Last recorded like/dislike for a video (for restoring UI after reload)."""
+    if not video_id or len(video_id) > 64:
+        return jsonify({"status": "error", "message": "bad video_id"}), 400
+    conn = get_connection()
+    try:
+        reaction = db.get_last_like_dislike_reaction(conn, video_id)
+        return jsonify({"status": "ok", "reaction": reaction})
+    finally:
+        conn.close()
+
 
 @base_bp.route("/event_types")
 def api_event_types():

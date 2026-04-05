@@ -1183,6 +1183,47 @@ export function setupDeleteCurrentHandler(deleteCurrentBtn, context, playerType 
     deleteCurrentBtn.context = context;
 }
 
+/** Registered by the player after syncRemoteState exists; used so re-setup of handlers still pushes to remote. */
+let _playerRemoteReactionSync = null;
+
+export function registerPlayerRemoteReactionSync(fn) {
+    _playerRemoteReactionSync = typeof fn === 'function' ? fn : null;
+}
+
+export function pushPlayerReactionStateToRemote() {
+    if (!_playerRemoteReactionSync) return;
+    try {
+        const out = _playerRemoteReactionSync({ includeReactions: true });
+        if (out && typeof out.then === 'function') {
+            out.catch(() => {});
+        }
+    } catch (e) {
+        console.warn('pushPlayerReactionStateToRemote failed', e);
+    }
+}
+
+export const SVG_HEART_OUTLINE = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>';
+export const SVG_THUMB_OUTLINE = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3z"></path></svg>';
+
+/**
+ * Apply like/dislike visuals from persisted history (e.g. after page reload).
+ * @param {'like'|'dislike'} reaction
+ */
+export function applyPersistedReactionToButtons(cLike, cDislike, reaction) {
+    if (!cLike || !cDislike || !reaction) return;
+    if (reaction === 'like') {
+        cLike.classList.add('like-active');
+        cLike.innerHTML = SVG_HEART_OUTLINE;
+        cDislike.classList.remove('dislike-active');
+        cDislike.innerHTML = SVG_THUMB_OUTLINE;
+    } else if (reaction === 'dislike') {
+        cDislike.classList.add('dislike-active');
+        cDislike.innerHTML = SVG_THUMB_OUTLINE;
+        cLike.classList.remove('like-active');
+        cLike.innerHTML = SVG_HEART_OUTLINE;
+    }
+}
+
 /**
  * Sets up like and dislike button handlers
  * @param {HTMLElement} cLike - like button element
@@ -1205,8 +1246,10 @@ export function setupLikeDislikeHandlers(cLike, cDislike, context) {
             context.reportEvent(track.video_id, 'like', context.media.currentTime);
             context.likedCurrent = true;
             cLike.classList.add('like-active');
-            // Change to filled heart (same icon, but red styling via CSS class)
-            cLike.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>';
+            cLike.innerHTML = SVG_HEART_OUTLINE;
+            cDislike.classList.remove('dislike-active');
+            cDislike.innerHTML = SVG_THUMB_OUTLINE;
+            setTimeout(() => pushPlayerReactionStateToRemote(), 0);
         };
     }
 
@@ -1217,9 +1260,11 @@ export function setupLikeDislikeHandlers(cLike, cDislike, context) {
             if (currentIndex < 0 || currentIndex >= queue.length) return;
             const track = queue[currentIndex];
             context.reportEvent(track.video_id, 'dislike', context.media.currentTime);
+            cLike.classList.remove('like-active');
+            cLike.innerHTML = SVG_HEART_OUTLINE;
             cDislike.classList.add('dislike-active');
-            // Change to filled dislike (same icon, but purple styling via CSS class)
-            cDislike.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3z"></path></svg>';
+            cDislike.innerHTML = SVG_THUMB_OUTLINE;
+            setTimeout(() => pushPlayerReactionStateToRemote(), 0);
         };
     }
 }

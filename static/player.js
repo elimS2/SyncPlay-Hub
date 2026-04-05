@@ -1,5 +1,5 @@
 // Импорт общих утилит из нового barrel файла
-import { shuffle, smartShuffle, detectChannelGroup, smartChannelShuffle, getGroupPlaybackInfo, orderByPublishDate as utilsOrderByPublishDate, formatTime, updateSpeedDisplay as utilsUpdateSpeedDisplay, showNotification, handleVolumeWheel as utilsHandleVolumeWheel, stopTick as utilsStopTick, stopPlayback as utilsStopPlayback, playIndex as utilsPlayIndex, updateMuteIcon as utilsUpdateMuteIcon, nextTrack as utilsNextTrack, prevTrack as utilsPrevTrack, sendStreamEvent as utilsSendStreamEvent, startTick as utilsStartTick, reportEvent as utilsReportEvent, triggerAutoDeleteCheck as utilsTriggerAutoDeleteCheck, recordSeekEvent, saveVolumeToDatabase as utilsSaveVolumeToDatabase, loadSavedVolume as utilsLoadSavedVolume, performKeyboardSeek as utilsPerformKeyboardSeek, syncLikeButtonsWithRemote as utilsSyncLikeButtonsWithRemote, syncLikesAfterAction as utilsSyncLikesAfterAction, setupLikeSyncHandlers as utilsSetupLikeSyncHandlers, togglePlayback as utilsTogglePlayback, showFsControls as utilsShowFsControls, updateFsVisibility as utilsUpdateFsVisibility, syncRemoteState as utilsSyncRemoteState, setupGlobalTooltip as utilsSetupGlobalTooltip, createTrackTooltipHTML, pollRemoteCommands as utilsPollRemoteCommands, cyclePlaybackSpeed as utilsCyclePlaybackSpeed, executeRemoteCommand as utilsExecuteRemoteCommand, deleteTrack as utilsDeleteTrack, initializeGoogleCastIntegration as utilsInitializeGoogleCastIntegration, castLoad as utilsCastLoad, loadTrack as utilsLoadTrack, setupMediaEndedHandler, setupMediaPlayPauseHandlers, setupMediaTimeUpdateHandler, setupMediaSeekedHandler, setupKeyboardHandler, setupProgressClickHandler, setupMediaSessionAPI, setupPlaylistToggleHandler, setupDeleteCurrentHandler, setupLikeDislikeHandlers, setupYouTubeHandler, setupFullscreenHandlers, setupSimpleControlHandlers, setupStreamHandler, setupBeforeUnloadHandler, setupAutoPlayInitialization, setupRemoteControlOverrides, setupRemoteControlInitialization, initializePlaylistPreferences, savePlaylistPreference as savePlaylistPreferenceModule, savePlaylistSpeed as savePlaylistSpeedModule, initializePlaylistLayoutManager, initializeTrackOrderManager, scrollActiveTrackToTop, ORDER_MODES, getCurrentOrderMode, getSmartBucketLabel, getSmartBucketSlug, renderTrackList } from '/static/js/modules/index.js';
+import { shuffle, smartShuffle, detectChannelGroup, smartChannelShuffle, getGroupPlaybackInfo, orderByPublishDate as utilsOrderByPublishDate, formatTime, updateSpeedDisplay as utilsUpdateSpeedDisplay, showNotification, handleVolumeWheel as utilsHandleVolumeWheel, stopTick as utilsStopTick, stopPlayback as utilsStopPlayback, playIndex as utilsPlayIndex, updateMuteIcon as utilsUpdateMuteIcon, nextTrack as utilsNextTrack, prevTrack as utilsPrevTrack, sendStreamEvent as utilsSendStreamEvent, startTick as utilsStartTick, reportEvent as utilsReportEvent, triggerAutoDeleteCheck as utilsTriggerAutoDeleteCheck, recordSeekEvent, saveVolumeToDatabase as utilsSaveVolumeToDatabase, loadSavedVolume as utilsLoadSavedVolume, performKeyboardSeek as utilsPerformKeyboardSeek, syncLikeButtonsWithRemote as utilsSyncLikeButtonsWithRemote, registerPlayerRemoteReactionSync as utilsRegisterPlayerRemoteReactionSync, togglePlayback as utilsTogglePlayback, showFsControls as utilsShowFsControls, updateFsVisibility as utilsUpdateFsVisibility, syncRemoteState as utilsSyncRemoteState, setupGlobalTooltip as utilsSetupGlobalTooltip, createTrackTooltipHTML, pollRemoteCommands as utilsPollRemoteCommands, cyclePlaybackSpeed as utilsCyclePlaybackSpeed, executeRemoteCommand as utilsExecuteRemoteCommand, deleteTrack as utilsDeleteTrack, initializeGoogleCastIntegration as utilsInitializeGoogleCastIntegration, castLoad as utilsCastLoad, loadTrack as utilsLoadTrack, setupMediaEndedHandler, setupMediaPlayPauseHandlers, setupMediaTimeUpdateHandler, setupMediaSeekedHandler, setupKeyboardHandler, setupProgressClickHandler, setupMediaSessionAPI, setupPlaylistToggleHandler, setupDeleteCurrentHandler, setupLikeDislikeHandlers, setupYouTubeHandler, setupFullscreenHandlers, setupSimpleControlHandlers, setupStreamHandler, setupBeforeUnloadHandler, setupAutoPlayInitialization, setupRemoteControlOverrides, setupRemoteControlInitialization, initializePlaylistPreferences, savePlaylistPreference as savePlaylistPreferenceModule, savePlaylistSpeed as savePlaylistSpeedModule, initializePlaylistLayoutManager, initializeTrackOrderManager, scrollActiveTrackToTop, ORDER_MODES, getCurrentOrderMode, getSmartBucketLabel, getSmartBucketSlug, renderTrackList } from '/static/js/modules/index.js';
 
 // Импорт track title manager
 import { updateCurrentTrackTitle } from '/static/js/modules/track-title-manager.js';
@@ -194,7 +194,8 @@ const cDislike = document.getElementById('cDislike');
           currentIndex = newIdx; 
         },
         media, speedOptions, currentSpeedIndex, castLoad, renderList,
-        cLike, cDislike, reportEvent, sendStreamEvent
+        cLike, cDislike, reportEvent, sendStreamEvent,
+        syncRemoteStateAfterReaction: syncRemoteState
     });
     
     // Update track title display
@@ -210,10 +211,6 @@ const cDislike = document.getElementById('cDislike');
     if (deleteCurrentBtn && deleteCurrentBtn.updateTooltip) {
       deleteCurrentBtn.updateTooltip();
     }
-
-    setTimeout(() => {
-      syncRemoteState({ includeReactions: true });
-    }, 200);
     
     return result;
   }
@@ -490,7 +487,10 @@ const cDislike = document.getElementById('cDislike');
 
   // media click handler теперь обрабатывается в setupSimpleControlHandlers()
 
-
+  async function syncRemoteState(opts) {
+    return await utilsSyncRemoteState('regular', { currentIndex, queue, media }, opts);
+  }
+  utilsRegisterPlayerRemoteReactionSync(syncRemoteState);
 
   // Setup like/dislike and YouTube handlers using centralized functions
   setupLikeDislikeHandlers(cLike, cDislike, {
@@ -541,13 +541,7 @@ const cDislike = document.getElementById('cDislike');
   // ==============================
   // REMOTE CONTROL SYNCHRONIZATION
   // ==============================
-  
-  // syncRemoteState() теперь импортируется из player-utils.js
-  // Wrapper function для совместимости с существующим кодом
-  async function syncRemoteState(opts) {
-    return await utilsSyncRemoteState('regular', { currentIndex, queue, media }, opts);
-  }
-  
+
   // pollRemoteCommands() теперь импортируется из player-utils.js
   // Wrapper function для совместимости с существующим кодом
   async function pollRemoteCommands() {
@@ -634,38 +628,11 @@ const cDislike = document.getElementById('cDislike');
 
   // showNotification() теперь импортируется из player-utils.js
 
-  // ==============================
-  // LIKE SYNCHRONIZATION
-  // ==============================
-  
-  // syncLikesAfterAction() теперь импортируется из player-utils.js
-  // Wrapper function для совместимости с существующим кодом
-  async function syncLikesAfterAction(video_id, action) {
-    return await utilsSyncLikesAfterAction(video_id, action, syncRemoteState);
-  }
-  
-  // setupLikeSyncHandlers() теперь импортируется из player-utils.js
-  // Wrapper function для совместимости с существующим кодом
-  function setupLikeSyncHandlers() {
-    const context = { 
-      currentIndex: () => currentIndex, 
-      queue: () => queue,  // Pass as function to always get current queue
-      syncLikesAfterAction 
-    };
-    return utilsSetupLikeSyncHandlers(context);
-  }
-  
-  // Initialize like sync when page loads
-  window.addEventListener('DOMContentLoaded', function() {
-    setupLikeSyncHandlers();
-    
-    // Start periodic sync with remote control for likes
-    setInterval(async () => {
-      if (typeof syncLikeButtonsWithRemote === 'function') {
-        await syncLikeButtonsWithRemote();
-      }
-    }, 3000); // Check every 3 seconds
-  });
+  setInterval(async () => {
+    if (typeof syncLikeButtonsWithRemote === 'function') {
+      await syncLikeButtonsWithRemote();
+    }
+  }, 3000);
   
   window.loadTrack = loadTrack;
 
