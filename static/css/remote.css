@@ -273,6 +273,23 @@ body {
   color: var(--accent);
 }
 
+.deck-manual-toggle-btn.active {
+  background: rgba(186, 104, 200, 0.12);
+  border-color: rgba(186, 104, 200, 0.55);
+  color: #e1bee7;
+}
+
+.deck-manual-toggle-label {
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.2;
+  text-align: center;
+}
+
+.deck-manual-section[hidden] {
+  display: none !important;
+}
+
 .deck-hint {
   font-size: 11px;
   line-height: 1.35;

@@ -32,10 +32,11 @@ class RemoteControl {
     /** Avoid repeated currentTime seeks (causes stutter on mobile). */
     this._followLastHardSeekMs = 0;
     /**
-     * Manual deck pitch (− / 1× / +): follow sync adjusts time only, never playbackRate, until next track.
+     * Manual pitch mode (toggle): follow sync never changes playbackRate; − / 1× / + / hold only.
+     * Cleared when stopping Listen here. Persists across tracks until toggled off.
      */
-    this._followDeckUserTouched = false;
-    /** Locked rate chosen on the deck (source of truth for label + reassert after sync). */
+    this._followDeckManualMode = false;
+    /** Locked rate while manual mode is on (source of truth for label + reassert after sync). */
     this._followDeckTargetRate = null;
     /** Hold-to-pause on phone; blocks sync loop from calling play(). */
     this._deckBrakeHeld = false;
@@ -102,6 +103,9 @@ class RemoteControl {
     this.deckFasterBtn = document.getElementById('deckFasterBtn');
     this.deckBrakeBtn = document.getElementById('deckBrakeBtn');
     this.deckPitchLabel = document.getElementById('deckPitchLabel');
+    this.deckManualModeBtn = document.getElementById('deckManualModeBtn');
+    this.deckManualModeLabel = document.getElementById('deckManualModeLabel');
+    this.deckManualSection = document.getElementById('deckManualSection');
     this.micSyncAutoBtn = document.getElementById('micSyncAutoBtn');
   }
   
@@ -197,6 +201,9 @@ class RemoteControl {
 
     if (this.followAudioBtn) {
       this.followAudioBtn.addEventListener('click', () => this.toggleFollowAudio());
+    }
+    if (this.deckManualModeBtn) {
+      this.deckManualModeBtn.addEventListener('click', () => this.toggleDeckManualMode());
     }
     if (this.deckSlowerBtn) {
       this.deckSlowerBtn.addEventListener('click', () => this.nudgeDeckSlower());
@@ -324,13 +331,55 @@ class RemoteControl {
   updateMicSyncButtons() {
     const can = this.followAudioActive;
     const autoBusy = this.micSync && this.micSync.isAutoRunning();
+    const deck = can && this._followDeckManualMode;
     [this.deckSlowerBtn, this.deckResetBtn, this.deckFasterBtn, this.deckBrakeBtn].forEach((b) => {
-      if (b) b.disabled = !can || !!autoBusy;
+      if (b) b.disabled = !deck || !!autoBusy;
     });
     if (this.micSyncAutoBtn) {
       this.micSyncAutoBtn.disabled = !can || !!autoBusy;
     }
+    if (this.deckManualModeBtn) {
+      this.deckManualModeBtn.disabled = !can;
+      this.deckManualModeBtn.classList.toggle('active', !!this._followDeckManualMode);
+    }
+    if (this.deckManualModeLabel) {
+      this.deckManualModeLabel.textContent = this._followDeckManualMode ? 'Manual pitch: On' : 'Manual pitch: Off';
+    }
+    if (this.deckManualSection) {
+      this.deckManualSection.hidden = !(can && this._followDeckManualMode);
+    }
     this.updateDeckPitchLabel();
+  }
+
+  toggleDeckManualMode() {
+    if (!this.followAudioActive) return;
+    this._followDeckManualMode = !this._followDeckManualMode;
+    if (this._followDeckManualMode) {
+      this._followDeckTargetRate = 1;
+      const el = this.getFollowPlaybackElement();
+      if (el && el.src) {
+        try {
+          el.playbackRate = 1;
+        } catch (e) {
+          /* ignore */
+        }
+      }
+    } else {
+      this._followDeckTargetRate = null;
+      this._deckBrakePointerUp();
+      const el = this.getFollowPlaybackElement();
+      if (el) {
+        try {
+          el.playbackRate = 1;
+        } catch (e) {
+          /* ignore */
+        }
+      }
+    }
+    this.updateMicSyncButtons();
+    if (this.currentStatus) {
+      this.updateFollowAudioAfterStatus(this.currentStatus);
+    }
   }
 
   updateDeckPitchLabel() {
@@ -341,7 +390,7 @@ class RemoteControl {
       return;
     }
     if (
-      this._followDeckUserTouched &&
+      this._followDeckManualMode &&
       this._followDeckTargetRate != null &&
       Number.isFinite(this._followDeckTargetRate)
     ) {
@@ -355,7 +404,7 @@ class RemoteControl {
 
   /** If sync or the browser touched playbackRate, put back the deck-chosen value. */
   _followReassertManualPlaybackRate(mediaEl) {
-    if (!this._followDeckUserTouched || !mediaEl) return;
+    if (!this._followDeckManualMode || !mediaEl) return;
     const want = this._followDeckTargetRate;
     if (want == null || !Number.isFinite(want)) return;
     const cur = Number(mediaEl.playbackRate);
@@ -369,10 +418,9 @@ class RemoteControl {
 
   nudgeDeckSlower() {
     const el = this._followMicSyncPrecheck();
-    if (!el) return;
-    this._followDeckUserTouched = true;
+    if (!el || !this._followDeckManualMode) return;
     const minR = 0.88;
-    const step = 0.03;
+    const step = 0.01;
     let r = Number(el.playbackRate);
     if (!Number.isFinite(r)) r = 1;
     el.playbackRate = Math.max(minR, r - step);
@@ -382,10 +430,9 @@ class RemoteControl {
 
   nudgeDeckFaster() {
     const el = this._followMicSyncPrecheck();
-    if (!el) return;
-    this._followDeckUserTouched = true;
+    if (!el || !this._followDeckManualMode) return;
     const maxR = 1.12;
-    const step = 0.03;
+    const step = 0.01;
     let r = Number(el.playbackRate);
     if (!Number.isFinite(r)) r = 1;
     el.playbackRate = Math.min(maxR, r + step);
@@ -395,8 +442,7 @@ class RemoteControl {
 
   resetDeckPitch() {
     const el = this._followMicSyncPrecheck();
-    if (!el) return;
-    this._followDeckUserTouched = true;
+    if (!el || !this._followDeckManualMode) return;
     this._followDeckTargetRate = 1;
     el.playbackRate = 1;
     this.updateDeckPitchLabel();
@@ -406,7 +452,7 @@ class RemoteControl {
 
   _deckBrakePointerDown() {
     const el = this.getFollowPlaybackElement();
-    if (!el || !this.followAudioActive) return;
+    if (!el || !this.followAudioActive || !this._followDeckManualMode) return;
     this._deckBrakeHeld = true;
     try {
       el.pause();
@@ -444,7 +490,7 @@ class RemoteControl {
       this._followTrackKey = null;
       this._followLoadPending = false;
       this._followMediaKind = null;
-      this._followDeckUserTouched = false;
+      this._followDeckManualMode = false;
       this._followDeckTargetRate = null;
       this._stopBothFollowMedia();
       this._syncMs = 1000;
@@ -566,7 +612,7 @@ class RemoteControl {
    * @param {number} deltaSec target − currentTime (signed)
    */
   _followNudgePlaybackRate(mediaEl, deltaSec) {
-    if (this._followDeckUserTouched) return;
+    if (this._followDeckManualMode) return;
     const ad = Math.abs(deltaSec);
     if (ad < 0.05) {
       if (mediaEl.playbackRate !== 1) mediaEl.playbackRate = 1;
@@ -591,8 +637,9 @@ class RemoteControl {
       this._followLoadPending = false;
       this._followMediaKind = null;
       this._followRateNudgeGraceUntilMs = 0;
-      this._followDeckUserTouched = false;
-      this._followDeckTargetRate = null;
+      if (!this._followDeckManualMode) {
+        this._followDeckTargetRate = null;
+      }
       this._stopBothFollowMedia();
       return;
     }
@@ -609,9 +656,13 @@ class RemoteControl {
       this._followTrackKey = key;
       this._followLoadPending = true;
       this._followLastHardSeekMs = 0;
-      this._followDeckUserTouched = false;
-      this._followDeckTargetRate = null;
-      mediaEl.playbackRate = 1;
+      const pinnedRate =
+        this._followDeckManualMode &&
+        this._followDeckTargetRate != null &&
+        Number.isFinite(this._followDeckTargetRate)
+          ? this._followDeckTargetRate
+          : 1;
+      mediaEl.playbackRate = pinnedRate;
       mediaEl.src = absUrl;
 
       // Every new src: start muted + play() immediately. Mobile browsers block
@@ -639,12 +690,19 @@ class RemoteControl {
         }
         this._applyFollowVolumeFromStatus(st, mediaEl);
         // Do not stomp a deck reset / nudge that happened while load was pending (onMeta runs later).
-        const deckLocked = this._followDeckUserTouched;
+        const deckLocked = this._followDeckManualMode;
         if (!deckLocked) {
           this._followDeckTargetRate = null;
-          this._followDeckUserTouched = false;
           mediaEl.playbackRate = 1;
         } else {
+          const want = this._followDeckTargetRate;
+          if (want != null && Number.isFinite(want)) {
+            try {
+              mediaEl.playbackRate = want;
+            } catch (e) {
+              /* ignore */
+            }
+          }
           const tr = Number(mediaEl.playbackRate);
           this._followDeckTargetRate = Number.isFinite(tr) ? tr : 1;
         }
@@ -687,12 +745,12 @@ class RemoteControl {
 
       if (doHardSeek) {
         try {
-          if (!this._followDeckUserTouched) {
+          if (!this._followDeckManualMode) {
             mediaEl.playbackRate = 1;
           }
           mediaEl.currentTime = Math.max(0, target);
           this._followLastHardSeekMs = now;
-          if (!this._followDeckUserTouched) {
+          if (!this._followDeckManualMode) {
             mediaEl.playbackRate = 1;
           }
           this._followReassertManualPlaybackRate(mediaEl);
@@ -700,7 +758,7 @@ class RemoteControl {
         } catch (e) {
           console.warn('Follow-media resync seek failed:', e);
         }
-      } else if (!this._followDeckUserTouched && now >= this._followRateNudgeGraceUntilMs) {
+      } else if (!this._followDeckManualMode && now >= this._followRateNudgeGraceUntilMs) {
         this._followNudgePlaybackRate(mediaEl, delta);
       }
       if (mediaEl.paused && !this._deckBrakeHeld) {
@@ -709,7 +767,7 @@ class RemoteControl {
       }
     } else {
       mediaEl.pause();
-      if (!this._followDeckUserTouched) {
+      if (!this._followDeckManualMode) {
         mediaEl.playbackRate = 1;
         this.updateDeckPitchLabel();
       }

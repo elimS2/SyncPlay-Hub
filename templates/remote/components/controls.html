@@ -61,30 +61,39 @@
     </button>
   </div>
 
-  <p class="deck-hint">Phone only: <strong>−</strong> slower / <strong>+</strong> faster. <strong>Center</strong> = instant 1.00×. <strong>Hold</strong> = short pause.</p>
-  <div class="control-row deck-sync-row">
-    <button type="button" class="control-btn deck-btn" id="deckSlowerBtn" disabled
-      title="Slow down playback on this phone only (not the main PC). Tap center to snap back to 1× speed.">
-      <span class="deck-btn-label">−</span>
+  <div class="control-row">
+    <button type="button" class="control-btn wide deck-manual-toggle-btn" id="deckManualModeBtn" disabled
+      title="Off: server can gently adjust speed. On: you control pitch; 1× stays fixed until you change it. Stays on for every track until you turn it off. Requires Listen here.">
+      <span class="deck-manual-toggle-label" id="deckManualModeLabel">Manual pitch: Off</span>
     </button>
-    <button type="button" class="control-btn deck-btn deck-reset" id="deckResetBtn" disabled
-      title="Instant reset: speed 1.00× and re-enable auto tempo sync from the server.">
-      <span class="deck-center-stack">
-        <span class="deck-rate" id="deckPitchLabel">1.00×</span>
-        <span class="deck-reset-sub">tap → 1×</span>
-      </span>
-    </button>
-    <button type="button" class="control-btn deck-btn" id="deckFasterBtn" disabled
-      title="Speed up playback on this phone only. Tap center for instant 1×.">
-      <span class="deck-btn-label">+</span>
-    </button>
-    <button type="button" class="control-btn deck-btn deck-brake" id="deckBrakeBtn" disabled
-      title="Hold finger down: pause phone audio. Release: resume if the main player is still playing.">
-      <span class="deck-brake-stack">
-        <span class="deck-brake-glyph">‖</span>
-        <span class="deck-brake-sub">hold</span>
-      </span>
-    </button>
+  </div>
+
+  <div id="deckManualSection" class="deck-manual-section" hidden>
+    <p class="deck-hint">Phone only: <strong>−</strong> slower / <strong>+</strong> faster. <strong>Center</strong> = 1.00× (fixed while this mode is on). <strong>Hold</strong> = short pause.</p>
+    <div class="control-row deck-sync-row">
+      <button type="button" class="control-btn deck-btn" id="deckSlowerBtn" disabled
+        title="Slow down playback on this phone only (not the main PC).">
+        <span class="deck-btn-label">−</span>
+      </button>
+      <button type="button" class="control-btn deck-btn deck-reset" id="deckResetBtn" disabled
+        title="Set speed to exactly 1.00×. Nothing else will change this while Manual pitch is on.">
+        <span class="deck-center-stack">
+          <span class="deck-rate" id="deckPitchLabel">1.00×</span>
+          <span class="deck-reset-sub">tap → 1×</span>
+        </span>
+      </button>
+      <button type="button" class="control-btn deck-btn" id="deckFasterBtn" disabled
+        title="Speed up playback on this phone only.">
+        <span class="deck-btn-label">+</span>
+      </button>
+      <button type="button" class="control-btn deck-btn deck-brake" id="deckBrakeBtn" disabled
+        title="Hold finger down: pause phone audio. Release: resume if the main player is still playing.">
+        <span class="deck-brake-stack">
+          <span class="deck-brake-glyph">‖</span>
+          <span class="deck-brake-sub">hold</span>
+        </span>
+      </button>
+    </div>
   </div>
 
   <div class="control-row mic-sync-row">
