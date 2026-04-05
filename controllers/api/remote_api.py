@@ -1,14 +1,62 @@
 """Remote control API endpoints."""
 
 import random
+import re
 import time
 from pathlib import Path
+from urllib.parse import unquote
+
 from flask import Blueprint, request, jsonify
-from .shared import PLAYER_STATE, COMMAND_QUEUE, get_root_dir, get_connection, log_message, record_event
+
+from .shared import (
+    COMMAND_QUEUE,
+    PLAYER_STATE,
+    get_connection,
+    get_root_dir,
+    log_message,
+    record_event,
+)
+from services.playlist_service import list_playlists
 import database as db
+
+_LIKES_PLAYER_PATH = re.compile(r"^/likes_player/(\d+)/?$")
+_PLAYLIST_PATH = re.compile(r"^/playlist/(.+)/?$")
 
 # Create blueprint
 remote_bp = Blueprint('remote', __name__)
+
+
+def _is_safe_playlist_relpath(rel: str) -> bool:
+    """True if rel resolves to a directory under ROOT_DIR (no path traversal)."""
+    root_dir = get_root_dir()
+    if not root_dir or not rel or ".." in rel:
+        return False
+    try:
+        root_resolved = root_dir.resolve()
+        requested_abs = (root_dir / rel).resolve()
+        if root_resolved not in requested_abs.parents and requested_abs != root_resolved:
+            return False
+        return requested_abs.is_dir()
+    except (OSError, ValueError, RuntimeError):
+        return False
+
+
+def validate_switch_source_path(path: str) -> bool:
+    """Allow only /likes_player/<int> or /playlist/<relpath> pointing at a real folder under ROOT_DIR."""
+    if not path or not isinstance(path, str):
+        return False
+    path = path.strip()
+    if not path.startswith("/") or ".." in path:
+        return False
+    if _LIKES_PLAYER_PATH.match(path):
+        return True
+    m = _PLAYLIST_PATH.match(path)
+    if not m:
+        return False
+    rel = unquote(m.group(1)).strip().strip("/")
+    if not rel:
+        return False
+    return _is_safe_playlist_relpath(rel)
 
 @remote_bp.route("/remote/status")
 def api_remote_status():
@@ -252,6 +300,69 @@ def api_remote_sync_internal():
     # Note: Removed frequent sync logging to avoid log spam
     
     return jsonify({"status": "ok"})
+
+@remote_bp.route("/remote/playlist_sources")
+def api_remote_playlist_sources():
+    """Folders and virtual (by net likes) player URLs for the remote playlist picker."""
+    root_dir = get_root_dir()
+    if not root_dir:
+        return jsonify({"status": "error", "message": "Server configuration error"}), 500
+    try:
+        from .playlist_api import compute_like_stats_list
+
+        conn = get_connection()
+        like_stats = compute_like_stats_list(conn)
+        conn.close()
+    except Exception as e:
+        log_message(f"[Remote] playlist_sources like_stats failed: {e}")
+        like_stats = []
+
+    regular = []
+    for p in list_playlists(root_dir):
+        regular.append(
+            {
+                "path": p["url"],
+                "name": p["name"],
+                "count": p["count"],
+                "label": f"{p['name']} ({p['count']} tracks)",
+            }
+        )
+
+    virtual = []
+    for row in like_stats:
+        if not row.get("count"):
+            continue
+        likes = row["likes"]
+        virtual.append(
+            {
+                "path": f"/likes_player/{likes}",
+                "likes": likes,
+                "count": row["count"],
+                "label": f"❤️ {likes} net likes — {row['count']} tracks",
+            }
+        )
+
+    return jsonify({"status": "ok", "regular": regular, "virtual": virtual})
+
+
+@remote_bp.route("/remote/switch_source", methods=["POST"])
+def api_remote_switch_source():
+    """Tell the TV/browser player to open another playlist URL (navigation)."""
+    global COMMAND_QUEUE
+    data = request.get_json() or {}
+    path = (data.get("path") or "").strip()
+    if not validate_switch_source_path(path):
+        return jsonify({"status": "error", "message": "Invalid or unknown playlist path"}), 400
+    COMMAND_QUEUE.append(
+        {
+            "type": "switch_source",
+            "path": path,
+            "timestamp": time.time(),
+        }
+    )
+    log_message(f"[Remote] Switch player source queued: {path}")
+    return jsonify({"status": "ok", "command": "queued"})
+
 
 @remote_bp.route("/remote/commands")
 def api_remote_commands():

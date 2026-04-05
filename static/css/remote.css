@@ -69,6 +69,64 @@ body {
   color: var(--text-muted);
 }
 
+.playlist-source-picker {
+  margin-bottom: 20px;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 12px;
+  border: 1px solid var(--border);
+}
+
+.playlist-source-label {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+  text-align: center;
+}
+
+.playlist-source-row {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+  margin-bottom: 8px;
+}
+
+.playlist-source-select {
+  flex: 1;
+  min-width: 0;
+  padding: 10px 12px;
+  font-size: 14px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+}
+
+.playlist-switch-btn,
+.playlist-refresh-btn {
+  padding: 10px 14px;
+  font-size: 14px;
+  font-weight: 600;
+  border: none;
+  border-radius: 10px;
+  cursor: pointer;
+  background: var(--accent);
+  color: var(--bg);
+}
+
+.playlist-switch-btn:active,
+.playlist-refresh-btn:active {
+  opacity: 0.9;
+}
+
+.playlist-refresh-btn {
+  width: 100%;
+  background: transparent;
+  color: var(--accent);
+  border: 1px solid var(--border);
+  font-weight: 500;
+}
+
 .track-info {
   background: var(--bg);
   padding: 20px;

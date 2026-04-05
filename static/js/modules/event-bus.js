@@ -258,6 +258,23 @@ export async function executeRemoteCommand(command, context, playerType = 'regul
                     console.error(`${logPrefix} cFull button not found!`);
                 }
                 break;
+
+            case 'switch_source': {
+                const raw = command.path;
+                if (!raw || typeof raw !== 'string') {
+                    console.warn(`${logPrefix} switch_source missing path`);
+                    break;
+                }
+                const target = raw.split('?')[0].split('#')[0];
+                const here = window.location.pathname;
+                if (target === here) {
+                    console.log(`${logPrefix} Already on requested source:`, target);
+                    break;
+                }
+                console.log(`${logPrefix} Navigating player to`, target);
+                window.location.assign(target);
+                break;
+            }
                 
             default:
                 console.warn(`${logPrefix} Unknown command:`, command.type);

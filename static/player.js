@@ -210,6 +210,10 @@ const cDislike = document.getElementById('cDislike');
     if (deleteCurrentBtn && deleteCurrentBtn.updateTooltip) {
       deleteCurrentBtn.updateTooltip();
     }
+
+    setTimeout(() => {
+      syncRemoteState({ includeReactions: true });
+    }, 200);
     
     return result;
   }
@@ -663,28 +667,7 @@ const cDislike = document.getElementById('cDislike');
     }, 3000); // Check every 3 seconds
   });
   
-  // Override loadTrack to reset like buttons when track changes
-  const originalLoadTrack = loadTrack;
-  window.loadTrack = function(idx, autoplay = false) {
-    // Call original function
-    originalLoadTrack.call(this, idx, autoplay);
-    
-    // Reset like buttons for new track (session-based)
-    const likeButton = document.getElementById('cLike');
-    const dislikeButton = document.getElementById('cDislike');
-    
-    if (likeButton) {
-      likeButton.classList.remove('like-active');
-    }
-    if (dislikeButton) {
-      dislikeButton.classList.remove('dislike-active');
-    }
-    
-    // Sync remote state after track change to update button states
-    setTimeout(() => {
-      syncRemoteState({ includeReactions: true });
-    }, 200);
-  };
+  window.loadTrack = loadTrack;
 
   // ==============================
   // PLAYLIST LAYOUT MANAGER

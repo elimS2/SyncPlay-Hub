@@ -474,15 +474,11 @@ def api_tracks_by_likes(like_count):
         log_message(f"[Virtual Playlist] Error getting tracks by likes: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500
 
-@playlist_bp.route("/like_stats", methods=["GET"])
-def api_like_stats():
-    """Get statistics about tracks grouped by like count."""
-    try:
-        from database import get_dislike_counts_batch
-        conn = get_connection()
-        
-        # Step 1: Get all tracks with basic data (no subqueries for performance)
-        query = """
+def compute_like_stats_list(conn):
+    """Build like_stats rows (same shape as /api/like_stats). Caller owns conn lifecycle."""
+    from database import get_dislike_counts_batch
+
+    query = """
         SELECT DISTINCT
             t.video_id,
             t.play_likes,
@@ -490,10 +486,9 @@ def api_like_stats():
         FROM tracks t
         LEFT JOIN youtube_video_metadata ym ON ym.youtube_id = t.video_id
         LEFT JOIN channels ch ON (
-            ch.url = ym.channel_url OR 
-            ch.url LIKE '%' || ym.channel || '%' OR 
+            ch.url = ym.channel_url OR
+            ch.url LIKE '%' || ym.channel || '%' OR
             ym.channel_url LIKE '%' || ch.url || '%' OR
-            -- NEW: Match @channelname format from uploader_id and uploader_url
             (ym.uploader_id IS NOT NULL AND (
                 ch.url LIKE '%' || ym.uploader_id || '%' OR
                 ch.url LIKE '%' || REPLACE(ym.uploader_id, '@', '') || '%'
@@ -504,68 +499,60 @@ def api_like_stats():
         )
         LEFT JOIN channel_groups cg ON cg.id = ch.channel_group_id
         WHERE t.video_id NOT IN (
-            SELECT video_id FROM deleted_tracks 
+            SELECT video_id FROM deleted_tracks
             WHERE restored_at IS NULL
         )
             AND (cg.include_in_likes = 1 OR cg.id IS NULL)
         ORDER BY name
         """
-        
-        cursor = conn.execute(query)
-        all_tracks = cursor.fetchall()
-        
-        # Step 2: Get all video IDs for batch processing  
-        video_ids = [row[0] for row in all_tracks if row[0]]  # row[0] is video_id
-        
-        # Step 3: Get all dislike counts in one batch query
-        dislike_counts = get_dislike_counts_batch(conn, video_ids)
-        
-        # Step 4: Process tracks and group by net_likes
-        like_groups = {}  # net_likes -> list of track names
-        
-        for row in all_tracks:
-            video_id = row[0]
-            play_likes = row[1] or 0
-            track_name = row[2] or "Unknown"
-            
-            # Calculate net likes (likes - dislikes)
-            play_dislikes = dislike_counts.get(video_id, 0)
-            net_likes = play_likes - play_dislikes
-            
-            # Only include tracks with net_likes >= 0
-            if net_likes >= 0:
-                if net_likes not in like_groups:
-                    like_groups[net_likes] = []
-                
-                # Add track name (truncated for samples)
-                track_sample = track_name[:30] + "..." if len(track_name) > 30 else track_name
-                like_groups[net_likes].append(track_sample)
-        
-        # Step 5: Build response
-        like_stats = []
-        for net_likes in sorted(like_groups.keys()):
-            tracks_in_group = like_groups[net_likes]
-            count = len(tracks_in_group)
-            
-            # Limit sample to first 3 tracks
-            sample_parts = tracks_in_group[:3]
-            if len(tracks_in_group) > 3:
-                sample_parts.append("...")
-            
-            like_stats.append({
-                "likes": net_likes,  # Using net_likes (likes - dislikes) as "likes"
-                "count": count,
-                "sample_tracks": " • ".join(sample_parts)
-            })
-        
+
+    cursor = conn.execute(query)
+    all_tracks = cursor.fetchall()
+    video_ids = [row[0] for row in all_tracks if row[0]]
+    dislike_counts = get_dislike_counts_batch(conn, video_ids)
+    like_groups = {}
+
+    for row in all_tracks:
+        video_id = row[0]
+        play_likes = row[1] or 0
+        track_name = row[2] or "Unknown"
+        play_dislikes = dislike_counts.get(video_id, 0)
+        net_likes = play_likes - play_dislikes
+        if net_likes >= 0:
+            if net_likes not in like_groups:
+                like_groups[net_likes] = []
+            track_sample = track_name[:30] + "..." if len(track_name) > 30 else track_name
+            like_groups[net_likes].append(track_sample)
+
+    like_stats = []
+    for net_likes in sorted(like_groups.keys()):
+        tracks_in_group = like_groups[net_likes]
+        count = len(tracks_in_group)
+        sample_parts = tracks_in_group[:3]
+        if len(tracks_in_group) > 3:
+            sample_parts.append("...")
+        like_stats.append({
+            "likes": net_likes,
+            "count": count,
+            "sample_tracks": " • ".join(sample_parts),
+        })
+    return like_stats
+
+
+@playlist_bp.route("/like_stats", methods=["GET"])
+def api_like_stats():
+    """Get statistics about tracks grouped by like count."""
+    try:
+        conn = get_connection()
+        like_stats = compute_like_stats_list(conn)
         conn.close()
-        
+
         return jsonify({
             "status": "ok",
             "like_stats": like_stats,
-            "total_categories": len(like_stats)
+            "total_categories": len(like_stats),
         })
-        
+
     except Exception as e:
         log_message(f"[Virtual Playlist] Error getting like stats: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500

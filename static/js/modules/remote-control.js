@@ -56,6 +56,11 @@ class RemoteControl {
     // Info elements
     this.serverInfo = document.getElementById('serverInfo');
     this.lastSync = document.getElementById('lastSync');
+
+    this.playlistSourceSelect = document.getElementById('playlistSourceSelect');
+    this.playlistSwitchBtn = document.getElementById('playlistSwitchBtn');
+    this.playlistSourcesRefreshBtn = document.getElementById('playlistSourcesRefreshBtn');
+    this._playlistSources = null;
   }
   
   attachEvents() {
@@ -180,6 +185,17 @@ class RemoteControl {
       this.volumeSlider.value = newVolume;
       this.volumeValue.textContent = newVolume + '%';
     }, { passive: true });
+
+    if (this.playlistSwitchBtn && this.playlistSourceSelect) {
+      this.playlistSwitchBtn.addEventListener('click', async () => {
+        const path = this.playlistSourceSelect.value;
+        if (!path) return;
+        await this.sendCommand('switch_source', { path });
+      });
+    }
+    if (this.playlistSourcesRefreshBtn) {
+      this.playlistSourcesRefreshBtn.addEventListener('click', () => this.loadPlaylistSources());
+    }
   }
   
   setVolumeControlActive() {
@@ -348,6 +364,85 @@ class RemoteControl {
     
     // Update last sync time
     this.lastSync.textContent = new Date().toLocaleTimeString();
+
+    this.syncPlaylistSelectToStatus();
+  }
+
+  decodePath(p) {
+    try {
+      return decodeURIComponent(p);
+    } catch {
+      return p;
+    }
+  }
+
+  renderPlaylistSourceSelect() {
+    const sel = this.playlistSourceSelect;
+    if (!sel) return;
+    const prev = sel.value;
+    sel.innerHTML = '';
+    const placeholder = document.createElement('option');
+    placeholder.value = '';
+    placeholder.textContent = '— Select playlist —';
+    sel.appendChild(placeholder);
+
+    const data = this._playlistSources;
+    if (!data || data.status !== 'ok') {
+      const err = document.createElement('option');
+      err.value = '';
+      err.textContent = 'Could not load playlist list';
+      err.disabled = true;
+      sel.appendChild(err);
+      return;
+    }
+
+    const appendGroup = (label, items) => {
+      if (!items || !items.length) return;
+      const og = document.createElement('optgroup');
+      og.label = label;
+      for (const it of items) {
+        const o = document.createElement('option');
+        o.value = it.path;
+        o.textContent = it.label || it.name || it.path;
+        og.appendChild(o);
+      }
+      sel.appendChild(og);
+    };
+
+    appendGroup('Folders', data.regular);
+    appendGroup('By net likes', data.virtual);
+
+    if (prev && [...sel.options].some((o) => o.value === prev)) {
+      sel.value = prev;
+    }
+  }
+
+  syncPlaylistSelectToStatus() {
+    const sel = this.playlistSourceSelect;
+    if (!sel || !this.currentStatus || !this.currentStatus.player_source) return;
+    const want = this.decodePath(this.currentStatus.player_source);
+    for (const opt of sel.options) {
+      if (!opt.value) continue;
+      if (this.decodePath(opt.value) === want) {
+        sel.value = opt.value;
+        return;
+      }
+    }
+  }
+
+  async loadPlaylistSources() {
+    if (!this.playlistSourceSelect) return;
+    try {
+      const response = await fetch('/api/remote/playlist_sources');
+      const data = await response.json();
+      this._playlistSources = data;
+      this.renderPlaylistSourceSelect();
+      this.syncPlaylistSelectToStatus();
+    } catch (e) {
+      console.warn('Playlist sources load failed:', e);
+      this._playlistSources = { status: 'error' };
+      this.renderPlaylistSourceSelect();
+    }
   }
   
   updateConnectionStatus(connected) {
@@ -368,6 +463,8 @@ class RemoteControl {
   
   startSync() {
     console.log('📱 Remote: Starting sync...');
+
+    this.loadPlaylistSources();
     
     // Initial sync
     this.syncStatus();
