@@ -35,6 +35,7 @@ class RemoteControl {
     // Status elements
     this.statusDot = document.getElementById('statusDot');
     this.statusText = document.getElementById('statusText');
+    this.reloadPageBtn = document.getElementById('remoteReloadBtn');
     
     // Player type elements
     this.playerTypeInfo = document.getElementById('playerTypeInfo');
@@ -210,6 +211,10 @@ class RemoteControl {
     }
     if (this.playlistSourcesRefreshBtn) {
       this.playlistSourcesRefreshBtn.addEventListener('click', () => this.loadPlaylistSources());
+    }
+
+    if (this.reloadPageBtn) {
+      this.reloadPageBtn.addEventListener('click', () => window.location.reload());
     }
 
     if (this.followAudioBtn) {
