@@ -208,6 +208,34 @@ body {
   flex: 1;
 }
 
+.follow-audio-btn {
+  min-height: 72px;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+}
+
+.follow-audio-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.follow-audio-label {
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.2;
+  max-width: 100%;
+  text-align: center;
+}
+
+.follow-audio-btn.active {
+  background: rgba(97, 218, 251, 0.15);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
 .control-btn.playing {
   background: var(--success);
   border-color: var(--success);

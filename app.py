@@ -717,7 +717,8 @@ def favicon():
 @app.route("/media/<path:filename>")
 def media(filename: str):
     """Serve media files."""
-    return send_from_directory(ROOT_DIR, filename, as_attachment=False)
+    # conditional=True enables Range / 206 — required for reliable seek and mobile playback.
+    return send_from_directory(ROOT_DIR, filename, as_attachment=False, conditional=True)
 
 def _list_log_files():
     """Return sorted list of *.log paths inside LOGS_DIR (main log first, then newest first)."""

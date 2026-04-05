@@ -16,6 +16,15 @@ class RemoteControl {
     this.syncInterval = null;
     this.isVolumeControlActive = false;
     this.volumeControlTimeout = null;
+
+    /** Same track as main player on this device (another room). */
+    this.followAudioActive = false;
+    this.followAudioEl = null;
+    this.followVideoEl = null;
+    /** @type {'audio'|'video'|null} */
+    this._followMediaKind = null;
+    this._followTrackKey = null;
+    this._followLoadPending = false;
     
     this.initElements();
     this.attachEvents();
@@ -61,6 +70,11 @@ class RemoteControl {
     this.playlistSourcesRefreshBtn = document.getElementById('playlistSourcesRefreshBtn');
     this._playlistSources = null;
     this._suppressPlaylistSourceChange = false;
+
+    this.followAudioBtn = document.getElementById('followAudioBtn');
+    this.followAudioLabel = document.getElementById('followAudioLabel');
+    this.followAudioEl = document.getElementById('remoteFollowAudio');
+    this.followVideoEl = document.getElementById('remoteFollowVideo');
   }
   
   attachEvents() {
@@ -196,6 +210,233 @@ class RemoteControl {
     }
     if (this.playlistSourcesRefreshBtn) {
       this.playlistSourcesRefreshBtn.addEventListener('click', () => this.loadPlaylistSources());
+    }
+
+    if (this.followAudioBtn) {
+      this.followAudioBtn.addEventListener('click', () => this.toggleFollowAudio());
+    }
+    const onFollowMediaError = () => {
+      if (!this.followAudioActive) return;
+      this._followLoadPending = false;
+      const toast = window.ToastNotifications && window.ToastNotifications.showToast;
+      if (toast) {
+        toast('Could not play on this device (format or codec). Try MP4/AAC or MP3.', {
+          id: 'followAudioError',
+          backgroundColor: 'rgba(139, 0, 0, 0.92)',
+        });
+      }
+    };
+    if (this.followAudioEl) this.followAudioEl.addEventListener('error', onFollowMediaError);
+    if (this.followVideoEl) this.followVideoEl.addEventListener('error', onFollowMediaError);
+  }
+
+  _stopBothFollowMedia() {
+    [this.followAudioEl, this.followVideoEl].forEach((el) => {
+      if (!el) return;
+      el.pause();
+      el.removeAttribute('src');
+      try {
+        el.load();
+      } catch (e) {
+        /* ignore */
+      }
+    });
+  }
+
+  /** @returns {HTMLMediaElement|null} */
+  _followActiveMediaEl() {
+    if (this._followMediaKind === 'audio') return this.followAudioEl;
+    if (this._followMediaKind === 'video') return this.followVideoEl;
+    return null;
+  }
+
+  /**
+   * @param {string} absUrl
+   * @returns {HTMLMediaElement|null}
+   */
+  _mediaElForUrl(absUrl) {
+    const useAudio = this._isAudioOnlyUrl(absUrl);
+    const nextKind = useAudio ? 'audio' : 'video';
+    if (this._followMediaKind !== nextKind) {
+      const old = this._followActiveMediaEl();
+      if (old) {
+        old.pause();
+        old.removeAttribute('src');
+        try {
+          old.load();
+        } catch (e) {
+          /* ignore */
+        }
+      }
+      this._followMediaKind = nextKind;
+    }
+    return useAudio ? this.followAudioEl : this.followVideoEl;
+  }
+
+  /**
+   * @param {string} url
+   * @returns {boolean}
+   */
+  _isAudioOnlyUrl(url) {
+    const ext = (url.split('?')[0].split('.').pop() || '').toLowerCase();
+    return ['mp3', 'm4a', 'aac', 'flac', 'opus', 'ogg', 'oga', 'wav'].includes(ext);
+  }
+
+  toggleFollowAudio() {
+    this.followAudioActive = !this.followAudioActive;
+    this.updateFollowAudioButton();
+    if (!this.followAudioActive) {
+      this._followTrackKey = null;
+      this._followLoadPending = false;
+      this._followMediaKind = null;
+      this._stopBothFollowMedia();
+      return;
+    }
+    if (this.currentStatus) {
+      this.updateFollowAudioAfterStatus(this.currentStatus, { fromUserGesture: true });
+    }
+    this.syncStatus();
+  }
+
+  updateFollowAudioButton() {
+    if (!this.followAudioBtn || !this.followAudioLabel) return;
+    this.followAudioBtn.classList.toggle('active', this.followAudioActive);
+    this.followAudioLabel.textContent = this.followAudioActive ? 'Stop local audio' : 'Listen here';
+    this.followAudioBtn.title = this.followAudioActive
+      ? 'Stop playback on this phone'
+      : 'Play the same track on this phone (for another room). One tap unlocks audio in the browser.';
+  }
+
+  /**
+   * @param {object} track
+   * @returns {string|null}
+   */
+  _buildMediaUrl(track) {
+    if (!track) return null;
+    let path = track.url;
+    if (!path && track.relpath) {
+      const parts = String(track.relpath).replace(/\\/g, '/').split('/').filter(Boolean);
+      path = '/media/' + parts.map(encodeURIComponent).join('/');
+    }
+    if (!path || typeof path !== 'string') return null;
+    try {
+      return new URL(path, window.location.origin).href;
+    } catch {
+      return null;
+    }
+  }
+
+  _followTrackIdentity(track) {
+    if (!track) return null;
+    return track.video_id || track.relpath || track.url || null;
+  }
+
+  /**
+   * If the main player is muted (volume 0), still hear on the phone.
+   * @param {object} st
+   * @param {HTMLMediaElement} mediaEl
+   */
+  _applyFollowVolumeFromStatus(st, mediaEl) {
+    const v = Number(st.volume);
+    if (!Number.isFinite(v) || v <= 0.02) {
+      mediaEl.volume = 1.0;
+    } else {
+      mediaEl.volume = Math.min(1, Math.max(0, v));
+    }
+  }
+
+  /**
+   * Keep hidden media element in sync with PLAYER_STATE from /api/remote/status.
+   * @param {object} status
+   * @param {{ fromUserGesture?: boolean }} [options]
+   */
+  updateFollowAudioAfterStatus(status, options = {}) {
+    const fromUserGesture = options.fromUserGesture === true;
+    if (!this.followAudioActive) return;
+
+    const track = status.current_track;
+    const absUrl = this._buildMediaUrl(track);
+    if (!track || !absUrl) {
+      this._followTrackKey = null;
+      this._followLoadPending = false;
+      this._followMediaKind = null;
+      this._stopBothFollowMedia();
+      return;
+    }
+
+    const mediaEl = this._mediaElForUrl(absUrl);
+    if (!mediaEl) return;
+    if (mediaEl.tagName === 'VIDEO') {
+      mediaEl.setAttribute('playsinline', '');
+      mediaEl.playsInline = true;
+    }
+
+    const key = this._followTrackIdentity(track);
+    if (this._followTrackKey !== key) {
+      this._followTrackKey = key;
+      this._followLoadPending = true;
+      mediaEl.src = absUrl;
+
+      if (fromUserGesture) {
+        mediaEl.muted = true;
+        const pr = mediaEl.play();
+        if (pr && typeof pr.then === 'function') {
+          pr.catch((e) => console.warn('Follow local play (gesture):', e));
+        }
+      }
+
+      const expectedKey = key;
+      const onMeta = () => {
+        if (!this.followAudioActive || this._followTrackKey !== expectedKey) return;
+        this._followLoadPending = false;
+        const st = this.currentStatus || status;
+        const pos = Math.max(0, Number(st.progress) || 0);
+        try {
+          mediaEl.currentTime = pos;
+        } catch (e) {
+          console.warn('Follow-media seek failed:', e);
+        }
+        this._applyFollowVolumeFromStatus(st, mediaEl);
+        mediaEl.muted = false;
+        if (st.playing) {
+          mediaEl.play().catch((err) => console.warn('Follow-media play failed:', err));
+        } else {
+          mediaEl.pause();
+        }
+      };
+
+      mediaEl.addEventListener('loadedmetadata', onMeta, { once: true });
+      return;
+    }
+
+    if (this._followLoadPending) return;
+
+    this._applyFollowVolumeFromStatus(status, mediaEl);
+
+    const target = Math.max(0, Number(status.progress) || 0);
+    const drift = Math.abs(target - mediaEl.currentTime);
+
+    if (status.playing) {
+      if (drift > 1.25) {
+        try {
+          mediaEl.currentTime = target;
+        } catch (e) {
+          console.warn('Follow-media resync seek failed:', e);
+        }
+      }
+      if (mediaEl.paused) {
+        mediaEl.muted = false;
+        mediaEl.play().catch((err) => console.warn('Follow-media play failed:', err));
+      }
+    } else {
+      mediaEl.pause();
+      if (drift > 1.25) {
+        try {
+          mediaEl.currentTime = target;
+        } catch (e) {
+          console.warn('Follow-media pause seek failed:', e);
+        }
+      }
     }
   }
   
@@ -372,6 +613,7 @@ class RemoteControl {
     this.lastSync.textContent = new Date().toLocaleTimeString();
 
     this.syncPlaylistSelectToStatus();
+    this.updateFollowAudioAfterStatus(status);
   }
 
   decodePath(p) {
