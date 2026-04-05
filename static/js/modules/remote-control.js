@@ -52,7 +52,12 @@ class RemoteControl {
 
     this.micSync =
       typeof RemoteMicSyncController !== 'undefined' ? new RemoteMicSyncController(this) : null;
-    
+
+    /** Only one /remote/status fetch at a time; avoids piling requests and starving POST /like (HTTP/1.1 connection limit). */
+    this._statusSyncInFlight = false;
+    this._statusSyncQueued = false;
+    this._followLoadWatchdogTimer = null;
+
     this.initElements();
     this.attachEvents();
     this.startSync();
@@ -158,10 +163,26 @@ class RemoteControl {
       }
     });
     this.likeBtn.addEventListener('click', async () => {
-      await this.sendCommand('like');
+      const wasLiked = this.likeBtn.classList.contains('like-active');
+      if (!wasLiked) {
+        this.likeBtn.classList.add('like-active');
+        this.dislikeBtn.classList.remove('dislike-active');
+      }
+      const ok = await this.sendCommand('like');
+      if (!ok && !wasLiked) {
+        this.likeBtn.classList.remove('like-active');
+      }
     });
     this.dislikeBtn.addEventListener('click', async () => {
-      await this.sendCommand('dislike');
+      const wasDisliked = this.dislikeBtn.classList.contains('dislike-active');
+      if (!wasDisliked) {
+        this.dislikeBtn.classList.add('dislike-active');
+        this.likeBtn.classList.remove('like-active');
+      }
+      const ok = await this.sendCommand('dislike');
+      if (!ok && !wasDisliked) {
+        this.dislikeBtn.classList.remove('dislike-active');
+      }
     });
     this.youtubeBtn.addEventListener('click', () => this.sendCommand('youtube'));
     
@@ -592,8 +613,41 @@ class RemoteControl {
     if (!this.micSync) return;
     const el = this._followMicSyncPrecheck();
     if (!el) return;
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      const t = window.ToastNotifications && window.ToastNotifications.showToast;
+      if (t) {
+        t(
+          !window.isSecureContext
+            ? 'Microphone needs HTTPS (or localhost). Open the remote page over a secure connection.'
+            : 'Microphone not available in this browser.',
+          { id: 'micSyncToast', backgroundColor: 'rgba(139, 0, 0, 0.92)', duration: 5000 },
+        );
+      }
+      return;
+    }
     this.updateMicSyncButtons();
-    void this.micSync.runAuto(el).finally(() => this.updateMicSyncButtons());
+    // getUserMedia must run in the same synchronous turn as the click; do not await before it.
+    navigator.mediaDevices
+      .getUserMedia({
+        audio: {
+          echoCancellation: false,
+          noiseSuppression: false,
+          autoGainControl: false,
+        },
+        video: false,
+      })
+      .then((stream) => this.micSync.runAutoWithMicStream(el, stream))
+      .catch((e) => {
+        console.warn('Mic sync getUserMedia failed:', e);
+        const t = window.ToastNotifications && window.ToastNotifications.showToast;
+        if (t) {
+          t(
+            'Microphone was blocked or unavailable. Allow microphone for this site in the browser address bar, then try again.',
+            { id: 'micSyncToast', backgroundColor: 'rgba(139, 0, 0, 0.92)', duration: 5500 },
+          );
+        }
+      })
+      .finally(() => this.updateMicSyncButtons());
   }
 
   toggleFollowAudio() {
@@ -603,6 +657,10 @@ class RemoteControl {
       this._deckBrakePointerUp();
       if (this.micSync) {
         void this.micSync.stopAll();
+      }
+      if (this._followLoadWatchdogTimer != null) {
+        clearTimeout(this._followLoadWatchdogTimer);
+        this._followLoadWatchdogTimer = null;
       }
       this._followTrackKey = null;
       this._followLoadPending = false;
@@ -765,6 +823,10 @@ class RemoteControl {
     const useAudio = this._isAudioOnlyUrl(absUrl);
 
     if (this._followTrackKey !== key) {
+      if (this._followLoadWatchdogTimer != null) {
+        clearTimeout(this._followLoadWatchdogTimer);
+        this._followLoadWatchdogTimer = null;
+      }
       this._followTrackKey = key;
       this._followLoadPending = true;
       this._followLastHardSeekMs = 0;
@@ -841,10 +903,33 @@ class RemoteControl {
 
       const expectedKey = key;
       let metaApplied = false;
+      const clearLoadWatchdog = () => {
+        if (this._followLoadWatchdogTimer != null) {
+          clearTimeout(this._followLoadWatchdogTimer);
+          this._followLoadWatchdogTimer = null;
+        }
+      };
+      this._followLoadWatchdogTimer = window.setTimeout(() => {
+        this._followLoadWatchdogTimer = null;
+        if (this._followTrackKey === expectedKey && this._followLoadPending) {
+          console.warn('Follow-media: load watchdog cleared stuck _followLoadPending');
+          this._followLoadPending = false;
+        }
+      }, 20000);
       const onMeta = () => {
         if (metaApplied) return;
-        if (!this.followAudioActive || this._followTrackKey !== expectedKey) return;
+        if (!this.followAudioActive) {
+          clearLoadWatchdog();
+          this._followLoadPending = false;
+          return;
+        }
+        if (this._followTrackKey !== expectedKey) {
+          clearLoadWatchdog();
+          this._followLoadPending = false;
+          return;
+        }
         metaApplied = true;
+        clearLoadWatchdog();
         this._followLoadPending = false;
         const st = this.currentStatus || status;
         const pos = this._expectedProgressSec(st);
@@ -882,6 +967,14 @@ class RemoteControl {
         this._followRateNudgeGraceUntilMs = Date.now() + 5000;
       };
 
+      const onFollowLoadError = () => {
+        mediaEl.removeEventListener('error', onFollowLoadError);
+        clearLoadWatchdog();
+        if (this._followTrackKey === expectedKey) {
+          this._followLoadPending = false;
+        }
+      };
+      mediaEl.addEventListener('error', onFollowLoadError, { once: true });
       mediaEl.addEventListener('loadedmetadata', onMeta, { once: true });
       if (mediaEl.readyState >= 1) {
         queueMicrotask(() => onMeta());
@@ -984,21 +1077,26 @@ class RemoteControl {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data)
       });
-      
+
       if (response.ok) {
-        console.log(`Command ${command} sent successfully`);
-        // Immediately sync to get updated state
-        this.syncStatus();
-      } else {
-        console.error(`Failed to send command ${command}`);
+        void this.syncStatus();
+        return true;
       }
+      console.error(`Failed to send command ${command}`);
+      return false;
     } catch (error) {
       console.error(`Error sending command ${command}:`, error);
       this.updateConnectionStatus(false);
+      return false;
     }
   }
   
   async syncStatus() {
+    if (this._statusSyncInFlight) {
+      this._statusSyncQueued = true;
+      return;
+    }
+    this._statusSyncInFlight = true;
     try {
       const t0 = Date.now();
       const response = await fetch(`/api/remote/status?client_ms=${t0}`);
@@ -1018,11 +1116,16 @@ class RemoteControl {
     } catch (error) {
       console.error('Sync error:', error);
       this.updateConnectionStatus(false);
+    } finally {
+      this._statusSyncInFlight = false;
+      if (this._statusSyncQueued) {
+        this._statusSyncQueued = false;
+        void this.syncStatus();
+      }
     }
   }
   
   updateStatus(status) {
-    console.log('📱 Remote: Updating status:', status);
     this.currentStatus = status; // Store current status for volume logging
     
     // Update player type info

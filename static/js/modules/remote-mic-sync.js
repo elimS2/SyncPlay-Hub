@@ -92,7 +92,14 @@
       }
     }
 
-    async _buildGraph(mediaEl) {
+    /**
+     * @param {HTMLMediaElement} mediaEl
+     * @param {MediaStream} micStream from getUserMedia (must be obtained in the same user gesture as the Mic sync click)
+     */
+    async _buildGraph(mediaEl, micStream) {
+      if (!micStream) {
+        throw new Error('Microphone stream missing');
+      }
       await this.dispose();
       const AC = global.AudioContext || global.webkitAudioContext;
       if (!AC) {
@@ -100,14 +107,6 @@
       }
       const ctx = new AC();
       await ctx.resume();
-      const micStream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          echoCancellation: false,
-          noiseSuppression: false,
-          autoGainControl: false,
-        },
-        video: false,
-      });
       const elSrc = ctx.createMediaElementSource(mediaEl);
       elSrc.connect(ctx.destination);
       const refA = ctx.createAnalyser();
@@ -156,20 +155,24 @@
     }
 
     /**
+     * Run correlation using an already-granted mic stream. Call getUserMedia from the button click
+     * handler (sync .then chain) — not after await inside this method — or the browser may block mic.
      * @param {HTMLMediaElement} mediaEl
+     * @param {MediaStream} micStream
      */
-    async runAuto(mediaEl) {
+    async runAutoWithMicStream(mediaEl, micStream) {
       this._autoRunning = true;
       try {
-        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-          this._toast('Microphone not available in this browser.', true);
-          return;
-        }
         try {
-          await this._buildGraph(mediaEl);
+          await this._buildGraph(mediaEl, micStream);
         } catch (e) {
           console.warn('Mic sync auto failed:', e);
           this._toast('Mic permission or audio setup failed.', true);
+          try {
+            micStream.getTracks().forEach((t) => t.stop());
+          } catch (e2) {
+            /* ignore */
+          }
           return;
         }
         const refA = this._refAnalyser;
