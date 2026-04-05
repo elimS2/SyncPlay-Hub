@@ -540,8 +540,8 @@ const cDislike = document.getElementById('cDislike');
   
   // syncRemoteState() теперь импортируется из player-utils.js
   // Wrapper function для совместимости с существующим кодом
-  async function syncRemoteState() {
-    return await utilsSyncRemoteState('regular', { currentIndex, queue, media });
+  async function syncRemoteState(opts) {
+    return await utilsSyncRemoteState('regular', { currentIndex, queue, media }, opts);
   }
   
   // pollRemoteCommands() теперь импортируется из player-utils.js
@@ -556,8 +556,7 @@ const cDislike = document.getElementById('cDislike');
     const context = {
       media, nextTrack, prevTrack, stopPlayback, togglePlayback, 
       isVolumeWheelActive, cVol, updateMuteIcon,
-      syncRemoteState, syncLikeButtonsWithRemote
-      // Кнопки больше не нужны - используется унифицированный getElementById
+      syncRemoteState
     };
     return await utilsExecuteRemoteCommand(command, context, 'regular');
   }
@@ -683,7 +682,7 @@ const cDislike = document.getElementById('cDislike');
     
     // Sync remote state after track change to update button states
     setTimeout(() => {
-      syncRemoteState();
+      syncRemoteState({ includeReactions: true });
     }, 200);
   };
 

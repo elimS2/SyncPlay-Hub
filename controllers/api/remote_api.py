@@ -73,7 +73,8 @@ def api_remote_volume():
     
     # Clamp volume between 0 and 1
     volume = max(0.0, min(1.0, float(volume)))
-    
+    PLAYER_STATE['volume'] = volume
+
     # Save volume to database and record change event
     try:
         conn = get_connection()

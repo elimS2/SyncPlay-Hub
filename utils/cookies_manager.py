@@ -303,53 +303,87 @@ def get_cookie_file(prefer_healthy: bool = True) -> Optional[str]:
         logger.info(f"Selected cookie (random): {selected.name}")
         return str(selected)
 
-    # Load health state and apply simple cooldown-based preference
+    # Load health state and use probabilistic selection
     state = _load_cookie_health(cookies_dir)
     now = int(time.time())
     failure_cooldown_sec = 30 * 60  # 30 minutes
 
-    unseen_pool: List[Path] = []
-    clean_success_pool: List[Path] = []
-    good_pool: List[Path] = []
-    fallback_pool: List[Path] = []
+    candidates: List[Path] = []
+    weights: List[float] = []
 
     for p in valid_cookies:
         key = str(p)
         entry = state.get(key)
+        
+        # Base score
+        score = 10.0
+        
         if entry is None:
-            unseen_pool.append(p)
-            continue
-        last_fail = int(entry.get('last_failure_ts', 0) or 0)
-        last_succ = int(entry.get('last_success_ts', 0) or 0)
-        successes = int(entry.get('successes', 0) or 0)
-        failures = int(entry.get('failures', 0) or 0)
-
-        # Cooldown: skip recently failed with no newer success
-        if failures > 0 and last_fail and (now - last_fail) < failure_cooldown_sec and (not last_succ or last_succ < last_fail):
-            # Keep them only as last resort (not placing into pools)
-            continue
-
-        if failures == 0 and successes > 0:
-            clean_success_pool.append(p)
-        elif last_succ and last_succ >= last_fail:
-            good_pool.append(p)
+            # Unseen cookies get a slight boost to establish health
+            score = 20.0
         else:
-            fallback_pool.append(p)
+            last_fail = int(entry.get('last_failure_ts', 0) or 0)
+            last_succ = int(entry.get('last_success_ts', 0) or 0)
+            successes = int(entry.get('successes', 0) or 0)
+            failures = int(entry.get('failures', 0) or 0)
+            total = successes + failures
 
-    for pool_name, pool in (
-        ("unseen", unseen_pool),
-        ("clean", clean_success_pool),
-        ("good", good_pool),
-        ("fallback", fallback_pool or valid_cookies),
-    ):
-        if pool:
-            selected = random.choice(pool)
-            logger.info(f"Selected cookie ({pool_name}): {selected.name}")
-            return str(selected)
+            # 1. Success Rate Factor
+            if total > 0:
+                success_rate = successes / total
+                if success_rate > 0.9:
+                    score += 20.0  # Reliable
+                elif success_rate > 0.5:
+                    score += 5.0   # Average
+                else:
+                    score -= 5.0   # Poor performance
 
-    # Should not reach here, but keep a safe fallback
-    selected = random.choice(valid_cookies)
-    logger.info(f"Selected cookie (final-fallback): {selected.name}")
+            # 2. Health Status (Success vs Failure)
+            if failures == 0 and successes > 0:
+                score += 15.0  # Clean record
+            elif last_succ >= last_fail:
+                score += 10.0  # Recovered or good
+            else:
+                # Currently failing state
+                time_since_fail = now - last_fail
+                if time_since_fail < failure_cooldown_sec:
+                    # Strict penalty for recent failures (cooldown)
+                    score = 0.1
+                else:
+                    # Older failures aren't as bad, but still risky
+                    score = 1.0
+
+            # 3. Recency Factor (Spread the load)
+            # Ideally we don't want to hammer the same good cookie repeatedly if others are available.
+            # We don't have "last_used" but last_succ is a proxy.
+            # If used very recently (e.g. < 5 mins ago), slightly lower weight to allow rotation.
+            if now - last_succ < 300: 
+                score *= 0.5
+
+        # Ensure score is positive
+        score = max(0.1, score)
+        
+        candidates.append(p)
+        weights.append(score)
+
+    if not candidates:
+        logger.warning("No candidates available after filtering")
+        return None
+
+    # Weighted random selection
+    # random.choices returns a list, we take the first element
+    selected = random.choices(candidates, weights=weights, k=1)[0]
+    
+    # Log selection details for debugging
+    try:
+        sel_idx = candidates.index(selected)
+        sel_weight = weights[sel_idx]
+        total_weight = sum(weights)
+        prob = (sel_weight / total_weight) * 100
+        logger.info(f"Selected cookie (weighted): {selected.name} (score={sel_weight:.1f}, prob={prob:.1f}%)")
+    except Exception:
+        logger.info(f"Selected cookie (weighted): {selected.name}")
+
     return str(selected)
 
 

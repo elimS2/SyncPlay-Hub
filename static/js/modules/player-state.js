@@ -78,19 +78,16 @@ export async function loadSavedVolume(media, cVol, state, updateMuteIcon) {
  * Synchronize player state with remote control API
  * @param {string} playerType - player type ('regular' or 'virtual')
  * @param {Object} context - context with currentIndex, queue, media
+ * @param {Object} [options]
+ * @param {boolean} [options.includeReactions] - when true, send like_active/dislike_active (omit on periodic sync to avoid racing remote commands)
  */
-export async function syncRemoteState(playerType = 'regular', context) {
+export async function syncRemoteState(playerType = 'regular', context, options = {}) {
     const ctx = context || window;
     const { currentIndex, queue, media } = ctx;
+    const includeReactions = options.includeReactions === true;
     
     try {
         const currentTrack = currentIndex >= 0 && currentIndex < queue.length ? queue[currentIndex] : null;
-        
-        // Get current like/dislike button states
-        const likeButton = document.getElementById('cLike');
-        const dislikeButton = document.getElementById('cDislike');
-        const likeActive = likeButton ? likeButton.classList.contains('like-active') : false;
-        const dislikeActive = dislikeButton ? dislikeButton.classList.contains('dislike-active') : false;
         
         const playerState = {
             current_track: currentTrack,
@@ -101,10 +98,15 @@ export async function syncRemoteState(playerType = 'regular', context) {
             current_index: currentIndex,
             last_update: Date.now() / 1000,
             player_type: playerType,
-            player_source: window.location.pathname,
-            like_active: likeActive,
-            dislike_active: dislikeActive
+            player_source: window.location.pathname
         };
+
+        if (includeReactions) {
+            const likeButton = document.getElementById('cLike');
+            const dislikeButton = document.getElementById('cDislike');
+            playerState.like_active = likeButton ? likeButton.classList.contains('like-active') : false;
+            playerState.dislike_active = dislikeButton ? dislikeButton.classList.contains('dislike-active') : false;
+        }
         
         console.log('🎮 Syncing remote state:', {
             track: currentTrack?.name || 'No track',

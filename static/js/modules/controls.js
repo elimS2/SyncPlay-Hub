@@ -375,9 +375,8 @@ export async function syncLikeButtonsWithRemote() {
 export async function syncLikesAfterAction(video_id, action, syncRemoteState) {
   console.log(`🎵 [Like Sync] Syncing likes after ${action} for ${video_id}`);
   
-  // Just sync remote state to update remote control
   setTimeout(async () => {
-    await syncRemoteState();
+    await syncRemoteState({ includeReactions: true });
   }, 200);
 }
 
@@ -1442,8 +1441,7 @@ export function setupRemoteControlInitialization(media, syncRemoteState, pollRem
         setInterval(syncRemoteState, 3000);
     }, 1000);
     
-    // Periodic remote command polling (every 1 second)
-    setInterval(pollRemoteCommands, 1000);
+    setInterval(pollRemoteCommands, 500);
     
     console.log('🎮 Remote control synchronization initialized');
 }

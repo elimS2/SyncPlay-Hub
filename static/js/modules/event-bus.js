@@ -118,7 +118,7 @@ export async function executeRemoteCommand(command, context, playerType = 'regul
     const { 
         media, nextTrack, prevTrack, stopPlayback, togglePlayback, 
         isVolumeWheelActive, cVol, updateMuteIcon,
-        syncRemoteState, syncLikeButtonsWithRemote
+        syncRemoteState
     } = context;
     
     const logPrefix = playerType === 'virtual' ? '🎮 [Virtual Remote]' : '🎮 [Remote]';
@@ -263,11 +263,7 @@ export async function executeRemoteCommand(command, context, playerType = 'regul
                 console.warn(`${logPrefix} Unknown command:`, command.type);
         }
         
-        // Sync state after command execution
-        setTimeout(syncRemoteState, 200);
-        
-        // Sync like buttons with remote state
-        setTimeout(syncLikeButtonsWithRemote, 300);
+        setTimeout(() => syncRemoteState({ includeReactions: true }), 200);
     } catch (error) {
         console.error(`${logPrefix} Error executing command:`, error);
     }

@@ -94,22 +94,10 @@ class RemoteControl {
       }
     });
     this.likeBtn.addEventListener('click', async () => {
-      // Send command and wait for sync (no immediate toggle)
       await this.sendCommand('like');
-      
-      // Sync likes after action with longer delay to allow processing
-      if (this.currentStatus && this.currentStatus.current_track && this.currentStatus.current_track.video_id) {
-        await this.syncLikesAfterAction(this.currentStatus.current_track.video_id, 'like');
-      }
     });
     this.dislikeBtn.addEventListener('click', async () => {
-      // Send command and wait for sync (no immediate toggle)
       await this.sendCommand('dislike');
-      
-      // Sync likes after action with longer delay to allow processing
-      if (this.currentStatus && this.currentStatus.current_track && this.currentStatus.current_track.video_id) {
-        await this.syncLikesAfterAction(this.currentStatus.current_track.video_id, 'dislike');
-      }
     });
     this.youtubeBtn.addEventListener('click', () => this.sendCommand('youtube'));
     
@@ -371,20 +359,6 @@ class RemoteControl {
     this.lastSync.textContent = new Date().toLocaleTimeString();
   }
   
-  // ==============================
-  // LIKE SYNCHRONIZATION
-  // ==============================
-  
-  // Function to sync likes after like/dislike actions (session-based only)
-  async syncLikesAfterAction(video_id, action) {
-    console.log(`📱 [Remote Like Sync] Syncing likes after ${action} for ${video_id}`);
-    
-    // Just sync status to update remote control with longer delay
-    setTimeout(async () => {
-      await this.syncStatus();
-    }, 800);
-  }
-  
   formatTime(seconds) {
     if (!isFinite(seconds)) return '0:00';
     const mins = Math.floor(seconds / 60);
@@ -401,7 +375,7 @@ class RemoteControl {
     // Set up periodic sync
     this.syncInterval = setInterval(() => {
       this.syncStatus();
-    }, 2000);
+    }, 1000);
     
     // Set up server info update
     this.updateServerInfo();

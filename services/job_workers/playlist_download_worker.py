@@ -359,6 +359,27 @@ class PlaylistDownloadWorker(JobWorker):
             # Environment
             env = os.environ.copy()
             env['PYTHONIOENCODING'] = 'utf-8'
+            
+            # Ensure Node.js is in PATH for yt-dlp
+            # This is critical for solving n-sig challenges on Windows
+            node_path = shutil.which('node')
+            if not node_path:
+                # Fallback locations for this specific environment
+                potential_paths = [
+                    r"C:\Users\eL\AppData\Roaming\JetBrains\PhpStorm2024.2\node\versions\20.17.0\node.exe",
+                    r"C:\Program Files\nodejs\node.exe"
+                ]
+                for p in potential_paths:
+                    if os.path.exists(p):
+                        node_path = p
+                        break
+            
+            if node_path:
+                node_dir = os.path.dirname(node_path)
+                # Prepend to PATH to ensure yt-dlp finds it
+                # Normalizing path separators is important for Windows
+                node_dir_abs = str(Path(node_dir).absolute())
+                env['PATH'] = node_dir_abs + os.pathsep + env.get('PATH', '')
 
             # Attempt loop
             attempt_index = 0
@@ -800,7 +821,7 @@ class PlaylistDownloadWorker(JobWorker):
 
             print(f"[yt-dlp] Detected yt-dlp version: {version_str}")
 
-            min_required = str(config.get('YTDLP_MIN_VERSION', '2025.8.20')).strip()
+            min_required = str(config.get('YTDLP_MIN_VERSION', '2026.3.17')).strip()
 
             def parse_v(s: str):
                 try:
