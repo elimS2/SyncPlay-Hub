@@ -31,8 +31,12 @@ class RemoteControl {
     this._syncMs = 1000;
     /** Avoid repeated currentTime seeks (causes stutter on mobile). */
     this._followLastHardSeekMs = 0;
-    /** User set pitch (slower/faster/reset 1×); skip auto playbackRate nudge until new track. */
+    /**
+     * Manual deck pitch (− / 1× / +): follow sync adjusts time only, never playbackRate, until next track.
+     */
     this._followDeckUserTouched = false;
+    /** Locked rate chosen on the deck (source of truth for label + reassert after sync). */
+    this._followDeckTargetRate = null;
     /** Hold-to-pause on phone; blocks sync loop from calling play(). */
     this._deckBrakeHeld = false;
     /** After a new src + metadata, skip playbackRate nudge until time settles (avoids instant 1.05). */
@@ -336,9 +340,31 @@ class RemoteControl {
       this.deckPitchLabel.textContent = '1.00×';
       return;
     }
+    if (
+      this._followDeckUserTouched &&
+      this._followDeckTargetRate != null &&
+      Number.isFinite(this._followDeckTargetRate)
+    ) {
+      this.deckPitchLabel.textContent = `${this._followDeckTargetRate.toFixed(2)}×`;
+      return;
+    }
     const r = Number(el.playbackRate);
     const v = Number.isFinite(r) ? r : 1;
     this.deckPitchLabel.textContent = `${v.toFixed(2)}×`;
+  }
+
+  /** If sync or the browser touched playbackRate, put back the deck-chosen value. */
+  _followReassertManualPlaybackRate(mediaEl) {
+    if (!this._followDeckUserTouched || !mediaEl) return;
+    const want = this._followDeckTargetRate;
+    if (want == null || !Number.isFinite(want)) return;
+    const cur = Number(mediaEl.playbackRate);
+    if (Number.isFinite(cur) && Math.abs(cur - want) <= 0.008) return;
+    try {
+      mediaEl.playbackRate = want;
+    } catch (e) {
+      /* ignore */
+    }
   }
 
   nudgeDeckSlower() {
@@ -350,6 +376,7 @@ class RemoteControl {
     let r = Number(el.playbackRate);
     if (!Number.isFinite(r)) r = 1;
     el.playbackRate = Math.max(minR, r - step);
+    this._followDeckTargetRate = Number(el.playbackRate);
     this.updateDeckPitchLabel();
   }
 
@@ -362,14 +389,15 @@ class RemoteControl {
     let r = Number(el.playbackRate);
     if (!Number.isFinite(r)) r = 1;
     el.playbackRate = Math.min(maxR, r + step);
+    this._followDeckTargetRate = Number(el.playbackRate);
     this.updateDeckPitchLabel();
   }
 
   resetDeckPitch() {
     const el = this._followMicSyncPrecheck();
     if (!el) return;
-    // Pin 1× like a deck choice; if false, the next sync tick reapplies nudge (often +0.05).
     this._followDeckUserTouched = true;
+    this._followDeckTargetRate = 1;
     el.playbackRate = 1;
     this.updateDeckPitchLabel();
     const t = window.ToastNotifications && window.ToastNotifications.showToast;
@@ -416,6 +444,8 @@ class RemoteControl {
       this._followTrackKey = null;
       this._followLoadPending = false;
       this._followMediaKind = null;
+      this._followDeckUserTouched = false;
+      this._followDeckTargetRate = null;
       this._stopBothFollowMedia();
       this._syncMs = 1000;
       this._restartSyncLoop();
@@ -561,6 +591,8 @@ class RemoteControl {
       this._followLoadPending = false;
       this._followMediaKind = null;
       this._followRateNudgeGraceUntilMs = 0;
+      this._followDeckUserTouched = false;
+      this._followDeckTargetRate = null;
       this._stopBothFollowMedia();
       return;
     }
@@ -578,6 +610,7 @@ class RemoteControl {
       this._followLoadPending = true;
       this._followLastHardSeekMs = 0;
       this._followDeckUserTouched = false;
+      this._followDeckTargetRate = null;
       mediaEl.playbackRate = 1;
       mediaEl.src = absUrl;
 
@@ -608,8 +641,12 @@ class RemoteControl {
         // Do not stomp a deck reset / nudge that happened while load was pending (onMeta runs later).
         const deckLocked = this._followDeckUserTouched;
         if (!deckLocked) {
+          this._followDeckTargetRate = null;
           this._followDeckUserTouched = false;
           mediaEl.playbackRate = 1;
+        } else {
+          const tr = Number(mediaEl.playbackRate);
+          this._followDeckTargetRate = Number.isFinite(tr) ? tr : 1;
         }
         this.updateDeckPitchLabel();
         mediaEl.muted = false;
@@ -649,12 +686,16 @@ class RemoteControl {
         (drift >= hardSeekDrift && sinceSeek >= hardSeekCooldownMs);
 
       if (doHardSeek) {
-        const deckRate = this._followDeckUserTouched ? mediaEl.playbackRate : 1;
         try {
-          mediaEl.playbackRate = 1;
+          if (!this._followDeckUserTouched) {
+            mediaEl.playbackRate = 1;
+          }
           mediaEl.currentTime = Math.max(0, target);
           this._followLastHardSeekMs = now;
-          mediaEl.playbackRate = deckRate;
+          if (!this._followDeckUserTouched) {
+            mediaEl.playbackRate = 1;
+          }
+          this._followReassertManualPlaybackRate(mediaEl);
           this.updateDeckPitchLabel();
         } catch (e) {
           console.warn('Follow-media resync seek failed:', e);
@@ -680,6 +721,7 @@ class RemoteControl {
         }
       }
     }
+    this._followReassertManualPlaybackRate(mediaEl);
     this.updateDeckPitchLabel();
   }
 
