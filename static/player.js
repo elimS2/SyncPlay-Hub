@@ -3,6 +3,7 @@ import { shuffle, smartShuffle, detectChannelGroup, smartChannelShuffle, getGrou
 
 // Импорт track title manager
 import { updateCurrentTrackTitle } from '/static/js/modules/track-title-manager.js';
+import { initMainPlayerPingPong } from '/static/js/modules/main-player-ping-pong.js';
 
 async function fetchTracks(playlistPath = '') {
   const endpoint = playlistPath ? `/api/tracks/${encodeURI(playlistPath)}` : '/api/tracks';
@@ -32,7 +33,9 @@ function orderByPublishDate(tracks) {
 // ===== END SMART CHANNEL PLAYBACK LOGIC =====
 
 (async () => {
-  const media = document.getElementById('player');
+  const playerA = document.getElementById('player');
+  const playerB = document.getElementById('playerB');
+  let media = playerA;
   const listElem = document.getElementById('tracklist');
 
   const deleteCurrentBtn = document.getElementById('deleteCurrentBtn');
@@ -91,6 +94,19 @@ const cDislike = document.getElementById('cDislike');
   }
   
   let currentIndex = -1;
+
+  const pingPong = initMainPlayerPingPong({
+    playerA,
+    playerB,
+    wrapper,
+    queue,
+    getCurrentIndex: () => currentIndex,
+    getActiveMedia: () => media,
+    setActiveMedia: (el) => {
+      media = el;
+    },
+    getVolume: () => parseFloat(cVol.value) || 0,
+  });
   
   // Log playback info
   const playbackInfo = getGroupPlaybackInfo(tracks);
@@ -193,7 +209,9 @@ const cDislike = document.getElementById('cDislike');
           console.log(`🎵 [DEBUG] Setting currentIndex from ${currentIndex} to ${newIdx}`);
           currentIndex = newIdx; 
         },
-        media, speedOptions, currentSpeedIndex, castLoad, renderList,
+        getMedia: () => media,
+        media,
+        speedOptions, currentSpeedIndex, castLoad, renderList,
         cLike, cDislike, reportEvent, sendStreamEvent,
         syncRemoteStateAfterReaction: syncRemoteState
     });
@@ -225,7 +243,9 @@ const cDislike = document.getElementById('cDislike');
     currentIndex: () => currentIndex,
     reportEvent,
     triggerAutoDeleteCheck,
-    playIndex
+    playIndex,
+    tryStitchToNextTrack: (next) => pingPong.tryStitchToNextTrack(next),
+    additionalEndedElements: playerB ? [playerB] : [],
   });
 
   // Initialize track order manager
@@ -269,6 +289,7 @@ const cDislike = document.getElementById('cDislike');
     queue: () => queue,  // Pass as function to always get current queue
     tracks,
     media,
+    getMedia: () => media,
     playIndex,
     renderList,
     showNotification,
@@ -284,7 +305,7 @@ const cDislike = document.getElementById('cDislike');
 
   // Setup fullscreen and control handlers using centralized functions
   setupFullscreenHandlers(fullBtn, cFull, wrapper);
-  setupSimpleControlHandlers(cPrev, cNext, media, prevTrack, nextTrack, togglePlayback);
+  setupSimpleControlHandlers(cPrev, cNext, media, prevTrack, nextTrack, togglePlayback, playerB ? [playerB] : []);
 
   // Speed control functionality
   // updateSpeedDisplay() теперь импортируется из player-utils.js
@@ -317,8 +338,10 @@ const cDislike = document.getElementById('cDislike');
   setupMediaPlayPauseHandlers(media, {
     cPlay,
     queue,
-    currentIndex,
-    reportEvent
+    currentIndex: () => currentIndex,
+    reportEvent,
+    getMedia: () => media,
+    pingPongMediaElements: playerB ? [playerB] : [],
   });
 
   // formatTime() теперь импортируется из player-utils.js
@@ -327,7 +350,9 @@ const cDislike = document.getElementById('cDislike');
   setupMediaTimeUpdateHandler(media, {
     progressBar,
     timeLabel,
-    formatTime
+    formatTime,
+    getMedia: () => media,
+    pingPongMediaElements: playerB ? [playerB] : [],
   });
 
   // Track seek events
@@ -338,7 +363,8 @@ const cDislike = document.getElementById('cDislike');
   setupProgressClickHandler(progressContainer, media, {
     currentIndex: () => currentIndex,
     sendStreamEvent,
-    seekState
+    seekState,
+    getMedia: () => media,
   });
   
   // Setup media seeked handler using centralized function
@@ -346,7 +372,9 @@ const cDislike = document.getElementById('cDislike');
     queue,
     currentIndex: () => currentIndex,
     recordSeekEvent,
-    seekState
+    seekState,
+    getMedia: () => media,
+    pingPongMediaElements: playerB ? [playerB] : [],
   });
   
   // recordSeekEvent() теперь импортируется из player-utils.js
@@ -482,7 +510,8 @@ const cDislike = document.getElementById('cDislike');
   setupMediaSessionAPI({
     prevTrack,
     nextTrack,
-    media
+    media,
+    getMedia: () => media,
   });
 
   // media click handler теперь обрабатывается в setupSimpleControlHandlers()
@@ -497,6 +526,7 @@ const cDislike = document.getElementById('cDislike');
     currentIndex: () => currentIndex,
     queue: () => queue,  // Pass as function to always get current queue
     media,
+    getMedia: () => media,
     reportEvent,
     likedCurrent
   });
@@ -567,7 +597,11 @@ const cDislike = document.getElementById('cDislike');
   
   // Setup remote control using centralized functions
   setupRemoteControlOverrides(playIndex, togglePlayback, syncRemoteState);
-  setupRemoteControlInitialization(media, syncRemoteState, pollRemoteCommands, { currentIndex: () => currentIndex });
+  setupRemoteControlInitialization(media, syncRemoteState, pollRemoteCommands, {
+    currentIndex: () => currentIndex,
+    getMedia: () => media,
+    pingPongMediaElements: playerB ? [playerB] : [],
+  });
   
   // Initial render of the playlist after all functions are defined
   console.log('🎵 Initializing playlist render...');
@@ -612,7 +646,7 @@ const cDislike = document.getElementById('cDislike');
   // Wrapper function для совместимости с существующим кодом
   async function deleteTrack(track, trackIndex) {
     const context = {
-      queue, tracks, media, playIndex, renderList, 
+      queue, tracks, media, getMedia: () => media, playIndex, renderList,
       showNotification, loadTrack,
       currentIndex: () => currentIndex,
       getCurrentIndex: () => currentIndex,

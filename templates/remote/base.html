@@ -9,11 +9,15 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='css/remote.css') }}">
 </head>
 <body>
-  <!-- Video for MP4/WebM/etc.; iOS Safari does not play those in <audio>. -->
-  <video id="remoteFollowVideo" playsinline webkit-playsinline preload="none"
+  <!-- Ping-pong pairs: active slot plays current track; passive preloads next (stitch on advance). -->
+  <video id="remoteFollowVideo0" playsinline webkit-playsinline preload="none"
     style="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none;bottom:0;right:0;overflow:hidden"
     aria-hidden="true"></video>
-  <audio id="remoteFollowAudio" playsinline preload="none" style="position:absolute;width:0;height:0;opacity:0;pointer-events:none" aria-hidden="true"></audio>
+  <video id="remoteFollowVideo1" playsinline webkit-playsinline preload="none"
+    style="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none;bottom:0;right:0;overflow:hidden"
+    aria-hidden="true"></video>
+  <audio id="remoteFollowAudio0" playsinline preload="none" style="position:absolute;width:0;height:0;opacity:0;pointer-events:none" aria-hidden="true"></audio>
+  <audio id="remoteFollowAudio1" playsinline preload="none" style="position:absolute;width:0;height:0;opacity:0;pointer-events:none" aria-hidden="true"></audio>
   <div class="remote-container">
     {% include 'remote/components/header.html' %}
     {% include 'remote/components/track_info.html' %}

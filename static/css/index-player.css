@@ -61,15 +61,12 @@ body {
   
   #videoWrapper {
     order: 1;
+    max-height: calc(50vh - 60px);
   }
   
   #tracklist {
     height: calc(40vh - 60px);
     font-size: 13px;
-  }
-  
-  #player {
-    max-height: calc(50vh - 60px);
   }
 } 
 

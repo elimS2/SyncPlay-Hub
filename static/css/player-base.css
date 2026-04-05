@@ -86,10 +86,32 @@ button {
   display: none;
 }
 
-/* Video container and responsive sizing */
+/* Video container: wrapper keeps height when ping-pong swaps two absolutely positioned videos */
+#videoWrapper {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  max-height: calc(100vh - 200px);
+  background: #000;
+}
+
+#videoWrapper > video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: #000;
+}
+
+/* Must beat `#videoWrapper > video` so the passive slot stays hidden until JS swaps */
+#videoWrapper > #playerB {
+  display: none;
+}
+
+/* Legacy #player rules kept for templates without #videoWrapper sizing (harmless overrides) */
 #player {
   width: 100%;
-  max-height: calc(100vh - 200px);
+  max-height: none;
   object-fit: contain;
   background: #000;
 }
@@ -605,8 +627,8 @@ html, body {
     margin-left: 4px;
   }
   
-  /* Video player mobile */
-  #player {
+  /* Video player mobile — limit wrapper so ping-pong layout stays visible */
+  #videoWrapper {
     max-height: calc(50vh - 60px);
   }
   
@@ -712,7 +734,7 @@ html, body {
     font-size: 18px;
   }
   
-  #player {
+  #videoWrapper {
     max-height: calc(75vh - 200px);
     min-height: 600px;
   }

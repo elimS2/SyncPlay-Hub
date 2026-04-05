@@ -431,21 +431,36 @@ import { applyPersistedReactionToButtons, SVG_HEART_OUTLINE, SVG_THUMB_OUTLINE }
 
 export function loadTrack(idx, autoplay = false, context) {
     const { 
-        queue, currentIndex, setCurrentIndex, media, speedOptions, currentSpeedIndex,
+        queue, currentIndex, setCurrentIndex, speedOptions, currentSpeedIndex,
         castLoad, renderList, cLike, cDislike, reportEvent, sendStreamEvent,
         syncRemoteStateAfterReaction
     } = context;
+    const media =
+        typeof context.getMedia === 'function' ? context.getMedia() : context.media;
     
     if(idx < 0 || idx >= queue.length) return;
     setCurrentIndex(idx);
     const track = queue[idx];
-    media.src = track.url;
-    if(autoplay) {
-        media.play();
-    } else {
-        media.load();
+    let skipAssignSrc = false;
+    try {
+      const abs = new URL(track.url, window.location.origin).href;
+      if (media?.src && new URL(media.src).href === abs) {
+        skipAssignSrc = true;
+      }
+    } catch {
+      /* assign src below */
     }
-    
+    if (!skipAssignSrc) {
+      media.src = track.url;
+      if (autoplay) {
+        media.play();
+      } else {
+        media.load();
+      }
+    } else if (autoplay) {
+      void media.play();
+    }
+
     // Preserve playback speed when loading new track
     media.playbackRate = speedOptions[currentSpeedIndex];
     
@@ -494,5 +509,5 @@ export function loadTrack(idx, autoplay = false, context) {
 
     // report play start once per track
     reportEvent(track.video_id, 'start');
-    sendStreamEvent({action:'seek', idx: currentIndex, paused: media.paused, position: media.currentTime});
+    sendStreamEvent({action:'seek', idx, paused: media.paused, position: media.currentTime});
 }

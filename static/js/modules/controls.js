@@ -9,6 +9,7 @@ export async function executeDeleteWithoutConfirmation(context, playerType = 're
     // Get current index value (handle both direct values and functions)
     const currentIndex = typeof context.currentIndex === 'function' ? context.currentIndex() : context.currentIndex;
     const currentQueue = typeof context.queue === 'function' ? context.queue() : context.queue;
+    const mediaEl = typeof context.getMedia === 'function' ? context.getMedia() : context.media;
     
     // Check if there's a current track
     if (currentIndex < 0 || currentIndex >= currentQueue.length) {
@@ -22,10 +23,10 @@ export async function executeDeleteWithoutConfirmation(context, playerType = 're
     
     try {
         // CRITICAL: First pause and clear media source to release file lock
-        context.media.pause();
-        const currentTime = context.media.currentTime; // Save position for potential restore
-        context.media.src = ''; // This releases the file lock
-        context.media.load(); // Ensure the media element is properly reset
+        mediaEl.pause();
+        const currentTime = mediaEl.currentTime; // Save position for potential restore
+        mediaEl.src = ''; // This releases the file lock
+        mediaEl.load(); // Ensure the media element is properly reset
         
         console.log('🔓 Media file released, proceeding with deletion...');
         
@@ -131,7 +132,8 @@ export async function executeDeleteWithoutConfirmation(context, playerType = 're
                 context.loadTrack(currentIndex, true);
                 if (currentTime && isFinite(currentTime)) {
                     setTimeout(() => {
-                        context.media.currentTime = currentTime; // Restore position
+                        const m = typeof context.getMedia === 'function' ? context.getMedia() : context.media;
+                        m.currentTime = currentTime; // Restore position
                     }, 500);
                 }
             } catch (restoreError) {
@@ -150,7 +152,8 @@ export async function executeDeleteWithoutConfirmation(context, playerType = 're
             context.loadTrack(currentIndex, true);
             if (currentTime && isFinite(currentTime)) {
                 setTimeout(() => {
-                    context.media.currentTime = currentTime; // Restore position
+                    const m = typeof context.getMedia === 'function' ? context.getMedia() : context.media;
+                    m.currentTime = currentTime; // Restore position
                 }, 500);
             }
         } catch (restoreError) {
@@ -504,11 +507,12 @@ export async function cyclePlaybackSpeed(context, savePlaylistSpeed = null, play
  * @param {Object} context - execution context
  */
 export async function deleteTrack(track, trackIndex, context) {
-    const { 
-        queue, tracks, currentIndex, media, playIndex, renderList, 
-        showNotification, loadTrack 
+    const {
+        queue, tracks, currentIndex, playIndex, renderList,
+        showNotification, loadTrack,
     } = context;
-    
+    const media = typeof context.getMedia === 'function' ? context.getMedia() : context.media;
+
     try {
         // Confirm deletion
         const confirmMessage = `Delete track "${track.name.replace(/\s*\[.*?\]$/, '')}" (${track.video_id}) from playlist?\n\nTrack will be moved to trash and can be restored.`;
@@ -890,38 +894,49 @@ export function castLoad(track, castState) {
 
 /**
  * Sets up media ended event handler - handles track completion and auto-advance
- * @param {HTMLMediaElement} media - Audio/video element
+ * @param {HTMLMediaElement} media - Primary audio/video element (see additionalEndedElements for ping-pong)
  * @param {Object} context - Player context
  * @param {Array} context.queue - Current queue of tracks
  * @param {number|Function} context.currentIndex - Current track index (value or function)
  * @param {Function} context.reportEvent - Event reporting function
  * @param {Function} context.triggerAutoDeleteCheck - Auto-delete check function
  * @param {Function} context.playIndex - Play track by index function
+ * @param {Function} [context.tryStitchToNextTrack] - If set, called with next track object before playIndex (dual-video stitch)
+ * @param {HTMLMediaElement[]} [context.additionalEndedElements] - Also listen for `ended` (second ping-pong video)
  */
 export function setupMediaEndedHandler(media, context) {
-  media.addEventListener('ended', () => {
-    // Get current index - handle both function and direct value
-    const currentIndex = typeof context.currentIndex === 'function' ? context.currentIndex() : context.currentIndex;
-    
-    // capture current track before any change
+  const onEnded = () => {
+    const currentIndex =
+      typeof context.currentIndex === 'function' ? context.currentIndex() : context.currentIndex;
+
     const finishedTrack = context.queue[currentIndex];
 
-    // report finish first
     if (finishedTrack) {
       context.reportEvent(finishedTrack.video_id, 'finish');
-      
-      // Trigger auto-delete check for channel content
       context.triggerAutoDeleteCheck(finishedTrack);
     }
 
-    // then move to next track if available
     if (currentIndex + 1 < context.queue.length) {
+      const next = context.queue[currentIndex + 1];
       console.log(`🎵 Auto-advancing from track ${currentIndex} to ${currentIndex + 1}`);
+      if (typeof context.tryStitchToNextTrack === 'function') {
+        context.tryStitchToNextTrack(next);
+      }
       context.playIndex(currentIndex + 1);
     } else {
       console.log(`🏁 Reached end of queue at track ${currentIndex}, no more tracks to play`);
     }
-  });
+  };
+
+  media.addEventListener('ended', onEnded);
+  const extras = context.additionalEndedElements;
+  if (Array.isArray(extras)) {
+    extras.forEach((el) => {
+      if (el && el !== media) {
+        el.addEventListener('ended', onEnded);
+      }
+    });
+  }
 }
 
 /**
@@ -934,24 +949,35 @@ export function setupMediaEndedHandler(media, context) {
  * @param {Function} context.reportEvent - Event reporting function
  */
 export function setupMediaPlayPauseHandlers(media, context) {
-  media.addEventListener('play', () => {
-    // Change to pause icon
+  const getActive = () => (typeof context.getMedia === 'function' ? context.getMedia() : media);
+  const els = [media, ...(context.pingPongMediaElements || [])].filter(Boolean);
+  const uniq = [...new Set(els)];
+
+  const onPlay = (ev) => {
+    if (ev.target !== getActive()) return;
+    const m = ev.target;
     context.cPlay.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>';
-    // Report play/resume event with current position
-    if(context.currentIndex >= 0 && context.currentIndex < context.queue.length) {
-      const track = context.queue[context.currentIndex];
-      context.reportEvent(track.video_id, 'play', media.currentTime);
+    const idx = typeof context.currentIndex === 'function' ? context.currentIndex() : context.currentIndex;
+    if (idx >= 0 && idx < context.queue.length) {
+      const track = context.queue[idx];
+      context.reportEvent(track.video_id, 'play', m.currentTime);
     }
-  });
-  
-  media.addEventListener('pause', () => {
-    // Change to play icon
+  };
+
+  const onPause = (ev) => {
+    if (ev.target !== getActive()) return;
+    const m = ev.target;
     context.cPlay.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>';
-    // Report pause event with current position
-    if(context.currentIndex >= 0 && context.currentIndex < context.queue.length) {
-      const track = context.queue[context.currentIndex];
-      context.reportEvent(track.video_id, 'pause', media.currentTime);
+    const idx = typeof context.currentIndex === 'function' ? context.currentIndex() : context.currentIndex;
+    if (idx >= 0 && idx < context.queue.length) {
+      const track = context.queue[idx];
+      context.reportEvent(track.video_id, 'pause', m.currentTime);
     }
+  };
+
+  uniq.forEach((el) => {
+    el.addEventListener('play', onPlay);
+    el.addEventListener('pause', onPause);
   });
 }
 
@@ -964,11 +990,19 @@ export function setupMediaPlayPauseHandlers(media, context) {
  * @param {Function} context.formatTime - Time formatting function
  */
 export function setupMediaTimeUpdateHandler(media, context) {
-  media.addEventListener('timeupdate', () => {
-    const percent = (media.currentTime / media.duration) * 100;
+  const getActive = () => (typeof context.getMedia === 'function' ? context.getMedia() : media);
+  const els = [media, ...(context.pingPongMediaElements || [])].filter(Boolean);
+  const uniq = [...new Set(els)];
+
+  const onTimeUpdate = (ev) => {
+    if (ev.target !== getActive()) return;
+    const m = ev.target;
+    const percent = (m.currentTime / m.duration) * 100;
     context.progressBar.style.width = `${percent}%`;
-    context.timeLabel.textContent = `${context.formatTime(media.currentTime)} / ${context.formatTime(media.duration)}`;
-  });
+    context.timeLabel.textContent = `${context.formatTime(m.currentTime)} / ${context.formatTime(m.duration)}`;
+  };
+
+  uniq.forEach((el) => el.addEventListener('timeupdate', onTimeUpdate));
 }
 
 /**
@@ -981,23 +1015,28 @@ export function setupMediaTimeUpdateHandler(media, context) {
  * @param {Object} context.seekState - Seek state object (seekStartPosition)
  */
 export function setupMediaSeekedHandler(media, context) {
-  media.addEventListener('seeked', () => {
-    // Get current index - handle both function and direct value
+  const getActive = () => (typeof context.getMedia === 'function' ? context.getMedia() : media);
+  const els = [media, ...(context.pingPongMediaElements || [])].filter(Boolean);
+  const uniq = [...new Set(els)];
+
+  const onSeeked = (ev) => {
+    if (ev.target !== getActive()) return;
     const currentIndex = typeof context.currentIndex === 'function' ? context.currentIndex() : context.currentIndex;
-    
+
     if (context.seekState.seekStartPosition !== null && currentIndex >= 0 && currentIndex < context.queue.length) {
       const track = context.queue[currentIndex];
-      const seekTo = media.currentTime;
-      
-      // Only record meaningful seeks (> 1 second difference)
+      const seekTo = ev.target.currentTime;
+
       if (Math.abs(seekTo - context.seekState.seekStartPosition) >= 1.0) {
         console.log(`⏩ Seek recorded: ${Math.round(context.seekState.seekStartPosition)}s → ${Math.round(seekTo)}s for track "${track.name}"`);
         context.recordSeekEvent(track.video_id, context.seekState.seekStartPosition, seekTo, 'progress_bar');
       }
-      
-      context.seekState.seekStartPosition = null; // Reset
+
+      context.seekState.seekStartPosition = null;
     }
-  });
+  };
+
+  uniq.forEach((el) => el.addEventListener('seeked', onSeeked));
 }
 
 /**
@@ -1056,24 +1095,18 @@ export function setupKeyboardHandler(context) {
  * @param {Object} context.seekState - Seek state object (seekStartPosition)
  */
 export function setupProgressClickHandler(progressContainer, media, context) {
-  // Progress bar click handling with seek tracking
   progressContainer.onclick = (e) => {
+    const mediaEl = typeof context.getMedia === 'function' ? context.getMedia() : media;
     const rect = progressContainer.getBoundingClientRect();
     const pos = (e.clientX - rect.left) / rect.width;
-    
-    // Get current index - handle both function and direct value
+
     const currentIndex = typeof context.currentIndex === 'function' ? context.currentIndex() : context.currentIndex;
-    
-    // Store seek start position
-    context.seekState.seekStartPosition = media.currentTime;
-    
-    // Perform seek
-    media.currentTime = pos * media.duration;
-    
-    // Send stream event
-    context.sendStreamEvent({action:'seek', idx: currentIndex, paused: media.paused, position: media.currentTime});
-    
-    // Record seek event will happen in 'seeked' event listener
+
+    context.seekState.seekStartPosition = mediaEl.currentTime;
+
+    mediaEl.currentTime = pos * mediaEl.duration;
+
+    context.sendStreamEvent({action:'seek', idx: currentIndex, paused: mediaEl.paused, position: mediaEl.currentTime});
   };
 }
 
@@ -1085,12 +1118,12 @@ export function setupProgressClickHandler(progressContainer, media, context) {
  * @param {HTMLMediaElement} context.media - Audio/video element
  */
 export function setupMediaSessionAPI(context) {
-  // ---- Media Session API ----
   if ('mediaSession' in navigator) {
+    const mEl = () => (typeof context.getMedia === 'function' ? context.getMedia() : context.media);
     navigator.mediaSession.setActionHandler('previoustrack', () => context.prevTrack());
     navigator.mediaSession.setActionHandler('nexttrack', () => context.nextTrack());
-    navigator.mediaSession.setActionHandler('play', () => context.media.play());
-    navigator.mediaSession.setActionHandler('pause', () => context.media.pause());
+    navigator.mediaSession.setActionHandler('play', () => mEl().play());
+    navigator.mediaSession.setActionHandler('pause', () => mEl().pause());
   }
 }
 
@@ -1243,7 +1276,7 @@ export function setupLikeDislikeHandlers(cLike, cDislike, context) {
             
             if (currentIndex < 0 || currentIndex >= queue.length) return;
             const track = queue[currentIndex];
-            context.reportEvent(track.video_id, 'like', context.media.currentTime);
+            context.reportEvent(track.video_id, 'like', (context.getMedia?.() ?? context.media).currentTime);
             context.likedCurrent = true;
             cLike.classList.add('like-active');
             cLike.innerHTML = SVG_HEART_OUTLINE;
@@ -1259,7 +1292,7 @@ export function setupLikeDislikeHandlers(cLike, cDislike, context) {
             const queue = typeof context.queue === 'function' ? context.queue() : context.queue;
             if (currentIndex < 0 || currentIndex >= queue.length) return;
             const track = queue[currentIndex];
-            context.reportEvent(track.video_id, 'dislike', context.media.currentTime);
+            context.reportEvent(track.video_id, 'dislike', (context.getMedia?.() ?? context.media).currentTime);
             cLike.classList.remove('like-active');
             cLike.innerHTML = SVG_HEART_OUTLINE;
             cDislike.classList.add('dislike-active');
@@ -1326,7 +1359,7 @@ export function setupFullscreenHandlers(fullBtn, cFull, wrapper) {
  * @param {Function} nextTrack - next track function
  * @param {Function} togglePlayback - toggle playback function
  */
-export function setupSimpleControlHandlers(cPrev, cNext, media, prevTrack, nextTrack, togglePlayback) {
+export function setupSimpleControlHandlers(cPrev, cNext, media, prevTrack, nextTrack, togglePlayback, extraClickMediaEls = []) {
     if (cPrev) {
         cPrev.onclick = () => prevTrack();
     }
@@ -1335,10 +1368,9 @@ export function setupSimpleControlHandlers(cPrev, cNext, media, prevTrack, nextT
         cNext.onclick = () => nextTrack();
     }
 
-    // Clicking on the video toggles play/pause
-    if (media) {
-        media.addEventListener('click', togglePlayback);
-    }
+    [media, ...extraClickMediaEls].filter(Boolean).forEach((el) => {
+        el.addEventListener('click', togglePlayback);
+    });
 }
 
 /**
@@ -1465,15 +1497,20 @@ export function setupRemoteControlOverrides(playIndex, togglePlayback, syncRemot
  * @param {Object} context - context with current index
  */
 export function setupRemoteControlInitialization(media, syncRemoteState, pollRemoteCommands, context) {
-    // Enhanced event listeners for remote sync
-    media.addEventListener('play', syncRemoteState);
-    media.addEventListener('pause', syncRemoteState);
-    media.addEventListener('loadeddata', syncRemoteState);
-    media.addEventListener('timeupdate', () => {
-        // Sync every 2 seconds during playback
-        if (!media.paused && Math.floor(media.currentTime) % 2 === 0) {
-            syncRemoteState();
-        }
+    const getActive = () => (typeof context.getMedia === 'function' ? context.getMedia() : media);
+    const els = [media, ...(context.pingPongMediaElements || [])].filter(Boolean);
+    const uniq = [...new Set(els)];
+
+    uniq.forEach((el) => {
+        el.addEventListener('play', syncRemoteState);
+        el.addEventListener('pause', syncRemoteState);
+        el.addEventListener('loadeddata', syncRemoteState);
+        el.addEventListener('timeupdate', () => {
+            if (el !== getActive()) return;
+            if (!el.paused && Math.floor(el.currentTime) % 2 === 0) {
+                syncRemoteState();
+            }
+        });
     });
     
     // Initial state sync after everything is loaded

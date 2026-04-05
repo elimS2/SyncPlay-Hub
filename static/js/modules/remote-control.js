@@ -19,8 +19,13 @@ class RemoteControl {
 
     /** Same track as main player on this device (another room). */
     this.followAudioActive = false;
-    this.followAudioEl = null;
-    this.followVideoEl = null;
+    /** @type {HTMLMediaElement[]} */
+    this.followAudios = [];
+    /** @type {HTMLMediaElement[]} */
+    this.followVideos = [];
+    /** Active slot 0|1 for ping-pong within each kind. */
+    this._followAudioSlot = 0;
+    this._followVideoSlot = 0;
     /** @type {'audio'|'video'|null} */
     this._followMediaKind = null;
     this._followTrackKey = null;
@@ -42,6 +47,8 @@ class RemoteControl {
     this._deckBrakeHeld = false;
     /** After a new src + metadata, skip playbackRate nudge until time settles (avoids instant 1.05). */
     this._followRateNudgeGraceUntilMs = 0;
+    /** next_track identity loaded into passive slot (avoid redundant work). */
+    this._followPreloadIdentity = null;
 
     this.micSync =
       typeof RemoteMicSyncController !== 'undefined' ? new RemoteMicSyncController(this) : null;
@@ -95,8 +102,14 @@ class RemoteControl {
 
     this.followAudioBtn = document.getElementById('followAudioBtn');
     this.followAudioLabel = document.getElementById('followAudioLabel');
-    this.followAudioEl = document.getElementById('remoteFollowAudio');
-    this.followVideoEl = document.getElementById('remoteFollowVideo');
+    this.followAudios = [
+      document.getElementById('remoteFollowAudio0'),
+      document.getElementById('remoteFollowAudio1'),
+    ].filter(Boolean);
+    this.followVideos = [
+      document.getElementById('remoteFollowVideo0'),
+      document.getElementById('remoteFollowVideo1'),
+    ].filter(Boolean);
 
     this.deckSlowerBtn = document.getElementById('deckSlowerBtn');
     this.deckResetBtn = document.getElementById('deckResetBtn');
@@ -249,12 +262,12 @@ class RemoteControl {
         });
       }
     };
-    if (this.followAudioEl) this.followAudioEl.addEventListener('error', onFollowMediaError);
-    if (this.followVideoEl) this.followVideoEl.addEventListener('error', onFollowMediaError);
+    this.followAudios.forEach((el) => el && el.addEventListener('error', onFollowMediaError));
+    this.followVideos.forEach((el) => el && el.addEventListener('error', onFollowMediaError));
   }
 
   _stopBothFollowMedia() {
-    [this.followAudioEl, this.followVideoEl].forEach((el) => {
+    [...this.followAudios, ...this.followVideos].forEach((el) => {
       if (!el) return;
       el.playbackRate = 1;
       el.pause();
@@ -265,12 +278,129 @@ class RemoteControl {
         /* ignore */
       }
     });
+    this._followAudioSlot = 0;
+    this._followVideoSlot = 0;
+    this._followPreloadIdentity = null;
+  }
+
+  _clearFollowKind(kind) {
+    if (kind !== 'audio' && kind !== 'video') return;
+    const list = kind === 'audio' ? this.followAudios : this.followVideos;
+    list.forEach((el) => {
+      if (!el) return;
+      try {
+        el.pause();
+      } catch (e) {
+        /* ignore */
+      }
+      el.removeAttribute('src');
+      try {
+        el.load();
+      } catch (e) {
+        /* ignore */
+      }
+    });
+  }
+
+  _ensureFollowKind(useAudio) {
+    const nextKind = useAudio ? 'audio' : 'video';
+    if (this._followMediaKind === nextKind) return;
+    this._clearFollowKind(this._followMediaKind);
+    this._clearFollowKind(nextKind);
+    this._followMediaKind = nextKind;
+    this._followAudioSlot = 0;
+    this._followVideoSlot = 0;
+  }
+
+  _followActiveAudioEl() {
+    return this.followAudios[this._followAudioSlot] || null;
+  }
+
+  _followPassiveAudioEl() {
+    return this.followAudios[1 - this._followAudioSlot] || null;
+  }
+
+  _followActiveVideoEl() {
+    return this.followVideos[this._followVideoSlot] || null;
+  }
+
+  _followPassiveVideoEl() {
+    return this.followVideos[1 - this._followVideoSlot] || null;
+  }
+
+  /**
+   * Passive slot holds `next_track` so we can swap to it on advance (stitch).
+   * @param {object} status
+   */
+  _syncFollowNextPreload(status) {
+    if (!this.followAudioActive || !status) return;
+    const cur = status.current_track;
+    const next = status.next_track;
+    if (!next) {
+      this._followPreloadIdentity = null;
+      if (this._followMediaKind === 'audio') {
+        const p = this._followPassiveAudioEl();
+        if (p && p.src) {
+          p.removeAttribute('src');
+          try {
+            p.load();
+          } catch (e) {
+            /* ignore */
+          }
+        }
+      } else if (this._followMediaKind === 'video') {
+        const p = this._followPassiveVideoEl();
+        if (p && p.src) {
+          p.removeAttribute('src');
+          try {
+            p.load();
+          } catch (e) {
+            /* ignore */
+          }
+        }
+      }
+      return;
+    }
+    const nextUrl = this._buildMediaUrl(next);
+    if (!nextUrl) {
+      this._followPreloadIdentity = null;
+      return;
+    }
+    const nextId = this._followTrackIdentity(next);
+    if (!nextId) return;
+    const curId = cur ? this._followTrackIdentity(cur) : null;
+    if (curId != null && nextId === curId) return;
+
+    const useAudio = this._isAudioOnlyUrl(nextUrl);
+    if (this._followMediaKind !== (useAudio ? 'audio' : 'video')) return;
+
+    const active = useAudio ? this._followActiveAudioEl() : this._followActiveVideoEl();
+    const passive = useAudio ? this._followPassiveAudioEl() : this._followPassiveVideoEl();
+    if (!passive || !active) return;
+    try {
+      if (active.src && new URL(active.src).href === new URL(nextUrl).href) return;
+    } catch {
+      /* continue */
+    }
+
+    if (this._followPreloadIdentity === nextId) return;
+    this._followPreloadIdentity = nextId;
+    try {
+      passive.preload = 'auto';
+      passive.muted = true;
+      passive.defaultPlaybackRate = 1;
+      passive.playbackRate = 1;
+      passive.src = nextUrl;
+      passive.load();
+    } catch (e) {
+      console.warn('Follow passive preload failed:', e);
+    }
   }
 
   /** @returns {HTMLMediaElement|null} */
   _followActiveMediaEl() {
-    if (this._followMediaKind === 'audio') return this.followAudioEl;
-    if (this._followMediaKind === 'video') return this.followVideoEl;
+    if (this._followMediaKind === 'audio') return this._followActiveAudioEl();
+    if (this._followMediaKind === 'video') return this._followActiveVideoEl();
     return null;
   }
 
@@ -280,21 +410,8 @@ class RemoteControl {
    */
   _mediaElForUrl(absUrl) {
     const useAudio = this._isAudioOnlyUrl(absUrl);
-    const nextKind = useAudio ? 'audio' : 'video';
-    if (this._followMediaKind !== nextKind) {
-      const old = this._followActiveMediaEl();
-      if (old) {
-        old.pause();
-        old.removeAttribute('src');
-        try {
-          old.load();
-        } catch (e) {
-          /* ignore */
-        }
-      }
-      this._followMediaKind = nextKind;
-    }
-    return useAudio ? this.followAudioEl : this.followVideoEl;
+    this._ensureFollowKind(useAudio);
+    return useAudio ? this._followActiveAudioEl() : this._followActiveVideoEl();
   }
 
   /**
@@ -644,26 +761,74 @@ class RemoteControl {
       return;
     }
 
-    const mediaEl = this._mediaElForUrl(absUrl);
-    if (!mediaEl) return;
-    if (mediaEl.tagName === 'VIDEO') {
-      mediaEl.setAttribute('playsinline', '');
-      mediaEl.playsInline = true;
-    }
-
     const key = this._followTrackIdentity(track);
+    const useAudio = this._isAudioOnlyUrl(absUrl);
+
     if (this._followTrackKey !== key) {
       this._followTrackKey = key;
       this._followLoadPending = true;
       this._followLastHardSeekMs = 0;
+      this._ensureFollowKind(useAudio);
+
       const pinnedRate =
         this._followDeckManualMode &&
         this._followDeckTargetRate != null &&
         Number.isFinite(this._followDeckTargetRate)
           ? this._followDeckTargetRate
           : 1;
-      mediaEl.playbackRate = pinnedRate;
-      mediaEl.src = absUrl;
+
+      const passive = useAudio ? this._followPassiveAudioEl() : this._followPassiveVideoEl();
+      let mediaEl = useAudio ? this._followActiveAudioEl() : this._followActiveVideoEl();
+      let stitched = false;
+
+      try {
+        const want = new URL(absUrl).href;
+        if (
+          passive &&
+          passive.src &&
+          new URL(passive.src).href === want &&
+          passive.readyState >= 2
+        ) {
+          if (useAudio) this._followAudioSlot = 1 - this._followAudioSlot;
+          else this._followVideoSlot = 1 - this._followVideoSlot;
+          stitched = true;
+          mediaEl = useAudio ? this._followActiveAudioEl() : this._followActiveVideoEl();
+          const oldEl = useAudio ? this._followPassiveAudioEl() : this._followPassiveVideoEl();
+          if (oldEl) {
+            oldEl.pause();
+            oldEl.removeAttribute('src');
+            try {
+              oldEl.load();
+            } catch (e) {
+              /* ignore */
+            }
+          }
+        }
+      } catch (e) {
+        /* cold load */
+      }
+
+      if (!stitched) {
+        mediaEl = useAudio ? this._followActiveAudioEl() : this._followActiveVideoEl();
+        if (!mediaEl) {
+          this._syncFollowNextPreload(status);
+          return;
+        }
+        mediaEl.playbackRate = pinnedRate;
+        mediaEl.src = absUrl;
+      } else if (mediaEl) {
+        mediaEl.playbackRate = pinnedRate;
+      }
+
+      if (!mediaEl) {
+        this._syncFollowNextPreload(status);
+        return;
+      }
+
+      if (mediaEl.tagName === 'VIDEO') {
+        mediaEl.setAttribute('playsinline', '');
+        mediaEl.playsInline = true;
+      }
 
       // Every new src: start muted + play() immediately. Mobile browsers block
       // unmuted play() from loadedmetadata (no user gesture); muted autoplay
@@ -721,7 +886,15 @@ class RemoteControl {
       if (mediaEl.readyState >= 1) {
         queueMicrotask(() => onMeta());
       }
+      this._syncFollowNextPreload(status);
       return;
+    }
+
+    const mediaEl = this._mediaElForUrl(absUrl);
+    if (!mediaEl) return;
+    if (mediaEl.tagName === 'VIDEO') {
+      mediaEl.setAttribute('playsinline', '');
+      mediaEl.playsInline = true;
     }
 
     if (this._followLoadPending) return;
@@ -781,6 +954,7 @@ class RemoteControl {
     }
     this._followReassertManualPlaybackRate(mediaEl);
     this.updateDeckPitchLabel();
+    this._syncFollowNextPreload(status);
   }
 
   _sendVolumePayload(volumePercent) {

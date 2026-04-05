@@ -53,7 +53,7 @@ export {
     deleteTrack, 
     initializeGoogleCastIntegration, 
     castLoad, 
-    setupMediaEndedHandler, 
+    setupMediaEndedHandler,
     setupMediaPlayPauseHandlers, 
     setupMediaTimeUpdateHandler, 
     setupMediaSeekedHandler, 
@@ -144,4 +144,5 @@ export { renderTrackList } from './tracklist-render.js';
 
 // Legacy compatibility - re-export everything from the original player-utils.js
 // This ensures existing imports continue to work during the transition
-export * from './player-utils.js'; 
+export * from './player-utils.js';
+export { initMainPlayerPingPong } from './main-player-ping-pong.js'; 

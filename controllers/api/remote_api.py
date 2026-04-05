@@ -26,6 +26,19 @@ _PLAYLIST_PATH = re.compile(r"^/playlist/(.+)/?$")
 remote_bp = Blueprint('remote', __name__)
 
 
+def _next_track_from_player_state(state: dict):
+    """Following track in queue for preload / seamless handoff hints (read-only)."""
+    pl = state.get("playlist")
+    idx = state.get("current_index")
+    if not isinstance(pl, list) or len(pl) == 0:
+        return None
+    if not isinstance(idx, int) or idx < 0:
+        return None
+    if idx + 1 >= len(pl):
+        return None
+    return pl[idx + 1]
+
+
 def _is_safe_playlist_relpath(rel: str) -> bool:
     """True if rel resolves to a directory under ROOT_DIR (no path traversal)."""
     root_dir = get_root_dir()
@@ -67,6 +80,7 @@ def api_remote_status():
     """
     t1 = int(time.time() * 1000)
     out = dict(PLAYER_STATE)
+    out["next_track"] = _next_track_from_player_state(out)
     t2 = int(time.time() * 1000)
     out["server_now_ms"] = t2
     client_ms_raw = request.args.get("client_ms")
