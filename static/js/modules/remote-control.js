@@ -32,10 +32,18 @@ class RemoteControl {
     /** Avoid repeated currentTime seeks (causes stutter on mobile). */
     this._followLastHardSeekMs = 0;
     this._volumeTouchTimer = null;
+    /** User adjusted pitch with deck buttons; skip auto playbackRate nudge. */
+    this._followDeckUserTouched = false;
+    /** Hold-to-pause on phone; blocks sync loop from calling play(). */
+    this._deckBrakeHeld = false;
+
+    this.micSync =
+      typeof RemoteMicSyncController !== 'undefined' ? new RemoteMicSyncController(this) : null;
     
     this.initElements();
     this.attachEvents();
     this.startSync();
+    this.updateMicSyncButtons();
   }
   
   initElements() {
@@ -83,6 +91,13 @@ class RemoteControl {
     this.followAudioLabel = document.getElementById('followAudioLabel');
     this.followAudioEl = document.getElementById('remoteFollowAudio');
     this.followVideoEl = document.getElementById('remoteFollowVideo');
+
+    this.deckSlowerBtn = document.getElementById('deckSlowerBtn');
+    this.deckResetBtn = document.getElementById('deckResetBtn');
+    this.deckFasterBtn = document.getElementById('deckFasterBtn');
+    this.deckBrakeBtn = document.getElementById('deckBrakeBtn');
+    this.deckPitchLabel = document.getElementById('deckPitchLabel');
+    this.micSyncAutoBtn = document.getElementById('micSyncAutoBtn');
   }
   
   attachEvents() {
@@ -210,6 +225,39 @@ class RemoteControl {
     if (this.followAudioBtn) {
       this.followAudioBtn.addEventListener('click', () => this.toggleFollowAudio());
     }
+    if (this.deckSlowerBtn) {
+      this.deckSlowerBtn.addEventListener('click', () => this.nudgeDeckSlower());
+    }
+    if (this.deckResetBtn) {
+      this.deckResetBtn.addEventListener('click', () => this.resetDeckPitch());
+    }
+    if (this.deckFasterBtn) {
+      this.deckFasterBtn.addEventListener('click', () => this.nudgeDeckFaster());
+    }
+    if (this.deckBrakeBtn) {
+      this.deckBrakeBtn.addEventListener('pointerdown', (e) => {
+        if (this.deckBrakeBtn.disabled) return;
+        e.preventDefault();
+        try {
+          this.deckBrakeBtn.setPointerCapture(e.pointerId);
+        } catch (err) {
+          /* ignore */
+        }
+        this._deckBrakePointerDown();
+      });
+      this.deckBrakeBtn.addEventListener('pointerup', (e) => {
+        try {
+          this.deckBrakeBtn.releasePointerCapture(e.pointerId);
+        } catch (err) {
+          /* ignore */
+        }
+        this._deckBrakePointerUp();
+      });
+      this.deckBrakeBtn.addEventListener('pointercancel', () => this._deckBrakePointerUp());
+    }
+    if (this.micSyncAutoBtn) {
+      this.micSyncAutoBtn.addEventListener('click', () => this.runMicSyncAuto());
+    }
     const onFollowMediaError = () => {
       if (!this.followAudioActive) return;
       this._followLoadPending = false;
@@ -278,16 +326,130 @@ class RemoteControl {
     return ['mp3', 'm4a', 'aac', 'flac', 'opus', 'ogg', 'oga', 'wav'].includes(ext);
   }
 
+  /** @returns {HTMLMediaElement|null} */
+  getFollowPlaybackElement() {
+    return this._followActiveMediaEl();
+  }
+
+  _followMicSyncPrecheck() {
+    if (!this.followAudioActive) {
+      const t = window.ToastNotifications && window.ToastNotifications.showToast;
+      if (t) {
+        t('Turn on Listen here first (local playback is the reference).', { id: 'micSyncNeedFollow' });
+      }
+      return null;
+    }
+    const el = this.getFollowPlaybackElement();
+    if (!el || !el.src) {
+      const t = window.ToastNotifications && window.ToastNotifications.showToast;
+      if (t) t('Nothing playing on this device yet.', { id: 'micSyncNoMedia' });
+      return null;
+    }
+    return el;
+  }
+
+  updateMicSyncButtons() {
+    const can = this.followAudioActive;
+    const autoBusy = this.micSync && this.micSync.isAutoRunning();
+    [this.deckSlowerBtn, this.deckResetBtn, this.deckFasterBtn, this.deckBrakeBtn].forEach((b) => {
+      if (b) b.disabled = !can || !!autoBusy;
+    });
+    if (this.micSyncAutoBtn) {
+      this.micSyncAutoBtn.disabled = !can || !!autoBusy;
+    }
+    this.updateDeckPitchLabel();
+  }
+
+  updateDeckPitchLabel() {
+    if (!this.deckPitchLabel) return;
+    const el = this.getFollowPlaybackElement();
+    if (!el || !this.followAudioActive) {
+      this.deckPitchLabel.textContent = '1.00×';
+      return;
+    }
+    const r = Number(el.playbackRate);
+    const v = Number.isFinite(r) ? r : 1;
+    this.deckPitchLabel.textContent = `${v.toFixed(2)}×`;
+  }
+
+  nudgeDeckSlower() {
+    const el = this._followMicSyncPrecheck();
+    if (!el) return;
+    this._followDeckUserTouched = true;
+    const minR = 0.88;
+    const step = 0.03;
+    let r = Number(el.playbackRate);
+    if (!Number.isFinite(r)) r = 1;
+    el.playbackRate = Math.max(minR, r - step);
+    this.updateDeckPitchLabel();
+  }
+
+  nudgeDeckFaster() {
+    const el = this._followMicSyncPrecheck();
+    if (!el) return;
+    this._followDeckUserTouched = true;
+    const maxR = 1.12;
+    const step = 0.03;
+    let r = Number(el.playbackRate);
+    if (!Number.isFinite(r)) r = 1;
+    el.playbackRate = Math.min(maxR, r + step);
+    this.updateDeckPitchLabel();
+  }
+
+  resetDeckPitch() {
+    const el = this._followMicSyncPrecheck();
+    if (!el) return;
+    this._followDeckUserTouched = false;
+    el.playbackRate = 1;
+    this.updateDeckPitchLabel();
+    const t = window.ToastNotifications && window.ToastNotifications.showToast;
+    if (t) t('Speed set to 1.00×', { id: 'deckResetToast', duration: 1600 });
+  }
+
+  _deckBrakePointerDown() {
+    const el = this.getFollowPlaybackElement();
+    if (!el || !this.followAudioActive) return;
+    this._deckBrakeHeld = true;
+    try {
+      el.pause();
+    } catch (e) {
+      /* ignore */
+    }
+  }
+
+  _deckBrakePointerUp() {
+    if (!this._deckBrakeHeld) return;
+    this._deckBrakeHeld = false;
+    const el = this.getFollowPlaybackElement();
+    if (!el) return;
+    if (this.currentStatus && this.currentStatus.playing) {
+      el.play().catch(() => {});
+    }
+  }
+
+  runMicSyncAuto() {
+    if (!this.micSync) return;
+    const el = this._followMicSyncPrecheck();
+    if (!el) return;
+    this.updateMicSyncButtons();
+    void this.micSync.runAuto(el).finally(() => this.updateMicSyncButtons());
+  }
+
   toggleFollowAudio() {
     this.followAudioActive = !this.followAudioActive;
     this.updateFollowAudioButton();
     if (!this.followAudioActive) {
+      this._deckBrakePointerUp();
+      if (this.micSync) {
+        void this.micSync.stopAll();
+      }
       this._followTrackKey = null;
       this._followLoadPending = false;
       this._followMediaKind = null;
       this._stopBothFollowMedia();
       this._syncMs = 1000;
       this._restartSyncLoop();
+      this.updateMicSyncButtons();
       return;
     }
     if (this.currentStatus) {
@@ -296,6 +458,7 @@ class RemoteControl {
     this._syncMs = 400;
     this._restartSyncLoop();
     this.syncStatus();
+    this.updateMicSyncButtons();
   }
 
   updateFollowAudioButton() {
@@ -305,6 +468,7 @@ class RemoteControl {
     this.followAudioBtn.title = this.followAudioActive
       ? 'Stop playback on this phone'
       : 'Play the same track on this phone (for another room). One tap unlocks audio in the browser.';
+    this.updateMicSyncButtons();
   }
 
   /**
@@ -441,6 +605,7 @@ class RemoteControl {
       this._followTrackKey = key;
       this._followLoadPending = true;
       this._followLastHardSeekMs = 0;
+      this._followDeckUserTouched = false;
       mediaEl.playbackRate = 1;
       mediaEl.src = absUrl;
 
@@ -468,7 +633,9 @@ class RemoteControl {
           console.warn('Follow-media seek failed:', e);
         }
         this._applyFollowVolumeFromStatus(st, mediaEl);
+        this._followDeckUserTouched = false;
         mediaEl.playbackRate = 1;
+        this.updateDeckPitchLabel();
         mediaEl.muted = false;
         if (st.playing) {
           mediaEl.play().catch((err) => console.warn('Follow-media play failed:', err));
@@ -504,23 +671,29 @@ class RemoteControl {
         (drift >= hardSeekDrift && sinceSeek >= hardSeekCooldownMs);
 
       if (doHardSeek) {
+        const deckRate = this._followDeckUserTouched ? mediaEl.playbackRate : 1;
         try {
           mediaEl.playbackRate = 1;
           mediaEl.currentTime = Math.max(0, target);
           this._followLastHardSeekMs = now;
+          mediaEl.playbackRate = deckRate;
+          this.updateDeckPitchLabel();
         } catch (e) {
           console.warn('Follow-media resync seek failed:', e);
         }
-      } else {
+      } else if (!this._followDeckUserTouched) {
         this._followNudgePlaybackRate(mediaEl, delta);
       }
-      if (mediaEl.paused) {
+      if (mediaEl.paused && !this._deckBrakeHeld) {
         mediaEl.muted = false;
         mediaEl.play().catch((err) => console.warn('Follow-media play failed:', err));
       }
     } else {
       mediaEl.pause();
-      mediaEl.playbackRate = 1;
+      if (!this._followDeckUserTouched) {
+        mediaEl.playbackRate = 1;
+        this.updateDeckPitchLabel();
+      }
       if (drift > 2.5) {
         try {
           mediaEl.currentTime = Math.max(0, target);
@@ -529,6 +702,7 @@ class RemoteControl {
         }
       }
     }
+    this.updateDeckPitchLabel();
   }
 
   _sendVolumePayload(volumePercent) {

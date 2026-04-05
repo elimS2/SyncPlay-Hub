@@ -273,6 +273,148 @@ body {
   color: var(--accent);
 }
 
+.deck-hint {
+  font-size: 11px;
+  line-height: 1.35;
+  color: var(--text-muted);
+  text-align: center;
+  margin: 0 0 10px;
+  padding: 0 4px;
+}
+
+.deck-hint strong {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.deck-sync-row {
+  flex-wrap: nowrap;
+  gap: 10px;
+}
+
+.deck-sync-row .deck-btn {
+  flex: 1;
+  min-width: 0;
+  min-height: 56px;
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.deck-btn .deck-btn-label {
+  line-height: 1;
+}
+
+.deck-btn.deck-reset {
+  flex: 1.25;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.deck-center-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  line-height: 1.1;
+}
+
+.deck-rate {
+  font-variant-numeric: tabular-nums;
+  font-size: 15px;
+}
+
+.deck-reset-sub {
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  opacity: 0.95;
+}
+
+.deck-brake-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  line-height: 1;
+}
+
+.deck-brake-glyph {
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -2px;
+}
+
+.deck-brake-sub {
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.deck-btn.deck-brake:active {
+  background: rgba(255, 152, 0, 0.25);
+  border-color: var(--warning);
+}
+
+.deck-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.deck-btn:disabled:hover {
+  transform: none;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.deck-btn.deck-brake:disabled:active {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+.mic-sync-row {
+  flex-wrap: wrap;
+}
+
+.mic-sync-row .mic-sync-btn {
+  flex: 1;
+  min-width: min(160px, 100%);
+  min-height: 58px;
+  flex-direction: column;
+  padding: 8px 6px;
+}
+
+.mic-sync-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.mic-sync-label {
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.15;
+  text-align: center;
+}
+
+.mic-sync-btn.active {
+  background: rgba(255, 152, 0, 0.18);
+  border-color: var(--warning);
+  color: var(--warning);
+}
+
+.mic-sync-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.mic-sync-btn:disabled:hover {
+  transform: none;
+  background: rgba(255, 255, 255, 0.05);
+}
+
 .control-btn.playing {
   background: var(--success);
   border-color: var(--success);

@@ -61,5 +61,40 @@
     </button>
   </div>
 
+  <p class="deck-hint">Phone only: <strong>−</strong> slower / <strong>+</strong> faster. <strong>Center</strong> = instant 1.00×. <strong>Hold</strong> = short pause.</p>
+  <div class="control-row deck-sync-row">
+    <button type="button" class="control-btn deck-btn" id="deckSlowerBtn" disabled
+      title="Slow down playback on this phone only (not the main PC). Tap center to snap back to 1× speed.">
+      <span class="deck-btn-label">−</span>
+    </button>
+    <button type="button" class="control-btn deck-btn deck-reset" id="deckResetBtn" disabled
+      title="Instant reset: speed 1.00× and re-enable auto tempo sync from the server.">
+      <span class="deck-center-stack">
+        <span class="deck-rate" id="deckPitchLabel">1.00×</span>
+        <span class="deck-reset-sub">tap → 1×</span>
+      </span>
+    </button>
+    <button type="button" class="control-btn deck-btn" id="deckFasterBtn" disabled
+      title="Speed up playback on this phone only. Tap center for instant 1×.">
+      <span class="deck-btn-label">+</span>
+    </button>
+    <button type="button" class="control-btn deck-btn deck-brake" id="deckBrakeBtn" disabled
+      title="Hold finger down: pause phone audio. Release: resume if the main player is still playing.">
+      <span class="deck-brake-stack">
+        <span class="deck-brake-glyph">‖</span>
+        <span class="deck-brake-sub">hold</span>
+      </span>
+    </button>
+  </div>
+
+  <div class="control-row mic-sync-row">
+    <button type="button" class="control-btn wide mic-sync-btn mic-sync-auto" id="micSyncAutoBtn" disabled
+      title="One-shot: microphone ~2s, align in time. Same room as main speakers; Listen here on.">
+      <span class="mic-sync-inner">
+        <span class="mic-sync-label">Mic sync auto</span>
+      </span>
+    </button>
+  </div>
+
 
 </div> 
