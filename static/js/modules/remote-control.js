@@ -31,11 +31,12 @@ class RemoteControl {
     this._syncMs = 1000;
     /** Avoid repeated currentTime seeks (causes stutter on mobile). */
     this._followLastHardSeekMs = 0;
-    this._volumeTouchTimer = null;
-    /** User adjusted pitch with deck buttons; skip auto playbackRate nudge. */
+    /** User set pitch (slower/faster/reset 1×); skip auto playbackRate nudge until new track. */
     this._followDeckUserTouched = false;
     /** Hold-to-pause on phone; blocks sync loop from calling play(). */
     this._deckBrakeHeld = false;
+    /** After a new src + metadata, skip playbackRate nudge until time settles (avoids instant 1.05). */
+    this._followRateNudgeGraceUntilMs = 0;
 
     this.micSync =
       typeof RemoteMicSyncController !== 'undefined' ? new RemoteMicSyncController(this) : null;
@@ -173,38 +174,6 @@ class RemoteControl {
       const toast = getShowVolumeToast();
       if (toast) toast(newVolume);
     });
-
-    // Touch volume: keep "user adjusting" guard on (sync was overwriting slider) + send to server.
-    let touchStartY = 0;
-    let volumeStartValue = 0;
-
-    this.volumeSlider.addEventListener('touchstart', (e) => {
-      touchStartY = e.touches[0].clientY;
-      volumeStartValue = parseInt(this.volumeSlider.value, 10) || 0;
-      this.setVolumeControlActive();
-    }, { passive: true });
-
-    this.volumeSlider.addEventListener('touchmove', (e) => {
-      const touchCurrentY = e.touches[0].clientY;
-      const deltaY = touchStartY - touchCurrentY;
-      const volumeChange = Math.round(deltaY / 10);
-
-      const newVolume = Math.max(0, Math.min(100, volumeStartValue + volumeChange));
-      this.volumeSlider.value = newVolume;
-      this.volumeValue.textContent = newVolume + '%';
-      this.setVolumeControlActive();
-      this._throttledSendTouchVolume(newVolume);
-    }, { passive: true });
-
-    this.volumeSlider.addEventListener('touchend', () => {
-      clearTimeout(this._volumeTouchTimer);
-      this._volumeTouchTimer = null;
-      const v = parseInt(this.volumeSlider.value, 10);
-      if (Number.isFinite(v)) {
-        this.setVolumeControlActive();
-        this._sendVolumePayload(v);
-      }
-    }, { passive: true });
 
     if (this.playlistSourceSelect) {
       this.playlistSourceSelect.addEventListener('change', async () => {
@@ -399,7 +368,8 @@ class RemoteControl {
   resetDeckPitch() {
     const el = this._followMicSyncPrecheck();
     if (!el) return;
-    this._followDeckUserTouched = false;
+    // Pin 1× like a deck choice; if false, the next sync tick reapplies nudge (often +0.05).
+    this._followDeckUserTouched = true;
     el.playbackRate = 1;
     this.updateDeckPitchLabel();
     const t = window.ToastNotifications && window.ToastNotifications.showToast;
@@ -566,6 +536,7 @@ class RemoteControl {
    * @param {number} deltaSec target − currentTime (signed)
    */
   _followNudgePlaybackRate(mediaEl, deltaSec) {
+    if (this._followDeckUserTouched) return;
     const ad = Math.abs(deltaSec);
     if (ad < 0.05) {
       if (mediaEl.playbackRate !== 1) mediaEl.playbackRate = 1;
@@ -589,6 +560,7 @@ class RemoteControl {
       this._followTrackKey = null;
       this._followLoadPending = false;
       this._followMediaKind = null;
+      this._followRateNudgeGraceUntilMs = 0;
       this._stopBothFollowMedia();
       return;
     }
@@ -633,8 +605,12 @@ class RemoteControl {
           console.warn('Follow-media seek failed:', e);
         }
         this._applyFollowVolumeFromStatus(st, mediaEl);
-        this._followDeckUserTouched = false;
-        mediaEl.playbackRate = 1;
+        // Do not stomp a deck reset / nudge that happened while load was pending (onMeta runs later).
+        const deckLocked = this._followDeckUserTouched;
+        if (!deckLocked) {
+          this._followDeckUserTouched = false;
+          mediaEl.playbackRate = 1;
+        }
         this.updateDeckPitchLabel();
         mediaEl.muted = false;
         if (st.playing) {
@@ -642,6 +618,8 @@ class RemoteControl {
         } else {
           mediaEl.pause();
         }
+        // Until the element catches up after initial seek, delta is often inflated → spurious +0.05 nudge.
+        this._followRateNudgeGraceUntilMs = Date.now() + 5000;
       };
 
       mediaEl.addEventListener('loadedmetadata', onMeta, { once: true });
@@ -681,7 +659,7 @@ class RemoteControl {
         } catch (e) {
           console.warn('Follow-media resync seek failed:', e);
         }
-      } else if (!this._followDeckUserTouched) {
+      } else if (!this._followDeckUserTouched && now >= this._followRateNudgeGraceUntilMs) {
         this._followNudgePlaybackRate(mediaEl, delta);
       }
       if (mediaEl.paused && !this._deckBrakeHeld) {
@@ -715,14 +693,6 @@ class RemoteControl {
     this.sendCommand('volume', payload);
   }
 
-  _throttledSendTouchVolume(newVolume) {
-    clearTimeout(this._volumeTouchTimer);
-    this._volumeTouchTimer = setTimeout(() => {
-      this._volumeTouchTimer = null;
-      this._sendVolumePayload(newVolume);
-    }, 80);
-  }
-  
   setVolumeControlActive() {
     this.isVolumeControlActive = true;
     clearTimeout(this.volumeControlTimeout);

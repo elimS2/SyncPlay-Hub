@@ -1,6 +1,6 @@
 /**
  * Volume Control Module
- * Handles hardware volume buttons, Android gestures, and volume adjustments
+ * Handles hardware volume buttons and volume adjustments on the remote page
  */
 
 // Import toast notifications (use global reference)
@@ -49,9 +49,6 @@ function initHardwareVolumeControl() {
     }).catch(error => {
       console.log('📱 Silent audio play failed:', error);
     });
-    
-    // Android gesture-based volume control
-    initAndroidGestureControl();
   }
   
   // Media Session API for hardware buttons
@@ -102,76 +99,6 @@ function initHardwareVolumeControl() {
   }
 }
 
-function initAndroidGestureControl() {
-  console.log('📱 Initializing Android gesture control...');
-  
-  // Add swipe gestures on the entire remote container
-  const container = document.querySelector('.remote-container');
-  let startY = 0;
-  let startX = 0;
-  let startVolume = 0;
-  
-  container.addEventListener('touchstart', (e) => {
-    if (e.touches.length === 1) {
-      startY = e.touches[0].clientY;
-      startX = e.touches[0].clientX;
-      startVolume = parseInt(document.getElementById('volumeSlider').value);
-    }
-  }, { passive: true });
-  
-  container.addEventListener('touchmove', (e) => {
-    if (e.touches.length === 1) {
-      const currentY = e.touches[0].clientY;
-      const currentX = e.touches[0].clientX;
-      const deltaY = startY - currentY;
-      const deltaX = Math.abs(startX - currentX);
-      
-      // Only process vertical swipes (ignore horizontal)
-      if (Math.abs(deltaY) > 20 && deltaX < 50) {
-        e.preventDefault();
-        
-        const volumeChange = Math.round(deltaY / 20); // Increased sensitivity for smoother control
-        let newVolume = Math.max(0, Math.min(100, startVolume + volumeChange));
-        
-        const volumeSlider = document.getElementById('volumeSlider');
-        const volumeValue = document.getElementById('volumeValue');
-        
-        volumeSlider.value = newVolume;
-        volumeValue.textContent = newVolume + '%';
-        
-        const toast = getShowVolumeToast();
-      if (toast) toast(newVolume);
-      }
-    }
-  }, { passive: false });
-  
-  container.addEventListener('touchend', (e) => {
-    // Send final volume to server
-    const finalVolume = parseInt(document.getElementById('volumeSlider').value);
-    const remoteControl = document.querySelector('.remote-container').remoteControlInstance;
-    
-    // Activate volume control protection
-    if (remoteControl) {
-      remoteControl.setVolumeControlActive();
-    }
-    
-    // Prepare payload with track info
-    const payload = { volume: finalVolume / 100 };
-    if (remoteControl && remoteControl.currentStatus && remoteControl.currentStatus.current_track) {
-      payload.video_id = remoteControl.currentStatus.current_track.video_id;
-      payload.position = remoteControl.currentStatus.progress;
-    }
-    
-    fetch('/api/remote/volume', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
-    
-    console.log('📱 Android gesture volume set to:', finalVolume + '%');
-  }, { passive: true });
-}
-
 function addAndroidInstructions() {
   // Add a small instruction tooltip
   const instructionDiv = document.createElement('div');
@@ -189,7 +116,7 @@ function addAndroidInstructions() {
     text-align: center;
     backdrop-filter: blur(10px);
   `;
-  instructionDiv.innerHTML = 'Swipe up/down anywhere or use volume buttons';
+  instructionDiv.innerHTML = 'Use the volume slider or hardware volume buttons';
   
   document.body.appendChild(instructionDiv);
   
@@ -275,7 +202,6 @@ function adjustVolume(delta) {
 // Export functions for browser environment
 window.VolumeControl = {
   initHardwareVolumeControl,
-  initAndroidGestureControl,
   addAndroidInstructions,
   handleVolumeKeys,
   adjustVolume
