@@ -60,8 +60,27 @@ def validate_switch_source_path(path: str) -> bool:
 
 @remote_bp.route("/remote/status")
 def api_remote_status():
-    """Get current player status for remote control."""
-    return jsonify(PLAYER_STATE)
+    """Get current player status for remote control.
+
+    Optional query: client_ms — browser Date.now() when the request was issued.
+    Response adds server_now_ms and, when client_ms is present, time_sync for NTP-style skew.
+    """
+    t1 = int(time.time() * 1000)
+    out = dict(PLAYER_STATE)
+    t2 = int(time.time() * 1000)
+    out["server_now_ms"] = t2
+    client_ms_raw = request.args.get("client_ms")
+    if client_ms_raw is not None:
+        try:
+            client_ms = int(client_ms_raw)
+            out["time_sync"] = {
+                "client_ms": client_ms,
+                "t1_server_ms": t1,
+                "t2_server_ms": t2,
+            }
+        except ValueError:
+            pass
+    return jsonify(out)
 
 @remote_bp.route("/remote/play", methods=["POST"])
 def api_remote_play():
@@ -122,6 +141,7 @@ def api_remote_volume():
     # Clamp volume between 0 and 1
     volume = max(0.0, min(1.0, float(volume)))
     PLAYER_STATE['volume'] = volume
+    PLAYER_STATE['volume_remote_set_at'] = time.time()
 
     # Save volume to database and record change event
     try:
@@ -294,6 +314,13 @@ def api_remote_sync_internal():
 
     prev_vid = _track_vid(PLAYER_STATE.get('current_track'))
 
+    # Preserve volume set from the remote until the desktop player applies it (avoid race with sync_internal).
+    try:
+        pre_volume = float(PLAYER_STATE.get('volume', 1.0))
+    except (TypeError, ValueError):
+        pre_volume = 1.0
+    pre_remote_ts = PLAYER_STATE.get('volume_remote_set_at')
+
     # Get player type from request
     player_type = data.get('player_type', 'regular')
     player_source = data.get('player_source', 'unknown')
@@ -304,6 +331,18 @@ def api_remote_sync_internal():
     PLAYER_STATE['player_type'] = player_type
     PLAYER_STATE['player_source'] = player_source
 
+    _VOL_GRACE_SEC = 3.5
+    _VOL_MATCH_EPS = 0.04
+    if pre_remote_ts is not None and (time.time() - pre_remote_ts) < _VOL_GRACE_SEC:
+        try:
+            player_vol = float(data.get('volume', pre_volume))
+        except (TypeError, ValueError):
+            player_vol = pre_volume
+        if abs(player_vol - pre_volume) > _VOL_MATCH_EPS:
+            PLAYER_STATE['volume'] = pre_volume
+        else:
+            PLAYER_STATE['volume_remote_set_at'] = None
+
     new_vid = _track_vid(PLAYER_STATE.get('current_track'))
     if prev_vid != new_vid:
         # Periodic sync omits like_active/dislike_active; do not carry session reactions to a new track.
@@ -311,6 +350,18 @@ def api_remote_sync_internal():
             PLAYER_STATE['like_active'] = False
         if 'dislike_active' not in data:
             PLAYER_STATE['dislike_active'] = False
+
+    # Server-time playback anchor for clock-synced follow clients (remote "Listen here").
+    server_ms = int(time.time() * 1000)
+    ct = PLAYER_STATE.get('current_track') or {}
+    track_key = ct.get('video_id') or ct.get('relpath') or ct.get('url')
+    PLAYER_STATE['playback_anchor_server_ms'] = server_ms
+    try:
+        PLAYER_STATE['playback_anchor_position'] = float(data.get('progress') or 0)
+    except (TypeError, ValueError):
+        PLAYER_STATE['playback_anchor_position'] = 0.0
+    PLAYER_STATE['playback_anchor_playing'] = bool(data.get('playing'))
+    PLAYER_STATE['playback_anchor_track_key'] = track_key
 
     # Note: Removed frequent sync logging to avoid log spam
 

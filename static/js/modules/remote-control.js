@@ -25,6 +25,13 @@ class RemoteControl {
     this._followMediaKind = null;
     this._followTrackKey = null;
     this._followLoadPending = false;
+
+    /** NTP-style offset: estimated_server_ms ≈ Date.now() + median offset. */
+    this._clockSkewSamples = [];
+    this._syncMs = 1000;
+    /** Avoid repeated currentTime seeks (causes stutter on mobile). */
+    this._followLastHardSeekMs = 0;
+    this._volumeTouchTimer = null;
     
     this.initElements();
     this.attachEvents();
@@ -123,82 +130,65 @@ class RemoteControl {
     
     // Volume slider
     this.volumeSlider.addEventListener('input', (e) => {
-      const volume = parseInt(e.target.value);
+      const volume = parseInt(e.target.value, 10);
       this.volumeValue.textContent = volume + '%';
-      
-      // Activate volume control protection
       this.setVolumeControlActive();
-      
-      // Add track info for volume logging
-      const payload = { volume: volume / 100 };
-      if (this.currentStatus && this.currentStatus.current_track) {
-        payload.video_id = this.currentStatus.current_track.video_id;
-        payload.position = this.currentStatus.progress;
-      }
-      
-      this.sendCommand('volume', payload);
+      this._sendVolumePayload(volume);
     });
 
     // Volume buttons
     this.volumeUpBtn.addEventListener('click', () => {
-      const currentVolume = parseInt(this.volumeSlider.value);
+      const currentVolume = parseInt(this.volumeSlider.value, 10) || 0;
       const newVolume = Math.min(100, currentVolume + 1);
       this.volumeSlider.value = newVolume;
       this.volumeValue.textContent = newVolume + '%';
-      
-      // Activate volume control protection
       this.setVolumeControlActive();
-      
-      // Add track info for volume logging
-      const payload = { volume: newVolume / 100 };
-      if (this.currentStatus && this.currentStatus.current_track) {
-        payload.video_id = this.currentStatus.current_track.video_id;
-        payload.position = this.currentStatus.progress;
-      }
-      
-      this.sendCommand('volume', payload);
+      this._sendVolumePayload(newVolume);
       const toast = getShowVolumeToast();
       if (toast) toast(newVolume);
     });
 
     this.volumeDownBtn.addEventListener('click', () => {
-      const currentVolume = parseInt(this.volumeSlider.value);
+      const currentVolume = parseInt(this.volumeSlider.value, 10) || 0;
       const newVolume = Math.max(0, currentVolume - 1);
       this.volumeSlider.value = newVolume;
       this.volumeValue.textContent = newVolume + '%';
-      
-      // Activate volume control protection
       this.setVolumeControlActive();
-      
-      // Add track info for volume logging
-      const payload = { volume: newVolume / 100 };
-      if (this.currentStatus && this.currentStatus.current_track) {
-        payload.video_id = this.currentStatus.current_track.video_id;
-        payload.position = this.currentStatus.progress;
-      }
-      
-      this.sendCommand('volume', payload);
+      this._sendVolumePayload(newVolume);
       const toast = getShowVolumeToast();
       if (toast) toast(newVolume);
     });
 
-    // Add touch and gesture support for volume
+    // Touch volume: keep "user adjusting" guard on (sync was overwriting slider) + send to server.
     let touchStartY = 0;
     let volumeStartValue = 0;
 
     this.volumeSlider.addEventListener('touchstart', (e) => {
       touchStartY = e.touches[0].clientY;
-      volumeStartValue = parseInt(this.volumeSlider.value);
+      volumeStartValue = parseInt(this.volumeSlider.value, 10) || 0;
+      this.setVolumeControlActive();
     }, { passive: true });
 
     this.volumeSlider.addEventListener('touchmove', (e) => {
       const touchCurrentY = e.touches[0].clientY;
       const deltaY = touchStartY - touchCurrentY;
-      const volumeChange = Math.round(deltaY / 10); // Increased sensitivity for smoother control
-      
-      let newVolume = Math.max(0, Math.min(100, volumeStartValue + volumeChange));
+      const volumeChange = Math.round(deltaY / 10);
+
+      const newVolume = Math.max(0, Math.min(100, volumeStartValue + volumeChange));
       this.volumeSlider.value = newVolume;
       this.volumeValue.textContent = newVolume + '%';
+      this.setVolumeControlActive();
+      this._throttledSendTouchVolume(newVolume);
+    }, { passive: true });
+
+    this.volumeSlider.addEventListener('touchend', () => {
+      clearTimeout(this._volumeTouchTimer);
+      this._volumeTouchTimer = null;
+      const v = parseInt(this.volumeSlider.value, 10);
+      if (Number.isFinite(v)) {
+        this.setVolumeControlActive();
+        this._sendVolumePayload(v);
+      }
     }, { passive: true });
 
     if (this.playlistSourceSelect) {
@@ -238,6 +228,7 @@ class RemoteControl {
   _stopBothFollowMedia() {
     [this.followAudioEl, this.followVideoEl].forEach((el) => {
       if (!el) return;
+      el.playbackRate = 1;
       el.pause();
       el.removeAttribute('src');
       try {
@@ -295,11 +286,15 @@ class RemoteControl {
       this._followLoadPending = false;
       this._followMediaKind = null;
       this._stopBothFollowMedia();
+      this._syncMs = 1000;
+      this._restartSyncLoop();
       return;
     }
     if (this.currentStatus) {
       this.updateFollowAudioAfterStatus(this.currentStatus);
     }
+    this._syncMs = 400;
+    this._restartSyncLoop();
     this.syncStatus();
   }
 
@@ -350,6 +345,73 @@ class RemoteControl {
     }
   }
 
+  _recordClockSkewSample(theta) {
+    if (!Number.isFinite(theta)) return;
+    this._clockSkewSamples.push(theta);
+    while (this._clockSkewSamples.length > 9) {
+      this._clockSkewSamples.shift();
+    }
+  }
+
+  /** @returns {number|null} server_ms − client_ms */
+  _medianClockOffset() {
+    const arr = this._clockSkewSamples;
+    if (!arr.length) return null;
+    const sorted = [...arr].sort((a, b) => a - b);
+    return sorted[Math.floor(sorted.length / 2)];
+  }
+
+  /** @returns {number|null} */
+  _estimatedServerNowMs() {
+    const off = this._medianClockOffset();
+    if (off == null) return null;
+    return Date.now() + off;
+  }
+
+  /**
+   * Playback position extrapolated with server anchor + clock skew (tighter than raw progress).
+   * @param {object} status
+   * @returns {number}
+   */
+  _expectedProgressSec(status) {
+    const anchorMs = status.playback_anchor_server_ms;
+    const pos = status.playback_anchor_position;
+    const playing = status.playback_anchor_playing;
+    const anchorKey = status.playback_anchor_track_key;
+    const raw = Math.max(0, Number(status.progress) || 0);
+    if (anchorMs == null || pos == null || anchorKey == null) {
+      return raw;
+    }
+    const curKey = this._followTrackIdentity(status.current_track);
+    if (curKey == null || curKey !== anchorKey) {
+      return raw;
+    }
+    const serverNow = this._estimatedServerNowMs();
+    if (serverNow == null) {
+      return raw;
+    }
+    if (!playing) {
+      return Math.max(0, Number(pos) || 0);
+    }
+    return Math.max(0, Number(pos) + (serverNow - anchorMs) / 1000);
+  }
+
+  /**
+   * Gentle speed nudge instead of seek when drift is moderate (stream_client-style).
+   * @param {HTMLMediaElement} mediaEl
+   * @param {number} deltaSec target − currentTime (signed)
+   */
+  _followNudgePlaybackRate(mediaEl, deltaSec) {
+    const ad = Math.abs(deltaSec);
+    if (ad < 0.05) {
+      if (mediaEl.playbackRate !== 1) mediaEl.playbackRate = 1;
+      return;
+    }
+    const cap = 0.05;
+    const adj = Math.max(-cap, Math.min(cap, deltaSec * 0.22));
+    mediaEl.playbackRate = 1 + adj;
+  }
+
   /**
    * Keep hidden media element in sync with PLAYER_STATE from /api/remote/status.
    * @param {object} status
@@ -378,6 +440,8 @@ class RemoteControl {
     if (this._followTrackKey !== key) {
       this._followTrackKey = key;
       this._followLoadPending = true;
+      this._followLastHardSeekMs = 0;
+      mediaEl.playbackRate = 1;
       mediaEl.src = absUrl;
 
       // Every new src: start muted + play() immediately. Mobile browsers block
@@ -397,13 +461,14 @@ class RemoteControl {
         metaApplied = true;
         this._followLoadPending = false;
         const st = this.currentStatus || status;
-        const pos = Math.max(0, Number(st.progress) || 0);
+        const pos = this._expectedProgressSec(st);
         try {
           mediaEl.currentTime = pos;
         } catch (e) {
           console.warn('Follow-media seek failed:', e);
         }
         this._applyFollowVolumeFromStatus(st, mediaEl);
+        mediaEl.playbackRate = 1;
         mediaEl.muted = false;
         if (st.playing) {
           mediaEl.play().catch((err) => console.warn('Follow-media play failed:', err));
@@ -423,16 +488,31 @@ class RemoteControl {
 
     this._applyFollowVolumeFromStatus(status, mediaEl);
 
-    const target = Math.max(0, Number(status.progress) || 0);
-    const drift = Math.abs(target - mediaEl.currentTime);
+    const target = this._expectedProgressSec(status);
+    const delta = target - mediaEl.currentTime;
+    const drift = Math.abs(delta);
+
+    const hardSeekDrift = 3.0;
+    const emergencySeekDrift = 10.0;
+    const hardSeekCooldownMs = 4500;
+    const now = Date.now();
 
     if (status.playing) {
-      if (drift > 1.25) {
+      const sinceSeek = now - this._followLastHardSeekMs;
+      const doHardSeek =
+        drift >= emergencySeekDrift ||
+        (drift >= hardSeekDrift && sinceSeek >= hardSeekCooldownMs);
+
+      if (doHardSeek) {
         try {
-          mediaEl.currentTime = target;
+          mediaEl.playbackRate = 1;
+          mediaEl.currentTime = Math.max(0, target);
+          this._followLastHardSeekMs = now;
         } catch (e) {
           console.warn('Follow-media resync seek failed:', e);
         }
+      } else {
+        this._followNudgePlaybackRate(mediaEl, delta);
       }
       if (mediaEl.paused) {
         mediaEl.muted = false;
@@ -440,14 +520,33 @@ class RemoteControl {
       }
     } else {
       mediaEl.pause();
-      if (drift > 1.25) {
+      mediaEl.playbackRate = 1;
+      if (drift > 2.5) {
         try {
-          mediaEl.currentTime = target;
+          mediaEl.currentTime = Math.max(0, target);
         } catch (e) {
           console.warn('Follow-media pause seek failed:', e);
         }
       }
     }
+  }
+
+  _sendVolumePayload(volumePercent) {
+    const volume = Math.max(0, Math.min(100, volumePercent)) / 100;
+    const payload = { volume };
+    if (this.currentStatus && this.currentStatus.current_track) {
+      payload.video_id = this.currentStatus.current_track.video_id;
+      payload.position = this.currentStatus.progress;
+    }
+    this.sendCommand('volume', payload);
+  }
+
+  _throttledSendTouchVolume(newVolume) {
+    clearTimeout(this._volumeTouchTimer);
+    this._volumeTouchTimer = setTimeout(() => {
+      this._volumeTouchTimer = null;
+      this._sendVolumePayload(newVolume);
+    }, 80);
   }
   
   setVolumeControlActive() {
@@ -456,7 +555,7 @@ class RemoteControl {
     this.volumeControlTimeout = setTimeout(() => {
       this.isVolumeControlActive = false;
       console.log('📱 Volume control protection deactivated');
-    }, 3000); // 3 seconds cooldown
+    }, 4500);
     console.log('📱 Volume control protection activated');
   }
   
@@ -483,9 +582,16 @@ class RemoteControl {
   
   async syncStatus() {
     try {
-      const response = await fetch('/api/remote/status');
+      const t0 = Date.now();
+      const response = await fetch(`/api/remote/status?client_ms=${t0}`);
+      const t3 = Date.now();
       if (response.ok) {
         const status = await response.json();
+        if (status.time_sync) {
+          const { t1_server_ms, t2_server_ms, client_ms } = status.time_sync;
+          const theta = ((t1_server_ms - client_ms) + (t2_server_ms - t3)) / 2;
+          this._recordClockSkewSample(theta);
+        }
         this.updateStatus(status);
         this.updateConnectionStatus(true);
       } else {
@@ -573,12 +679,13 @@ class RemoteControl {
       }
       this.trackStatus.textContent = statusText;
       
-      // Update progress - use YouTube duration if available
+      // Update progress - use YouTube duration if available (clock-synced when anchor + skew exist)
       const duration = track.youtube_duration || track.duration;
-      if (status.progress !== undefined && duration) {
-        const percent = Math.min(100, Math.max(0, (status.progress / duration) * 100));
+      const displayProgress = this._expectedProgressSec(status);
+      if (displayProgress !== undefined && duration) {
+        const percent = Math.min(100, Math.max(0, (displayProgress / duration) * 100));
         this.progressBar.style.width = percent + '%';
-        this.currentTime.textContent = this.formatTime(status.progress);
+        this.currentTime.textContent = this.formatTime(displayProgress);
         
         // Use YouTube duration string if available, otherwise format seconds
         if (track.youtube_duration_string) {
@@ -588,7 +695,7 @@ class RemoteControl {
         }
       } else {
         this.progressBar.style.width = '0%';
-        this.currentTime.textContent = this.formatTime(status.progress || 0);
+        this.currentTime.textContent = this.formatTime(displayProgress || 0);
         this.totalTime.textContent = track.youtube_duration_string || (duration ? this.formatTime(duration) : '0:00');
       }
     } else {
@@ -735,18 +842,24 @@ class RemoteControl {
     return `${mins}:${secs}`;
   }
   
+  _restartSyncLoop() {
+    if (this.syncInterval) {
+      clearInterval(this.syncInterval);
+      this.syncInterval = null;
+    }
+    this.syncInterval = setInterval(() => {
+      this.syncStatus();
+    }, this._syncMs);
+  }
+
   startSync() {
     console.log('📱 Remote: Starting sync...');
 
     this.loadPlaylistSources();
     
-    // Initial sync
+    this._syncMs = 1000;
     this.syncStatus();
-    
-    // Set up periodic sync
-    this.syncInterval = setInterval(() => {
-      this.syncStatus();
-    }, 1000);
+    this._restartSyncLoop();
     
     // Set up server info update
     this.updateServerInfo();

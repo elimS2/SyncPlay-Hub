@@ -44,7 +44,14 @@ PLAYER_STATE = {
     'player_type': None,  # 'regular' or 'virtual'
     'player_source': None,  # Track which player is active
     'like_active': False,  # Like button state for current session
-    'dislike_active': False  # Dislike button state for current session
+    'dislike_active': False,  # Dislike button state for current session
+    # Playback anchor at server receive time (for remote clock-synced follow playback)
+    'playback_anchor_server_ms': None,
+    'playback_anchor_position': None,
+    'playback_anchor_playing': None,
+    'playback_anchor_track_key': None,
+    # Set when /remote/volume runs; sync_internal ignores stale player volume until grace (see remote_api).
+    'volume_remote_set_at': None,
 }
 
 # Command queue for remote control
