@@ -576,7 +576,9 @@ const cDislike = document.getElementById('cDislike');
   // syncLikeButtonsWithRemote() теперь импортируется из player-utils.js
   // Wrapper function для совместимости с существующим кодом
   async function syncLikeButtonsWithRemote() {
-    return await utilsSyncLikeButtonsWithRemote();
+    const vid =
+      currentIndex >= 0 && currentIndex < queue.length ? queue[currentIndex]?.video_id : null;
+    return await utilsSyncLikeButtonsWithRemote(vid);
   }
   
   // Setup remote control using centralized functions  

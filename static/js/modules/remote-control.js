@@ -1183,7 +1183,8 @@ class RemoteControl {
     const skipReactionFromServer =
       prevVideoId !== null && nextVideoId !== null && prevVideoId !== nextVideoId;
 
-    if (!skipReactionFromServer) {
+    const applySessionReactionFromStatus = () => {
+      if (skipReactionFromServer) return;
       if (status.like_active !== undefined) {
         if (status.like_active) {
           this.likeBtn.classList.add('like-active');
@@ -1191,7 +1192,6 @@ class RemoteControl {
           this.likeBtn.classList.remove('like-active');
         }
       }
-
       if (status.dislike_active !== undefined) {
         if (status.dislike_active) {
           this.dislikeBtn.classList.add('dislike-active');
@@ -1199,6 +1199,43 @@ class RemoteControl {
           this.dislikeBtn.classList.remove('dislike-active');
         }
       }
+    };
+
+    const vid =
+      nextVideoId != null && nextVideoId !== '' ? String(nextVideoId) : null;
+    const sinceMs = status.playback_session_started_ms;
+    if (
+      vid &&
+      typeof sinceMs === 'number' &&
+      sinceMs > 0 &&
+      !Number.isNaN(sinceMs)
+    ) {
+      fetch(`/api/reaction/${encodeURIComponent(vid)}?since_ms=${Math.round(sinceMs)}`)
+        .then((r) => (r.ok ? r.json() : Promise.resolve({})))
+        .then((data) => {
+          const cur = this.currentTrack?.video_id;
+          if (cur == null || String(cur) !== vid) return;
+          const sessionReaction =
+            data.status === 'ok' && (data.reaction === 'like' || data.reaction === 'dislike')
+              ? data.reaction
+              : null;
+          if (sessionReaction === 'like') {
+            this.likeBtn.classList.add('like-active');
+            this.dislikeBtn.classList.remove('dislike-active');
+            return;
+          }
+          if (sessionReaction === 'dislike') {
+            this.dislikeBtn.classList.add('dislike-active');
+            this.likeBtn.classList.remove('like-active');
+            return;
+          }
+          applySessionReactionFromStatus();
+        })
+        .catch(() => {
+          applySessionReactionFromStatus();
+        });
+    } else {
+      applySessionReactionFromStatus();
     }
     
     // Update track info

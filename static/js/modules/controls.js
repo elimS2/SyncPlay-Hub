@@ -1,5 +1,7 @@
 // Playback control functions extracted from player-utils.js
 
+import { getTrackPlaybackSession } from './track-playback-session.js';
+
 /**
  * Execute track deletion without confirmation - used by delete handlers
  * @param {Object} context - execution context
@@ -337,31 +339,76 @@ export function performKeyboardSeek(offsetSeconds, context) {
 }
 
 /**
- * Sync like buttons state with remote state
+ * Sync like buttons: play_history after current playback start wins, else PLAYER_STATE.
+ * @param {string|null|undefined} expectedVideoId - when set, ignore status if server current_track differs (stale PLAYER_STATE).
  */
-export async function syncLikeButtonsWithRemote() {
+export async function syncLikeButtonsWithRemote(expectedVideoId) {
   try {
     const response = await fetch('/api/remote/status');
-    if (response.ok) {
-      const status = await response.json();
-      
-      const likeButton = document.getElementById('cLike');
-      const dislikeButton = document.getElementById('cDislike');
-      
-      if (likeButton && status.like_active !== undefined) {
-        if (status.like_active) {
-          likeButton.classList.add('like-active');
-        } else {
-          likeButton.classList.remove('like-active');
-        }
+    if (!response.ok) return;
+    const status = await response.json();
+
+    const statusVid = status.current_track?.video_id ?? null;
+    if (expectedVideoId != null && expectedVideoId !== '') {
+      if (statusVid == null || String(statusVid) !== String(expectedVideoId)) {
+        return;
       }
-      
-      if (dislikeButton && status.dislike_active !== undefined) {
-        if (status.dislike_active) {
-          dislikeButton.classList.add('dislike-active');
-        } else {
-          dislikeButton.classList.remove('dislike-active');
+    }
+
+    const likeButton = document.getElementById('cLike');
+    const dislikeButton = document.getElementById('cDislike');
+    if (!likeButton || !dislikeButton) return;
+
+    const vid =
+      expectedVideoId != null && expectedVideoId !== ''
+        ? String(expectedVideoId)
+        : statusVid != null
+          ? String(statusVid)
+          : null;
+    const sess = getTrackPlaybackSession();
+    let sessionReaction = null;
+    if (
+      vid &&
+      sess.videoId &&
+      String(sess.videoId) === vid &&
+      sess.startedAtMs > 0
+    ) {
+      try {
+        const r = await fetch(
+          `/api/reaction/${encodeURIComponent(vid)}?since_ms=${sess.startedAtMs}`
+        );
+        if (r.ok) {
+          const data = await r.json();
+          if (
+            data?.status === 'ok' &&
+            (data.reaction === 'like' || data.reaction === 'dislike')
+          ) {
+            sessionReaction = data.reaction;
+          }
         }
+      } catch (_) {
+        /* ignore */
+      }
+    }
+
+    if (sessionReaction === 'like' || sessionReaction === 'dislike') {
+      applyPersistedReactionToButtons(likeButton, dislikeButton, sessionReaction);
+      return;
+    }
+
+    if (status.like_active !== undefined) {
+      if (status.like_active) {
+        likeButton.classList.add('like-active');
+      } else {
+        likeButton.classList.remove('like-active');
+      }
+    }
+
+    if (status.dislike_active !== undefined) {
+      if (status.dislike_active) {
+        dislikeButton.classList.add('dislike-active');
+      } else {
+        dislikeButton.classList.remove('dislike-active');
       }
     }
   } catch (error) {

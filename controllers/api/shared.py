@@ -45,6 +45,8 @@ PLAYER_STATE = {
     'player_source': None,  # Track which player is active
     'like_active': False,  # Like button state for current session
     'dislike_active': False,  # Dislike button state for current session
+    # Client ms when current track session started (for session-scoped reaction UI on remote)
+    'playback_session_started_ms': None,
     # Playback anchor at server receive time (for remote clock-synced follow playback)
     'playback_anchor_server_ms': None,
     'playback_anchor_position': None,

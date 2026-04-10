@@ -45,6 +45,7 @@ record_event = database_core.record_event
 record_volume_change = database_core.record_volume_change
 record_seek_event = database_core.record_seek_event
 record_playlist_addition = database_core.record_playlist_addition
+get_dominant_reaction_since_ts = database_core.get_dominant_reaction_since_ts
 
 # History and playback
 iter_history = database_core.iter_history
@@ -145,6 +146,7 @@ __all__ = [
     'record_volume_change',
     'record_seek_event',
     'record_playlist_addition',
+    'get_dominant_reaction_since_ts',
     
     # History and playback
     'iter_history',

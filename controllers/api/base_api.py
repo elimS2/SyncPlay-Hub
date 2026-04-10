@@ -1,5 +1,6 @@
 """Base API endpoints for core system operations."""
 
+from datetime import datetime, timezone
 from pathlib import Path
 from flask import Blueprint, request, jsonify
 from .shared import get_root_dir, get_connection, log_message, record_event
@@ -146,13 +147,32 @@ def api_event():
     return jsonify({"status": "ok"})
 
 
+def _utc_ms_to_sqlite_ts(ms: int) -> str:
+    """Match play_history.ts format from SQLite datetime('now')."""
+    dt = datetime.fromtimestamp(ms / 1000, tz=timezone.utc)
+    return dt.strftime("%Y-%m-%d %H:%M:%S")
+
+
 @base_bp.route("/reaction/<video_id>", methods=["GET"])
 def api_last_reaction(video_id: str):
-    """Last recorded like/dislike for a video (for restoring UI after reload)."""
+    """Like/dislike for UI.
+
+    Query since_ms (Unix ms, UTC): only reactions with ts at/after that moment (current playback session).
+    Without since_ms: global last like/dislike for the video (legacy).
+    """
     if not video_id or len(video_id) > 64:
         return jsonify({"status": "error", "message": "bad video_id"}), 400
+    since_ms_raw = request.args.get("since_ms")
     conn = get_connection()
     try:
+        if since_ms_raw is not None and since_ms_raw != "":
+            try:
+                since_ms = int(since_ms_raw)
+            except ValueError:
+                return jsonify({"status": "error", "message": "bad since_ms"}), 400
+            since_ts = _utc_ms_to_sqlite_ts(since_ms)
+            reaction = db.get_dominant_reaction_since_ts(conn, video_id, since_ts)
+            return jsonify({"status": "ok", "reaction": reaction, "since_ms": since_ms})
         reaction = db.get_last_like_dislike_reaction(conn, video_id)
         return jsonify({"status": "ok", "reaction": reaction})
     finally:

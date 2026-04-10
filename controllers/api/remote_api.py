@@ -26,6 +26,22 @@ _PLAYLIST_PATH = re.compile(r"^/playlist/(.+)/?$")
 remote_bp = Blueprint('remote', __name__)
 
 
+def _stable_track_identity(track):
+    """Stable comparable identity for session reactions (avoid false clears on int/str video_id drift)."""
+    if not track or not isinstance(track, dict):
+        return None
+    vid = track.get("video_id")
+    if vid is not None and str(vid).strip() != "":
+        return ("v", str(vid).strip())
+    rel = track.get("relpath")
+    if rel is not None and str(rel).strip() != "":
+        return ("r", str(rel).replace("\\", "/").strip())
+    url = track.get("url")
+    if url is not None and str(url).strip() != "":
+        return ("u", str(url).strip())
+    return None
+
+
 def _next_track_from_player_state(state: dict):
     """Following track in queue for preload / seamless handoff hints (read-only)."""
     pl = state.get("playlist")
@@ -321,12 +337,7 @@ def api_remote_sync_internal():
     global PLAYER_STATE
     data = request.get_json() or {}
 
-    def _track_vid(track):
-        if not track or not isinstance(track, dict):
-            return None
-        return track.get('video_id')
-
-    prev_vid = _track_vid(PLAYER_STATE.get('current_track'))
+    prev_key = _stable_track_identity(PLAYER_STATE.get("current_track"))
 
     # Preserve volume set from the remote until the desktop player applies it (avoid race with sync_internal).
     try:
@@ -357,13 +368,14 @@ def api_remote_sync_internal():
         else:
             PLAYER_STATE['volume_remote_set_at'] = None
 
-    new_vid = _track_vid(PLAYER_STATE.get('current_track'))
-    if prev_vid != new_vid:
-        # Periodic sync omits like_active/dislike_active; do not carry session reactions to a new track.
-        if 'like_active' not in data:
-            PLAYER_STATE['like_active'] = False
-        if 'dislike_active' not in data:
-            PLAYER_STATE['dislike_active'] = False
+    new_key = _stable_track_identity(PLAYER_STATE.get("current_track"))
+    if prev_key != new_key:
+        # Session-only: periodic sync omits like_active/dislike_active; do not carry them to a new track.
+        # Do not hydrate from play_history — an old DB like must not look like "liked during this play".
+        if "like_active" not in data:
+            PLAYER_STATE["like_active"] = False
+        if "dislike_active" not in data:
+            PLAYER_STATE["dislike_active"] = False
 
     # Server-time playback anchor for clock-synced follow clients (remote "Listen here").
     server_ms = int(time.time() * 1000)

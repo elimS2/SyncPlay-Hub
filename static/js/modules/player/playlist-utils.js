@@ -427,7 +427,15 @@ export async function triggerAutoDeleteCheck(track, detectChannelGroupFn, media)
  */
 import { updateCurrentTrackTitle } from '../track-title-manager.js';
 import { scrollActiveTrackToTop } from '../playlist-scroll.js';
-import { applyPersistedReactionToButtons, SVG_HEART_OUTLINE, SVG_THUMB_OUTLINE } from '../controls.js';
+import {
+  applyPersistedReactionToButtons,
+  SVG_HEART_OUTLINE,
+  SVG_THUMB_OUTLINE,
+} from '../controls.js';
+import {
+  markTrackPlaybackSessionStart,
+  getTrackPlaybackSession,
+} from '../track-playback-session.js';
 
 export function loadTrack(idx, autoplay = false, context) {
     const { 
@@ -441,6 +449,7 @@ export function loadTrack(idx, autoplay = false, context) {
     if(idx < 0 || idx >= queue.length) return;
     setCurrentIndex(idx);
     const track = queue[idx];
+    markTrackPlaybackSessionStart(track.video_id);
     let skipAssignSrc = false;
     try {
       const abs = new URL(track.url, window.location.origin).href;
@@ -494,18 +503,28 @@ export function loadTrack(idx, autoplay = false, context) {
             syncRemoteStateAfterReaction({ includeReactions: true });
         }
     };
-
-    fetch(`/api/reaction/${encodeURIComponent(track.video_id)}`)
-        .then((r) => r.json())
-        .then((data) => {
-            if (data && data.status === 'ok' && (data.reaction === 'like' || data.reaction === 'dislike')) {
-                applyPersistedReactionToButtons(cLike, cDislike, data.reaction);
-            }
-        })
-        .catch(() => {})
-        .finally(() => {
-            pushReactionToRemote();
-        });
+    const sess = getTrackPlaybackSession();
+    if (track.video_id && sess.videoId && sess.startedAtMs > 0) {
+        fetch(
+            `/api/reaction/${encodeURIComponent(track.video_id)}?since_ms=${sess.startedAtMs}`
+        )
+            .then((r) => r.json())
+            .then((data) => {
+                if (
+                    data &&
+                    data.status === 'ok' &&
+                    (data.reaction === 'like' || data.reaction === 'dislike')
+                ) {
+                    applyPersistedReactionToButtons(cLike, cDislike, data.reaction);
+                }
+            })
+            .catch(() => {})
+            .finally(() => {
+                pushReactionToRemote();
+            });
+    } else {
+        pushReactionToRemote();
+    }
 
     // report play start once per track
     reportEvent(track.video_id, 'start');

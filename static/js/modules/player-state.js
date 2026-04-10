@@ -1,5 +1,7 @@
 // Player state management functions extracted from player-utils.js
 
+import { getTrackPlaybackSession } from './track-playback-session.js';
+
 /**
  * Save volume to database with debouncing
  * @param {number} volume - volume level (0.0-1.0)
@@ -100,6 +102,21 @@ export async function syncRemoteState(playerType = 'regular', context, options =
             player_type: playerType,
             player_source: window.location.pathname
         };
+
+        if (currentTrack && currentTrack.video_id != null && String(currentTrack.video_id) !== '') {
+            const sess = getTrackPlaybackSession();
+            if (
+                sess.videoId != null &&
+                String(sess.videoId) === String(currentTrack.video_id) &&
+                sess.startedAtMs > 0
+            ) {
+                playerState.playback_session_started_ms = sess.startedAtMs;
+            } else {
+                playerState.playback_session_started_ms = null;
+            }
+        } else {
+            playerState.playback_session_started_ms = null;
+        }
 
         if (includeReactions) {
             const likeButton = document.getElementById('cLike');

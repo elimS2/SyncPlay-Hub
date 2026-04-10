@@ -1241,6 +1241,24 @@ def get_last_like_dislike_reaction(conn: sqlite3.Connection, video_id: str) -> O
     return ev if ev in ("like", "dislike") else None
 
 
+def get_dominant_reaction_since_ts(
+    conn: sqlite3.Connection, video_id: str, since_ts_sqlite: str
+) -> Optional[str]:
+    """Latest like/dislike row (by id) with ts >= since_ts_sqlite (UTC 'YYYY-MM-DD HH:MM:SS').
+
+    Used to show session reactions only: events recorded at or after the current playback start.
+    """
+    row = conn.execute(
+        "SELECT event FROM play_history WHERE video_id = ? AND event IN ('like', 'dislike') "
+        "AND ts >= ? ORDER BY id DESC LIMIT 1",
+        (video_id, since_ts_sqlite),
+    ).fetchone()
+    if not row:
+        return None
+    ev = row[0]
+    return ev if ev in ("like", "dislike") else None
+
+
 # For backward compatibility
 def increment_play(conn: sqlite3.Connection, video_id: str, *, started=False, finished=False):
     if started:
