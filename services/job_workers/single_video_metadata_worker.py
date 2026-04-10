@@ -20,6 +20,7 @@ sys.path.append(str(Path(__file__).parent.parent.parent))
 from services.job_types import JobWorker, Job, JobType
 from utils.cookies_manager import get_cookie_file
 from utils.logging_utils import log_message
+from utils.yt_dlp_js import extend_ytdlp_cli_cmd
 
 
 class SingleVideoMetadataWorker(JobWorker):
@@ -113,7 +114,9 @@ class SingleVideoMetadataWorker(JobWorker):
         """Extract video metadata using yt-dlp."""
         try:
             video_url = f"https://www.youtube.com/watch?v={video_id}"
-            cmd = ["yt-dlp", "--dump-json", video_url]
+            cmd = ["yt-dlp"]
+            extend_ytdlp_cli_cmd(cmd)
+            cmd.extend(["--dump-json", video_url])
             
             if cookies_path:
                 cmd.extend(["--cookies", cookies_path])

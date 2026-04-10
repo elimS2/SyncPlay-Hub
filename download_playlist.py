@@ -24,6 +24,7 @@ import shutil
 import datetime
 from utils.logging_utils import log_message  # Unified logging system
 from utils.cookies_manager import get_cookies_for_download, log_cookies_status
+from utils.yt_dlp_js import merge_ytdlp_js_params
 
 try:
     from yt_dlp import YoutubeDL
@@ -171,7 +172,7 @@ def fetch_playlist_metadata(url: str, *, cookies_path: str | None = None, use_br
     if use_browser and not cookies_path:
         common_cookies.setdefault("cookiesfrombrowser", ("chrome",))
 
-    quick_opts = {
+    quick_opts = merge_ytdlp_js_params({
         "quiet": True,  # Always quiet for quick scan, we'll use our logger
         "skip_download": True,
         "extract_flat": "discard_in_playlist",
@@ -179,7 +180,7 @@ def fetch_playlist_metadata(url: str, *, cookies_path: str | None = None, use_br
         "ignoreerrors": True,
         **common_cookies,
         **({"proxy": proxy_url} if proxy_url else {}),
-    }
+    })
     try:
         import time
         start_time = time.time()
@@ -265,7 +266,7 @@ def fetch_playlist_metadata(url: str, *, cookies_path: str | None = None, use_br
         log_progress("[Info] Starting detailed metadata scan (unknown size)...")
 
     # Always use logger to show progress, even in non-debug mode
-    ydl_opts = {
+    ydl_opts = merge_ytdlp_js_params({
         "quiet": True,
         "skip_download": True,
         "extract_flat": "discard_in_playlist",
@@ -274,7 +275,7 @@ def fetch_playlist_metadata(url: str, *, cookies_path: str | None = None, use_br
         "logger": _ProgLogger(total_est, progress_callback),  # Pass callback to logger
         **common_cookies,
         **({"proxy": proxy_url} if proxy_url else {}),
-    }
+    })
     
     import time
     detailed_start = time.time()
@@ -296,12 +297,12 @@ def fetch_playlist_metadata(url: str, *, cookies_path: str | None = None, use_br
 
 def _video_is_available(video_id: str, proxy_url: str | None = None) -> bool:
     """Return True if video is still available on YouTube."""
-    opts = {
+    opts = merge_ytdlp_js_params({
         "quiet": True,
         "skip_download": True,
         "extract_flat": "in_playlist",
         **({"proxy": proxy_url} if proxy_url else {}),
-    }
+    })
     try:
         with YoutubeDL(opts) as ydl:
             ydl.extract_info(video_id, download=False)
@@ -460,7 +461,7 @@ def build_ydl_opts(output_dir: pathlib.Path, audio_only: bool, *, cookies_path: 
     if player_client:
         extractor_args = {"youtube": {"player_client": [player_client]}}
 
-    return {
+    return merge_ytdlp_js_params({
         "format": "bestaudio/best" if audio_only else "137+251/best[height<=1080]/best",
         "outtmpl": output_template,
         "download_archive": str(output_dir / "downloaded.txt"),
@@ -482,7 +483,7 @@ def build_ydl_opts(output_dir: pathlib.Path, audio_only: bool, *, cookies_path: 
         **({"cookiefile": cookies_path} if cookies_path else {}),
         **({"cookiesfrombrowser": ("chrome",)} if use_browser and not cookies_path else {}),
         **({"proxy": proxy_url} if proxy_url else {}),
-    }
+    })
 
 
 def print_progress(status: Dict[str, Any]) -> None:

@@ -29,6 +29,7 @@ import shutil
 import datetime
 from utils.logging_utils import log_message  # Unified logging system
 from utils.cookies_manager import get_cookies_for_download, log_cookies_status
+from utils.yt_dlp_js import merge_ytdlp_js_params
 
 try:
     from yt_dlp import YoutubeDL
@@ -236,13 +237,13 @@ def fetch_content_metadata(url: str, *, cookies_path: str | None = None, use_bro
         common_cookies.setdefault("cookiesfrombrowser", ("chrome",))
 
     # Build options for content extraction
-    quick_opts = {
+    quick_opts = merge_ytdlp_js_params({
         "quiet": True,  # Always quiet for quick scan, we'll use our logger
         "skip_download": True,
         "extract_flat": False,  # Always get full metadata to see all videos
         "ignoreerrors": True,
         **common_cookies,
-    }
+    })
     
     # Add date filtering for channels
     if is_channel and date_from:
@@ -401,7 +402,7 @@ def fetch_content_metadata(url: str, *, cookies_path: str | None = None, use_bro
 def _video_is_available(video_id: str) -> bool:
     """Check if a video ID is still available on YouTube."""
     try:
-        with YoutubeDL({"quiet": True, "skip_download": True}) as ydl:
+        with YoutubeDL(merge_ytdlp_js_params({"quiet": True, "skip_download": True})) as ydl:
             info = ydl.extract_info(f"https://www.youtube.com/watch?v={video_id}", download=False)
             return info is not None
     except Exception:
@@ -668,7 +669,7 @@ def build_ydl_opts(output_dir: pathlib.Path, audio_only: bool, is_channel: bool 
         opts["noplaylist"] = False
         opts["yesplaylist"] = True
 
-    return opts
+    return merge_ytdlp_js_params(opts)
 
 
 def create_progress_tracker(total_items: int, content_title: str, progress_callback=None):

@@ -572,24 +572,31 @@ class ChannelSyncService:
             # Step 1: Get latest videos metadata directly from YouTube in batches
             try:
                 from utils.cookies_manager import get_cookies_for_download
+                from utils.yt_dlp_js import merge_ytdlp_js_params
                 from yt_dlp import YoutubeDL
                 
                 # Get cookies configuration
                 cookies_path, use_browser = get_cookies_for_download(None, False)
+                if cookies_path:
+                    log_message(f"[Quick Sync] Cookies: file {cookies_path}")
+                elif use_browser:
+                    log_message("[Quick Sync] Cookies: browser (cookiesfrombrowser chrome)")
+                else:
+                    log_message("[Quick Sync] Cookies: none (no cookie file, browser cookies not used)")
                 
                 # Setup yt-dlp options for metadata extraction
                 common_cookies = ({"cookiefile": cookies_path} if cookies_path else {})
                 if use_browser and not cookies_path:
                     common_cookies.setdefault("cookiesfrombrowser", ("chrome",))
                 
-                # Configure yt-dlp for quick metadata extraction
-                ydl_opts = {
+                # Configure yt-dlp for quick metadata extraction (EJS: js runtime + yt-dlp-ejs scripts)
+                ydl_opts = merge_ytdlp_js_params({
                     "quiet": True,
                     "skip_download": True,
                     "extract_flat": False,  # We need full metadata for dates
                     "ignoreerrors": True,
                     **common_cookies
-                }
+                })
                 
                 new_videos_to_download = []
                 batch_size = 5  # Very small batch for ultra-fast detection of already downloaded videos

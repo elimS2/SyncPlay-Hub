@@ -27,6 +27,8 @@ from pathlib import Path
 # Add parent directory to path for imports
 sys.path.append(str(Path(__file__).parent.parent))
 
+from utils.yt_dlp_js import extend_ytdlp_cli_cmd
+
 # Load .env file manually
 def load_env_file():
     """Load .env file manually and return config dict."""
@@ -169,6 +171,7 @@ def run_ytdlp_extract_batch(url: str, start_index: int, batch_size: int = 50,
         url,
         "--playlist-items", playlist_items
     ]
+    extend_ytdlp_cli_cmd(cmd)
     
     # Add cookies if provided
     if cookies_path:
@@ -216,6 +219,7 @@ def get_video_date(video_id: str, cookies_path: str = None) -> Optional[str]:
     """Get upload date for a specific video ID"""
     try:
         cmd = ["yt-dlp", "--dump-json", f"https://www.youtube.com/watch?v={video_id}"]
+        extend_ytdlp_cli_cmd(cmd)
         
         if cookies_path:
             cmd.extend(["--cookies", cookies_path])
@@ -348,6 +352,7 @@ def smart_extract_with_date_check(url: str, date_from: str, cookies_path: str = 
         try:
             cmd = ["yt-dlp", "--flat-playlist", "--dump-json", url, 
                    "--playlist-items", f"{batch_start}:{batch_end}"]
+            extend_ytdlp_cli_cmd(cmd)
             
             if cookies_path:
                 cmd.extend(["--cookies", cookies_path])
@@ -412,6 +417,7 @@ def smart_extract_with_date_check(url: str, date_from: str, cookies_path: str = 
                 
                 boundary_cmd = ["yt-dlp", "--dump-json", "--ignore-errors", url, 
                                "--playlist-items", f"{batch_start}:{batch_end}"]
+                extend_ytdlp_cli_cmd(boundary_cmd)
                 
                 if cookies_path:
                     boundary_cmd.extend(["--cookies", cookies_path])
@@ -505,6 +511,7 @@ def smart_extract_with_date_check(url: str, date_from: str, cookies_path: str = 
         log_message(f"Using --ignore-errors to skip member-only videos in final extraction")
         
         final_cmd = ["yt-dlp", "--dump-json", "--ignore-errors", url, "--playlist-items", f"1:{final_boundary}"]
+        extend_ytdlp_cli_cmd(final_cmd)
         
         if cookies_path:
             final_cmd.extend(["--cookies", cookies_path])
@@ -583,6 +590,7 @@ def run_ytdlp_extract(url: str, max_entries: int = None, cookies_path: str = Non
         "--ignore-errors",
         url
     ]
+    extend_ytdlp_cli_cmd(cmd)
     
     # Add cookies if provided
     if cookies_path:

@@ -1,4 +1,4 @@
-yt-dlp>=2026.3.17
+yt-dlp[default]>=2026.3.17
 Flask>=3.0
 psutil>=5.9.0
 mutagen>=1.47.0
@@ -11,6 +11,10 @@ numpy>=1.24.0
 edge-tts>=6.1.10
 
 # Notes:
+# - yt-dlp[default] pulls in yt-dlp-ejs (YouTube JS challenge solvers). Without it, use
+#   --remote-components ejs:github at runtime (handled in utils/yt_dlp_js.py).
+# - Install Deno (recommended by yt-dlp) or ensure `node` is on PATH; override via
+#   YTDLP_JS_RUNTIME / YTDLP_JS_RUNTIME_EXE (see utils/yt_dlp_js.py).
 # - ffprobe/ffmpeg is NOT required at system level for basic operation.
 #   moviepy uses imageio-ffmpeg which bundles a portable ffmpeg binary.
 # - When system ffprobe is available, it can be used as a fallback.

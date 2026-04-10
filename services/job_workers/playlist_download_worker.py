@@ -20,6 +20,7 @@ sys.path.append(str(Path(__file__).parent.parent.parent))
 
 from services.job_types import JobWorker, Job, JobType
 from utils.cookies_manager import get_random_cookie_file, get_cookie_file, record_cookie_outcome
+from utils.yt_dlp_js import extend_ytdlp_cli_cmd
 
 
 class PlaylistDownloadWorker(JobWorker):
@@ -289,6 +290,7 @@ class PlaylistDownloadWorker(JobWorker):
             # Build command per attempt
             def build_cmd(player_client: str | None, cookies_path: str | None, extra_flags: list[str], proxy_url: str | None, current_format_selector: str) -> list[str]:
                 cmd = ['yt-dlp']
+                extend_ytdlp_cli_cmd(cmd)
                 cmd.extend(['-o', output_template])
 
                 # Format selection
