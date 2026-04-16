@@ -90,12 +90,10 @@ export async function applyLayoutMode(mode, skipSave = false) {
       break;
       
     case LAYOUT_MODES.SIDE_BY_SIDE:
-      // Show playlist side by side with video
+      // Show playlist side by side with video (width / height from CSS flex layout)
       playlistPanel.style.display = 'flex';
       playerContainer.style.flexDirection = 'row';
       playerContainer.style.overflowX = '';
-      playlistPanel.style.width = '600px';
-      playlistPanel.style.maxHeight = '70vh';
       playlistPanel.style.order = '2';
       // Restore default page scroll behavior when side-by-side
       document.documentElement.style.overflowY = '';

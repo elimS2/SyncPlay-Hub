@@ -1,8 +1,8 @@
 /* Index Player Specific Styles */
 
-/* Override body padding for index player */
+/* Playback controls are in-flow (not fixed); no extra bottom padding */
 body { 
-  padding-bottom: 80px; 
+  padding-bottom: 0;
 }
 
 /* YouTube button specific styling */
@@ -48,14 +48,17 @@ body {
   
   .playlist-panel {
     width: 100% !important;
-    max-height: 40vh;
+    flex: 1 1 auto !important;
+    max-height: min(42vh, 360px);
     order: 2;
     margin: 0;
   }
   
   .playlist-panel.collapsed {
+    flex: 0 0 0 !important;
     width: 100% !important;
     height: 0;
+    min-height: 0;
     margin: 0;
   }
   
@@ -65,7 +68,9 @@ body {
   }
   
   #tracklist {
-    height: calc(40vh - 60px);
+    flex: 1 1 auto;
+    min-height: 0;
+    height: auto;
     font-size: 13px;
   }
 } 

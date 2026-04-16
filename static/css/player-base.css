@@ -29,12 +29,18 @@ body {
   margin: 0; 
   background: var(--page-bg); 
   color: var(--text);
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  min-height: 100dvh;
+  box-sizing: border-box;
 }
 
 #tracklist {
   list-style: none;
   padding: 0;
-  height: calc(100vh - 200px);
+  flex: 1 1 auto;
+  min-height: 0;
   overflow-y: auto;
 }
 
@@ -86,11 +92,12 @@ button {
   display: none;
 }
 
-/* Video container: wrapper keeps height when ping-pong swaps two absolutely positioned videos */
+/* Video container: grows with available space; videos use object-fit: contain */
 #videoWrapper {
   width: 100%;
-  aspect-ratio: 16 / 9;
-  max-height: calc(100vh - 200px);
+  position: relative;
+  flex: 1 1 auto;
+  min-height: min(180px, 32vh);
   background: #000;
 }
 
@@ -133,6 +140,13 @@ button {
   display: flex;
   gap: 12px;
   overflow-x: hidden;
+  flex: 1 1 auto;
+  min-height: 0;
+  align-items: stretch;
+  margin-top: 10px;
+  padding: 0 10px 10px;
+  position: relative;
+  box-sizing: border-box;
 }
 
 /* Ensure body does not introduce extra vertical margins/padding that affect viewport fit */
@@ -146,14 +160,19 @@ html, body {
   flex-direction: column;
   flex: 1 1 auto;
   min-width: 0;
+  min-height: 0;
 }
 
 /* Playlist panel wrapper */
 .playlist-panel {
   display: flex;
   flex-direction: column;
-  width: 600px;
-  max-height: 70vh;
+  flex: 0 1 min(560px, 42vw);
+  width: min(560px, 42vw);
+  max-width: 100%;
+  min-width: 0;
+  min-height: 0;
+  align-self: stretch;
   transition: width .3s ease;
   background: rgba(0, 0, 0, 0.9);
   border-radius: 8px;
@@ -191,7 +210,9 @@ html, body {
 }
 
 .playlist-panel.collapsed {
+  flex: 0 0 0;
   width: 0;
+  min-width: 0;
   border: none;
   overflow: hidden;
   margin: 0;
@@ -237,6 +258,7 @@ html, body {
   gap: 8px;
   flex-wrap: wrap;
   padding: 10px 10px;
+  flex-shrink: 0;
 }
 
 /* Modern Button Styles */
@@ -545,14 +567,17 @@ html, body {
   
   .playlist-panel {
     width: 100% !important;
-    max-height: 40vh;
+    flex: 1 1 auto !important;
+    max-height: min(42vh, 360px);
     order: 2;
     margin: 0;
   }
   
   .playlist-panel.collapsed {
+    flex: 0 0 0 !important;
     width: 100% !important;
     height: 0;
+    min-height: 0;
     margin: 0;
   }
   
@@ -632,9 +657,11 @@ html, body {
     max-height: calc(50vh - 60px);
   }
   
-  /* Tracklist mobile */
+  /* Tracklist mobile — fill playlist panel, scroll inside */
   #tracklist {
-    height: calc(40vh - 60px);
+    flex: 1 1 auto;
+    min-height: 0;
+    height: auto;
     font-size: 13px;
   }
   
@@ -721,22 +748,11 @@ html, body {
 /* Ultra large screen optimizations */
 @media (min-width: 2560px) {
   .player-container {
-    gap: 32px;
-  }
-  
-  #playlistPanel {
-    max-height: 25vh;
+    gap: 24px;
   }
   
   #tracklist {
-    height: calc(25vh - 80px);
-    max-height: 250px;
-    font-size: 18px;
-  }
-  
-  #videoWrapper {
-    max-height: calc(75vh - 200px);
-    min-height: 600px;
+    font-size: 16px;
   }
 } 
 

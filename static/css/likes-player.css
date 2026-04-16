@@ -1,10 +1,5 @@
 /* Likes Player Specific Styles */
 
-/* Override tracklist height for likes player */
-#tracklist {
-  height: calc(100vh - 140px);
-}
-
 /* Virtual playlist specific styles */
 .virtual-playlist-header {
   display: flex;
@@ -36,9 +31,8 @@
     font-size: 16px;
   }
   
-  /* Tracklist mobile */
+  /* Tracklist mobile — inherits flexible height from player-base */
   #tracklist {
-    height: calc(40vh - 60px);
     font-size: 13px;
   }
 }
