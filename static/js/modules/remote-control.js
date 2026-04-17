@@ -77,6 +77,7 @@ class RemoteControl {
     this.playerTypeText = document.getElementById('playerTypeText');
     
     // Track info elements
+    this.trackCoverImg = document.getElementById('trackCoverImg');
     this.trackTitle = document.getElementById('trackTitle');
     this.trackStatus = document.getElementById('trackStatus');
     this.progressBar = document.getElementById('progressBar');
@@ -1245,6 +1246,23 @@ class RemoteControl {
       // Use YouTube title if available, otherwise clean up filename
       const displayName = track.youtube_title || (track.name ? track.name.replace(/\s*\[.*?\]$/, '') : 'Unknown Track');
       this.trackTitle.textContent = displayName;
+
+      if (this.trackCoverImg) {
+        const covId =
+          track.video_id != null && String(track.video_id).trim() !== ''
+            ? String(track.video_id)
+            : null;
+        if (covId) {
+          if (trackIdentityChanged) {
+            this.trackCoverImg.src = `/api/track/${encodeURIComponent(covId)}/preview.png?t=${Date.now()}`;
+          }
+          this.trackCoverImg.alt = `Cover: ${displayName}`;
+          this.trackCoverImg.hidden = false;
+        } else {
+          this.trackCoverImg.hidden = true;
+          this.trackCoverImg.removeAttribute('src');
+        }
+      }
       
       // Show channel info if available
       let statusText = status.playing ? 'Playing' : 'Paused';
@@ -1278,6 +1296,11 @@ class RemoteControl {
       this.progressBar.style.width = '0%';
       this.currentTime.textContent = '0:00';
       this.totalTime.textContent = '0:00';
+      if (this.trackCoverImg) {
+        this.trackCoverImg.hidden = true;
+        this.trackCoverImg.removeAttribute('src');
+        this.trackCoverImg.alt = '';
+      }
     }
     
     // Update play button

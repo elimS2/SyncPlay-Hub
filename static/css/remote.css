@@ -157,6 +157,23 @@ body {
   border: 1px solid var(--border);
 }
 
+.track-cover {
+  display: block;
+  width: 100%;
+  max-width: 320px;
+  height: auto;
+  margin: 0 auto 14px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: rgba(0, 0, 0, 0.2);
+  object-fit: cover;
+  aspect-ratio: 16 / 9;
+}
+
+.track-cover[hidden] {
+  display: none !important;
+}
+
 .track-title {
   font-size: 18px;
   font-weight: 600;
