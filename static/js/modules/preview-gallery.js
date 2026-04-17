@@ -2,6 +2,8 @@
 // Encapsulates logic for handling preview sources (manual/youtube/media),
 // navigation, dots rendering, fetching from YouTube, and promote-to-manual.
 
+import { YT_THUMB_BROADCAST } from './youtube-thumbnail-autofetch.js';
+
 export function initPreviewGallery(options) {
   const {
     videoId,
@@ -23,6 +25,8 @@ export function initPreviewGallery(options) {
   let available = [];
   let isPlayerActive = false;
   let videoEl = null;
+  /** Avoid overlapping auto-fetch POSTs if `playing` fires repeatedly (buffering). */
+  let autoYoutubeFetchInflight = false;
 
   function sourceLabel(src) {
     if (src === 'manual') return 'Manual preview image';
@@ -46,6 +50,28 @@ export function initPreviewGallery(options) {
       }
       return result;
     } catch { return []; }
+  }
+
+  /** Same POST as the "Fetch from YouTube" button; updates `available`, UI, optional toast. */
+  async function runFetchYoutubeThumbnail({ showToastOnOk = true } = {}) {
+    const resp = await fetch(`/api/track/${videoId}/fetch_youtube_thumbnail`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ quality: 'auto', force: true })
+    });
+    const data = await resp.json();
+    if (!resp.ok || data.status !== 'ok') {
+      return { ok: false, error: data?.error || 'Failed to fetch from YouTube' };
+    }
+    available = await loadPreviewInfo();
+    const idxY = available.indexOf('youtube');
+    currentIdx = idxY >= 0 ? idxY : 0;
+    if (available.length) {
+      setPreviewSource(available[currentIdx]);
+      renderDots();
+    }
+    if (showToastOnOk) toast('YouTube thumbnail fetched');
+    return { ok: true };
   }
 
   function setPreviewSource(src) {
@@ -95,6 +121,33 @@ export function initPreviewGallery(options) {
       backBtn && (backBtn.style.display = 'inline-flex');
       isPlayerActive = true;
 
+      // While inline playback: if there is no saved YouTube thumbnail file, fetch it (same as the button).
+      const onInlinePlaying = async () => {
+        try {
+          const avail = await loadPreviewInfo();
+          if (avail.includes('youtube')) {
+            videoEl.removeEventListener('playing', onInlinePlaying);
+            return;
+          }
+          if (autoYoutubeFetchInflight) return;
+          autoYoutubeFetchInflight = true;
+          const r = await runFetchYoutubeThumbnail({ showToastOnOk: false });
+          if (r.ok) {
+            videoEl.removeEventListener('playing', onInlinePlaying);
+            try {
+              const src = getActiveSource();
+              videoEl.poster = `/api/track/${videoId}/preview.png?src=${src}&t=${Date.now()}`;
+            } catch { /* ignore */ }
+            toast('YouTube thumbnail fetched');
+          }
+        } catch {
+          /* keep listener for a later playing event */
+        } finally {
+          autoYoutubeFetchInflight = false;
+        }
+      };
+      videoEl.addEventListener('playing', onInlinePlaying);
+
       // Try to start playback immediately; fall back to starting when ready
       const tryStart = () => {
         try {
@@ -129,6 +182,47 @@ export function initPreviewGallery(options) {
     } catch (e) {
       isPlayerActive = false;
     }
+  }
+
+  function sourcesKey(arr) {
+    return (arr || []).join('|');
+  }
+
+  /**
+   * Refresh gallery when preview files change (e.g. YouTube thumbnail finished downloading
+   * in another view / background after this page loaded).
+   * @returns {boolean} true if UI was updated
+   */
+  function applySourcesUpdate(next) {
+    if (!next || !next.length) return false;
+    if (sourcesKey(next) === sourcesKey(available)) return false;
+    const old = available;
+    const oldKey = old[currentIdx] ?? old[0];
+    let newIdx = next.indexOf(oldKey);
+    // Was only generated-from-media; YouTube file appeared → show it (same as default priority)
+    if (
+      old.length === 1 &&
+      old[0] === 'media' &&
+      next.includes('youtube') &&
+      !old.includes('youtube')
+    ) {
+      newIdx = next.indexOf('youtube');
+    } else if (newIdx < 0) {
+      newIdx = 0;
+    }
+    available = next;
+    currentIdx = newIdx;
+    prevBtn && (prevBtn.disabled = !available.length);
+    nextBtn && (nextBtn.disabled = !available.length);
+    setPreviewSource(available[currentIdx]);
+    renderDots();
+    return true;
+  }
+
+  async function syncPreviewSourcesFromServer() {
+    const next = await loadPreviewInfo();
+    if (!next.length) return;
+    applySourcesUpdate(next);
   }
 
   function paintActive(idx) {
@@ -187,27 +281,13 @@ export function initPreviewGallery(options) {
       try {
         btn.disabled = true;
         btn.textContent = 'Fetching…';
-        const resp = await fetch(`/api/track/${videoId}/fetch_youtube_thumbnail`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ quality: 'auto', force: true })
-        });
-        const data = await resp.json();
-        if (!resp.ok || data.status !== 'ok') {
+        const r = await runFetchYoutubeThumbnail({ showToastOnOk: true });
+        if (!r.ok) {
           btn.textContent = 'Failed';
-          toast(data?.error || 'Failed to fetch from YouTube');
+          toast(r.error || 'Failed to fetch from YouTube');
           setTimeout(()=>{ btn.textContent = orig; btn.disabled = false; }, 1200);
           return;
         }
-        // refresh available and focus youtube if present
-        available = await loadPreviewInfo();
-        const idxY = available.indexOf('youtube');
-        currentIdx = idxY >= 0 ? idxY : 0;
-        if (available.length) {
-          setPreviewSource(available[currentIdx]);
-          renderDots();
-        }
-        toast('YouTube thumbnail fetched');
         btn.textContent = 'Done';
         setTimeout(()=>{ btn.textContent = orig; btn.disabled = false; }, 800);
       } catch (e) {
@@ -285,6 +365,94 @@ export function initPreviewGallery(options) {
     backBtn && (backBtn.onclick = () => { exitPlayerMode(); });
     // Initialize buttons state
     backBtn && (backBtn.style.display = 'none');
+
+    // Catch thumbnails saved while user was on the player (race) or in another tab.
+    // Button "Fetch from YouTube" updates the img as soon as POST returns; background fetch
+    // should feel the same — tight retries first, then slower polling.
+    const BURST_MS = [0, 40, 90, 180, 350, 700, 1400];
+    const STEADY_MS = 2000;
+    const STEADY_MAX_TICKS = 40;
+
+    let steadyTimer = null;
+    let steadyTicks = 0;
+    /** @type {number[]} */
+    const burstTimeoutIds = [];
+
+    const stopWatchers = () => {
+      burstTimeoutIds.splice(0).forEach((id) => clearTimeout(id));
+      if (steadyTimer != null) {
+        clearInterval(steadyTimer);
+        steadyTimer = null;
+      }
+    };
+
+    const tryCatchYoutubeFile = async () => {
+      if (available.includes('youtube')) {
+        stopWatchers();
+        return;
+      }
+      const next = await loadPreviewInfo();
+      if (!next.length) return;
+      if (applySourcesUpdate(next) && next.includes('youtube')) {
+        stopWatchers();
+      }
+    };
+
+    const maybeWatchYoutubeArrival = () => {
+      if (available.includes('youtube')) return;
+
+      BURST_MS.forEach((delay) => {
+        const id = window.setTimeout(() => void tryCatchYoutubeFile(), delay);
+        burstTimeoutIds.push(id);
+      });
+
+      steadyTicks = 0;
+      steadyTimer = window.setInterval(async () => {
+        steadyTicks += 1;
+        if (steadyTicks > STEADY_MAX_TICKS) {
+          stopWatchers();
+          return;
+        }
+        await tryCatchYoutubeFile();
+      }, STEADY_MS);
+    };
+    maybeWatchYoutubeArrival();
+
+    const onVisibility = () => {
+      if (document.visibilityState !== 'visible') return;
+      void syncPreviewSourcesFromServer();
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+
+    const onPageShow = (ev) => {
+      if (ev.persisted) void syncPreviewSourcesFromServer();
+    };
+    window.addEventListener('pageshow', onPageShow);
+
+    let thumbBc = null;
+    try {
+      thumbBc = new BroadcastChannel(YT_THUMB_BROADCAST);
+      thumbBc.addEventListener('message', (ev) => {
+        const d = ev.data;
+        if (d?.type === 'fetched' && d.videoId === videoId) {
+          void syncPreviewSourcesFromServer();
+        }
+      });
+    } catch {
+      /* ignore */
+    }
+    window.addEventListener(
+      'pagehide',
+      () => {
+        stopWatchers();
+        try {
+          thumbBc?.close();
+        } catch {
+          /* ignore */
+        }
+      },
+      { once: true },
+    );
   }
 
   return { init };

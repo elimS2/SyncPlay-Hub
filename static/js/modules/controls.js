@@ -1,6 +1,7 @@
 // Playback control functions extracted from player-utils.js
 
 import { getTrackPlaybackSession } from './track-playback-session.js';
+import { scheduleAutoFetchYoutubeThumbnailIfMissing } from './youtube-thumbnail-autofetch.js';
 
 /**
  * Execute track deletion without confirmation - used by delete handlers
@@ -1008,6 +1009,7 @@ export function setupMediaPlayPauseHandlers(media, context) {
     if (idx >= 0 && idx < context.queue.length) {
       const track = context.queue[idx];
       context.reportEvent(track.video_id, 'play', m.currentTime);
+      scheduleAutoFetchYoutubeThumbnailIfMissing(track.video_id);
     }
   };
 
