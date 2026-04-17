@@ -6,6 +6,9 @@
 /** @type {Map<string, 'done' | number>} */
 const autoFetchState = new Map();
 
+/** Avoid overlapping duplicate runs when `loadTrack` and `play` fire back-to-back. */
+const inflight = new Set();
+
 const RETRY_MS = 90_000;
 
 /** Same-origin tabs: track page can refresh preview when this fetch completes in the player. */
@@ -20,6 +23,8 @@ export function scheduleAutoFetchYoutubeThumbnailIfMissing(videoId) {
   if (autoFetchState.get(id) === 'done') return;
   const failedAt = autoFetchState.get(id);
   if (typeof failedAt === 'number' && Date.now() - failedAt < RETRY_MS) return;
+  if (inflight.has(id)) return;
+  inflight.add(id);
 
   void (async () => {
     try {
@@ -50,6 +55,8 @@ export function scheduleAutoFetchYoutubeThumbnailIfMissing(videoId) {
       }
     } catch {
       autoFetchState.set(id, Date.now());
+    } finally {
+      inflight.delete(id);
     }
   })();
 }

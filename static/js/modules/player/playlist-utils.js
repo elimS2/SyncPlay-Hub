@@ -436,6 +436,7 @@ import {
   markTrackPlaybackSessionStart,
   getTrackPlaybackSession,
 } from '../track-playback-session.js';
+import { scheduleAutoFetchYoutubeThumbnailIfMissing } from '../youtube-thumbnail-autofetch.js';
 
 export function loadTrack(idx, autoplay = false, context) {
     const { 
@@ -532,4 +533,8 @@ export function loadTrack(idx, autoplay = false, context) {
     if (typeof context.syncRemoteStateImmediate === 'function') {
       void context.syncRemoteStateImmediate();
     }
+
+    // Prefetch YouTube thumbnail whenever the current track changes (playlist click, next/prev,
+    // auto-advance), not only on the media `play` event (resume quirks / ping-pong).
+    scheduleAutoFetchYoutubeThumbnailIfMissing(track.video_id);
 }
