@@ -140,11 +140,16 @@ export function createTrackTooltipHTML(track) {
   let filetypeRowHTML = '';
   let audioInfoRowHTML = '';
   
-  // Add channel handle (@channelname) info - FIRST ITEM
+  // Channel display name from metadata (e.g. "Linkin Park") — above YouTube ID
+  if (track.youtube_channel) {
+    tooltipHTML += `<div class="tooltip-row"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg><strong>Channel Name:</strong> ${track.youtube_channel}</div>`;
+  }
+
+  // Channel handle (@channelname), if present
   if (track.youtube_channel_handle) {
     tooltipHTML += `<div class="tooltip-row"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg><strong>Channel:</strong> ${track.youtube_channel_handle}</div>`;
   }
-  
+
   // Add YouTube ID info
   if (track.video_id) {
     tooltipHTML += `<div class="tooltip-row"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 19a9 9 0 1 0 0-18 9 9 0 0 0 0 18z"></path><path d="M8 9h8"></path><path d="M8 15h6"></path></svg><strong>YouTube ID:</strong> ${track.video_id}</div>`;
