@@ -1,0 +1,10 @@
+---
+description: After template/static/app changes, remind user to manually restart the Flask server
+alwaysApply: true
+---
+
+# Flask server restart (this project)
+
+- The app is served by a local Flask (or WSGI) process. The user **manually restarts the server** to pick up changes reliably.
+- After editing **`templates/**`**, **`static/**`**, or server entry (e.g. **`app.py`**), **tell the user to stop and start the server again**, then hard-refresh the browser (Ctrl+F5) if the UI still looks old.
+- Do not assume that saving files is enough for the running process to show the new HTML/CSS/JS in the user’s environment.

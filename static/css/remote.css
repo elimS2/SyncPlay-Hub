@@ -53,21 +53,32 @@ body {
 }
 
 .header {
-  text-align: center;
-  margin-bottom: 30px;
+  margin-bottom: 20px;
 }
 
 .header-row {
-  display: grid;
-  grid-template-columns: 44px 1fr 44px;
+  display: flex;
   align-items: center;
-  gap: 4px;
-  margin-bottom: 5px;
+  gap: 8px;
+  min-width: 0;
+  flex-wrap: nowrap;
 }
 
-.header-corner-spacer {
-  width: 44px;
-  height: 44px;
+.header-row .title {
+  flex: 1 1 auto;
+  min-width: 0;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.header-row .status-indicator--header {
+  flex: 0 0 auto;
+}
+
+.header-row .header-reload-btn {
+  flex: 0 0 44px;
 }
 
 .header-reload-btn {
@@ -107,7 +118,7 @@ body {
 }
 
 .playlist-source-picker {
-  margin-bottom: 20px;
+  margin-bottom: 10px;
   padding: 12px;
   background: rgba(255, 255, 255, 0.04);
   border-radius: 12px;
@@ -132,27 +143,11 @@ body {
   color: var(--text);
 }
 
-.playlist-refresh-btn {
-  width: 100%;
-  padding: 10px 14px;
-  font-size: 14px;
-  font-weight: 500;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  cursor: pointer;
-  background: transparent;
-  color: var(--accent);
-}
-
-.playlist-refresh-btn:active {
-  opacity: 0.9;
-}
-
 .track-info {
   background: var(--bg);
   padding: 20px;
   border-radius: 15px;
-  margin-bottom: 30px;
+  margin-bottom: 15px;
   text-align: center;
   border: 1px solid var(--border);
 }
@@ -570,6 +565,26 @@ body {
   border-radius: 10px;
   margin-bottom: 20px;
   font-size: 14px;
+}
+
+.status-indicator--header {
+  margin-bottom: 0;
+  height: 44px;
+  min-height: 44px;
+  padding: 0 12px;
+  box-sizing: border-box;
+  justify-content: flex-start;
+  white-space: nowrap;
+  max-width: 100%;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: transparent;
+  font-size: 13px;
+}
+
+.status-indicator--header #statusText {
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .status-dot {

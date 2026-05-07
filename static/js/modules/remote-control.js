@@ -72,10 +72,6 @@ class RemoteControl {
     this.statusText = document.getElementById('statusText');
     this.reloadPageBtn = document.getElementById('remoteReloadBtn');
     
-    // Player type elements
-    this.playerTypeInfo = document.getElementById('playerTypeInfo');
-    this.playerTypeText = document.getElementById('playerTypeText');
-    
     // Track info elements
     this.trackCoverImg = document.getElementById('trackCoverImg');
     this.trackTitle = document.getElementById('trackTitle');
@@ -104,7 +100,6 @@ class RemoteControl {
     this.lastSync = document.getElementById('lastSync');
 
     this.playlistSourceSelect = document.getElementById('playlistSourceSelect');
-    this.playlistSourcesRefreshBtn = document.getElementById('playlistSourcesRefreshBtn');
     this._playlistSources = null;
     this._suppressPlaylistSourceChange = false;
 
@@ -227,9 +222,6 @@ class RemoteControl {
         if (!path) return;
         await this.sendCommand('switch_source', { path });
       });
-    }
-    if (this.playlistSourcesRefreshBtn) {
-      this.playlistSourcesRefreshBtn.addEventListener('click', () => this.loadPlaylistSources());
     }
 
     if (this.reloadPageBtn) {
@@ -1140,30 +1132,6 @@ class RemoteControl {
   
   updateStatus(status) {
     this.currentStatus = status; // Store current status for volume logging
-    
-    // Update player type info
-    if (status.player_type) {
-      let playerTypeDisplay = '';
-      switch (status.player_type) {
-        case 'regular':
-          playerTypeDisplay = '📁 Regular Playlist';
-          break;
-        case 'virtual':
-          playerTypeDisplay = '❤️ Virtual Playlist';
-          break;
-        default:
-          playerTypeDisplay = '🎵 Unknown Player';
-      }
-      
-      if (status.player_source) {
-        playerTypeDisplay += ` (${status.player_source})`;
-      }
-      
-      this.playerTypeText.textContent = playerTypeDisplay;
-      this.playerTypeInfo.style.display = 'block';
-    } else {
-      this.playerTypeInfo.style.display = 'none';
-    }
     
     const prevVideoId = this.currentTrack?.video_id ?? null;
     const nextVideoId = status.current_track?.video_id ?? null;

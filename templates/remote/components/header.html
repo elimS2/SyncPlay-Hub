@@ -1,8 +1,11 @@
 <!-- Header -->
 <div class="header">
   <div class="header-row">
-    <span class="header-corner-spacer" aria-hidden="true"></span>
-    <h1 class="title">📱 Remote Control</h1>
+    <h1 class="title">Remote Control</h1>
+    <div class="status-indicator status-indicator--header" aria-live="polite">
+      <div class="status-dot" id="statusDot"></div>
+      <span id="statusText">Connecting...</span>
+    </div>
     <button type="button" id="remoteReloadBtn" class="header-reload-btn" title="Reload page (F5)" aria-label="Reload page">
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
@@ -14,19 +17,7 @@
   </div>
 </div>
 
-<!-- Connection Status -->
-<div class="status-indicator">
-  <div class="status-dot" id="statusDot"></div>
-  <span id="statusText">Connecting...</span>
-</div>
-
-<!-- Player Type Info -->
-<div class="player-type-info" id="playerTypeInfo" style="text-align: center; margin-bottom: 15px; padding: 8px; background: rgba(255,255,255,0.05); border-radius: 8px; font-size: 12px; color: var(--text-muted); display: none;">
-  <span id="playerTypeText">Unknown Player</span>
-</div>
-
 <div class="playlist-source-picker" id="playlistSourcePicker">
   <div class="playlist-source-label">Playlist on TV</div>
   <select id="playlistSourceSelect" class="playlist-source-select" aria-label="Choose playlist to open on the player"></select>
-  <button type="button" id="playlistSourcesRefreshBtn" class="playlist-refresh-btn">Refresh list</button>
 </div>
