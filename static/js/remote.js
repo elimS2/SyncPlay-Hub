@@ -50,7 +50,13 @@ async function loadModules() {
 
 document.addEventListener('DOMContentLoaded', async () => {
   console.log('📱 Remote Control: Initializing...');
-  
+
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker
+      .register('/remote-sw.js', { scope: '/' })
+      .catch((err) => console.warn('📱 Remote PWA: service worker registration failed', err));
+  }
+
   // Load all modules first
   const modulesLoaded = await loadModules();
   if (!modulesLoaded) {

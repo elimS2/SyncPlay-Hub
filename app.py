@@ -10,7 +10,7 @@ import sys
 from pathlib import Path
 import json
 
-from flask import Flask, render_template, send_from_directory, abort, jsonify, redirect, url_for, request
+from flask import Flask, render_template, send_from_directory, abort, jsonify, redirect, url_for, request, Response
 
 # Import our new modules
 from utils.logging_utils import init_logging, setup_logging, log_message
@@ -870,6 +870,56 @@ def files_page():
 def remote_page():
     """Mobile remote control page."""
     return render_template("remote.html", server_ip=_get_local_ip())
+
+
+@app.route("/remote/manifest.webmanifest")
+def remote_pwa_manifest():
+    """Web App Manifest for installing /remote as a home-screen PWA."""
+    root = request.url_root.rstrip("/")
+    manifest = {
+        "name": "SyncPlay Remote",
+        "short_name": "Remote",
+        "description": "Mobile remote control for SyncPlay-Hub",
+        "id": f"{root}/remote",
+        "start_url": "/remote",
+        "scope": "/",
+        "display": "standalone",
+        "orientation": "any",
+        "background_color": "#0a0a0a",
+        "theme_color": "#0a0a0a",
+        "icons": [
+            {
+                "src": f"{root}/static/pwa/remote-icon-192.png",
+                "sizes": "192x192",
+                "type": "image/png",
+                "purpose": "any",
+            },
+            {
+                "src": f"{root}/static/pwa/remote-icon-512.png",
+                "sizes": "512x512",
+                "type": "image/png",
+                "purpose": "any",
+            },
+            {
+                "src": f"{root}/static/pwa/remote-icon-512.png",
+                "sizes": "512x512",
+                "type": "image/png",
+                "purpose": "maskable",
+            },
+        ],
+    }
+    return Response(json.dumps(manifest, separators=(",", ":")), mimetype="application/manifest+json")
+
+
+@app.route("/remote-sw.js")
+def remote_pwa_service_worker():
+    """Served at site root so scope can be '/' (covers /remote and /api used by the page)."""
+    return send_from_directory(
+        os.path.join(app.static_folder, "pwa"),
+        "remote-service-worker.js",
+        mimetype="application/javascript",
+    )
+
 
 @app.route("/channels")
 def channels_page():

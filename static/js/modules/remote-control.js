@@ -87,7 +87,6 @@ class RemoteControl {
     this.deleteBtn = document.getElementById('deleteBtn');
     this.likeBtn = document.getElementById('likeBtn');
     this.dislikeBtn = document.getElementById('dislikeBtn');
-    this.youtubeBtn = document.getElementById('youtubeBtn');
     
     // Volume controls
     this.volumeSlider = document.getElementById('volumeSlider');
@@ -182,8 +181,6 @@ class RemoteControl {
         this.dislikeBtn.classList.remove('dislike-active');
       }
     });
-    this.youtubeBtn.addEventListener('click', () => this.sendCommand('youtube'));
-    
     // Volume slider
     this.volumeSlider.addEventListener('input', (e) => {
       const volume = parseInt(e.target.value, 10);

@@ -1,7 +1,78 @@
 <!-- Header -->
 <div class="header">
   <div class="header-row">
-    <h1 class="title">Remote Control</h1>
+    <h1 class="title header-title-brand" aria-label="Remote Control" title="Remote Control">
+      <svg class="header-remote-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 680 200" aria-hidden="true" preserveAspectRatio="xMidYMid meet">
+        <!-- Remote body -->
+        <rect x="20" y="40" width="640" height="120" rx="60" fill="#2C2C2A" stroke="#444441" stroke-width="1.5"/>
+        <rect x="26" y="46" width="628" height="108" rx="55" fill="none" stroke="#3a3a38" stroke-width="0.7"/>
+
+        <!-- IR emitter -->
+        <circle cx="52" cy="100" r="7" fill="#111" stroke="#5F5E5A" stroke-width="1"/>
+        <circle cx="52" cy="100" r="3" fill="#B5D4F4" opacity="0.9"/>
+
+        <!-- Power button -->
+        <circle cx="90" cy="100" r="14" fill="#A32D2D" stroke="#791F1F" stroke-width="1"/>
+        <text x="90" y="104" text-anchor="middle" font-family="system-ui, Segoe UI, sans-serif" font-size="11" font-weight="600" fill="#FCEBEB">⏻</text>
+
+        <!-- D-pad -->
+        <circle cx="210" cy="100" r="28" fill="#3C3489" stroke="#26215C" stroke-width="1"/>
+        <text x="210" y="85" text-anchor="middle" font-family="system-ui, Segoe UI, sans-serif" font-size="10" fill="#EEEDFE">▲</text>
+        <text x="210" y="123" text-anchor="middle" font-family="system-ui, Segoe UI, sans-serif" font-size="10" fill="#EEEDFE">▼</text>
+        <text x="192" y="104" text-anchor="middle" font-family="system-ui, Segoe UI, sans-serif" font-size="10" fill="#EEEDFE">◀</text>
+        <text x="228" y="104" text-anchor="middle" font-family="system-ui, Segoe UI, sans-serif" font-size="10" fill="#EEEDFE">▶</text>
+        <circle cx="210" cy="100" r="9" fill="#534AB7" stroke="#3C3489" stroke-width="0.8"/>
+        <text x="210" y="103" text-anchor="middle" font-family="system-ui, Segoe UI, sans-serif" font-size="7.5" font-weight="600" fill="#fff">OK</text>
+
+        <!-- VOL -->
+        <rect x="281" y="78" width="28" height="44" rx="6" fill="#3a3a38" stroke="#5F5E5A" stroke-width="0.8"/>
+        <text x="289" y="72" font-family="system-ui, Segoe UI, sans-serif" font-size="8" fill="#888780">VOL</text>
+        <text x="295" y="95" text-anchor="middle" font-family="system-ui, Segoe UI, sans-serif" font-size="14" font-weight="600" fill="#D3D1C7">+</text>
+        <line x1="284" y1="102" x2="306" y2="102" stroke="#5F5E5A" stroke-width="0.5"/>
+        <text x="295" y="118" text-anchor="middle" font-family="system-ui, Segoe UI, sans-serif" font-size="14" font-weight="600" fill="#D3D1C7">−</text>
+
+        <!-- CH -->
+        <rect x="331" y="78" width="28" height="44" rx="6" fill="#3a3a38" stroke="#5F5E5A" stroke-width="0.8"/>
+        <text x="337" y="72" font-family="system-ui, Segoe UI, sans-serif" font-size="8" fill="#888780">CH</text>
+        <text x="345" y="95" text-anchor="middle" font-family="system-ui, Segoe UI, sans-serif" font-size="14" font-weight="600" fill="#D3D1C7">+</text>
+        <line x1="334" y1="102" x2="356" y2="102" stroke="#5F5E5A" stroke-width="0.5"/>
+        <text x="345" y="118" text-anchor="middle" font-family="system-ui, Segoe UI, sans-serif" font-size="14" font-weight="600" fill="#D3D1C7">−</text>
+
+        <!-- Mute -->
+        <circle cx="393" cy="87" r="10" fill="#3a3a38" stroke="#5F5E5A" stroke-width="0.8"/>
+        <text x="393" y="91" text-anchor="middle" font-family="system-ui, Segoe UI, sans-serif" font-size="11" fill="#D3D1C7">🔇</text>
+
+        <!-- Home -->
+        <circle cx="393" cy="115" r="10" fill="#3a3a38" stroke="#5F5E5A" stroke-width="0.8"/>
+        <text x="393" y="119" text-anchor="middle" font-family="system-ui, Segoe UI, sans-serif" font-size="11" fill="#D3D1C7">⌂</text>
+
+        <!-- Color dots -->
+        <circle cx="428" cy="90" r="7" fill="#A32D2D" stroke="#791F1F" stroke-width="0.8"/>
+        <circle cx="442" cy="90" r="7" fill="#3B6D11" stroke="#27500A" stroke-width="0.8"/>
+        <circle cx="456" cy="90" r="7" fill="#854F0B" stroke="#633806" stroke-width="0.8"/>
+        <circle cx="470" cy="90" r="7" fill="#185FA5" stroke="#0C447C" stroke-width="0.8"/>
+
+        <!-- Number pad -->
+        <rect x="418" y="111" width="13" height="13" rx="3" fill="#3a3a38" stroke="#5F5E5A" stroke-width="0.6"/>
+        <text x="424.5" y="121" text-anchor="middle" font-family="system-ui, Segoe UI, sans-serif" font-size="8" fill="#B4B2A9">1</text>
+        <rect x="434" y="111" width="13" height="13" rx="3" fill="#3a3a38" stroke="#5F5E5A" stroke-width="0.6"/>
+        <text x="440.5" y="121" text-anchor="middle" font-family="system-ui, Segoe UI, sans-serif" font-size="8" fill="#B4B2A9">2</text>
+        <rect x="450" y="111" width="13" height="13" rx="3" fill="#3a3a38" stroke="#5F5E5A" stroke-width="0.6"/>
+        <text x="456.5" y="121" text-anchor="middle" font-family="system-ui, Segoe UI, sans-serif" font-size="8" fill="#B4B2A9">3</text>
+        <rect x="466" y="111" width="13" height="13" rx="3" fill="#3a3a38" stroke="#5F5E5A" stroke-width="0.6"/>
+        <text x="472.5" y="121" text-anchor="middle" font-family="system-ui, Segoe UI, sans-serif" font-size="8" fill="#B4B2A9">0</text>
+
+        <!-- Playback controls — rotated 90deg -->
+        <g transform="translate(600,100) rotate(90)">
+          <text x="-26" y="-6" text-anchor="middle" font-family="system-ui, Segoe UI, sans-serif" font-size="13" fill="#888780">⏮</text>
+          <text x="0" y="-6" text-anchor="middle" font-family="system-ui, Segoe UI, sans-serif" font-size="13" fill="#C0DD97">▶</text>
+          <text x="26" y="-6" text-anchor="middle" font-family="system-ui, Segoe UI, sans-serif" font-size="13" fill="#888780">⏭</text>
+          <text x="-26" y="16" text-anchor="middle" font-family="system-ui, Segoe UI, sans-serif" font-size="13" fill="#888780">⏸</text>
+          <text x="0" y="16" text-anchor="middle" font-family="system-ui, Segoe UI, sans-serif" font-size="13" fill="#888780">⏹</text>
+          <text x="26" y="16" text-anchor="middle" font-family="system-ui, Segoe UI, sans-serif" font-size="13" fill="#888780">⏺</text>
+        </g>
+      </svg>
+    </h1>
     <div class="status-indicator status-indicator--header" aria-live="polite">
       <div class="status-dot" id="statusDot"></div>
       <span id="statusText">Connecting...</span>

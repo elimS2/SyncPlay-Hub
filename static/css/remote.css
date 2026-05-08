@@ -45,7 +45,7 @@ body {
 .remote-container {
   max-width: 400px;
   margin: 0 auto;
-  padding: 20px;
+  padding: 5px 20px 20px 20px;
   background: var(--card-bg);
   border-radius: 20px;
   box-shadow: var(--shadow);
@@ -53,7 +53,7 @@ body {
 }
 
 .header {
-  margin-bottom: 20px;
+  margin-bottom: 5px;
 }
 
 .header-row {
@@ -71,6 +71,11 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.header-row .title.header-title-brand {
+  overflow: visible;
+  min-width: 170px;
 }
 
 .header-row .status-indicator--header {
@@ -110,6 +115,20 @@ body {
   font-weight: 600;
   color: var(--accent);
   margin: 0;
+  line-height: 1;
+}
+
+.header-title-brand {
+  display: flex;
+  align-items: center;
+}
+
+.header-remote-icon {
+  display: block;
+  flex-shrink: 0;
+  height: 55px;
+  width: auto;
+  max-width: min(170px, 34vw);
 }
 
 .subtitle {
@@ -119,7 +138,7 @@ body {
 
 .playlist-source-picker {
   margin-bottom: 10px;
-  padding: 12px;
+  padding: 5px 12px 12px 12px;
   background: rgba(255, 255, 255, 0.04);
   border-radius: 12px;
   border: 1px solid var(--border);
@@ -134,7 +153,7 @@ body {
 
 .playlist-source-select {
   width: 100%;
-  margin-bottom: 8px;
+  margin-bottom: 0px;
   padding: 10px 12px;
   font-size: 14px;
   border-radius: 10px;
@@ -208,7 +227,7 @@ body {
 
 .controls {
   display: grid;
-  gap: 15px;
+  gap: 10px;
   margin-bottom: 30px;
 }
 
@@ -481,6 +500,10 @@ body {
 
 .volume-section {
   margin-bottom: 20px;
+}
+
+.controls > .volume-section {
+  margin-bottom: 0;
 }
 
 .volume-label {
