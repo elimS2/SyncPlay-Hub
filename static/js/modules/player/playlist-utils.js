@@ -434,7 +434,6 @@ import {
 } from '../controls.js';
 import {
   markTrackPlaybackSessionStart,
-  getTrackPlaybackSession,
 } from '../track-playback-session.js';
 import { scheduleAutoFetchYoutubeThumbnailIfMissing } from '../youtube-thumbnail-autofetch.js';
 
@@ -504,11 +503,8 @@ export function loadTrack(idx, autoplay = false, context) {
             syncRemoteStateAfterReaction({ includeReactions: true });
         }
     };
-    const sess = getTrackPlaybackSession();
-    if (track.video_id && sess.videoId && sess.startedAtMs > 0) {
-        fetch(
-            `/api/reaction/${encodeURIComponent(track.video_id)}?since_ms=${sess.startedAtMs}`
-        )
+    if (track.video_id) {
+        fetch(`/api/reaction/${encodeURIComponent(track.video_id)}?dedup_window=1`)
             .then((r) => r.json())
             .then((data) => {
                 if (

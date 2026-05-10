@@ -134,25 +134,11 @@ export async function executeRemoteCommand(command, context, playerType = 'regul
             case 'next':
                 console.log(`${logPrefix} Next track`);
                 nextTrack();
-                // Reset like buttons when track changes
-                setTimeout(() => {
-                    const likeBtn = document.getElementById('cLike');
-                    const dislikeBtn = document.getElementById('cDislike');
-                    if (likeBtn) likeBtn.classList.remove('like-active');
-                    if (dislikeBtn) dislikeBtn.classList.remove('dislike-active');
-                }, 100);
                 break;
                 
             case 'prev':
                 console.log(`${logPrefix} Previous track`);
                 prevTrack();
-                // Reset like buttons when track changes
-                setTimeout(() => {
-                    const likeBtn = document.getElementById('cLike');
-                    const dislikeBtn = document.getElementById('cDislike');
-                    if (likeBtn) likeBtn.classList.remove('like-active');
-                    if (dislikeBtn) dislikeBtn.classList.remove('dislike-active');
-                }, 100);
                 break;
                 
             case 'stop':

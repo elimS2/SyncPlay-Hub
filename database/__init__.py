@@ -46,6 +46,10 @@ record_volume_change = database_core.record_volume_change
 record_seek_event = database_core.record_seek_event
 record_playlist_addition = database_core.record_playlist_addition
 get_dominant_reaction_since_ts = database_core.get_dominant_reaction_since_ts
+get_last_like_dislike_reaction = database_core.get_last_like_dislike_reaction
+get_recent_like_dislike_reaction_in_dedup_window = (
+    database_core.get_recent_like_dislike_reaction_in_dedup_window
+)
 
 # History and playback
 iter_history = database_core.iter_history
@@ -147,6 +151,8 @@ __all__ = [
     'record_seek_event',
     'record_playlist_addition',
     'get_dominant_reaction_since_ts',
+    'get_last_like_dislike_reaction',
+    'get_recent_like_dislike_reaction_in_dedup_window',
     
     # History and playback
     'iter_history',

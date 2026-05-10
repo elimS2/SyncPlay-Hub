@@ -2,6 +2,7 @@
 
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Optional
 from flask import Blueprint, request, jsonify
 from .shared import get_root_dir, get_connection, log_message, record_event
 import database as db
@@ -153,12 +154,19 @@ def _utc_ms_to_sqlite_ts(ms: int) -> str:
     return dt.strftime("%Y-%m-%d %H:%M:%S")
 
 
+def _truthy_query_flag(raw: Optional[str]) -> bool:
+    if raw is None or raw == "":
+        return False
+    return raw.lower() in ("1", "true", "yes", "on")
+
+
 @base_bp.route("/reaction/<video_id>", methods=["GET"])
 def api_last_reaction(video_id: str):
     """Like/dislike for UI.
 
     Query since_ms (Unix ms, UTC): only reactions with ts at/after that moment (current playback session).
-    Without since_ms: global last like/dislike for the video (legacy).
+    Query dedup_window=1: latest like/dislike within the same 12h window as duplicate event suppression.
+    Without flags: global last like/dislike for the video (legacy).
     """
     if not video_id or len(video_id) > 64:
         return jsonify({"status": "error", "message": "bad video_id"}), 400
@@ -173,6 +181,9 @@ def api_last_reaction(video_id: str):
             since_ts = _utc_ms_to_sqlite_ts(since_ms)
             reaction = db.get_dominant_reaction_since_ts(conn, video_id, since_ts)
             return jsonify({"status": "ok", "reaction": reaction, "since_ms": since_ms})
+        if _truthy_query_flag(request.args.get("dedup_window")):
+            reaction = db.get_recent_like_dislike_reaction_in_dedup_window(conn, video_id)
+            return jsonify({"status": "ok", "reaction": reaction, "dedup_window": True})
         reaction = db.get_last_like_dislike_reaction(conn, video_id)
         return jsonify({"status": "ok", "reaction": reaction})
     finally:

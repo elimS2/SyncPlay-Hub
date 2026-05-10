@@ -1170,6 +1170,38 @@ class RemoteControl {
     const vid =
       nextVideoId != null && nextVideoId !== '' ? String(nextVideoId) : null;
     const sinceMs = status.playback_session_started_ms;
+
+    const applyDedupReactionThenMaybeStatus = () => {
+      if (!vid) {
+        applySessionReactionFromStatus();
+        return;
+      }
+      fetch(`/api/reaction/${encodeURIComponent(vid)}?dedup_window=1`)
+        .then((r) => (r.ok ? r.json() : Promise.resolve({})))
+        .then((data) => {
+          const cur = this.currentTrack?.video_id;
+          if (cur == null || String(cur) !== vid) return;
+          const dedupReaction =
+            data.status === 'ok' && (data.reaction === 'like' || data.reaction === 'dislike')
+              ? data.reaction
+              : null;
+          if (dedupReaction === 'like') {
+            this.likeBtn.classList.add('like-active');
+            this.dislikeBtn.classList.remove('dislike-active');
+            return;
+          }
+          if (dedupReaction === 'dislike') {
+            this.dislikeBtn.classList.add('dislike-active');
+            this.likeBtn.classList.remove('like-active');
+            return;
+          }
+          applySessionReactionFromStatus();
+        })
+        .catch(() => {
+          applySessionReactionFromStatus();
+        });
+    };
+
     if (
       vid &&
       typeof sinceMs === 'number' &&
@@ -1195,13 +1227,13 @@ class RemoteControl {
             this.likeBtn.classList.remove('like-active');
             return;
           }
-          applySessionReactionFromStatus();
+          applyDedupReactionThenMaybeStatus();
         })
         .catch(() => {
-          applySessionReactionFromStatus();
+          applyDedupReactionThenMaybeStatus();
         });
     } else {
-      applySessionReactionFromStatus();
+      applyDedupReactionThenMaybeStatus();
     }
     
     // Update track info

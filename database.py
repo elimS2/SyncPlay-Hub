@@ -1259,6 +1259,36 @@ def get_dominant_reaction_since_ts(
     return ev if ev in ("like", "dislike") else None
 
 
+def get_recent_like_dislike_reaction_in_dedup_window(
+    conn: sqlite3.Connection, video_id: str
+) -> Optional[str]:
+    """Latest like/dislike in the same 12h window as record_event duplicate suppression."""
+    row = conn.execute(
+        "SELECT event FROM play_history WHERE video_id = ? AND event IN ('like', 'dislike') "
+        "AND ts >= datetime('now','-12 hours') ORDER BY id DESC LIMIT 1",
+        (video_id,),
+    ).fetchone()
+    if not row:
+        return None
+    ev = row[0]
+    return ev if ev in ("like", "dislike") else None
+
+
+def get_recent_like_dislike_reaction_in_dedup_window(
+    conn: sqlite3.Connection, video_id: str
+) -> Optional[str]:
+    """Latest like/dislike in the same 12h window as record_event duplicate suppression."""
+    row = conn.execute(
+        "SELECT event FROM play_history WHERE video_id = ? AND event IN ('like', 'dislike') "
+        "AND ts >= datetime('now','-12 hours') ORDER BY id DESC LIMIT 1",
+        (video_id,),
+    ).fetchone()
+    if not row:
+        return None
+    ev = row[0]
+    return ev if ev in ("like", "dislike") else None
+
+
 # For backward compatibility
 def increment_play(conn: sqlite3.Connection, video_id: str, *, started=False, finished=False):
     if started:

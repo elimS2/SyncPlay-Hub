@@ -367,7 +367,7 @@ export async function syncLikeButtonsWithRemote(expectedVideoId) {
           ? String(statusVid)
           : null;
     const sess = getTrackPlaybackSession();
-    let sessionReaction = null;
+    let reactionToApply = null;
     if (
       vid &&
       sess.videoId &&
@@ -384,7 +384,7 @@ export async function syncLikeButtonsWithRemote(expectedVideoId) {
             data?.status === 'ok' &&
             (data.reaction === 'like' || data.reaction === 'dislike')
           ) {
-            sessionReaction = data.reaction;
+            reactionToApply = data.reaction;
           }
         }
       } catch (_) {
@@ -392,8 +392,30 @@ export async function syncLikeButtonsWithRemote(expectedVideoId) {
       }
     }
 
-    if (sessionReaction === 'like' || sessionReaction === 'dislike') {
-      applyPersistedReactionToButtons(likeButton, dislikeButton, sessionReaction);
+    if (
+      (reactionToApply !== 'like' && reactionToApply !== 'dislike') &&
+      vid
+    ) {
+      try {
+        const r2 = await fetch(
+          `/api/reaction/${encodeURIComponent(vid)}?dedup_window=1`
+        );
+        if (r2.ok) {
+          const data2 = await r2.json();
+          if (
+            data2?.status === 'ok' &&
+            (data2.reaction === 'like' || data2.reaction === 'dislike')
+          ) {
+            reactionToApply = data2.reaction;
+          }
+        }
+      } catch (_) {
+        /* ignore */
+      }
+    }
+
+    if (reactionToApply === 'like' || reactionToApply === 'dislike') {
+      applyPersistedReactionToButtons(likeButton, dislikeButton, reactionToApply);
       return;
     }
 
