@@ -214,26 +214,18 @@ def api_restore_track():
                         except:
                             file_size = None
             
-            # If file doesn't exist, allow restoration even if can_restore = 0
+            # can_restore=0 usually means "nothing in trash to copy back", not "forbid restore".
+            # If the library file is missing, we still allow proceeding (re-link / user may use redownload).
+            # If the library file exists, we must allow proceeding: DB-only clear of deleted state.
             if not file_exists:
                 log_message(f"[Restore] DEBUG: Track {track_id} has can_restore=0 but file not found, allowing re-restoration")
                 log_message(f"[Restore] DEBUG: Expected path: {restored_file_path}")
                 log_message(f"[Restore] DEBUG: File exists: {file_exists}")
-                # Continue with restoration process instead of returning error
             else:
-                # File exists, so it's truly cannot be restored
-                conn.close()
-                return jsonify({
-                    "status": "error", 
-                    "error": "Track cannot be restored from file",
-                    "diagnostic": f"can_restore = {track_dict.get('can_restore')}",
-                    "details": diagnostic_info,
-                    "track_id": track_id,
-                    "restored_file_path": restored_file_path,
-                    "file_exists": file_exists,
-                    "file_size": file_size,
-                    "restored_at": track_dict.get('restored_at')
-                }), 400
+                log_message(
+                    f"[Restore] INFO: Track {track_id} has can_restore=0 but file exists at library path; "
+                    f"allowing in-place restore (clear deleted marker only): {restored_file_path}"
+                )
         
         # Check if already restored
         if track_dict.get('restored_at') is not None:
@@ -290,10 +282,9 @@ def api_restore_track():
             log_message(f"[Restore] INFO: Re-restoring track {track_id} - was marked as restored but file is missing")
             log_message(f"[Restore] INFO: This will overwrite the restored_at timestamp")
         
-        # Special case: re-restoring a track that has can_restore=0 but file is missing
+        # Special case: can_restore=0 (no trash copy / soft-delete from library path)
         if track_dict.get('can_restore') == 0:
-            log_message(f"[Restore] INFO: Re-restoring track {track_id} - has can_restore=0 but file is missing")
-            log_message(f"[Restore] INFO: This will overwrite the can_restore flag")
+            log_message(f"[Restore] INFO: Track {track_id} has can_restore=0 (in-place or re-download restore path)")
         
         # Determine target folder for restoration
         original_path = track_dict.get('original_relpath', '')
@@ -421,29 +412,85 @@ def api_restore_track():
             
             trash_path = track_dict.get('trash_path')
             if not trash_path:
-                # Get path information for error message
+                # Soft-delete / "remove from playlist" without moving to trash: media may still sit at original_relpath.
                 original_relpath = track_dict.get('original_relpath', '')
                 restored_file_path = None
                 file_exists = False
                 file_size = None
-                
+                full_library_path = None
                 if original_relpath:
                     root_dir = get_root_dir()
                     if root_dir:
-                        full_restored_path = root_dir / original_relpath
-                        restored_file_path = str(full_restored_path)
-                        file_exists = full_restored_path.exists()
+                        full_library_path = root_dir / original_relpath
+                        restored_file_path = str(full_library_path)
+                        file_exists = full_library_path.exists()
                         if file_exists:
                             try:
-                                file_size = full_restored_path.stat().st_size
-                            except:
+                                file_size = full_library_path.stat().st_size
+                            except Exception:
                                 file_size = None
-                
+
+                if full_library_path and full_library_path.exists():
+                    log_message(
+                        f"[Restore] INFO: trash_path empty but library file exists; DB-only restore for track {track_id}: "
+                        f"{full_library_path}"
+                    )
+                    try:
+                        restored_file_size = full_library_path.stat().st_size
+                    except Exception:
+                        restored_file_size = None
+                    result = db.restore_deleted_track(conn, track_id)
+                    if not result:
+                        conn.close()
+                        return jsonify({"status": "error", "error": "Failed to mark track as restored"}), 500
+                    log_message(f"[Restore] Track {track_id} marked as restored (in-place, method: {restore_method})")
+                    try:
+                        additional_data = json.dumps({
+                            "track_id": track_id,
+                            "video_id": track_dict.get('video_id'),
+                            "original_name": track_dict.get('original_name'),
+                            "target_folder": target_folder,
+                            "channel_folder": channel_folder,
+                            "channel_group": track_dict.get('channel_group'),
+                            "method": restore_method,
+                            "original_relpath": track_dict.get('original_relpath'),
+                            "trash_path": track_dict.get('trash_path'),
+                            "restored_file_path": str(full_library_path),
+                            "restored_file_size": restored_file_size,
+                            "restoration_successful": True,
+                            "in_place_no_trash": True,
+                        })
+                        record_event(
+                            conn,
+                            track_dict.get('video_id'),
+                            "track_restored",
+                            additional_data=additional_data,
+                        )
+                        log_message(f"[Restore] DEBUG: In-place restoration event recorded for track {track_id}")
+                    except Exception as e:
+                        log_message(f"[Restore] ERROR: Failed to record in-place restoration event: {e}")
+                        import traceback
+                        log_message(f"[Restore] ERROR: Traceback: {traceback.format_exc()}")
+                    conn.close()
+                    return jsonify({
+                        "status": "ok",
+                        "message": "Track restored (file was already in the library; cleared deleted state only)",
+                        "track_id": track_id,
+                        "method": restore_method,
+                        "target_folder": target_folder,
+                        "restored_file_path": str(full_library_path),
+                        "restored_file_size": restored_file_size,
+                        "trash_path": trash_path,
+                        "original_relpath": original_relpath,
+                        "full_original_path": str(full_library_path),
+                        "in_place_no_trash": True,
+                    })
+
                 conn.close()
                 return jsonify({
-                    "status": "error", 
+                    "status": "error",
                     "error": "No trash path available for restoration",
-                    "diagnostic": "trash_path is NULL or empty",
+                    "diagnostic": "trash_path is NULL or empty and library file not found at original_relpath",
                     "details": diagnostic_info,
                     "track_id": track_id,
                     "restored_file_path": restored_file_path,
@@ -786,25 +833,16 @@ def api_bulk_restore_tracks():
                                 except:
                                     file_size = None
                     
-                    # If file doesn't exist, allow restoration even if can_restore = 0
+                    # can_restore=0: allow when file missing or when file already at library path (in-place restore).
                     if not file_exists:
                         log_message(f"[Restore] DEBUG: Track {track_id} has can_restore=0 but file not found, allowing re-restoration")
                         log_message(f"[Restore] DEBUG: Expected path: {restored_file_path}")
                         log_message(f"[Restore] DEBUG: File exists: {file_exists}")
-                        # Continue with restoration process instead of adding to failed_tracks
                     else:
-                        # File exists, so it's truly cannot be restored
-                        failed_tracks.append({
-                            'track_id': track_id,
-                            'error': 'Track cannot be restored from file',
-                            'diagnostic': f"can_restore = {track_dict.get('can_restore')}",
-                            'details': diagnostic_info,
-                            'restored_file_path': restored_file_path,
-                            'file_exists': file_exists,
-                            'file_size': file_size,
-                            'restored_at': track_dict.get('restored_at')
-                        })
-                        continue
+                        log_message(
+                            f"[Restore] INFO: Bulk track {track_id} has can_restore=0 but file exists at library path; "
+                            f"allowing in-place restore: {restored_file_path}"
+                        )
                 
                 # Determine target folder (cross-platform)
                 original_path = track_dict.get('original_relpath', '')
@@ -903,28 +941,76 @@ def api_bulk_restore_tracks():
                     
                     trash_path = track_dict.get('trash_path')
                     if not trash_path:
-                        # Get path information for error message
                         original_relpath = track_dict.get('original_relpath', '')
                         restored_file_path = None
                         file_exists = False
                         file_size = None
-                        
+                        full_library_path = None
                         if original_relpath:
                             root_dir = get_root_dir()
                             if root_dir:
-                                full_restored_path = root_dir / original_relpath
-                                restored_file_path = str(full_restored_path)
-                                file_exists = full_restored_path.exists()
+                                full_library_path = root_dir / original_relpath
+                                restored_file_path = str(full_library_path)
+                                file_exists = full_library_path.exists()
                                 if file_exists:
                                     try:
-                                        file_size = full_restored_path.stat().st_size
-                                    except:
+                                        file_size = full_library_path.stat().st_size
+                                    except Exception:
                                         file_size = None
-                        
+
+                        if full_library_path and full_library_path.exists():
+                            try:
+                                restored_file_size = full_library_path.stat().st_size
+                            except Exception:
+                                restored_file_size = None
+                            log_message(
+                                f"[Restore] INFO: Bulk in-place restore (no trash_path) for track {track_id}: {full_library_path}"
+                            )
+                            db.restore_deleted_track(conn, track_id)
+                            try:
+                                additional_data = json.dumps({
+                                    "track_id": track_id,
+                                    "video_id": track_dict.get('video_id'),
+                                    "original_name": track_dict.get('original_name'),
+                                    "target_folder": target_folder,
+                                    "channel_folder": channel_folder,
+                                    "channel_group": track_dict.get('channel_group'),
+                                    "method": restore_method,
+                                    "original_relpath": track_dict.get('original_relpath'),
+                                    "trash_path": track_dict.get('trash_path'),
+                                    "restored_file_path": str(full_library_path),
+                                    "restored_file_size": restored_file_size,
+                                    "restoration_successful": True,
+                                    "bulk_operation": True,
+                                    "in_place_no_trash": True,
+                                })
+                                record_event(
+                                    conn,
+                                    track_dict.get('video_id'),
+                                    "track_restored",
+                                    additional_data=additional_data,
+                                )
+                                log_message(f"[Restore] DEBUG: Bulk in-place event recorded for track {track_id}")
+                            except Exception as e:
+                                log_message(f"[Restore] ERROR: Failed to record bulk in-place event for track {track_id}: {e}")
+                                import traceback
+                                log_message(f"[Restore] ERROR: Traceback: {traceback.format_exc()}")
+                            successful_jobs.append({
+                                'track_id': track_id,
+                                'job_id': None,
+                                'video_id': track_dict.get('video_id'),
+                                'target_folder': target_folder,
+                                'restored_file_path': str(full_library_path),
+                                'restored_file_size': restored_file_size,
+                                'in_place_no_trash': True,
+                            })
+                            log_message(f"[Restore] Bulk: In-place restored track {track_id} ({track_dict.get('video_id')})")
+                            continue
+
                         failed_tracks.append({
                             'track_id': track_id,
                             'error': 'No trash path available for restoration',
-                            'diagnostic': 'trash_path is NULL or empty',
+                            'diagnostic': 'trash_path is NULL or empty and library file not found at original_relpath',
                             'details': diagnostic_info,
                             'restored_file_path': restored_file_path,
                             'file_exists': file_exists,

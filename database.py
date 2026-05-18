@@ -563,7 +563,7 @@ def iter_tracks_with_playlists(conn: sqlite3.Connection, search_query: str = Non
         LEFT JOIN track_playlists tp ON tp.track_id = t.id
         LEFT JOIN playlists p ON p.id = tp.playlist_id
         LEFT JOIN youtube_video_metadata ym ON ym.youtube_id = t.video_id
-        LEFT JOIN deleted_tracks dt ON dt.video_id = t.video_id
+        LEFT JOIN deleted_tracks dt ON dt.video_id = t.video_id AND dt.restored_at IS NULL
         GROUP BY t.id
         ORDER BY COALESCE(ym.title, t.name) COLLATE NOCASE
     """
@@ -628,7 +628,7 @@ def iter_tracks_with_playlists_filtered(
         LEFT JOIN track_playlists tp ON tp.track_id = t.id
         LEFT JOIN playlists p ON p.id = tp.playlist_id
         LEFT JOIN youtube_video_metadata ym ON ym.youtube_id = t.video_id
-        LEFT JOIN deleted_tracks dt ON dt.video_id = t.video_id
+        LEFT JOIN deleted_tracks dt ON dt.video_id = t.video_id AND dt.restored_at IS NULL
         """
     )
 
@@ -819,7 +819,7 @@ def get_tracks_with_filters_page(
         "LEFT JOIN track_playlists tp ON tp.track_id = t.id "
         "LEFT JOIN playlists p ON p.id = tp.playlist_id "
         "LEFT JOIN youtube_video_metadata ym ON ym.youtube_id = t.video_id "
-        "LEFT JOIN deleted_tracks dt ON dt.video_id = t.video_id "
+        "LEFT JOIN deleted_tracks dt ON dt.video_id = t.video_id AND dt.restored_at IS NULL "
         + where_sql
     )
 
@@ -837,7 +837,7 @@ def get_tracks_with_filters_page(
         "LEFT JOIN track_playlists tp ON tp.track_id = t.id "
         "LEFT JOIN playlists p ON p.id = tp.playlist_id "
         "LEFT JOIN youtube_video_metadata ym ON ym.youtube_id = t.video_id "
-        "LEFT JOIN deleted_tracks dt ON dt.video_id = t.video_id "
+        "LEFT JOIN deleted_tracks dt ON dt.video_id = t.video_id AND dt.restored_at IS NULL "
         + where_sql +
         " GROUP BY t.id ORDER BY COALESCE(ym.title, t.name) COLLATE NOCASE "
         " LIMIT ? OFFSET ?"
@@ -927,7 +927,7 @@ def get_resolution_counts(
         "LEFT JOIN track_playlists tp ON tp.track_id = t.id "
         "LEFT JOIN playlists p ON p.id = tp.playlist_id "
         "LEFT JOIN youtube_video_metadata ym ON ym.youtube_id = t.video_id "
-        "LEFT JOIN deleted_tracks dt ON dt.video_id = t.video_id "
+        "LEFT JOIN deleted_tracks dt ON dt.video_id = t.video_id AND dt.restored_at IS NULL "
         + where_sql +
         " GROUP BY t.resolution"
     )
@@ -1017,7 +1017,7 @@ def get_filetype_counts(
         "LEFT JOIN track_playlists tp ON tp.track_id = t.id "
         "LEFT JOIN playlists p ON p.id = tp.playlist_id "
         "LEFT JOIN youtube_video_metadata ym ON ym.youtube_id = t.video_id "
-        "LEFT JOIN deleted_tracks dt ON dt.video_id = t.video_id "
+        "LEFT JOIN deleted_tracks dt ON dt.video_id = t.video_id AND dt.restored_at IS NULL "
         + where_sql +
         " GROUP BY LOWER(t.filetype)"
     )
@@ -1038,7 +1038,7 @@ def get_track_with_playlists(conn: sqlite3.Connection, video_id: str) -> Optiona
     - playlists: comma-separated playlist names for display
     - playlists_list: list of playlist names (stable separator)
     - playlist_relpaths_list: list of playlist relpaths for linking
-    - is_deleted, deletion_date, deletion_reason from deleted_tracks
+    - is_deleted, deletion_date, deletion_reason from deleted_tracks (active deletions only: restored_at IS NULL)
 
     Args:
         conn: Database connection
@@ -1064,7 +1064,7 @@ def get_track_with_playlists(conn: sqlite3.Connection, video_id: str) -> Optiona
         FROM tracks t
         LEFT JOIN track_playlists tp ON tp.track_id = t.id
         LEFT JOIN playlists p ON p.id = tp.playlist_id
-        LEFT JOIN deleted_tracks dt ON dt.video_id = t.video_id
+        LEFT JOIN deleted_tracks dt ON dt.video_id = t.video_id AND dt.restored_at IS NULL
         WHERE t.video_id = ?
         GROUP BY t.id
         LIMIT 1
