@@ -47,27 +47,13 @@ VIDEO_ID_RE = re.compile(r"\[([A-Za-z0-9_-]{11})\]")
 # File storing IDs known to be unavailable on YouTube (per playlist/channel)
 UNAVAILABLE_FILE = "unavailable_ids.txt"
 
-# Channel URL patterns
-CHANNEL_PATTERNS = [
-    r'youtube\.com/@[\w-]+',
-    r'youtube\.com/@[\w-]+/videos',
-    r'youtube\.com/c/[\w-]+',
-    r'youtube\.com/channel/[\w-]+',
-    r'youtube\.com/user/[\w-]+',
-]
-
-def is_channel_url(url: str) -> bool:
-    """Check if URL is a YouTube channel URL."""
-    for pattern in CHANNEL_PATTERNS:
-        if re.search(pattern, url, re.IGNORECASE):
-            return True
-    return False
-
-def normalize_channel_url(url: str) -> str:
-    """Normalize channel URL to standard format."""
-    # Convert @username/videos to @username for yt-dlp
-    url = re.sub(r'/@([\w-]+)/videos', r'/@\1', url)
-    return url
+from utils.youtube_channel_urls import (
+    expand_nested_playlist_entries,
+    is_channel_url,
+    is_nested_playlist_entry,
+    is_releases_url,
+    normalize_channel_url,
+)
 
 
 def get_deleted_video_ids() -> Set[str]:
@@ -343,11 +329,33 @@ def fetch_content_metadata(url: str, *, cookies_path: str | None = None, use_bro
             for i, entry in enumerate(entries[:3]):  # Show first 3 raw entries
                 log_progress(f"[Debug] Raw entry #{i+1}: {entry}")
             
+            if is_releases_url(url) or any(is_nested_playlist_entry(entry) for entry in entries if entry):
+                log_progress("[Info] Releases tab detected - expanding album playlists into individual tracks...")
+
+                def _extract_album_tracks(playlist_url: str) -> list:
+                    with YoutubeDL(merge_ytdlp_js_params({
+                        "quiet": True,
+                        "skip_download": True,
+                        "extract_flat": True,
+                        "ignoreerrors": True,
+                        **common_cookies,
+                    })) as album_ydl:
+                        album_info = album_ydl.extract_info(playlist_url, download=False)
+                    return album_info.get("entries", []) if album_info else []
+
+                entries = expand_nested_playlist_entries(
+                    [entry for entry in entries if entry],
+                    extract_playlist_fn=lambda playlist_url: _extract_album_tracks(playlist_url),
+                    log_fn=log_progress,
+                )
+
             video_ids = set()
             for i, entry in enumerate(entries):
                 if entry and entry.get("id"):
                     valid_entries += 1
                     video_id = entry["id"]
+                    if not re.fullmatch(r"[A-Za-z0-9_-]{11}", video_id):
+                        continue
                     video_ids.add(video_id)
                     
                     # Get entry details

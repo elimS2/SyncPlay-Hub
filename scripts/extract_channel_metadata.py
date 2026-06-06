@@ -7,6 +7,7 @@ and stores/updates the data in the youtube_video_metadata database table.
 
 Usage:
     python extract_channel_metadata.py "https://www.youtube.com/@SomeChannel/videos"
+    python extract_channel_metadata.py "https://www.youtube.com/@SomeChannel/releases"
     python extract_channel_metadata.py "https://www.youtube.com/c/SomeChannel/videos"
     python extract_channel_metadata.py "https://www.youtube.com/channel/UC.../videos"
 
@@ -28,6 +29,11 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).parent.parent))
 
 from utils.yt_dlp_js import extend_ytdlp_cli_cmd
+from utils.youtube_channel_urls import (
+    expand_nested_playlist_entries,
+    is_nested_playlist_entry,
+    is_releases_url,
+)
 
 # Load .env file manually
 def load_env_file():
@@ -142,6 +148,65 @@ def check_videos_newer_than_date(metadata_list: List[Dict], date_from: str) -> b
         log_message(f"Error checking video dates: {e}")
         return True  # Continue on error to be safe
 
+def _parse_ytdlp_json_output(stdout: str) -> List[Dict[str, Any]]:
+    metadata_list = []
+    for line in stdout.strip().split('\n'):
+        if line.strip():
+            try:
+                metadata_list.append(json.loads(line))
+            except json.JSONDecodeError as e:
+                log_message(f"Warning: Failed to parse JSON line: {e}")
+    return metadata_list
+
+
+def _run_ytdlp_flat_playlist(
+    url: str,
+    cookies_path: str = None,
+    playlist_items: str = None,
+    timeout: int = 300,
+) -> List[Dict[str, Any]]:
+    cmd = [
+        "yt-dlp",
+        "--flat-playlist",
+        "--dump-json",
+        "--ignore-errors",
+        url,
+    ]
+    extend_ytdlp_cli_cmd(cmd)
+
+    if cookies_path:
+        cmd.extend(["--cookies", cookies_path])
+
+    if playlist_items:
+        cmd.extend(["--playlist-items", playlist_items])
+
+    result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+    if result.returncode != 0 and not result.stdout.strip():
+        error_msg = f"yt-dlp failed with exit code {result.returncode}"
+        if result.stderr:
+            error_msg += f"\nError output: {result.stderr}"
+        raise RuntimeError(error_msg)
+
+    return _parse_ytdlp_json_output(result.stdout)
+
+
+def _maybe_expand_releases(
+    metadata_list: List[Dict[str, Any]],
+    url: str,
+    cookies_path: str = None,
+) -> List[Dict[str, Any]]:
+    if not metadata_list:
+        return metadata_list
+    if not (is_releases_url(url) or any(is_nested_playlist_entry(entry) for entry in metadata_list)):
+        return metadata_list
+
+    return expand_nested_playlist_entries(
+        metadata_list,
+        extract_playlist_fn=lambda playlist_url: _run_ytdlp_flat_playlist(playlist_url, cookies_path),
+        log_fn=log_message,
+    )
+
+
 def run_ytdlp_extract_batch(url: str, start_index: int, batch_size: int = 50, 
                            cookies_path: str = None) -> List[Dict[str, Any]]:
     """
@@ -196,17 +261,7 @@ def run_ytdlp_extract_batch(url: str, start_index: int, batch_size: int = 50,
                 error_msg += f"\nError output: {result.stderr}"
             raise RuntimeError(error_msg)
         
-        # Parse JSON output
-        metadata_list = []
-        for line in result.stdout.strip().split('\n'):
-            if line.strip():
-                try:
-                    metadata = json.loads(line)
-                    metadata_list.append(metadata)
-                except json.JSONDecodeError as e:
-                    log_message(f"Warning: Failed to parse JSON line: {e}")
-                    continue
-        
+        metadata_list = _parse_ytdlp_json_output(result.stdout)
         log_message(f"Successfully extracted {len(metadata_list)} videos from batch extraction")
         return metadata_list
         
@@ -334,6 +389,11 @@ def smart_extract_with_date_check(url: str, date_from: str, cookies_path: str = 
     3. Find exact boundary in final batch
     4. Get full metadata for all videos from start to boundary
     """
+    if is_releases_url(url):
+        log_message("Releases tab detected - expanding albums instead of date-batched channel scan")
+        metadata_list = _run_ytdlp_flat_playlist(url, cookies_path=cookies_path)
+        return _maybe_expand_releases(metadata_list, url, cookies_path)
+
     log_message(f"Starting smart extraction with date filter: {date_from}")
     log_message(f"Batch size: {batch_size}")
     
@@ -639,8 +699,9 @@ def run_ytdlp_extract(url: str, max_entries: int = None, cookies_path: str = Non
         if not metadata_list:
             log_message(f"No accessible videos found - channel may contain only member-only content")
             log_message(f"Returning empty results")
-        
-        return metadata_list
+            return metadata_list
+
+        return _maybe_expand_releases(metadata_list, url, cookies_path)
         
     except subprocess.TimeoutExpired:
         raise RuntimeError("yt-dlp command timed out (10 minutes)")

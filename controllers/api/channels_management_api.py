@@ -31,10 +31,10 @@ def api_add_channel():
         
         # Validate YouTube channel URL format
         channel_patterns = [
-            r'youtube\.com/@([^/\s]+)(?:/videos)?',  # @ChannelName or @ChannelName/videos format
-            r'youtube\.com/c/([^/\s]+)',  # /c/ChannelName format
-            r'youtube\.com/channel/([^/\s]+)',  # /channel/ChannelID format
-            r'youtube\.com/user/([^/\s]+)'  # /user/Username format
+            r'youtube\.com/@([^/\s]+)(?:/(?:videos|releases))?',  # @ChannelName, /videos or /releases
+            r'youtube\.com/c/([^/\s]+)(?:/(?:videos|releases))?',  # /c/ChannelName
+            r'youtube\.com/channel/([^/\s]+)(?:/(?:videos|releases))?',  # /channel/ChannelID
+            r'youtube\.com/user/([^/\s]+)(?:/(?:videos|releases))?'  # /user/Username
         ]
         
         valid_url = False
@@ -46,7 +46,7 @@ def api_add_channel():
         if not valid_url:
             return jsonify({
                 "status": "error", 
-                "error": "Invalid YouTube channel URL. Supported formats: @ChannelName, /c/ChannelName, /channel/ChannelID, /user/Username"
+                "error": "Invalid YouTube channel URL. Supported formats: @ChannelName/videos, @ChannelName/releases, /c/ChannelName, /channel/ChannelID, /user/Username"
             }), 400
         
         # Check if channel already exists
