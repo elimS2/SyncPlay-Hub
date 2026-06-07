@@ -664,6 +664,20 @@
             `;
         }
 
+        function getChannelTabLabel(url) {
+            if (!url) return null;
+            const lower = url.toLowerCase();
+            if (lower.includes('/releases')) return 'releases';
+            if (lower.includes('/videos')) return 'videos';
+            return null;
+        }
+
+        function getChannelTabBadge(url) {
+            const label = getChannelTabLabel(url);
+            if (!label) return '';
+            return `<span class="channel-tab-badge channel-tab-badge-${label}">${label}</span>`;
+        }
+
         function renderChannelsForGroup(groupId) {
             const group = channelGroups.find(g => g.id === groupId);
             if (!group || !group.channels || group.channels.length === 0) {
@@ -679,7 +693,10 @@
                             <path d="M2 8v5a3 3 0 0 0 6 0v-5a4 4 0 1 0-8 8"/>
                         </svg>
                         <div>
-                            <div class="channel-name">${channel.name}</div>
+                            <div class="channel-name-row">
+                                <div class="channel-name">${channel.name}</div>
+                                ${getChannelTabBadge(channel.url)}
+                            </div>
                             <div class="channel-stats">
                                 ${channel.track_count || 0} tracks
                                 ${channel.last_sync_ts ? '• Last sync: ' + new Date(channel.last_sync_ts + 'Z').toLocaleString('ru-RU', { 
