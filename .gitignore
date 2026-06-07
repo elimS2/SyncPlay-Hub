@@ -23,3 +23,15 @@ result.json
 # Virtual environments
 .venv/
 venv/
+
+# MCP Playwright browser artifacts (auto-generated during UI testing)
+.playwright-mcp/
+
+# Local test screenshots (manual/automation captures)
+*-test.png
+
+# yt-dlp / ffmpeg download fragments
+*.tmp-Frag*
+
+# Stray binaries that should not live in the repo root
+/node.exe
