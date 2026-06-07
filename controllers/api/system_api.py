@@ -12,6 +12,15 @@ from flask import Blueprint, request, jsonify
 from utils.cookies_manager import get_cookies_directory
 from utils.cookies_manager import _load_cookie_health  # internal helper used for read-only API
 from .shared import log_message
+from utils.lan_https import (
+    SETTING_HTTPS_DOMAIN,
+    SETTING_HTTPS_ENABLED,
+    get_https_settings_from_db,
+    is_valid_domain,
+    normalize_domain,
+    normalize_restart_argv,
+)
+from utils.ssl_domain_check import check_domain_ssl_readiness
 
 # Create blueprint
 system_bp = Blueprint('system', __name__)
@@ -47,8 +56,8 @@ def api_restart():
         current_pid = os.getpid()
         log_message(f"Initiating restart of server PID {current_pid} at {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         
-        # Build restart command with same arguments + --force to bypass duplicate check
-        restart_cmd = [sys.executable] + sys.argv + ["--force"]
+        # Build restart command; HTTPS follows Settings (default HTTP).
+        restart_cmd = [sys.executable] + normalize_restart_argv(sys.argv)
         
         try:
             # Start new process in same console window (no CREATE_NEW_CONSOLE)
@@ -115,6 +124,91 @@ def api_stop():
     threading.Thread(target=stop_server, daemon=True).start()
     
     return jsonify({"status": "ok", "message": "Server stopping..."}) 
+
+
+@system_bp.route("/https/status", methods=["GET"])
+def api_https_status():
+    """Current HTTPS settings and whether the running server uses TLS."""
+    settings = get_https_settings_from_db()
+    scheme = "https" if request.is_secure else "http"
+    return jsonify(
+        {
+            "status": "ok",
+            "enabled": settings.get("enabled", False),
+            "domain": settings.get("domain", ""),
+            "current_scheme": scheme,
+            "app_port": request.environ.get("SERVER_PORT", "8000"),
+        }
+    )
+
+
+@system_bp.route("/https/check", methods=["POST"])
+def api_https_check():
+    """Validate domain DNS/reachability and readiness for Let's Encrypt."""
+    data = request.get_json(silent=True) or {}
+    domain = normalize_domain(str(data.get("domain", "")))
+    if not domain:
+        return jsonify({"status": "error", "error": "domain is required"}), 400
+    if not is_valid_domain(domain):
+        return jsonify({"status": "error", "error": "invalid domain name"}), 400
+    try:
+        port = int(request.environ.get("SERVER_PORT", "8000"))
+    except ValueError:
+        port = 8000
+    report = check_domain_ssl_readiness(domain, app_port=port)
+    return jsonify({"status": "ok", **report})
+
+
+@system_bp.route("/https/settings", methods=["POST"])
+def api_https_settings():
+    """Save HTTPS domain and optional enable flag (enable requires matching cert)."""
+    data = request.get_json(silent=True) or {}
+    domain = normalize_domain(str(data.get("domain", "")))
+    enabled = bool(data.get("enabled", False))
+
+    if domain and not is_valid_domain(domain):
+        return jsonify({"status": "error", "error": "invalid domain name"}), 400
+
+    report = None
+    if domain:
+        try:
+            port = int(request.environ.get("SERVER_PORT", "8000"))
+        except ValueError:
+            port = 8000
+        report = check_domain_ssl_readiness(domain, app_port=port)
+
+    if enabled:
+        if not domain:
+            return jsonify({"status": "error", "error": "domain is required to enable HTTPS"}), 400
+        if not report or not report.get("ready"):
+            return jsonify(
+                {
+                    "status": "error",
+                    "error": "HTTPS cannot be enabled until domain checks pass and a matching certificate is installed",
+                    "report": report,
+                }
+            ), 400
+
+    try:
+        from database import get_connection, set_user_setting
+
+        with get_connection() as conn:
+            set_user_setting(conn, SETTING_HTTPS_DOMAIN, domain)
+            set_user_setting(conn, SETTING_HTTPS_ENABLED, "true" if enabled else "false")
+        log_message(f"HTTPS settings saved: enabled={enabled}, domain={domain or '(empty)'}")
+    except Exception as exc:
+        return jsonify({"status": "error", "error": str(exc)}), 500
+
+    return jsonify(
+        {
+            "status": "ok",
+            "enabled": enabled,
+            "domain": domain,
+            "report": report,
+            "restart_required": True,
+            "message": "Restart the server to apply HTTPS changes.",
+        }
+    )
 
 
 @system_bp.route("/cookies/health", methods=["GET"])

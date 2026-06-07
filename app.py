@@ -980,13 +980,31 @@ def settings_page():
     
     # GET request - load current settings
     try:
+        from utils.lan_https import get_https_settings_from_db
+
         conn = get_connection()
         delay_seconds = get_user_setting(conn, 'job_execution_delay_seconds', '0')
         conn.close()
-        return render_template("settings.html", delay_seconds=int(delay_seconds), env_config=env_config, server_info=server_info)
+        https_settings = get_https_settings_from_db()
+        return render_template(
+            "settings.html",
+            delay_seconds=int(delay_seconds),
+            env_config=env_config,
+            server_info=server_info,
+            https_enabled=https_settings.get("enabled", False),
+            https_domain=https_settings.get("domain", ""),
+        )
     except Exception as e:
         log_message(f"Settings load error: {e}")
-        return render_template("settings.html", delay_seconds=0, error="Failed to load settings", env_config=env_config, server_info=server_info)
+        return render_template(
+            "settings.html",
+            delay_seconds=0,
+            error="Failed to load settings",
+            env_config=env_config,
+            server_info=server_info,
+            https_enabled=False,
+            https_domain="",
+        )
 
 @app.route("/maintenance")
 def maintenance_page():
@@ -1076,6 +1094,16 @@ def main():
     parser.add_argument("--port", type=int, default=8000, help="Port to bind to")
     parser.add_argument("--logs", type=Path, help="Logs directory (default: root/Logs)")
     parser.add_argument("--force", action="store_true", help="Force start even if server already running")
+    parser.add_argument(
+        "--https",
+        dest="https",
+        action="store_true",
+        help="Force HTTPS (default: off; enable in Settings when domain cert is ready)",
+    )
+    parser.add_argument("--no-https", dest="https", action="store_false", help="Disable HTTPS")
+    parser.add_argument("--ssl-cert", type=Path, help="TLS certificate PEM (overrides --https default path)")
+    parser.add_argument("--ssl-key", type=Path, help="TLS private key PEM (overrides --https default path)")
+    parser.set_defaults(https=None)
     args = parser.parse_args()
     
     # Check if server is already running (unless --force is used)
@@ -1222,9 +1250,27 @@ def main():
     else:
         log_message(f"Using existing database: {db_path}")
     
+    # HTTPS is optional (Settings page / --https). Default: HTTP.
+    from utils.lan_https import certs_available, resolve_cert_paths, resolve_https_enabled
+
+    use_https = resolve_https_enabled(args.https)
+    ssl_context = None
+    if use_https or args.ssl_cert or args.ssl_key:
+        cert_path, key_path = resolve_cert_paths(args.https, args.ssl_cert, args.ssl_key)
+        if not certs_available(cert_path, key_path):
+            log_message(f"HTTPS enabled but certificate files missing at {cert_path.parent}")
+            log_message("Configure domain and certificate on /settings, then restart.")
+            if args.https is True or args.ssl_cert or args.ssl_key:
+                sys.exit(1)
+        else:
+            ssl_context = (str(cert_path), str(key_path))
+            lan_ip = _get_local_ip()
+            log_message(f"HTTPS enabled (cert={cert_path})")
+            log_message(f"Remote PWA: https://{lan_ip}:{args.port}/remote")
+
     # Start Flask app
     try:
-        app.run(host=args.host, port=args.port, debug=False)
+        app.run(host=args.host, port=args.port, debug=False, ssl_context=ssl_context)
     except KeyboardInterrupt:
         log_message("Server stopped by user")
     except Exception as e:

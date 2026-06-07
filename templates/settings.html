@@ -109,9 +109,61 @@
             color: var(--text-primary);
         }
 
-        .form-group input[type="number"]:focus {
+        .form-group input[type="number"]:focus,
+        .form-group input[type="text"]:focus {
             outline: none;
             border-color: var(--accent);
+        }
+
+        .form-group input[type="text"] {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid var(--border);
+            border-radius: 8px;
+            font-size: 16px;
+            transition: border-color 0.2s;
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+            box-sizing: border-box;
+        }
+
+        .check-list {
+            margin-top: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .check-item {
+            padding: 10px 12px;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            font-size: 14px;
+            line-height: 1.4;
+        }
+
+        .check-item.ok {
+            background: rgba(76, 175, 80, 0.08);
+            border-color: rgba(76, 175, 80, 0.35);
+        }
+
+        .check-item.fail {
+            background: rgba(244, 67, 54, 0.08);
+            border-color: rgba(244, 67, 54, 0.35);
+        }
+
+        .https-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 12px;
+        }
+
+        .toggle-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-top: 16px;
         }
 
         .form-description {
@@ -308,6 +360,46 @@
                 </div>
             </div>
 
+            <!-- HTTPS / PWA -->
+            <div class="card">
+                <div class="card-header">
+                    🔒 HTTPS &amp; Remote PWA
+                </div>
+                <div class="card-body">
+                    <div class="current-value">
+                        Server now: {{ 'HTTPS' if request.is_secure else 'HTTP' }}
+                        {% if https_enabled %} · HTTPS enabled in settings (restart to apply){% else %} · HTTPS off (default){% endif %}
+                    </div>
+
+                    <div class="form-group">
+                        <label for="https_domain">Public domain for this server</label>
+                        <input type="text" id="https_domain" name="https_domain"
+                               value="{{ https_domain }}" placeholder="syncplay.example.com"
+                               autocomplete="off" spellcheck="false">
+                        <div class="form-description">
+                            Used for Let's Encrypt and mobile PWA install. Point DNS to your router or use split DNS on LAN.
+                        </div>
+                    </div>
+
+                    <div class="https-actions">
+                        <button type="button" class="btn btn-primary" id="httpsCheckBtn">🔍 Check domain</button>
+                        <button type="button" class="btn btn-primary" id="httpsSaveBtn">💾 Save HTTPS settings</button>
+                    </div>
+
+                    <div class="toggle-row">
+                        <input type="checkbox" id="https_enabled" {% if https_enabled %}checked{% endif %}>
+                        <label for="https_enabled">Enable HTTPS on next restart</label>
+                    </div>
+                    <div class="form-description">
+                        Enable only after checks pass and a matching certificate is in
+                        <code>certs/domains/&lt;domain&gt;/</code>. Restart required.
+                    </div>
+
+                    <div id="httpsCheckResults" class="check-list" hidden></div>
+                    <div id="httpsStatus" class="alert" hidden></div>
+                </div>
+            </div>
+
             <!-- Environment Configuration -->
             <div class="card">
                 <div class="card-header">
@@ -385,6 +477,96 @@ PORT=8000</pre>
     </div>
 
     <script>
+        const httpsDomainInput = document.getElementById('https_domain');
+        const httpsEnabledInput = document.getElementById('https_enabled');
+        const httpsCheckBtn = document.getElementById('httpsCheckBtn');
+        const httpsSaveBtn = document.getElementById('httpsSaveBtn');
+        const httpsCheckResults = document.getElementById('httpsCheckResults');
+        const httpsStatus = document.getElementById('httpsStatus');
+
+        function showHttpsStatus(message, isError) {
+            httpsStatus.hidden = false;
+            httpsStatus.textContent = message;
+            httpsStatus.className = 'alert ' + (isError ? 'alert-error' : 'alert-success');
+        }
+
+        function renderHttpsChecks(report) {
+            if (!report || !report.checks) {
+                httpsCheckResults.hidden = true;
+                return;
+            }
+            httpsCheckResults.hidden = false;
+            httpsCheckResults.innerHTML = report.checks.map((c) => {
+                const cls = c.ok ? 'ok' : 'fail';
+                const icon = c.ok ? '✅' : '❌';
+                return `<div class="check-item ${cls}">${icon} <strong>${c.id}</strong>: ${c.message}</div>`;
+            }).join('');
+            httpsEnabledInput.disabled = !report.ready;
+            if (!report.ready && httpsEnabledInput.checked) {
+                httpsEnabledInput.checked = false;
+            }
+        }
+
+        async function checkHttpsDomain() {
+            const domain = (httpsDomainInput.value || '').trim();
+            if (!domain) {
+                showHttpsStatus('Enter a domain first.', true);
+                return;
+            }
+            httpsCheckBtn.disabled = true;
+            httpsCheckBtn.textContent = '⏳ Checking...';
+            try {
+                const resp = await fetch('/api/https/check', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ domain }),
+                });
+                const data = await resp.json();
+                if (!resp.ok) throw new Error(data.error || 'Check failed');
+                renderHttpsChecks(data);
+                const summary = data.ready
+                    ? 'Domain is ready — matching certificate found. You can enable HTTPS.'
+                    : (data.letsencrypt_ready
+                        ? 'Domain looks ready for Let\'s Encrypt HTTP-01, but certificate is not installed yet.'
+                        : 'Some checks failed — fix DNS/port 80 before requesting a certificate.');
+                showHttpsStatus(summary, !data.ready && !data.letsencrypt_ready);
+            } catch (err) {
+                showHttpsStatus(err.message || String(err), true);
+            } finally {
+                httpsCheckBtn.disabled = false;
+                httpsCheckBtn.textContent = '🔍 Check domain';
+            }
+        }
+
+        async function saveHttpsSettings() {
+            const domain = (httpsDomainInput.value || '').trim();
+            const enabled = !!httpsEnabledInput.checked;
+            httpsSaveBtn.disabled = true;
+            httpsSaveBtn.textContent = '⏳ Saving...';
+            try {
+                const resp = await fetch('/api/https/settings', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ domain, enabled }),
+                });
+                const data = await resp.json();
+                if (!resp.ok) {
+                    if (data.report) renderHttpsChecks(data.report);
+                    throw new Error(data.error || 'Save failed');
+                }
+                if (data.report) renderHttpsChecks(data.report);
+                showHttpsStatus(data.message || 'Saved. Restart the server to apply.', false);
+            } catch (err) {
+                showHttpsStatus(err.message || String(err), true);
+            } finally {
+                httpsSaveBtn.disabled = false;
+                httpsSaveBtn.textContent = '💾 Save HTTPS settings';
+            }
+        }
+
+        httpsCheckBtn?.addEventListener('click', checkHttpsDomain);
+        httpsSaveBtn?.addEventListener('click', saveHttpsSettings);
+
         // Restart Server
         const restartBtn = document.getElementById('restartBtn');
         restartBtn?.addEventListener('click', async () => {
