@@ -133,6 +133,38 @@
         </div>
     </div>
 
+    <!-- Download Single Track Modal -->
+    <div id="downloadTrackModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Download Single Track</h3>
+                <span class="close" onclick="hideDownloadTrackModal()">&times;</span>
+            </div>
+            <form id="downloadTrackForm">
+                <div class="form-group">
+                    <label class="form-label" for="trackUrl">YouTube Video URL</label>
+                    <input type="url" id="trackUrl" class="form-input"
+                           placeholder="https://www.youtube.com/watch?v=..." required>
+                    <small style="color: var(--text-muted);">
+                        One-off download — no channel subscription. File goes into the channel folder for this group.
+                    </small>
+                </div>
+                <input type="hidden" id="downloadTrackGroupId" value="">
+                <div style="display: flex; gap: 12px; justify-content: flex-end; margin-top: 24px;">
+                    <button type="button" class="btn" onclick="hideDownloadTrackModal()">Cancel</button>
+                    <button type="submit" class="btn btn-primary">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                            <polyline points="7 10 12 15 17 10"/>
+                            <line x1="12" y1="15" x2="12" y2="3"/>
+                        </svg>
+                        Download Track
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <!-- Add Channel Modal -->
     <div id="addChannelModal" class="modal">
         <div class="modal-content">
@@ -213,6 +245,52 @@
             }
         }
 
+        function showDownloadTrackModal(groupId) {
+            document.getElementById('downloadTrackGroupId').value = groupId;
+            const headerEl = document.querySelector('#downloadTrackModal .modal-header h3');
+            const group = channelGroups.find(g => g.id === groupId);
+            if (headerEl) {
+                headerEl.textContent = group
+                    ? `Download Track to "${group.name}"`
+                    : 'Download Single Track';
+            }
+            document.getElementById('downloadTrackModal').style.display = 'block';
+        }
+
+        function hideDownloadTrackModal() {
+            document.getElementById('downloadTrackModal').style.display = 'none';
+            document.getElementById('downloadTrackForm').reset();
+            const headerEl = document.querySelector('#downloadTrackModal .modal-header h3');
+            if (headerEl) {
+                headerEl.textContent = 'Download Single Track';
+            }
+        }
+
+        async function downloadTrack() {
+            const formData = {
+                url: document.getElementById('trackUrl').value.trim(),
+                group_id: parseInt(document.getElementById('downloadTrackGroupId').value, 10),
+            };
+
+            try {
+                const response = await fetch('/api/channels/download_track', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(formData),
+                });
+
+                const result = await response.json();
+                if (result.status === 'started') {
+                    hideDownloadTrackModal();
+                    alert('✅ Track download started. It will appear in the channel folder when finished.');
+                } else {
+                    alert('Error: ' + (result.error || result.message || 'Unknown error'));
+                }
+            } catch (error) {
+                alert('Request failed: ' + error);
+            }
+        }
+
         // Date preset handling
         document.getElementById('dateFromPreset').addEventListener('change', function() {
             const customGroup = document.getElementById('customDateGroup');
@@ -254,6 +332,11 @@
         document.getElementById('addChannelForm').addEventListener('submit', async function(e) {
             e.preventDefault();
             await addChannel();
+        });
+
+        document.getElementById('downloadTrackForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            await downloadTrack();
         });
 
         // API functions
@@ -623,6 +706,14 @@
                                     </svg>
                                     Add Channel
                                 </button>
+                                <button class="btn" onclick="showDownloadTrackModal(${group.id})" title="Download a single video (no subscription)">
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                                        <polyline points="7 10 12 15 17 10"/>
+                                        <line x1="12" y1="15" x2="12" y2="3"/>
+                                    </svg>
+                                    Download Track
+                                </button>
                                 <button class="btn ${group.include_in_likes ? 'btn-success' : 'btn-muted'}" onclick="toggleIncludeInLikes(${group.id}, ${group.include_in_likes})" title="${group.include_in_likes ? 'Disable likes inclusion' : 'Enable likes inclusion'}">
                                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                         <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
@@ -953,9 +1044,13 @@
         window.addEventListener('click', function(event) {
             const createModal = document.getElementById('createGroupModal');
             const addModal = document.getElementById('addChannelModal');
-            
+            const downloadTrackModal = document.getElementById('downloadTrackModal');
+
             if (event.target === createModal) {
                 hideCreateGroupModal();
+            }
+            if (event.target === downloadTrackModal) {
+                hideDownloadTrackModal();
             }
             if (event.target === addModal) {
                 hideAddChannelModal();

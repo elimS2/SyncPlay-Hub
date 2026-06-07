@@ -9,9 +9,81 @@ from flask import Blueprint, request, jsonify
 
 from .shared import get_connection, log_message, get_root_dir, record_event
 import database as db
+from utils.youtube_channel_urls import extract_video_id_from_url, is_video_url
 
 # Create blueprint
 channels_management_bp = Blueprint('channels_management', __name__)
+
+_CHANNEL_FORMAT_SELECTOR = (
+    'bestvideo[ext=mp4][vcodec*=avc1][height>=2160]+bestaudio[ext=m4a]/'
+    'bestvideo[ext=mp4][vcodec*=avc1][height>=1440]+bestaudio[ext=m4a]/'
+    'bestvideo[ext=mp4][vcodec*=avc1][height>=1080]+bestaudio[ext=m4a]/'
+    '137+140/bestvideo[height>=1080]+bestaudio'
+)
+
+
+def _channel_handle_candidates(metadata: dict) -> list[str]:
+    """Build ordered list of possible channel folder name stems from video metadata."""
+    candidates: list[str] = []
+    seen: set[str] = set()
+
+    def add(value: str | None) -> None:
+        if not value:
+            return
+        cleaned = value.strip().lstrip('@')
+        if cleaned and not cleaned.startswith('UC') and cleaned not in seen:
+            seen.add(cleaned)
+            candidates.append(cleaned)
+
+    add(metadata.get('uploader_id'))
+    uploader_url = metadata.get('uploader_url') or ''
+    if '@' in uploader_url:
+        add(uploader_url.split('@')[1].split('/')[0].split('?')[0])
+    channel_url = metadata.get('channel_url') or ''
+    if '@' in channel_url:
+        add(channel_url.split('@')[1].split('/')[0].split('?')[0])
+    return candidates
+
+
+def _resolve_channel_folder_name(
+    conn,
+    group_id: int,
+    group_name: str,
+    root_dir: Path,
+    metadata: dict,
+) -> str:
+    """Pick Channel-{name} folder stem for a one-off video download."""
+    uploader_id = (metadata.get('uploader_id') or '').strip()
+    channel_id = (metadata.get('channel_id') or '').strip()
+    uploader_url = (metadata.get('uploader_url') or '').split('?')[0]
+    channel_url = (metadata.get('channel_url') or '').split('?')[0]
+
+    for channel in db.get_channels_by_group(conn, group_id):
+        ch = dict(channel)
+        ch_url = ch.get('url') or ''
+        ch_name = ch.get('name') or ''
+        if uploader_id and f'@{uploader_id.lstrip("@")}' in ch_url:
+            return ch_name
+        if channel_id and channel_id in ch_url:
+            return ch_name
+        if uploader_url and uploader_url in ch_url:
+            return ch_name
+        if channel_url and channel_url in ch_url:
+            return ch_name
+
+    group_dir = root_dir / group_name
+    for candidate in _channel_handle_candidates(metadata):
+        folder = group_dir / f"Channel-{candidate}"
+        if folder.exists():
+            return candidate
+
+    candidates = _channel_handle_candidates(metadata)
+    if candidates:
+        return candidates[0]
+
+    channel_title = (metadata.get('channel') or metadata.get('uploader') or 'Unknown').strip()
+    sanitized = re.sub(r'[^\w-]', '', channel_title.replace(' ', ''))
+    return sanitized or 'Unknown'
 
 @channels_management_bp.route("/add_channel", methods=["POST"])
 def api_add_channel():
@@ -278,6 +350,130 @@ def api_add_channel():
     except Exception as e:
         log_message(f"[Channels] Error adding channel: {e}")
         return jsonify({"status": "error", "error": str(e)}), 500
+
+
+@channels_management_bp.route("/download_track", methods=["POST"])
+def api_download_track():
+    """Download a single YouTube video into the channel folder (no subscription)."""
+    try:
+        data = request.get_json() or {}
+        group_id = data.get('group_id')
+        video_url = (data.get('url') or '').strip()
+
+        if not group_id:
+            return jsonify({"status": "error", "error": "Group ID is required"}), 400
+        if not video_url:
+            return jsonify({"status": "error", "error": "Video URL is required"}), 400
+        if not is_video_url(video_url):
+            return jsonify({
+                "status": "error",
+                "error": "Invalid YouTube video URL. Supported: watch?v=, youtu.be/, shorts/",
+            }), 400
+
+        video_id = extract_video_id_from_url(video_url)
+        if not video_id:
+            return jsonify({"status": "error", "error": "Could not extract video ID from URL"}), 400
+
+        conn = get_connection()
+        group = db.get_channel_group_by_id(conn, group_id)
+        if not group:
+            conn.close()
+            return jsonify({"status": "error", "error": "Channel group not found"}), 404
+
+        if db.is_track_already_downloaded(conn, video_id):
+            conn.close()
+            return jsonify({
+                "status": "error",
+                "error": f"Video {video_id} is already in the library",
+            }), 400
+
+        group_name = group['name']
+        conn.close()
+
+        from services.job_queue_service import get_job_queue_service
+        from services.job_types import JobType, JobPriority
+
+        job_service = get_job_queue_service()
+
+        def metadata_completion_callback(job_id: int, success: bool, error_message: str = None):
+            if not success:
+                log_message(f"[Download Track] Metadata extraction failed for {video_id}: {error_message}")
+                return
+
+            try:
+                conn = get_connection()
+                meta_row = db.get_youtube_metadata_by_id(conn, video_id)
+                if not meta_row:
+                    conn.close()
+                    log_message(f"[Download Track] No metadata found for {video_id} after extraction")
+                    return
+
+                metadata = dict(meta_row)
+                root_dir = get_root_dir()
+                if not root_dir:
+                    conn.close()
+                    log_message("[Download Track] ROOT_DIR not initialized")
+                    return
+
+                channel_name = _resolve_channel_folder_name(conn, group_id, group_name, root_dir, metadata)
+                target_folder = f"{group_name}/Channel-{channel_name}"
+                video_title = metadata.get('title') or f"Video {video_id}"
+                conn.close()
+
+                download_job_id = job_service.create_and_add_job(
+                    JobType.SINGLE_VIDEO_DOWNLOAD,
+                    priority=JobPriority.HIGH,
+                    playlist_url=f"https://www.youtube.com/watch?v={video_id}",
+                    target_folder=target_folder,
+                    format_selector=_CHANNEL_FORMAT_SELECTOR,
+                    extract_audio=False,
+                    download_archive=True,
+                    exclude_shorts=False,
+                    video_id=video_id,
+                    skip_full_scan=True,
+                )
+                log_message(
+                    f"[Download Track] Queued download job #{download_job_id} for "
+                    f"'{video_title[:50]}' -> {target_folder}"
+                )
+            except Exception as exc:
+                log_message(f"[Download Track] Error creating download job for {video_id}: {exc}")
+
+        metadata_job_id = job_service.create_and_add_job(
+            JobType.SINGLE_VIDEO_METADATA_EXTRACTION,
+            callback=metadata_completion_callback,
+            priority=JobPriority.HIGH,
+            video_id=video_id,
+            force_update=True,
+        )
+
+        log_message(
+            f"[Download Track] One-off download started for {video_url} "
+            f"in group '{group_name}' (metadata job #{metadata_job_id})"
+        )
+
+        return jsonify({
+            "status": "started",
+            "video_id": video_id,
+            "metadata_job_id": metadata_job_id,
+            "message": (
+                f"Track download started in group '{group_name}'. "
+                "No channel subscription will be created."
+            ),
+            "process": "single_track",
+            "steps": [
+                "1. Extract video metadata (in progress)",
+                "2. Resolve channel folder and download video (pending)",
+                "3. Update library database (pending)",
+            ],
+        })
+
+    except ImportError:
+        return jsonify({"status": "error", "error": "Job queue system is not available"}), 503
+    except Exception as e:
+        log_message(f"[Channels] Error starting track download: {e}")
+        return jsonify({"status": "error", "error": str(e)}), 500
+
 
 @channels_management_bp.route("/remove_channel/<int:channel_id>", methods=["POST"])
 def api_remove_channel(channel_id: int):

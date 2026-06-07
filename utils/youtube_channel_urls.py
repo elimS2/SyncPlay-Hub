@@ -7,6 +7,11 @@ from typing import Any, Callable, Dict, List, Optional
 
 YOUTUBE_VIDEO_ID_RE = re.compile(r"^[A-Za-z0-9_-]{11}$")
 
+VIDEO_URL_PATTERNS = [
+    re.compile(r"(?:youtube\.com/watch\?v=|youtu\.be/|youtube\.com/embed/|youtube\.com/v/)([A-Za-z0-9_-]{11})"),
+    re.compile(r"youtube\.com/shorts/([A-Za-z0-9_-]{11})"),
+]
+
 CHANNEL_TAB_SUFFIXES = ("videos", "releases", "streams", "shorts", "playlists", "community", "channels", "about")
 
 CHANNEL_URL_PATTERNS = [
@@ -19,6 +24,21 @@ CHANNEL_URL_PATTERNS = [
 
 def is_youtube_video_id(video_id: Optional[str]) -> bool:
     return bool(video_id and YOUTUBE_VIDEO_ID_RE.match(video_id))
+
+
+def extract_video_id_from_url(url: str) -> Optional[str]:
+    """Extract an 11-character YouTube video ID from a watch/shorts/youtu.be URL."""
+    for pattern in VIDEO_URL_PATTERNS:
+        match = pattern.search((url or "").strip())
+        if match:
+            video_id = match.group(1)
+            if is_youtube_video_id(video_id):
+                return video_id
+    return None
+
+
+def is_video_url(url: str) -> bool:
+    return extract_video_id_from_url(url) is not None
 
 
 def is_releases_url(url: str) -> bool:
