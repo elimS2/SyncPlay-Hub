@@ -333,14 +333,14 @@ class ChannelSyncService:
                         # Update channel sync timestamp - count actual tracks
                         conn = get_connection()
                         
-                        # Count actual files in channel folder
-                        channel_folder = root_dir / (group['name'] if group else '') / f"Channel-{channel['name']}"
-                        actual_track_count = 0
-                        if channel_folder.exists():
-                            video_extensions = ['.mp4', '.webm', '.mkv', '.avi']
-                            actual_track_count = len([f for f in channel_folder.iterdir() 
-                                                    if f.is_file() and f.suffix.lower() in video_extensions])
-                        
+                        actual_track_count = db.count_channel_downloaded_tracks(
+                            conn,
+                            channel['url'],
+                            group_name=group['name'] if group else None,
+                            channel_name=channel['name'],
+                            root_dir=root_dir,
+                        )
+
                         db.update_channel_sync(conn, channel_id, actual_track_count)
                         conn.close()
                         
@@ -532,6 +532,120 @@ class ChannelSyncService:
             log_message(f"[Quick Sync Group] Error quick syncing channel group: {e}")
             return {"status": "error", "error": str(e)}
     
+    def _update_channel_track_count(self, channel_id: int, channel: Dict[str, Any], group: Optional[Dict[str, Any]]) -> int:
+        """Persist current downloaded track count for a channel."""
+        try:
+            root_dir = get_root_dir()
+            conn = get_connection()
+            track_count = db.count_channel_downloaded_tracks(
+                conn,
+                channel["url"],
+                group_name=group["name"] if group else None,
+                channel_name=channel.get("name"),
+                root_dir=root_dir,
+            )
+            db.update_channel_sync(conn, channel_id, track_count)
+            conn.close()
+            log_message(f"[Quick Sync] Updated track count for {channel['name']}: {track_count}")
+            return track_count
+        except Exception as e:
+            log_message(f"[Quick Sync] Warning: failed to update track count: {e}")
+            return 0
+
+    def _quick_sync_releases_channel_core(
+        self,
+        channel: Dict[str, Any],
+        group: Optional[Dict[str, Any]],
+        channel_id: int,
+    ) -> Dict[str, Any]:
+        """Quick sync for /releases channels: queue missing album tracks from metadata."""
+        conn = get_connection()
+        cur = conn.cursor()
+        cur.execute(
+            """
+            SELECT ym.youtube_id, ym.title
+            FROM youtube_video_metadata ym
+            WHERE ym.channel_url = ?
+              AND NOT EXISTS (SELECT 1 FROM tracks t WHERE t.video_id = ym.youtube_id)
+              AND ym.youtube_id NOT IN (
+                  SELECT video_id FROM deleted_tracks WHERE restored_at IS NULL
+              )
+            ORDER BY COALESCE(ym.release_timestamp, ym.timestamp) DESC
+            """,
+            (channel["url"],),
+        )
+        missing = cur.fetchall()
+        conn.close()
+
+        track_count = self._update_channel_track_count(channel_id, channel, group)
+
+        if not missing:
+            return {
+                "status": "up_to_date",
+                "message": f"Channel '{channel['name']}' releases are up to date. {track_count} tracks downloaded.",
+                "channel_name": channel["name"],
+                "new_videos": 0,
+                "track_count": track_count,
+            }
+
+        try:
+            from services.job_queue_service import get_job_queue_service
+            from services.job_types import JobType, JobPriority
+
+            job_service = get_job_queue_service()
+            target_folder = (
+                f"{group['name']}/Channel-{channel['name']}" if group else f"Channel-{channel['name']}"
+            )
+            created_jobs = 0
+            failed_jobs = 0
+
+            for video_id, video_title in missing:
+                video_url = f"https://www.youtube.com/watch?v={video_id}"
+                try:
+                    job_service.create_and_add_job(
+                        JobType.SINGLE_VIDEO_DOWNLOAD,
+                        priority=JobPriority.HIGH,
+                        playlist_url=video_url,
+                        target_folder=target_folder,
+                        format_selector='bestvideo[ext=mp4][vcodec*=avc1][height>=2160]+bestaudio[ext=m4a]/bestvideo[ext=mp4][vcodec*=avc1][height>=1440]+bestaudio[ext=m4a]/bestvideo[ext=mp4][vcodec*=avc1][height>=1080]+bestaudio[ext=m4a]/137+140/bestvideo[height>=1080]+bestaudio',
+                        extract_audio=False,
+                        download_archive=True,
+                        exclude_shorts=True,
+                        video_id=video_id,
+                        skip_full_scan=True,
+                    )
+                    created_jobs += 1
+                    if created_jobs <= 5:
+                        log_message(f"[Quick Sync] Queued missing release track: {(video_title or video_id)[:50]}...")
+                except Exception as e:
+                    failed_jobs += 1
+                    log_message(f"[Quick Sync] Failed to queue {video_id}: {e}")
+
+            log_message(
+                f"[Quick Sync] Releases quick sync: {created_jobs} missing tracks queued, "
+                f"{failed_jobs} failed, {track_count} already downloaded"
+            )
+
+            return {
+                "status": "started",
+                "message": (
+                    f"Quick sync started for releases channel '{channel['name']}'. "
+                    f"Queued {created_jobs} missing tracks ({track_count} already downloaded)."
+                ),
+                "channel_name": channel["name"],
+                "channel_id": channel_id,
+                "new_videos": created_jobs,
+                "jobs_created": created_jobs,
+                "jobs_failed": failed_jobs,
+                "track_count": track_count,
+                "process": "quick_sync_releases",
+            }
+        except ImportError:
+            return {
+                "status": "error",
+                "error": "Quick sync requires job queue system which is not available",
+            }
+
     def quick_sync_channel_core(
         self,
         channel_id: int
@@ -568,6 +682,11 @@ class ChannelSyncService:
             
             log_message(f"[Quick Sync] Starting quick sync for channel: {channel['name']}")
             log_message(f"[Quick Sync] Channel URL: {channel['url']}")
+
+            from utils.youtube_channel_urls import is_releases_url
+            if is_releases_url(channel["url"]):
+                log_message("[Quick Sync] Releases tab detected - syncing missing album tracks from metadata")
+                return self._quick_sync_releases_channel_core(channel, group, channel_id)
             
             # Step 1: Get latest videos metadata directly from YouTube in batches
             try:
@@ -718,12 +837,14 @@ class ChannelSyncService:
                 log_message(f"[Quick Sync] Metadata extraction completed. Found {len(new_videos_to_download)} new videos to download.")
                 
                 if not new_videos_to_download:
+                    track_count = self._update_channel_track_count(channel_id, channel, group)
                     return {
                         "status": "up_to_date",
                         "message": f"Channel '{channel['name']}' is up to date. No new videos to download.",
                         "channel_name": channel['name'],
                         "batches_processed": current_batch - 1,
-                        "new_videos": 0
+                        "new_videos": 0,
+                        "track_count": track_count,
                     }
                 
                 # Step 2: Create download jobs for new videos
@@ -777,6 +898,8 @@ class ChannelSyncService:
                     log_message(f"[Quick Sync]   - New videos found: {len(new_videos_to_download)}")
                     log_message(f"[Quick Sync]   - Download jobs created: {created_jobs}")
                     log_message(f"[Quick Sync]   - Failed jobs: {failed_jobs}")
+
+                    track_count = self._update_channel_track_count(channel_id, channel, group)
                     
                     return {
                         "status": "started",
@@ -787,6 +910,7 @@ class ChannelSyncService:
                         "jobs_created": created_jobs,
                         "jobs_failed": failed_jobs,
                         "batches_processed": current_batch - 1,
+                        "track_count": track_count,
                         "process": "quick_sync_optimized"
                     }
                     

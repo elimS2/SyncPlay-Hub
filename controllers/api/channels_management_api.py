@@ -380,45 +380,23 @@ def api_refresh_channel_stats(channel_id: int):
             conn.close()
             return jsonify({"status": "error", "error": "Channel group not found"}), 404
         
-        # Count actual files in channel folder
-        # Try multiple possible folder names for the channel
         root_dir = get_root_dir()
         if not root_dir:
             return jsonify({"status": "error", "error": "Server configuration error"}), 500
-            
-        possible_folders = []
-        
-        # 1. Try full channel name
-        possible_folders.append(root_dir / group['name'] / f"Channel-{channel['name']}")
-        
-        # 2. Try extracting channel name from URL
-        url = channel['url']
-        if '@' in url:
-            # Extract from URL like https://www.youtube.com/@LAUDenjoy/videos
-            url_channel_name = url.split('@')[1].split('/')[0]
-            possible_folders.append(root_dir / group['name'] / f"Channel-{url_channel_name}")
-        
-        # 3. Try short name (remove common suffixes)
-        short_name = channel['name'].replace('enjoy', '').replace('music', '').replace('official', '').strip()
-        if short_name != channel['name']:
-            possible_folders.append(root_dir / group['name'] / f"Channel-{short_name}")
-        
-        actual_track_count = 0
-        found_folder = None
-        
-        for channel_folder in possible_folders:
-            if channel_folder.exists():
-                found_folder = channel_folder
-                video_extensions = ['.mp4', '.webm', '.mkv', '.avi', '.mp3', '.m4a']  # Include audio too
-                actual_track_count = len([f for f in channel_folder.iterdir() 
-                                        if f.is_file() and f.suffix.lower() in video_extensions])
-                break
-        
+
+        actual_track_count = db.count_channel_downloaded_tracks(
+            conn,
+            channel['url'],
+            group_name=group['name'],
+            channel_name=channel['name'],
+            root_dir=root_dir,
+        )
+
         # Update database with actual count
         db.update_channel_sync(conn, channel_id, actual_track_count)
         conn.close()
         
-        folder_info = f" in {found_folder}" if found_folder else " (folder not found)"
+        folder_info = ""
         log_message(f"[Channels] Refreshed stats for {channel['name']}: {actual_track_count} tracks{folder_info}")
         
         return jsonify({

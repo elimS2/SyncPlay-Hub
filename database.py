@@ -1963,6 +1963,71 @@ def update_channel_sync(conn: sqlite3.Connection, channel_id: int, track_count: 
     conn.commit()
 
 
+_CHANNEL_TRACK_MEDIA_EXTENSIONS = {".mp4", ".webm", ".mkv", ".avi", ".mp3", ".m4a"}
+
+
+def _count_channel_tracks_in_folder(
+    root_dir,
+    group_name: str,
+    channel_name: str,
+    channel_url: str,
+) -> int:
+    """Count media files in likely on-disk folders for a channel."""
+    from pathlib import Path
+
+    root = Path(root_dir)
+    possible_folders = [root / group_name / f"Channel-{channel_name}"]
+
+    if "@" in channel_url:
+        url_channel_name = channel_url.split("@")[1].split("/")[0]
+        possible_folders.append(root / group_name / f"Channel-{url_channel_name}")
+
+    for channel_folder in possible_folders:
+        if channel_folder.exists():
+            return len([
+                f for f in channel_folder.iterdir()
+                if f.is_file() and f.suffix.lower() in _CHANNEL_TRACK_MEDIA_EXTENSIONS
+            ])
+    return 0
+
+
+def count_channel_downloaded_tracks(
+    conn: sqlite3.Connection,
+    channel_url: str,
+    *,
+    group_name: str | None = None,
+    channel_name: str | None = None,
+    root_dir=None,
+) -> int:
+    """Count non-deleted downloaded tracks for a channel URL.
+
+    Prefers metadata channel_url exact match (supports /videos and /releases tabs).
+    Falls back to on-disk folder scan when no metadata-linked tracks are found.
+    """
+    cur = conn.cursor()
+    cur.execute(
+        """
+        SELECT COUNT(DISTINCT t.video_id)
+        FROM tracks t
+        INNER JOIN youtube_video_metadata ym ON ym.youtube_id = t.video_id
+        WHERE ym.channel_url = ?
+          AND t.video_id NOT IN (
+              SELECT video_id FROM deleted_tracks WHERE restored_at IS NULL
+          )
+        """,
+        (channel_url,),
+    )
+    metadata_count = cur.fetchone()[0] or 0
+    if metadata_count > 0:
+        return metadata_count
+
+    if root_dir and group_name and channel_name:
+        return _count_channel_tracks_in_folder(
+            root_dir, group_name, channel_name, channel_url
+        )
+    return 0
+
+
 def record_track_deletion(conn: sqlite3.Connection, video_id: str, original_name: str,
                          original_relpath: str, deletion_reason: str = 'auto_delete',
                          channel_group: str = None, trash_path: str = None,

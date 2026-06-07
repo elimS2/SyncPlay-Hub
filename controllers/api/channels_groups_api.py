@@ -94,11 +94,24 @@ def api_get_channels_by_group(group_id: int):
     try:
         conn = get_connection()
         channels_raw = db.get_channels_by_group(conn, group_id)
-        conn.close()
-        
-        # Convert sqlite3.Row objects to dictionaries
+
+        # Convert sqlite3.Row objects to dictionaries and refresh track counts
         channels = [dict(channel) for channel in channels_raw]
-        
+        try:
+            root_dir = get_root_dir()
+        except Exception:
+            root_dir = None
+        group_name = channels[0].get("group_name") if channels else None
+        for channel in channels:
+            channel["track_count"] = db.count_channel_downloaded_tracks(
+                conn,
+                channel["url"],
+                group_name=group_name,
+                channel_name=channel.get("name"),
+                root_dir=root_dir,
+            )
+        conn.close()
+
         log_message(f"[Channels] Retrieved {len(channels)} channels for group {group_id}")
         return jsonify({"status": "ok", "channels": channels})
         
