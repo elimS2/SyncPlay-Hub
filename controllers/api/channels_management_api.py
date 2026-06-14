@@ -581,16 +581,16 @@ def api_refresh_channel_stats(channel_id: int):
         if not root_dir:
             return jsonify({"status": "error", "error": "Server configuration error"}), 500
 
-        actual_track_count = db.count_channel_downloaded_tracks(
+        actual_track_count = db.refresh_channel_track_count(
             conn,
-            channel['url'],
+            channel_id,
+            channel_url=channel['url'],
             group_name=group['name'],
             channel_name=channel['name'],
             root_dir=root_dir,
+            force=True,
+            touch_last_sync=True,
         )
-
-        # Update database with actual count
-        db.update_channel_sync(conn, channel_id, actual_track_count)
         conn.close()
         
         folder_info = ""

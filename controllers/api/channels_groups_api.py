@@ -103,12 +103,14 @@ def api_get_channels_by_group(group_id: int):
             root_dir = None
         group_name = channels[0].get("group_name") if channels else None
         for channel in channels:
-            channel["track_count"] = db.count_channel_downloaded_tracks(
+            channel["track_count"] = db.refresh_channel_track_count(
                 conn,
-                channel["url"],
+                channel["id"],
+                channel_url=channel["url"],
                 group_name=group_name,
                 channel_name=channel.get("name"),
                 root_dir=root_dir,
+                force=False,
             )
         conn.close()
 

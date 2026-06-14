@@ -1,8 +1,11 @@
 import sqlite3
 import json
 import time
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Iterator, Optional, Union, List, Dict, Callable, TypeVar
+
+TRACK_COUNT_STALE_HOURS = 3
 
 def _load_env_config() -> dict:
     """Load configuration from .env file."""
@@ -213,6 +216,7 @@ def _ensure_schema(conn: sqlite3.Connection):
             enabled BOOLEAN DEFAULT 1,
             last_sync_ts TEXT,
             track_count INTEGER DEFAULT 0,
+            track_count_updated_at TEXT,
             created_at TEXT DEFAULT (datetime('now')),
             FOREIGN KEY (channel_group_id) REFERENCES channel_groups(id) ON DELETE SET NULL
         );
@@ -357,6 +361,12 @@ def _ensure_schema(conn: sqlite3.Connection):
     channel_groups_cols = {row[1] for row in cur.fetchall()}
     if "include_in_likes" not in channel_groups_cols:
         cur.execute("ALTER TABLE channel_groups ADD COLUMN include_in_likes BOOLEAN DEFAULT 1")
+    conn.commit()
+
+    cur.execute("PRAGMA table_info(channels)")
+    channels_cols = {row[1] for row in cur.fetchall()}
+    if "track_count_updated_at" not in channels_cols:
+        cur.execute("ALTER TABLE channels ADD COLUMN track_count_updated_at TEXT")
     conn.commit()
 
     # Add new columns for youtube_video_metadata if missing (upgrades)
@@ -1950,17 +1960,60 @@ def get_channel_by_id(conn: sqlite3.Connection, channel_id: int):
 
 
 def update_channel_sync(conn: sqlite3.Connection, channel_id: int, track_count: int):
-    """Update channel sync timestamp and track count."""
+    """Update channel sync timestamp, track count, and count refresh timestamp."""
     cur = conn.cursor()
     cur.execute(
         """
         UPDATE channels 
-        SET last_sync_ts = datetime('now'), track_count = ? 
+        SET last_sync_ts = datetime('now'),
+            track_count = ?,
+            track_count_updated_at = datetime('now')
         WHERE id = ?
         """,
         (track_count, channel_id)
     )
     conn.commit()
+
+
+def update_channel_track_count(conn: sqlite3.Connection, channel_id: int, track_count: int):
+    """Persist track count and when it was last recalculated."""
+    cur = conn.cursor()
+    cur.execute(
+        """
+        UPDATE channels
+        SET track_count = ?, track_count_updated_at = datetime('now')
+        WHERE id = ?
+        """,
+        (track_count, channel_id)
+    )
+    conn.commit()
+
+
+def _parse_db_timestamp(ts: Optional[str]) -> Optional[datetime]:
+    if not ts:
+        return None
+    normalized = ts.strip().replace("Z", "")
+    for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%d %H:%M:%S.%f"):
+        try:
+            parsed = datetime.strptime(normalized, fmt)
+            if parsed.tzinfo is None:
+                return parsed.replace(tzinfo=timezone.utc)
+            return parsed
+        except ValueError:
+            continue
+    return None
+
+
+def is_channel_track_count_stale(
+    track_count_updated_at: Optional[str],
+    max_age_hours: float = TRACK_COUNT_STALE_HOURS,
+) -> bool:
+    """Return True when stored track_count should be recalculated."""
+    updated_at = _parse_db_timestamp(track_count_updated_at)
+    if updated_at is None:
+        return True
+    age = datetime.now(timezone.utc) - updated_at.astimezone(timezone.utc)
+    return age > timedelta(hours=max_age_hours)
 
 
 _CHANNEL_TRACK_MEDIA_EXTENSIONS = {".mp4", ".webm", ".mkv", ".avi", ".mp3", ".m4a"}
@@ -2026,6 +2079,45 @@ def count_channel_downloaded_tracks(
             root_dir, group_name, channel_name, channel_url
         )
     return 0
+
+
+def refresh_channel_track_count(
+    conn: sqlite3.Connection,
+    channel_id: int,
+    *,
+    channel_url: str,
+    group_name: Optional[str] = None,
+    channel_name: Optional[str] = None,
+    root_dir=None,
+    force: bool = False,
+    touch_last_sync: bool = False,
+    max_age_hours: float = TRACK_COUNT_STALE_HOURS,
+) -> int:
+    """Return channel track_count from DB, recalculating when forced or stale."""
+    if not force:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT track_count, track_count_updated_at FROM channels WHERE id = ?",
+            (channel_id,),
+        )
+        row = cur.fetchone()
+        if row is not None:
+            stored_count, updated_at = row[0], row[1]
+            if not is_channel_track_count_stale(updated_at, max_age_hours):
+                return int(stored_count or 0)
+
+    track_count = count_channel_downloaded_tracks(
+        conn,
+        channel_url,
+        group_name=group_name,
+        channel_name=channel_name,
+        root_dir=root_dir,
+    )
+    if touch_last_sync:
+        update_channel_sync(conn, channel_id, track_count)
+    else:
+        update_channel_track_count(conn, channel_id, track_count)
+    return track_count
 
 
 def record_track_deletion(conn: sqlite3.Connection, video_id: str, original_name: str,

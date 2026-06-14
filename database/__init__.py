@@ -76,6 +76,9 @@ get_channels_by_group = database_core.get_channels_by_group
 get_channel_by_url = database_core.get_channel_by_url
 get_channel_by_id = database_core.get_channel_by_id
 update_channel_sync = database_core.update_channel_sync
+update_channel_track_count = database_core.update_channel_track_count
+refresh_channel_track_count = database_core.refresh_channel_track_count
+is_channel_track_count_stale = database_core.is_channel_track_count_stale
 count_channel_downloaded_tracks = database_core.count_channel_downloaded_tracks
 record_channel_added = database_core.record_channel_added
 record_channel_synced = database_core.record_channel_synced
@@ -178,6 +181,10 @@ __all__ = [
     'get_channel_by_url',
     'get_channel_by_id',
     'update_channel_sync',
+    'update_channel_track_count',
+    'refresh_channel_track_count',
+    'is_channel_track_count_stale',
+    'count_channel_downloaded_tracks',
     'record_channel_added',
     'record_channel_synced',
     

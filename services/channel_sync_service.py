@@ -533,18 +533,20 @@ class ChannelSyncService:
             return {"status": "error", "error": str(e)}
     
     def _update_channel_track_count(self, channel_id: int, channel: Dict[str, Any], group: Optional[Dict[str, Any]]) -> int:
-        """Persist current downloaded track count for a channel."""
+        """Persist current downloaded track count for a channel (always recalculated on quick sync)."""
         try:
             root_dir = get_root_dir()
             conn = get_connection()
-            track_count = db.count_channel_downloaded_tracks(
+            track_count = db.refresh_channel_track_count(
                 conn,
-                channel["url"],
+                channel_id,
+                channel_url=channel["url"],
                 group_name=group["name"] if group else None,
                 channel_name=channel.get("name"),
                 root_dir=root_dir,
+                force=True,
+                touch_last_sync=True,
             )
-            db.update_channel_sync(conn, channel_id, track_count)
             conn.close()
             log_message(f"[Quick Sync] Updated track count for {channel['name']}: {track_count}")
             return track_count
