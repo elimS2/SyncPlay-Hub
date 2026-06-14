@@ -178,7 +178,7 @@
                     <input type="url" id="channelUrl" class="form-input" 
                            placeholder="https://www.youtube.com/@ChannelName/videos" required>
                     <small style="color: var(--text-muted);">
-                        Supported formats: @ChannelName/videos, @ChannelName/releases, @ChannelName, /c/ChannelName
+                        Supported formats: @ChannelName/videos, @ChannelName/releases, @ChannelName/streams, @ChannelName, /c/ChannelName
                     </small>
                 </div>
                 <div class="form-group">
@@ -759,6 +759,7 @@
             if (!url) return null;
             const lower = url.toLowerCase();
             if (lower.includes('/releases')) return 'releases';
+            if (lower.includes('/streams')) return 'streams';
             if (lower.includes('/videos')) return 'videos';
             return null;
         }

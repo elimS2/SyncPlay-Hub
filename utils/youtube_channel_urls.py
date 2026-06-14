@@ -14,12 +14,16 @@ VIDEO_URL_PATTERNS = [
 
 CHANNEL_TAB_SUFFIXES = ("videos", "releases", "streams", "shorts", "playlists", "community", "channels", "about")
 
+_CHANNEL_TAB_PATTERN = r"(?:videos|releases|streams)"
+
 CHANNEL_URL_PATTERNS = [
     r"youtube\.com/@[\w-]+(?:/(?:" + "|".join(CHANNEL_TAB_SUFFIXES) + r"))?",
-    r"youtube\.com/c/[\w-]+(?:/(?:videos|releases))?",
-    r"youtube\.com/channel/[\w-]+(?:/(?:videos|releases))?",
-    r"youtube\.com/user/[\w-]+(?:/(?:videos|releases))?",
+    rf"youtube\.com/c/[\w-]+(?:/{_CHANNEL_TAB_PATTERN})?",
+    rf"youtube\.com/channel/[\w-]+(?:/{_CHANNEL_TAB_PATTERN})?",
+    rf"youtube\.com/user/[\w-]+(?:/{_CHANNEL_TAB_PATTERN})?",
 ]
+
+ACTIVE_LIVE_STATUSES = frozenset({"is_live", "is_upcoming"})
 
 
 def is_youtube_video_id(video_id: Optional[str]) -> bool:
@@ -45,6 +49,18 @@ def is_releases_url(url: str) -> bool:
     return "/releases" in (url or "").lower()
 
 
+def is_streams_url(url: str) -> bool:
+    return "/streams" in (url or "").lower()
+
+
+def is_active_live_stream(entry: Dict[str, Any]) -> bool:
+    """True when a video is live or scheduled and not yet finished."""
+    live_status = (entry.get("live_status") or "").lower()
+    if live_status in ACTIVE_LIVE_STATUSES:
+        return True
+    return entry.get("is_live") is True
+
+
 def is_channel_url(url: str) -> bool:
     for pattern in CHANNEL_URL_PATTERNS:
         if re.search(pattern, url, re.IGNORECASE):
@@ -53,8 +69,8 @@ def is_channel_url(url: str) -> bool:
 
 
 def normalize_channel_url(url: str) -> str:
-    """Normalize channel URL while preserving explicit tab suffixes like /releases."""
-    if is_releases_url(url):
+    """Normalize channel URL while preserving explicit tab suffixes like /releases or /streams."""
+    if is_releases_url(url) or is_streams_url(url):
         return url
     return re.sub(r"/@([\w-]+)/videos", r"/@\1", url)
 

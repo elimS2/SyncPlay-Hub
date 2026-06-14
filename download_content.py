@@ -49,6 +49,7 @@ UNAVAILABLE_FILE = "unavailable_ids.txt"
 
 from utils.youtube_channel_urls import (
     expand_nested_playlist_entries,
+    is_active_live_stream,
     is_channel_url,
     is_nested_playlist_entry,
     is_releases_url,
@@ -597,7 +598,7 @@ def build_ydl_opts(output_dir: pathlib.Path, audio_only: bool, is_channel: bool 
         deleted_video_ids = get_deleted_video_ids() if sync else set()
         
         # Counters for filter statistics
-        filter_stats = {'total': 0, 'passed': 0, 'filtered_short': 0, 'filtered_duration': 0, 'filtered_deleted': 0}
+        filter_stats = {'total': 0, 'passed': 0, 'filtered_short': 0, 'filtered_duration': 0, 'filtered_deleted': 0, 'filtered_live': 0}
         
         def match_filter(info):
             video_title = info.get('title', 'Unknown Title')
@@ -633,6 +634,14 @@ def build_ydl_opts(output_dir: pathlib.Path, audio_only: bool, is_channel: bool 
                 reason = f"Skipping video shorter than 60s (Shorts): '{video_title}' (ID: {video_id}) ({duration}s)"
                 print(f"[Filter Debug]   ❌ FILTERED (Duration): {reason}")
                 return reason
+
+            # 🔴 CHECK: Skip active or upcoming live streams (download after they finish)
+            if is_active_live_stream(info):
+                filter_stats['filtered_live'] += 1
+                live_status = info.get('live_status') or 'is_live'
+                reason = f"Skipping active live stream: '{video_title}' (ID: {video_id}) ({live_status})"
+                print(f"[Filter Debug]   ❌ FILTERED (Live): {reason}")
+                return reason
             
             # Video passed all filters
             filter_stats['passed'] += 1
@@ -640,7 +649,7 @@ def build_ydl_opts(output_dir: pathlib.Path, audio_only: bool, is_channel: bool 
             
             # Show progress every 10 videos
             if filter_stats['total'] % 10 == 0:
-                print(f"[Filter Stats] Processed {filter_stats['total']} videos: {filter_stats['passed']} passed, {filter_stats['filtered_deleted']} filtered (deleted), {filter_stats['filtered_short']} filtered (shorts), {filter_stats['filtered_duration']} filtered (duration)")
+                print(f"[Filter Stats] Processed {filter_stats['total']} videos: {filter_stats['passed']} passed, {filter_stats['filtered_deleted']} filtered (deleted), {filter_stats['filtered_short']} filtered (shorts), {filter_stats['filtered_duration']} filtered (duration), {filter_stats['filtered_live']} filtered (live)")
             
             return None
         opts["match_filter"] = match_filter

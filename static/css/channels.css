@@ -390,6 +390,12 @@ h1 {
     border: 1px solid rgba(139, 92, 246, 0.25);
 }
 
+.channel-tab-badge-streams {
+    color: #fca5a5;
+    background: rgba(239, 68, 68, 0.15);
+    border: 1px solid rgba(239, 68, 68, 0.25);
+}
+
 .channel-stats {
     color: var(--text-muted);
     font-size: 0.85rem;

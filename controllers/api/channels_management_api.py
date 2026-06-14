@@ -103,10 +103,10 @@ def api_add_channel():
         
         # Validate YouTube channel URL format
         channel_patterns = [
-            r'youtube\.com/@([^/\s]+)(?:/(?:videos|releases))?',  # @ChannelName, /videos or /releases
-            r'youtube\.com/c/([^/\s]+)(?:/(?:videos|releases))?',  # /c/ChannelName
-            r'youtube\.com/channel/([^/\s]+)(?:/(?:videos|releases))?',  # /channel/ChannelID
-            r'youtube\.com/user/([^/\s]+)(?:/(?:videos|releases))?'  # /user/Username
+            r'youtube\.com/@([^/\s]+)(?:/(?:videos|releases|streams))?',  # @ChannelName tabs
+            r'youtube\.com/c/([^/\s]+)(?:/(?:videos|releases|streams))?',  # /c/ChannelName
+            r'youtube\.com/channel/([^/\s]+)(?:/(?:videos|releases|streams))?',  # /channel/ChannelID
+            r'youtube\.com/user/([^/\s]+)(?:/(?:videos|releases|streams))?'  # /user/Username
         ]
         
         valid_url = False
@@ -118,7 +118,7 @@ def api_add_channel():
         if not valid_url:
             return jsonify({
                 "status": "error", 
-                "error": "Invalid YouTube channel URL. Supported formats: @ChannelName/videos, @ChannelName/releases, /c/ChannelName, /channel/ChannelID, /user/Username"
+                "error": "Invalid YouTube channel URL. Supported formats: @ChannelName/videos, @ChannelName/releases, @ChannelName/streams, /c/ChannelName, /channel/ChannelID, /user/Username"
             }), 400
         
         # Check if channel already exists
@@ -199,6 +199,7 @@ def api_add_channel():
                     query = """
                         SELECT youtube_id, title FROM youtube_video_metadata 
                         WHERE (channel_url LIKE ? OR channel LIKE ?)
+                          AND COALESCE(live_status, '') NOT IN ('is_live', 'is_upcoming')
                     """
                     params = [search_pattern, search_pattern]
                     

@@ -782,9 +782,10 @@ class ChannelSyncService:
                                     log_message(f"[Quick Sync] Skipping short video: {video_title[:50]}... ({duration}s)")
                                     continue
                                 
-                                # Check if it's a live stream
-                                live_status = entry.get('live_status')
-                                if live_status in ['is_live', 'is_upcoming']:
+                                # Check if it's a live stream (skip until finished)
+                                from utils.youtube_channel_urls import is_active_live_stream
+                                if is_active_live_stream(entry):
+                                    live_status = entry.get('live_status') or 'is_live'
                                     log_message(f"[Quick Sync] Skipping live/upcoming video: {video_title[:50]}... ({live_status})")
                                     continue
                                 
