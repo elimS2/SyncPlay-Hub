@@ -941,6 +941,8 @@ def settings_page():
     """Settings management page."""
     from flask import request, redirect, url_for, flash
     
+    from utils.lan_https import certs_root_display, get_https_settings_from_db
+    
     # Load environment config
     env_config = _load_env_config()
     
@@ -973,15 +975,13 @@ def settings_page():
             
         except ValueError as e:
             log_message(f"Settings validation error: {e}")
-            return render_template("settings.html", error=str(e), delay_seconds=request.form.get('job_execution_delay_seconds', 0), env_config=env_config, server_info=server_info)
+            return render_template("settings.html", error=str(e), delay_seconds=request.form.get('job_execution_delay_seconds', 0), env_config=env_config, server_info=server_info, https_enabled=False, https_domain="", certs_dir=certs_root_display())
         except Exception as e:
             log_message(f"Settings save error: {e}")
-            return render_template("settings.html", error="Failed to save settings", delay_seconds=request.form.get('job_execution_delay_seconds', 0), env_config=env_config, server_info=server_info)
+            return render_template("settings.html", error="Failed to save settings", delay_seconds=request.form.get('job_execution_delay_seconds', 0), env_config=env_config, server_info=server_info, https_enabled=False, https_domain="", certs_dir=certs_root_display())
     
     # GET request - load current settings
     try:
-        from utils.lan_https import get_https_settings_from_db
-
         conn = get_connection()
         delay_seconds = get_user_setting(conn, 'job_execution_delay_seconds', '0')
         conn.close()
@@ -993,9 +993,11 @@ def settings_page():
             server_info=server_info,
             https_enabled=https_settings.get("enabled", False),
             https_domain=https_settings.get("domain", ""),
+            certs_dir=certs_root_display(),
         )
     except Exception as e:
         log_message(f"Settings load error: {e}")
+
         return render_template(
             "settings.html",
             delay_seconds=0,
@@ -1004,6 +1006,7 @@ def settings_page():
             server_info=server_info,
             https_enabled=False,
             https_domain="",
+            certs_dir=certs_root_display(),
         )
 
 @app.route("/maintenance")

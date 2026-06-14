@@ -21,8 +21,9 @@ from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.x509.oid import NameOID
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_OUT_DIR = REPO_ROOT / "certs" / "lan"
+from utils.certs_paths import get_lan_cert_dir
+
+DEFAULT_OUT_DIR = get_lan_cert_dir()
 
 
 def detect_lan_ip() -> str:

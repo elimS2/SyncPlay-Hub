@@ -1,5 +1,6 @@
 @echo off
-set "OUT=%~dp0..\certs\acme-dns-pending.txt"
+call "%~dp0certbot_paths.bat"
+set "OUT=%ACME_PENDING%"
 > "%OUT%" echo DOMAIN=%CERTBOT_DOMAIN%
 >> "%OUT%" echo TXT_NAME=_acme-challenge.%CERTBOT_DOMAIN%
 >> "%OUT%" echo TXT_VALUE=%CERTBOT_VALIDATION%

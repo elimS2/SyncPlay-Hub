@@ -5,11 +5,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
-LAN_CERT_DIR = REPO_ROOT / "certs" / "lan"
-LAN_CERT_PATH = LAN_CERT_DIR / "cert.pem"
-LAN_KEY_PATH = LAN_CERT_DIR / "key.pem"
-DOMAIN_CERTS_DIR = REPO_ROOT / "certs" / "domains"
+from utils.certs_paths import get_certs_dir, get_domain_certs_dir, get_lan_cert_dir
 
 SETTING_HTTPS_ENABLED = "server_https_enabled"
 SETTING_HTTPS_DOMAIN = "server_https_domain"
@@ -33,7 +29,12 @@ def normalize_domain(domain: str) -> str:
 
 def domain_cert_dir(domain: str) -> Path:
     safe = normalize_domain(domain).replace("*", "wildcard")
-    return DOMAIN_CERTS_DIR / safe
+    return get_domain_certs_dir() / safe
+
+
+def lan_cert_paths() -> tuple[Path, Path]:
+    cert_dir = get_lan_cert_dir()
+    return cert_dir / "cert.pem", cert_dir / "key.pem"
 
 
 def cert_paths_for_domain(domain: str | None) -> tuple[Path, Path]:
@@ -41,7 +42,7 @@ def cert_paths_for_domain(domain: str | None) -> tuple[Path, Path]:
     if domain:
         cert_dir = domain_cert_dir(domain)
         return cert_dir / "cert.pem", cert_dir / "key.pem"
-    return LAN_CERT_PATH, LAN_KEY_PATH
+    return lan_cert_paths()
 
 
 def certs_available(cert_path: Path, key_path: Path) -> bool:
@@ -76,7 +77,7 @@ def resolve_cert_paths(https_flag: bool | None, ssl_cert: Path | None, ssl_key: 
     domain = settings.get("domain") or ""
     if resolve_https_enabled(https_flag) and domain:
         return cert_paths_for_domain(str(domain))
-    return LAN_CERT_PATH, LAN_KEY_PATH
+    return lan_cert_paths()
 
 
 def normalize_restart_argv(argv: list[str]) -> list[str]:
@@ -111,3 +112,8 @@ def normalize_restart_argv(argv: list[str]) -> list[str]:
         cleaned.append("--no-https")
     cleaned.append("--force")
     return cleaned
+
+
+def certs_root_display() -> str:
+    """Human-readable certs path for UI (forward slashes)."""
+    return str(get_certs_dir()).replace("\\", "/")

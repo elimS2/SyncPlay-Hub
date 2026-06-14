@@ -1,2 +1,3 @@
 @echo off
-if exist "%~dp0..\certs\acme-dns-pending.txt" del "%~dp0..\certs\acme-dns-pending.txt"
+call "%~dp0certbot_paths.bat"
+if exist "%ACME_PENDING%" del "%ACME_PENDING%"
