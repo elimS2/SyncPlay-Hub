@@ -1390,10 +1390,6 @@ def get_playlist_by_relpath(conn: sqlite3.Connection, relpath: str):
 
 # ---------- Database Backup Functions ----------
 
-import shutil
-import datetime
-import os
-
 
 def create_backup(root_dir: Path) -> dict:
     """Create a backup of the database with timestamp.
@@ -1417,7 +1413,7 @@ def create_backup(root_dir: Path) -> dict:
         backups_dir.mkdir(parents=True, exist_ok=True)
         
         # Generate timestamp folder name (UTC)
-        timestamp = datetime.datetime.utcnow().strftime("%Y%m%d_%H%M%S_UTC")
+        timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S_UTC")
         backup_folder = backups_dir / timestamp
         backup_folder.mkdir(exist_ok=True)
         
@@ -1505,11 +1501,11 @@ def list_backups(root_dir: Path) -> list:
                     # Parse timestamp from folder name
                     try:
                         timestamp_str = backup_folder.name.replace("_UTC", "")
-                        backup_datetime = datetime.datetime.strptime(timestamp_str, "%Y%m%d_%H%M%S")
-                        backup_datetime = backup_datetime.replace(tzinfo=datetime.timezone.utc)
+                        backup_datetime = datetime.strptime(timestamp_str, "%Y%m%d_%H%M%S")
+                        backup_datetime = backup_datetime.replace(tzinfo=timezone.utc)
                     except ValueError:
                         # Fallback to file modification time
-                        backup_datetime = datetime.datetime.fromtimestamp(stat.st_mtime, tz=datetime.timezone.utc)
+                        backup_datetime = datetime.fromtimestamp(stat.st_mtime, tz=timezone.utc)
                     
                     backups.append({
                         'folder_name': backup_folder.name,
@@ -2822,7 +2818,6 @@ def get_video_publication_date(conn: sqlite3.Connection, video_id: str) -> Optio
     
     if video_timestamp:
         try:
-            from datetime import datetime
             # Convert timestamp to date string
             date_obj = datetime.fromtimestamp(video_timestamp)
             return date_obj.strftime('%Y-%m-%d')
