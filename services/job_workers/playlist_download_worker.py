@@ -20,7 +20,7 @@ sys.path.append(str(Path(__file__).parent.parent.parent))
 
 from services.job_types import JobWorker, Job, JobType
 from utils.cookies_manager import get_random_cookie_file, get_cookie_file, record_cookie_outcome
-from utils.yt_dlp_js import extend_ytdlp_cli_cmd
+from utils.yt_dlp_js import extend_ytdlp_cli_cmd, ytdlp_js_runtime_bin_dir
 
 
 class PlaylistDownloadWorker(JobWorker):
@@ -117,6 +117,8 @@ class PlaylistDownloadWorker(JobWorker):
             
             return success
             
+        except RuntimeError:
+            raise
         except Exception as e:
             print(f"Exception during playlist download: {e}")
             import traceback
@@ -267,20 +269,20 @@ class PlaylistDownloadWorker(JobWorker):
             def user_agent_for_client(client: str | None) -> str:
                 if not align_ua_with_client:
                     return 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36'
-                if client == 'android':
+                if client == 'mweb':
                     return 'Mozilla/5.0 (Linux; Android 12; SM-G998B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Mobile Safari/537.36'
-                if client == 'ios':
-                    return 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1'
+                if client == 'tv_embedded':
+                    return 'Mozilla/5.0 (ChromiumStylePlatform) Cobalt/Version'
                 # web/default
                 return 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36'
 
-            # Prepare attempt configurations (ladder)
-            # We avoid TV client based on observed SABR correlation.
+            # Prepare attempt configurations (ladder).
+            # Use cookie-compatible player clients only; android/ios skip cookies in yt-dlp.
             attempt_plan = [
-                { 'name': 'web-default', 'player_client': None, 'rotate_cookie': False, 'rotate_proxy': False, 'extra_flags': [] },
-                { 'name': 'android',     'player_client': 'android', 'rotate_cookie': False, 'rotate_proxy': False, 'extra_flags': [] },
-                { 'name': 'web-rotated', 'player_client': None, 'rotate_cookie': True,  'rotate_proxy': True,  'extra_flags': [] },
-                { 'name': 'ios-final',   'player_client': 'ios', 'rotate_cookie': True,  'rotate_proxy': True,  'extra_flags': ['--force-ipv4', '--http-chunk-size', '10M'] },
+                {'name': 'web-default', 'player_client': None, 'rotate_cookie': False, 'rotate_proxy': False, 'extra_flags': []},
+                {'name': 'mweb', 'player_client': 'mweb', 'rotate_cookie': False, 'rotate_proxy': False, 'extra_flags': []},
+                {'name': 'tv_embedded', 'player_client': 'tv_embedded', 'rotate_cookie': False, 'rotate_proxy': False, 'extra_flags': []},
+                {'name': 'web-rotated', 'player_client': None, 'rotate_cookie': True, 'rotate_proxy': True, 'extra_flags': ['--force-ipv4']},
             ]
 
             if not retry_ladder_enabled:
@@ -328,8 +330,9 @@ class PlaylistDownloadWorker(JobWorker):
                 if proxy_url:
                     cmd.extend(['--proxy', proxy_url])
 
-                # Cookies
-                if cookies_path:
+                # Cookies (android/ios clients ignore cookies in yt-dlp)
+                cookie_incompatible_clients = {'android', 'ios'}
+                if cookies_path and player_client not in cookie_incompatible_clients:
                     cmd.extend(['--cookies', cookies_path])
 
                 # Extra flags for certain attempts
@@ -362,26 +365,10 @@ class PlaylistDownloadWorker(JobWorker):
             env = os.environ.copy()
             env['PYTHONIOENCODING'] = 'utf-8'
             
-            # Ensure Node.js is in PATH for yt-dlp
-            # This is critical for solving n-sig challenges on Windows
-            node_path = shutil.which('node')
-            if not node_path:
-                # Fallback locations for this specific environment
-                potential_paths = [
-                    r"C:\Users\eL\AppData\Roaming\JetBrains\PhpStorm2024.2\node\versions\20.17.0\node.exe",
-                    r"C:\Program Files\nodejs\node.exe"
-                ]
-                for p in potential_paths:
-                    if os.path.exists(p):
-                        node_path = p
-                        break
-            
-            if node_path:
-                node_dir = os.path.dirname(node_path)
-                # Prepend to PATH to ensure yt-dlp finds it
-                # Normalizing path separators is important for Windows
-                node_dir_abs = str(Path(node_dir).absolute())
-                env['PATH'] = node_dir_abs + os.pathsep + env.get('PATH', '')
+            # Ensure the selected JS runtime (Deno preferred) is on PATH for yt-dlp EJS.
+            js_runtime_dir = ytdlp_js_runtime_bin_dir()
+            if js_runtime_dir:
+                env['PATH'] = js_runtime_dir + os.pathsep + env.get('PATH', '')
 
             # Attempt loop
             attempt_index = 0
@@ -610,6 +597,8 @@ class PlaylistDownloadWorker(JobWorker):
         except subprocess.TimeoutExpired:
             print("Single video download timed out (1 hour)")
             return False
+        except RuntimeError:
+            raise
         except Exception as e:
             print(f"Exception during single video download: {e}")
             return False

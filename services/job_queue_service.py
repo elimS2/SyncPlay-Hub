@@ -547,6 +547,10 @@ class JobQueueService:
                 print(f"Job {job.id} execution error: {e}")
                 
         finally:
+            # Worker may set job.error_message without raising (execute_job returned False).
+            if not success and not error_message and job.error_message:
+                error_message = job.error_message
+
             # Update status in database
             with self._lock:
                 if job.id in self._running_jobs:

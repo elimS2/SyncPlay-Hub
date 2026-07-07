@@ -14,13 +14,76 @@ from __future__ import annotations
 import importlib.util
 import os
 import shutil
+import subprocess
+from pathlib import Path
 from typing import Any, Dict, List, MutableSequence, Optional
 
 _SUPPORTED = frozenset({"deno", "node", "bun", "quickjs"})
+_MIN_NODE_VERSION = (22, 0, 0)
 
 
 def ytdlp_ejs_installed() -> bool:
     return importlib.util.find_spec("yt_dlp_ejs") is not None
+
+
+def _parse_version(version_str: str) -> Optional[tuple[int, ...]]:
+    try:
+        parts = version_str.strip().lstrip("v").split(".")
+        return tuple(int(p) for p in parts[:3])
+    except (TypeError, ValueError):
+        return None
+
+
+def _find_deno_exe() -> Optional[str]:
+    deno = shutil.which("deno")
+    if deno:
+        return deno
+    home = Path.home()
+    for candidate in (
+        home / ".deno" / "bin" / "deno.exe",
+        home / ".deno" / "bin" / "deno",
+    ):
+        if candidate.is_file():
+            return str(candidate)
+    return None
+
+
+def _find_supported_node_exe() -> Optional[str]:
+    node = shutil.which("node")
+    if not node:
+        for candidate in (
+            Path(r"C:\Program Files\nodejs\node.exe"),
+            Path.home() / "AppData" / "Roaming" / "JetBrains" / "PhpStorm2024.2" / "node" / "versions" / "20.17.0" / "node.exe",
+        ):
+            if candidate.is_file():
+                node = str(candidate)
+                break
+    if not node:
+        return None
+    try:
+        result = subprocess.run(
+            [node, "--version"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        version = _parse_version((result.stdout or result.stderr or "").strip())
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    if not version or version < _MIN_NODE_VERSION:
+        return None
+    return node
+
+
+def ytdlp_js_runtime_bin_dir() -> Optional[str]:
+    """Directory to prepend to PATH so yt-dlp subprocesses can find the JS runtime."""
+    deno = _find_deno_exe()
+    if deno:
+        return str(Path(deno).parent)
+    node = _find_supported_node_exe()
+    if node:
+        return str(Path(node).parent)
+    return None
 
 
 def _runtime_from_env() -> Optional[Dict[str, Dict[str, Any]]]:
@@ -40,15 +103,22 @@ def _auto_js_runtimes() -> Dict[str, Dict[str, Any]]:
     explicit = _runtime_from_env()
     if explicit:
         return explicit
-    if shutil.which("deno"):
-        return {"deno": {}}
-    if shutil.which("node"):
-        return {"node": {}}
+
+    deno = _find_deno_exe()
+    if deno:
+        return {"deno": {"path": deno}}
+
+    node = _find_supported_node_exe()
+    if node:
+        return {"node": {"path": node}}
+
     if shutil.which("bun"):
         return {"bun": {}}
     for candidate in ("qjs", "quickjs"):
         if shutil.which(candidate):
             return {"quickjs": {}}
+
+    # Last resort: pass bare "deno" so yt-dlp can surface a clear EJS error.
     return {"deno": {}}
 
 
