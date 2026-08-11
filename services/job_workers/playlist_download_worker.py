@@ -277,12 +277,12 @@ class PlaylistDownloadWorker(JobWorker):
                 return 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36'
 
             # Prepare attempt configurations (ladder).
-            # Use cookie-compatible player clients only; android/ios skip cookies in yt-dlp.
+            # android_vr/android/ios skip cookies in yt-dlp; stale cookies often break web client.
             attempt_plan = [
-                {'name': 'web-default', 'player_client': None, 'rotate_cookie': False, 'rotate_proxy': False, 'extra_flags': []},
-                {'name': 'mweb', 'player_client': 'mweb', 'rotate_cookie': False, 'rotate_proxy': False, 'extra_flags': []},
-                {'name': 'tv_embedded', 'player_client': 'tv_embedded', 'rotate_cookie': False, 'rotate_proxy': False, 'extra_flags': []},
-                {'name': 'web-rotated', 'player_client': None, 'rotate_cookie': True, 'rotate_proxy': True, 'extra_flags': ['--force-ipv4']},
+                {'name': 'web-default', 'player_client': None, 'rotate_cookie': False, 'rotate_proxy': False, 'extra_flags': [], 'skip_cookies': False},
+                {'name': 'android-vr-no-cookie', 'player_client': 'android_vr', 'rotate_cookie': False, 'rotate_proxy': False, 'extra_flags': [], 'skip_cookies': True},
+                {'name': 'mweb', 'player_client': 'mweb', 'rotate_cookie': False, 'rotate_proxy': False, 'extra_flags': [], 'skip_cookies': False},
+                {'name': 'web-rotated', 'player_client': None, 'rotate_cookie': True, 'rotate_proxy': True, 'extra_flags': ['--force-ipv4'], 'skip_cookies': False},
             ]
 
             if not retry_ladder_enabled:
@@ -322,16 +322,22 @@ class PlaylistDownloadWorker(JobWorker):
                     '--fragment-retries', '10'
                 ])
 
-                # Extractor args for client switching
+                # Extractor args for client switching / optional PO token (mweb high-quality HTTPS)
+                extractor_args: list[str] = []
                 if player_client:
-                    cmd.extend(['--extractor-args', f'youtube:player_client={player_client}'])
+                    extractor_args.append(f'player_client={player_client}')
+                po_token = str(config.get('YOUTUBE_PO_TOKEN', '') or '').strip()
+                if po_token:
+                    extractor_args.append(f'po_token={po_token}')
+                if extractor_args:
+                    cmd.extend(['--extractor-args', 'youtube:' + ':'.join(extractor_args)])
 
                 # Proxy support (attempt-specific)
                 if proxy_url:
                     cmd.extend(['--proxy', proxy_url])
 
-                # Cookies (android/ios clients ignore cookies in yt-dlp)
-                cookie_incompatible_clients = {'android', 'ios'}
+                # Cookies (android/ios/android_vr clients ignore cookies in yt-dlp)
+                cookie_incompatible_clients = {'android', 'android_vr', 'ios'}
                 if cookies_path and player_client not in cookie_incompatible_clients:
                     cmd.extend(['--cookies', cookies_path])
 
@@ -377,8 +383,8 @@ class PlaylistDownloadWorker(JobWorker):
                 attempt_index += 1
 
                 # Decide cookie for this attempt
-                cookies_for_attempt = base_cookie
-                if plan['rotate_cookie']:
+                cookies_for_attempt = None if plan.get('skip_cookies') else base_cookie
+                if plan['rotate_cookie'] and not plan.get('skip_cookies'):
                     # Prefer a different healthy cookie when rotating
                     rotated = get_cookie_file(prefer_healthy=True)
                     # Avoid picking the same cookie if possible
@@ -408,6 +414,7 @@ class PlaylistDownloadWorker(JobWorker):
                     f"client={plan['player_client'] or 'web'} "
                     f"cookie={(Path(cookies_for_attempt).name if cookies_for_attempt else 'none')} "
                     f"proxy={(proxy_for_attempt or 'none')} "
+                    f"skip_cookies={bool(plan.get('skip_cookies'))} "
                     f"format={'137+251' if (not extract_audio and format_selector=='bestvideo+bestaudio/best') else format_selector}"
                 )
                 print(attempt_log)
@@ -484,10 +491,13 @@ class PlaylistDownloadWorker(JobWorker):
                     # Construct ordered fallback selectors (most strict to most lenient)
                     fallback_selectors: list[str] = [
                         f"bestvideo[ext=mp4][vcodec*=avc1][height<={target_height}]+bestaudio[ext=m4a]",
-                        "136+140",
-                        "22/best[ext=mp4]",
                         f"bestvideo[height<={target_height}]+bestaudio/best",
-                        "best",
+                        "bestvideo[height<=2160]+bestaudio/best",
+                        "bestvideo+bestaudio/best",
+                        "137+140",
+                        "136+140",
+                        # Progressive / single-file formats are last resort (often 360p-720p).
+                        "22/best[ext=mp4]",
                     ]
                     # Remove duplicates and the already tried selector
                     fallback_selectors = [s for s in fallback_selectors if s and s != format_selector]
@@ -553,6 +563,9 @@ class PlaylistDownloadWorker(JobWorker):
                 # Decide if we should retry based on stderr markers
                 sabr_marker = 'sabr' in stderr_lower or 'missing a url' in stderr_lower
                 forbidden_403 = 'http error 403' in stderr_lower or 'forbidden' in stderr_lower
+                reload_marker = 'page needs to be reloaded' in stderr_lower or 'needs to be reloaded' in stderr_lower
+                images_only_marker = 'only images are available' in stderr_lower
+                retryable_marker = sabr_marker or forbidden_403 or reload_marker or images_only_marker
                 permanent_markers = ['this video is private', 'video unavailable', 'copyright']
                 is_permanent = any(m in stderr_lower for m in permanent_markers)
                 if sabr_marker or forbidden_403:
@@ -567,8 +580,8 @@ class PlaylistDownloadWorker(JobWorker):
                     # Stop retrying
                     break
 
-                # Retry only if SABR/403-like
-                if sabr_marker or forbidden_403:
+                # Retry on transient YouTube client/cookie issues (incl. stale cookies).
+                if retryable_marker:
                     if cookies_for_attempt:
                         try:
                             record_cookie_outcome(cookies_for_attempt, success=False)
