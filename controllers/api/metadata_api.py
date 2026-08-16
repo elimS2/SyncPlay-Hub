@@ -390,6 +390,9 @@ def api_metadata_statistics():
             WHERE created_at >= datetime('now', '-7 days')
         """)
         recent_additions = cur.fetchone()[0]
+
+        from utils.quality_compare import count_tracks_below_max_youtube_quality
+        quality_gaps = count_tracks_below_max_youtube_quality(conn)
         
         conn.close()
         
@@ -402,7 +405,12 @@ def api_metadata_statistics():
                 "coverage_percent": round(coverage_percent, 1),
                 "recent_additions": recent_additions,
                 "tracks_with_qualities": tracks_with_qualities,
-                "tracks_without_qualities": tracks_without_qualities
+                "tracks_without_qualities": tracks_without_qualities,
+                "tracks_below_max_quality": quality_gaps["tracks_below_max_quality"],
+                "tracks_below_max_quality_by_height": quality_gaps["tracks_below_max_quality_by_height"],
+                "tracks_below_max_quality_by_bitrate": quality_gaps["tracks_below_max_quality_by_bitrate"],
+                "tracks_at_max_quality": quality_gaps["tracks_at_max_quality"],
+                "tracks_unknown_local_quality": quality_gaps["tracks_unknown_local_quality"],
             }
         })
         
