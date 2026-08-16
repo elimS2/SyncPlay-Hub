@@ -252,10 +252,25 @@ class PlaylistDownloadWorker(JobWorker):
                 playlists_dir = project_root / 'Playlists'
             
             if target_folder:
-                output_dir = playlists_dir / target_folder
+                library_dir = playlists_dir / target_folder
             else:
-                output_dir = playlists_dir / 'SingleVideos'
-            
+                library_dir = playlists_dir / 'SingleVideos'
+
+            safe_quality_upgrade = bool(job_data.get('safe_quality_upgrade'))
+            if safe_quality_upgrade:
+                from utils.quality_upgrade import staging_dir_for_video
+                video_id = self._resolve_job_video_id(job_data)
+                if not video_id:
+                    raise ValueError("safe_quality_upgrade requires video_id")
+                output_dir = staging_dir_for_video(playlists_dir, video_id)
+                raw_job_data = job_data._data if hasattr(job_data, "_data") else job_data
+                job_data = dict(raw_job_data)
+                job_data['force_overwrites'] = False
+                job_data['cleanup_old_variants'] = False
+                print(f"[QualityUpgrade] Staging download for {video_id} at {output_dir}")
+            else:
+                output_dir = library_dir
+
             output_dir.mkdir(parents=True, exist_ok=True)
             
             # Output configuration
@@ -452,6 +467,10 @@ class PlaylistDownloadWorker(JobWorker):
                             record_cookie_outcome(cookies_for_attempt, success=True)
                         except Exception:
                             pass
+                    if safe_quality_upgrade:
+                        return self._finalize_safe_quality_upgrade(
+                            config, playlists_dir, output_dir, job_data
+                        )
                     self._finalize_single_video_download(config, output_dir, job_data)
                     return True
 
@@ -507,6 +526,10 @@ class PlaylistDownloadWorker(JobWorker):
                                     record_cookie_outcome(cookies_for_attempt, success=True)
                                 except Exception:
                                     pass
+                            if safe_quality_upgrade:
+                                return self._finalize_safe_quality_upgrade(
+                                    config, playlists_dir, output_dir, job_data
+                                )
                             self._finalize_single_video_download(config, output_dir, job_data)
                             return True
 
@@ -531,6 +554,12 @@ class PlaylistDownloadWorker(JobWorker):
                             record_cookie_outcome(cookies_for_attempt, success=False)
                         except Exception:
                             pass
+                    if safe_quality_upgrade and is_permanent:
+                        from utils.quality_upgrade import cleanup_staging
+                        cleanup_staging(output_dir)
+                        raise ValueError(
+                            "YouTube video unavailable; original library file was not modified"
+                        )
                     # Stop retrying
                     break
 
@@ -556,6 +585,9 @@ class PlaylistDownloadWorker(JobWorker):
 
             # If reached here, not successful
             print("Single video download failed after attempts")
+            if safe_quality_upgrade:
+                from utils.quality_upgrade import cleanup_staging
+                cleanup_staging(output_dir)
             if seen_sabr_or_403:
                 # Raise exception to classify as network error for queue retry policy
                 raise RuntimeError("network: SABR/403 encountered across attempts")
@@ -563,11 +595,25 @@ class PlaylistDownloadWorker(JobWorker):
                 
         except subprocess.TimeoutExpired:
             print("Single video download timed out (1 hour)")
+            if bool(job_data.get('safe_quality_upgrade')):
+                try:
+                    from utils.quality_upgrade import cleanup_staging
+                    cleanup_staging(output_dir)
+                except Exception:
+                    pass
             return False
         except RuntimeError:
             raise
+        except ValueError:
+            raise
         except Exception as e:
             print(f"Exception during single video download: {e}")
+            if bool(job_data.get('safe_quality_upgrade')):
+                try:
+                    from utils.quality_upgrade import cleanup_staging
+                    cleanup_staging(output_dir)
+                except Exception:
+                    pass
             return False
 
     def _resolve_job_video_id(self, job_data: dict) -> str:
@@ -600,6 +646,105 @@ class PlaylistDownloadWorker(JobWorker):
             sync_missing_published_dates_from_metadata(video_id=video_id or None, logger_func=print)
         except Exception as e:
             print(f"[PostProcess] Warning: failed to sync published_date: {e}")
+
+    def _finalize_safe_quality_upgrade(
+        self, config: dict, playlists_dir: Path, staging_dir: Path, job_data: dict
+    ) -> bool:
+        """Persist metadata, rotate only if better, never delete the original on failure."""
+        from utils.quality_compare import parse_local_height
+        from utils.quality_upgrade import cleanup_staging, find_downloaded_video, rotate_if_better
+
+        video_id = self._resolve_job_video_id(job_data)
+        print(f"[QualityUpgrade] Finalizing {video_id} from {staging_dir}")
+        self._persist_download_metadata(staging_dir, video_id or None)
+
+        new_file = find_downloaded_video(staging_dir, video_id) if video_id else None
+        if not new_file:
+            print("[QualityUpgrade] No staging media found; original file left untouched")
+            cleanup_staging(staging_dir)
+            return False
+
+        from database import get_connection
+
+        original_path = None
+        old_height = None
+        max_height = job_data.get('target_height')
+        conn = get_connection()
+        try:
+            row = conn.execute(
+                """
+                SELECT t.relpath, t.resolution, yvm.max_available_height
+                FROM tracks t
+                LEFT JOIN youtube_video_metadata yvm ON yvm.youtube_id = t.video_id
+                WHERE t.video_id = ?
+                LIMIT 1
+                """,
+                (video_id,),
+            ).fetchone()
+            if row:
+                relpath, resolution, db_max_height = row
+                old_height = parse_local_height(resolution)
+                if db_max_height:
+                    try:
+                        max_height = max(int(max_height or 0), int(db_max_height))
+                    except (TypeError, ValueError):
+                        max_height = db_max_height
+                if relpath:
+                    original_path = (playlists_dir / relpath).resolve()
+        finally:
+            conn.close()
+
+        if original_path is None:
+            print("[QualityUpgrade] Track path missing in DB; leaving original untouched")
+            cleanup_staging(staging_dir)
+            return False
+
+        rotate = rotate_if_better(
+            original_path=original_path,
+            new_path=new_file,
+            playlists_root=playlists_dir,
+            old_height=old_height,
+            max_height=int(max_height) if max_height else None,
+        )
+        if not rotate.get("rotated"):
+            print(f"[QualityUpgrade] No rotation ({rotate.get('reason')}); original kept")
+            cleanup_staging(staging_dir)
+            return rotate.get("reason") == "new_file_not_better"
+
+        dest = Path(rotate["destination"])
+        relpath = str(dest.resolve().relative_to(playlists_dir)).replace("\\", "/")
+        conn = get_connection()
+        try:
+            conn.execute(
+                "UPDATE tracks SET relpath = ?, filetype = ? WHERE video_id = ?",
+                (relpath, dest.suffix.lstrip(".").lower(), video_id),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+        print(f"[QualityUpgrade] Updated track {video_id} -> {relpath}")
+        try:
+            from utils.media_probe import rescan_track_media_properties
+
+            result = rescan_track_media_properties(
+                video_id=video_id,
+                file_path=dest,
+                refresh_duration=True,
+                refresh_size=True,
+            )
+            if result.get("success"):
+                print(
+                    f"[QualityUpgrade] Probed {video_id}: "
+                    f"resolution={result.get('resolution')} bitrate={result.get('bitrate')}"
+                )
+            else:
+                print(f"[QualityUpgrade] Probe warning: {result.get('error')}")
+        except Exception as exc:
+            print(f"[QualityUpgrade] Post-rotate probe failed (file already rotated): {exc}")
+
+        self._sync_published_dates_after_scan(video_id or None)
+        cleanup_staging(staging_dir)
+        return True
 
     def _finalize_single_video_download(self, config: dict, output_dir: Path, job_data: dict) -> None:
         """Persist metadata, update the track row, then remove yt-dlp sidecars."""

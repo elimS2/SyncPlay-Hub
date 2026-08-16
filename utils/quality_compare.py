@@ -92,17 +92,36 @@ def is_below_max_by_bitrate(size_bytes: Any, duration_seconds: Any, max_height: 
     return bitrate < floor
 
 
-def count_tracks_below_max_youtube_quality(conn) -> Dict[str, int]:
-    """Count non-deleted video tracks downloaded below YouTube max quality.
+def classify_local_vs_youtube_quality(
+    resolution: Any,
+    filetype: Any,
+    size_bytes: Any,
+    track_duration: Any,
+    yvm_duration: Any,
+    max_height: Any,
+) -> str:
+    """Return below_height, below_bitrate, at_max, unknown, or audio."""
+    if is_audio_filetype(filetype):
+        return "audio"
+    local_height = parse_local_height(resolution)
+    if local_height is not None:
+        if is_below_max_by_height(local_height, max_height):
+            return "below_height"
+        return "at_max"
+    duration = track_duration if track_duration else yvm_duration
+    if is_below_max_by_bitrate(size_bytes, duration, max_height):
+        return "below_bitrate"
+    return "unknown"
 
-    Height comparison is preferred. When local resolution is missing, a
-    conservative size/duration heuristic is used so unprobed low-quality
-    files (like a 36 MB 4K-capable video) are still counted.
-    """
+
+def _iter_quality_rows(conn):
     cur = conn.cursor()
     cur.execute(
         """
         SELECT
+            t.video_id,
+            t.name,
+            t.relpath,
             t.resolution,
             t.filetype,
             t.size_bytes,
@@ -116,28 +135,36 @@ def count_tracks_below_max_youtube_quality(conn) -> Dict[str, int]:
             WHERE dt.restored_at IS NULL
         )
         AND yvm.max_available_height IS NOT NULL
+        ORDER BY t.id ASC
         """
     )
+    return cur.fetchall()
+
+
+def count_tracks_below_max_youtube_quality(conn) -> Dict[str, int]:
+    """Count non-deleted video tracks downloaded below YouTube max quality.
+
+    Height comparison is preferred. When local resolution is missing, a
+    conservative size/duration heuristic is used so unprobed low-quality
+    files (like a 36 MB 4K-capable video) are still counted.
+    """
     below_by_height = 0
     below_by_bitrate = 0
     at_or_above = 0
     unknown_local = 0
 
-    for row in cur.fetchall():
-        resolution, filetype, size_bytes, track_duration, yvm_duration, max_height = row
-        if is_audio_filetype(filetype):
-            continue
-        local_height = parse_local_height(resolution)
-        if local_height is not None:
-            if is_below_max_by_height(local_height, max_height):
-                below_by_height += 1
-            else:
-                at_or_above += 1
-            continue
-        duration = track_duration if track_duration else yvm_duration
-        if is_below_max_by_bitrate(size_bytes, duration, max_height):
+    for row in _iter_quality_rows(conn):
+        _video_id, _name, _relpath, resolution, filetype, size_bytes, track_duration, yvm_duration, max_height = row
+        kind = classify_local_vs_youtube_quality(
+            resolution, filetype, size_bytes, track_duration, yvm_duration, max_height
+        )
+        if kind == "below_height":
+            below_by_height += 1
+        elif kind == "below_bitrate":
             below_by_bitrate += 1
-        else:
+        elif kind == "at_max":
+            at_or_above += 1
+        elif kind == "unknown":
             unknown_local += 1
 
     below_total = below_by_height + below_by_bitrate
@@ -148,3 +175,30 @@ def count_tracks_below_max_youtube_quality(conn) -> Dict[str, int]:
         "tracks_at_max_quality": at_or_above,
         "tracks_unknown_local_quality": unknown_local,
     }
+
+
+def list_tracks_below_max_youtube_quality(conn, limit: Optional[int] = None) -> list[Dict[str, Any]]:
+    """Return below-max video tracks that are candidates for a safe quality upgrade."""
+    tracks: list[Dict[str, Any]] = []
+    for row in _iter_quality_rows(conn):
+        video_id, name, relpath, resolution, filetype, size_bytes, track_duration, yvm_duration, max_height = row
+        kind = classify_local_vs_youtube_quality(
+            resolution, filetype, size_bytes, track_duration, yvm_duration, max_height
+        )
+        if kind not in {"below_height", "below_bitrate"}:
+            continue
+        tracks.append(
+            {
+                "video_id": video_id,
+                "name": name,
+                "relpath": relpath,
+                "resolution": resolution,
+                "filetype": filetype,
+                "size_bytes": size_bytes,
+                "max_available_height": max_height,
+                "reason": kind,
+            }
+        )
+        if isinstance(limit, int) and limit > 0 and len(tracks) >= limit:
+            break
+    return tracks

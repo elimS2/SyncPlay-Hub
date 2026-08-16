@@ -136,6 +136,12 @@
                                     <span>🎞️</span>
                                     Enqueue Missing YouTube Qualities
                                 </button>
+                                <label for="upgradeLimit" style="font-size:12px; color: var(--text-secondary);">Upgrade limit</label>
+                                <input id="upgradeLimit" type="number" min="1" max="200" value="25" style="width:72px;">
+                                <button class="btn" onclick="enqueueMaxQualityUpgrades()">
+                                    <span>⬆️</span>
+                                    Enqueue Max Quality Upgrades
+                                </button>
                             </div>
                         </div>
                         <div class="status-display" id="metadata-status">
@@ -438,6 +444,63 @@
                     showStatus('metadata-status', `YouTube Qualities scan started: ${data.jobs_created || 0} jobs created`, 'success');
                 } else {
                     showStatus('metadata-status', `Qualities scan failed: ${data.error || data.message || 'Unknown error'}`, 'error');
+                }
+            } catch (error) {
+                showStatus('metadata-status', `Network error: ${error.message}`, 'error');
+            }
+        }
+
+        function readUpgradeLimit() {
+            const raw = document.getElementById('upgradeLimit')?.value;
+            const parsed = parseInt(String(raw || '').trim(), 10);
+            if (!Number.isFinite(parsed) || parsed <= 0) {
+                return 25;
+            }
+            return Math.min(parsed, 200);
+        }
+
+        async function enqueueMaxQualityUpgrades() {
+            showLoading('metadata-status');
+            try {
+                const limit = readUpgradeLimit();
+                const previewResp = await fetch('/api/enqueue_max_quality_upgrades', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ dry_run: true, limit })
+                });
+                const preview = await previewResp.json();
+                if (!previewResp.ok) {
+                    showStatus('metadata-status', `Upgrade preview failed: ${preview.error || preview.message || 'Unknown error'}`, 'error');
+                    return;
+                }
+                const found = preview.tracks_found || 0;
+                if (found === 0) {
+                    showStatus('metadata-status', 'No below-max tracks to upgrade', 'success');
+                    return;
+                }
+                const ok = confirm(
+                    `Enqueue ${found} safe max-quality upgrades (limit ${limit})?\n\n` +
+                    'Each job downloads to a staging folder first. The current file is replaced only after the new file is verified as better. If YouTube is unavailable, the local file stays.'
+                );
+                if (!ok) {
+                    showStatus('metadata-status', 'Max-quality upgrade cancelled', 'info');
+                    return;
+                }
+                const response = await fetch('/api/enqueue_max_quality_upgrades', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ dry_run: false, limit })
+                });
+                const data = await response.json();
+                if (response.ok) {
+                    showStatus(
+                        'metadata-status',
+                        `Max-quality upgrades started: ${data.jobs_created || 0} jobs created` +
+                        (data.jobs_skipped ? `, ${data.jobs_skipped} already queued` : ''),
+                        'success'
+                    );
+                } else {
+                    showStatus('metadata-status', `Upgrade enqueue failed: ${data.error || data.message || 'Unknown error'}`, 'error');
                 }
             } catch (error) {
                 showStatus('metadata-status', `Network error: ${error.message}`, 'error');

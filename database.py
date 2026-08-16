@@ -2331,6 +2331,30 @@ def upsert_youtube_metadata(conn: sqlite3.Connection, metadata: dict) -> int:
     placeholders = ', '.join(['?' for _ in fields])
     update_clause = ', '.join([f'{field}=excluded.{field}' for field in fields if field != 'youtube_id'])
     
+    incoming_height = metadata.get("max_available_height")
+    try:
+        incoming_height_int = int(incoming_height) if incoming_height is not None else 0
+    except (TypeError, ValueError):
+        incoming_height_int = 0
+    existing = cur.execute(
+        "SELECT max_available_height, max_quality_label, available_formats, available_qualities_summary "
+        "FROM youtube_video_metadata WHERE youtube_id = ?",
+        (metadata.get("youtube_id"),),
+    ).fetchone()
+    if existing:
+        try:
+            existing_height = int(existing[0]) if existing[0] is not None else 0
+        except (TypeError, ValueError):
+            existing_height = 0
+        if existing_height > incoming_height_int:
+            metadata["max_available_height"] = existing[0]
+            if existing[1]:
+                metadata["max_quality_label"] = existing[1]
+            if existing[2]:
+                metadata["available_formats"] = existing[2]
+            if existing[3]:
+                metadata["available_qualities_summary"] = existing[3]
+
     values = [metadata.get(field) for field in fields]
     
     cur.execute(f"""

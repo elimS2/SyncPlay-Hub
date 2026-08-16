@@ -442,7 +442,7 @@ def move_to_trash(file_path: pathlib.Path, root_dir: pathlib.Path) -> bool:
             counter += 1
         
         shutil.move(str(file_path), str(trash_file_path))
-        print(f"[Moved to Trash] {file_path.name} → {trash_file_path.relative_to(root_dir)}")
+        print(f"[Moved to Trash] {file_path.name} -> {trash_file_path.relative_to(root_dir)}")
         return True
         
     except Exception as exc:

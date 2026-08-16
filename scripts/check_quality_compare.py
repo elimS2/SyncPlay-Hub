@@ -15,6 +15,7 @@ from utils.quality_compare import (
     count_tracks_below_max_youtube_quality,
     is_below_max_by_bitrate,
     is_below_max_by_height,
+    list_tracks_below_max_youtube_quality,
     parse_local_height,
 )
 
@@ -74,12 +75,15 @@ def test_counts(tmp_path: Path) -> None:
     )
     _insert_track(conn, "audioOnly", filetype="mp3", resolution=None, max_height=2160, duration=200, size_bytes=5_000_000)
     counts = count_tracks_below_max_youtube_quality(conn)
+    listed = list_tracks_below_max_youtube_quality(conn)
+    limited = list_tracks_below_max_youtube_quality(conn, limit=1)
     conn.close()
     assert counts["tracks_below_max_quality_by_height"] == 1
     assert counts["tracks_below_max_quality_by_bitrate"] == 1
     assert counts["tracks_below_max_quality"] == 2
     assert counts["tracks_at_max_quality"] == 1
-    assert "SybKGa60Z3Q"  # example-shaped row is included via bitrate fallback
+    assert {row["video_id"] for row in listed} == {"heightLow", "SybKGa60Z3Q"}
+    assert len(limited) == 1
 
 
 def main() -> int:
