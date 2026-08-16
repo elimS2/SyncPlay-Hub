@@ -3,7 +3,8 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, Optional
+from pathlib import Path
+from typing import Any, Dict, Optional, Union
 
 AUDIO_FILETYPES = frozenset({"mp3", "m4a", "opus", "flac", "ogg", "wav", "aac"})
 HEIGHT_SLACK_PX = 16
@@ -92,6 +93,29 @@ def is_below_max_by_bitrate(size_bytes: Any, duration_seconds: Any, max_height: 
     return bitrate < floor
 
 
+def library_relpath_exists(
+    playlists_root: Optional[Union[str, Path]],
+    relpath: Any,
+) -> bool:
+    """True when relpath points at a real file under the playlists root.
+
+    If playlists_root is omitted, existence is unknown and the caller keeps
+    the old DB-only behavior.
+    """
+    if playlists_root is None:
+        return True
+    raw = str(relpath or "").strip()
+    if not raw:
+        return False
+    try:
+        root = Path(playlists_root).resolve()
+        path = (root / raw).resolve()
+        path.relative_to(root)
+    except (OSError, ValueError):
+        return False
+    return path.is_file()
+
+
 def classify_local_vs_youtube_quality(
     resolution: Any,
     filetype: Any,
@@ -141,20 +165,30 @@ def _iter_quality_rows(conn):
     return cur.fetchall()
 
 
-def count_tracks_below_max_youtube_quality(conn) -> Dict[str, int]:
+def count_tracks_below_max_youtube_quality(
+    conn,
+    playlists_root: Optional[Union[str, Path]] = None,
+) -> Dict[str, int]:
     """Count non-deleted video tracks downloaded below YouTube max quality.
 
     Height comparison is preferred. When local resolution is missing, a
     conservative size/duration heuristic is used so unprobed low-quality
     files (like a 36 MB 4K-capable video) are still counted.
+
+    Live DB rows whose library file is missing are counted separately.
+    They remain upgrade candidates in list_tracks (reason=missing_file).
     """
     below_by_height = 0
     below_by_bitrate = 0
     at_or_above = 0
     unknown_local = 0
+    missing_local = 0
 
     for row in _iter_quality_rows(conn):
-        _video_id, _name, _relpath, resolution, filetype, size_bytes, track_duration, yvm_duration, max_height = row
+        _video_id, _name, relpath, resolution, filetype, size_bytes, track_duration, yvm_duration, max_height = row
+        if not library_relpath_exists(playlists_root, relpath):
+            missing_local += 1
+            continue
         kind = classify_local_vs_youtube_quality(
             resolution, filetype, size_bytes, track_duration, yvm_duration, max_height
         )
@@ -174,19 +208,27 @@ def count_tracks_below_max_youtube_quality(conn) -> Dict[str, int]:
         "tracks_below_max_quality_by_bitrate": below_by_bitrate,
         "tracks_at_max_quality": at_or_above,
         "tracks_unknown_local_quality": unknown_local,
+        "tracks_missing_local_file": missing_local,
     }
 
 
-def list_tracks_below_max_youtube_quality(conn, limit: Optional[int] = None) -> list[Dict[str, Any]]:
+def list_tracks_below_max_youtube_quality(
+    conn,
+    limit: Optional[int] = None,
+    playlists_root: Optional[Union[str, Path]] = None,
+) -> list[Dict[str, Any]]:
     """Return below-max video tracks that are candidates for a safe quality upgrade."""
     tracks: list[Dict[str, Any]] = []
     for row in _iter_quality_rows(conn):
         video_id, name, relpath, resolution, filetype, size_bytes, track_duration, yvm_duration, max_height = row
-        kind = classify_local_vs_youtube_quality(
-            resolution, filetype, size_bytes, track_duration, yvm_duration, max_height
-        )
-        if kind not in {"below_height", "below_bitrate"}:
-            continue
+        if not library_relpath_exists(playlists_root, relpath):
+            kind = "missing_file"
+        else:
+            kind = classify_local_vs_youtube_quality(
+                resolution, filetype, size_bytes, track_duration, yvm_duration, max_height
+            )
+            if kind not in {"below_height", "below_bitrate"}:
+                continue
         tracks.append(
             {
                 "video_id": video_id,

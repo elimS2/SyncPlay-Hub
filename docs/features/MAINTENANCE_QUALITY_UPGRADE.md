@@ -73,3 +73,31 @@ Pilot result: 15/15 jobs completed. After the rotation gate, fallback 360/720 no
 Fixes after the pilot started:
 - Rotate only when probed new height is clearly higher.
 - Do not let fallback `info.json` lower stored `max_available_height`.
+
+## Missing library files (2026-08-17)
+
+100-batch leftover: 6 live DB rows had no file at `relpath`. Download succeeded, but rotate wrote `.upgraded.mp4` into staging (`dest_dir = new_path.parent`) and then crashed on `relative_to(Playlists)`.
+
+These are not deleted tracks. If YouTube still has a better (or any) file, **download it and put it in the playlist folder from `relpath`**. Do not skip.
+
+### Contract
+
+1. Missing local file + successful staging download → install under `Playlists` / parent of `relpath`.
+2. Never install into `QualityUpgradeStaging`.
+3. Quality gate (must beat the current file) applies only when the original exists. A missing file accepts any valid new media.
+4. Missing files stay in the upgrade candidate list (`reason=missing_file`).
+5. Counters: Missing Local File is separate; Below Max is existing files only.
+6. Do not delete orphan DB rows in this pass.
+
+### Implementation
+
+- [x] `library_relpath_exists()` for counts / candidate reason
+- [x] `rotate_if_better` installs into the library folder when the original is missing
+- [x] Worker still downloads to staging, then finalize moves into Playlists
+- [x] Smoke test: missing original lands under Playlists, not staging
+- [x] Live-but-missing rows are re-download candidates (`reason=missing_file`)
+
+### Non-goals
+
+- No orphan-row cleanup / trash reconcile in this pass.
+- No rest of the ~1900 below-max batch until asked.

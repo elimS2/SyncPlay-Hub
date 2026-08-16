@@ -389,9 +389,13 @@ def api_enqueue_max_quality_upgrades():
                 limit = None
 
         from utils.quality_compare import list_tracks_below_max_youtube_quality
+        from .shared import get_root_dir
 
+        root_dir = get_root_dir()
         conn = get_connection()
-        tracks = list_tracks_below_max_youtube_quality(conn, limit=limit)
+        tracks = list_tracks_below_max_youtube_quality(
+            conn, limit=limit, playlists_root=root_dir
+        )
         conn.close()
 
         log_message(
@@ -425,9 +429,7 @@ def api_enqueue_max_quality_upgrades():
 
         from services.job_queue_service import get_job_queue_service
         from services.job_types import JobPriority, JobType
-        from .shared import get_root_dir
 
-        root_dir = get_root_dir()
         if not root_dir:
             return jsonify({"status": "error", "error": "Server not initialized"}), 500
 
@@ -443,8 +445,8 @@ def api_enqueue_max_quality_upgrades():
                 jobs_skipped += 1
                 continue
             relpath = tr.get("relpath") or ""
+            abs_path = Path(root_dir) / relpath
             try:
-                abs_path = (Path(root_dir) / relpath).resolve()
                 target_folder = str(abs_path.parent.relative_to(root_dir)).replace("\\", "/")
             except Exception:
                 target_folder = ""
@@ -552,7 +554,10 @@ def api_metadata_statistics():
         recent_additions = cur.fetchone()[0]
 
         from utils.quality_compare import count_tracks_below_max_youtube_quality
-        quality_gaps = count_tracks_below_max_youtube_quality(conn)
+        from .shared import get_root_dir
+        quality_gaps = count_tracks_below_max_youtube_quality(
+            conn, playlists_root=get_root_dir()
+        )
         
         conn.close()
         
@@ -571,6 +576,7 @@ def api_metadata_statistics():
                 "tracks_below_max_quality_by_bitrate": quality_gaps["tracks_below_max_quality_by_bitrate"],
                 "tracks_at_max_quality": quality_gaps["tracks_at_max_quality"],
                 "tracks_unknown_local_quality": quality_gaps["tracks_unknown_local_quality"],
+                "tracks_missing_local_file": quality_gaps["tracks_missing_local_file"],
             }
         })
         

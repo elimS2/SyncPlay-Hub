@@ -77,6 +77,14 @@ def _unique_sidecar(path: Path, suffix: str) -> Path:
     return candidate
 
 
+def _path_is_under(path: Path, root: Path) -> bool:
+    try:
+        path.resolve().relative_to(root.resolve())
+        return True
+    except (OSError, ValueError):
+        return False
+
+
 def probe_height(path: Path) -> Optional[int]:
     try:
         from utils.media_probe import ffprobe_media_properties
@@ -119,6 +127,13 @@ def rotate_if_better(
         return result
 
     original_exists = original_path.exists() and original_path.is_file()
+    dest_dir = original_path.parent
+    if not _path_is_under(dest_dir, playlists_root):
+        result["reason"] = "destination_outside_playlists"
+        logger(
+            f"[QualityUpgrade] Refusing dest {dest_dir}: not under {playlists_root}"
+        )
+        return result
     old_size = original_path.stat().st_size if original_exists else 0
     new_size = new_path.stat().st_size
 
@@ -144,8 +159,19 @@ def rotate_if_better(
             f"old_height={old_height} new_height={new_height} max={max_height}"
         )
         return result
+    if not original_exists:
+        if new_height is None or new_height <= 0 or new_size < MIN_NEW_FILE_BYTES:
+            result["reason"] = "new_file_not_usable"
+            logger(
+                f"[QualityUpgrade] Missing original at {original_path}; "
+                f"new file not usable new_height={new_height} new_size={new_size}"
+            )
+            return result
+        logger(
+            f"[QualityUpgrade] Missing original at {original_path.name}; "
+            f"installing new file into {dest_dir}"
+        )
 
-    dest_dir = original_path.parent if original_exists else new_path.parent
     dest_dir.mkdir(parents=True, exist_ok=True)
     destination = dest_dir / new_path.name
     backup_path: Optional[Path] = None

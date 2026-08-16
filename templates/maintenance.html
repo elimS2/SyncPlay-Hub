@@ -125,6 +125,7 @@
                             <div><strong>Below Max YouTube Quality</strong>: <span id="meta-below-max-quality">-</span></div>
                             <div><strong>At Max YouTube Quality</strong>: <span id="meta-at-max-quality">-</span></div>
                             <div><strong>Local Quality Unknown</strong>: <span id="meta-unknown-local-quality">-</span></div>
+                            <div><strong>Missing Local File</strong>: <span id="meta-missing-local-file">-</span></div>
                         </div>
                         <div class="action-buttons">
                             <button class="btn btn-primary" onclick="scanMissingMetadata()">
@@ -289,6 +290,7 @@
                     setText('meta-below-max-quality', md.tracks_below_max_quality ?? '-');
                     setText('meta-at-max-quality', md.tracks_at_max_quality ?? '-');
                     setText('meta-unknown-local-quality', md.tracks_unknown_local_quality ?? '-');
+                    setText('meta-missing-local-file', md.tracks_missing_local_file ?? '-');
                 }
 
                 // Get job queue statistics

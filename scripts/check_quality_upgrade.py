@@ -131,6 +131,33 @@ def test_restore_when_destination_blocked(tmp_path: Path) -> None:
     assert original.stat().st_size == 2_000_000
 
 
+def test_rotate_restores_missing_original_into_library(tmp_path: Path) -> None:
+    playlists = tmp_path / "Playlists"
+    folder = playlists / "Channel"
+    folder.mkdir(parents=True)
+    missing = folder / "Gone [ddddddddddd].mp4"
+    staging = tmp_path / "QualityUpgradeStaging" / "ddddddddddd"
+    staging.mkdir(parents=True)
+    better = staging / "New [ddddddddddd].mp4"
+    _write(better, 5_000_000)
+
+    result = rotate_if_better(
+        original_path=missing,
+        new_path=better,
+        playlists_root=playlists,
+        old_height=None,
+        new_height=2160,
+        max_height=2160,
+    )
+    dest = Path(result["destination"])
+    assert result["rotated"] is True
+    assert dest.exists()
+    assert dest.parent == folder
+    assert dest.stat().st_size == 5_000_000
+    assert not better.exists()
+    assert dest.is_relative_to(playlists)
+
+
 def main() -> int:
     test_should_replace()
     print("[PASS] test_should_replace")
@@ -140,6 +167,9 @@ def main() -> int:
     with tempfile.TemporaryDirectory() as tmp:
         test_restore_when_destination_blocked(Path(tmp))
     print("[PASS] test_restore_when_destination_blocked")
+    with tempfile.TemporaryDirectory() as tmp:
+        test_rotate_restores_missing_original_into_library(Path(tmp))
+    print("[PASS] test_rotate_restores_missing_original_into_library")
     print("[OK] quality upgrade checks passed")
     return 0
 
