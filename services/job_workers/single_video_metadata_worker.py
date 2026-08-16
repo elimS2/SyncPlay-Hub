@@ -175,17 +175,12 @@ class SingleVideoMetadataWorker(JobWorker):
             
             # Additional logic specific to SingleVideoMetadataWorker:
             # Update tracks.published_date if video exists in tracks table
-            upload_date = metadata.get('upload_date', '')
-            if upload_date:
-                try:
-                    from database import get_connection
-                    conn = get_connection()
-                    cursor = conn.cursor()
-                    self._update_track_published_date(video_id, upload_date, cursor, job)
-                    conn.commit()
-                    conn.close()
-                except Exception as e:
-                    job.log_error(f"Error updating published_date for video {video_id}: {e}")
+            from utils.metadata_utils import update_track_published_date
+            update_track_published_date(
+                video_id,
+                metadata.get('upload_date', ''),
+                logger_func=job.log_info,
+            )
             
             job.log_info(f"Successfully saved metadata for video {video_id} to database")
             return True
@@ -193,32 +188,7 @@ class SingleVideoMetadataWorker(JobWorker):
         except Exception as e:
             job.log_exception(e, f"Error saving metadata for video {video_id} to database")
             return False
-    
-    def _update_track_published_date(self, video_id: str, upload_date: str, cursor, job: Job):
-        """Update published_date in tracks table if track exists."""
-        try:
-            # Convert upload_date (YYYYMMDD) to proper date format
-            if len(upload_date) == 8:
-                formatted_date = f"{upload_date[:4]}-{upload_date[4:6]}-{upload_date[6:8]}"
-                
-                cursor.execute("""
-                    UPDATE tracks 
-                    SET published_date = ? 
-                    WHERE video_id = ? AND (published_date IS NULL OR published_date = '')
-                """, (formatted_date, video_id))
-                
-                if cursor.rowcount > 0:
-                    job.log_info(f"Updated published_date for track {video_id} to {formatted_date}")
-                else:
-                    job.log_info(f"No track found with video_id {video_id} or published_date already set")
-            else:
-                job.log_info(f"Invalid upload_date format for video {video_id}: {upload_date}")
-                
-        except Exception as e:
-            job.log_error(f"Error updating track published_date for video {video_id}: {e}")
-    
 
-    
     def get_worker_info(self) -> dict:
         """Return worker information."""
         return {

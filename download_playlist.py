@@ -471,7 +471,7 @@ def build_ydl_opts(output_dir: pathlib.Path, audio_only: bool, *, cookies_path: 
         "yesplaylist": True,
         "concurrent_fragments": 4,
         # Pretty progress output in the terminal
-        "progress_hooks": [lambda d: print_progress(d)],
+        "progress_hooks": [lambda d: print_progress(d), persist_finished_download_metadata],
         "noprogress": True,
         # Windows filename sanitization - prevents invalid characters like \/:*?"<>|
         "restrictfilenames": True,
@@ -484,6 +484,15 @@ def build_ydl_opts(output_dir: pathlib.Path, audio_only: bool, *, cookies_path: 
         **({"cookiesfrombrowser": ("chrome",)} if use_browser and not cookies_path else {}),
         **({"proxy": proxy_url} if proxy_url else {}),
     })
+
+
+def persist_finished_download_metadata(status: Dict[str, Any]) -> None:
+    """Write youtube_video_metadata when yt-dlp finishes a file."""
+    try:
+        from utils.metadata_utils import persist_download_metadata_from_progress
+        persist_download_metadata_from_progress(status, logger_func=print)
+    except Exception as exc:
+        print(f"[Metadata] Warning: failed to persist download metadata: {exc}")
 
 
 def print_progress(status: Dict[str, Any]) -> None:

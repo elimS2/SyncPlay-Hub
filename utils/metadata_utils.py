@@ -13,7 +13,8 @@ from pathlib import Path
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from controllers.api.shared import get_connection, log_message
+from database import get_connection
+from utils.logging_utils import log_message
 import database as db
 
 
@@ -267,4 +268,177 @@ def save_video_metadata_from_entry(entry: Dict[str, Any], channel_url: str = Non
         if logger_func is None:
             logger_func = log_message
         logger_func(f"[Metadata] Error processing metadata for video {video_id}: {e}")
-        return False 
+        return False
+
+
+def format_upload_date(upload_date: Any) -> Optional[str]:
+    """Convert yt-dlp upload_date (YYYYMMDD) to YYYY-MM-DD."""
+    if upload_date is None:
+        return None
+    raw = str(upload_date).strip()
+    if len(raw) != 8 or not raw.isdigit():
+        return None
+    return f"{raw[:4]}-{raw[4:6]}-{raw[6:8]}"
+
+
+def update_track_published_date(video_id: str, upload_date: Any, logger_func=None) -> bool:
+    """Set tracks.published_date when it is missing. Never raises."""
+    if logger_func is None:
+        logger_func = log_message
+    if not video_id:
+        return False
+    formatted_date = format_upload_date(upload_date)
+    if not formatted_date:
+        return False
+    try:
+        conn = get_connection()
+        try:
+            cursor = conn.cursor()
+            cursor.execute(
+                """
+                UPDATE tracks
+                SET published_date = ?
+                WHERE video_id = ? AND (published_date IS NULL OR published_date = '')
+                """,
+                (formatted_date, video_id),
+            )
+            updated = cursor.rowcount > 0
+            conn.commit()
+        finally:
+            conn.close()
+        if updated:
+            logger_func(f"[Metadata] Updated published_date for track {video_id} to {formatted_date}")
+        return updated
+    except Exception as e:
+        logger_func(f"[Metadata] Error updating published_date for video {video_id}: {e}")
+        return False
+
+
+def persist_download_metadata_from_entry(entry: Dict[str, Any], channel_url: str = None, logger_func=None) -> bool:
+    """Persist youtube_video_metadata and published_date from a yt-dlp info dict.
+
+    Intended for download-time use. Failures are logged and do not raise.
+    """
+    if logger_func is None:
+        logger_func = log_message
+    if not isinstance(entry, dict):
+        return False
+    video_id = entry.get('id') or entry.get('youtube_id')
+    if not video_id:
+        return False
+    saved = save_video_metadata_from_entry(entry, channel_url=channel_url, logger_func=logger_func)
+    if saved:
+        update_track_published_date(video_id, entry.get('upload_date'), logger_func=logger_func)
+    return saved
+
+
+def persist_download_metadata_from_progress(status: Dict[str, Any], logger_func=None) -> bool:
+    """yt-dlp progress-hook helper: persist metadata when a file finishes."""
+    if not isinstance(status, dict) or status.get('status') != 'finished':
+        return False
+    info_dict = status.get('info_dict')
+    if not isinstance(info_dict, dict):
+        return False
+    return persist_download_metadata_from_entry(info_dict, logger_func=logger_func)
+
+
+def find_infojson_files(directory: Path, video_id: Optional[str] = None) -> List[Path]:
+    """Find yt-dlp *.info.json sidecars in a directory (non-recursive)."""
+    try:
+        folder = Path(directory)
+    except Exception:
+        return []
+    if not folder.is_dir():
+        return []
+    matches: List[Path] = []
+    for path in folder.glob('*.info.json'):
+        if not path.is_file():
+            continue
+        if video_id:
+            name = path.name
+            if f'[{video_id}]' not in name and not name.startswith(f'{video_id}.'):
+                continue
+        matches.append(path)
+    return matches
+
+
+def persist_download_metadata_from_infojson(infojson_path: Path, channel_url: str = None, logger_func=None) -> bool:
+    """Load one yt-dlp .info.json file and persist it to the database."""
+    if logger_func is None:
+        logger_func = log_message
+    try:
+        path = Path(infojson_path)
+        if not path.is_file():
+            logger_func(f"[Metadata] info.json not found: {infojson_path}")
+            return False
+        with path.open('r', encoding='utf-8') as handle:
+            entry = json.load(handle)
+        if not isinstance(entry, dict):
+            logger_func(f"[Metadata] info.json is not an object: {path.name}")
+            return False
+        return persist_download_metadata_from_entry(entry, channel_url=channel_url, logger_func=logger_func)
+    except Exception as e:
+        if logger_func is None:
+            logger_func = log_message
+        logger_func(f"[Metadata] Error reading info.json {infojson_path}: {e}")
+        return False
+
+
+def sync_missing_published_dates_from_metadata(video_id: Optional[str] = None, logger_func=None) -> int:
+    """Fill empty tracks.published_date from youtube_video_metadata timestamps.
+
+    Safe to call after library scan, when the track row already exists.
+    """
+    if logger_func is None:
+        logger_func = log_message
+    try:
+        conn = get_connection()
+        try:
+            cursor = conn.cursor()
+            sql = """
+                UPDATE tracks
+                SET published_date = (
+                    SELECT date(COALESCE(yvm.timestamp, yvm.release_timestamp), 'unixepoch')
+                    FROM youtube_video_metadata yvm
+                    WHERE yvm.youtube_id = tracks.video_id
+                      AND (yvm.timestamp IS NOT NULL OR yvm.release_timestamp IS NOT NULL)
+                )
+                WHERE (published_date IS NULL OR published_date = '')
+                  AND video_id IN (
+                      SELECT youtube_id FROM youtube_video_metadata
+                      WHERE timestamp IS NOT NULL OR release_timestamp IS NOT NULL
+                  )
+            """
+            params: List[Any] = []
+            if video_id:
+                sql += " AND video_id = ?"
+                params.append(video_id)
+            cursor.execute(sql, params)
+            updated = cursor.rowcount if cursor.rowcount and cursor.rowcount > 0 else 0
+            conn.commit()
+        finally:
+            conn.close()
+        if updated:
+            logger_func(f"[Metadata] Synced published_date for {updated} track(s)")
+        return updated
+    except Exception as e:
+        logger_func(f"[Metadata] Error syncing published_date from metadata: {e}")
+        return 0
+
+
+def persist_download_metadata_from_directory(directory: Path, video_id: Optional[str] = None, logger_func=None) -> int:
+    """Persist metadata from *.info.json files written next to downloaded media.
+
+    Returns the number of files successfully saved.
+    """
+    if logger_func is None:
+        logger_func = log_message
+    saved = 0
+    for path in find_infojson_files(directory, video_id=video_id):
+        if persist_download_metadata_from_infojson(path, logger_func=logger_func):
+            saved += 1
+    if saved:
+        logger_func(f"[Metadata] Persisted download metadata from {saved} info.json file(s)")
+    elif video_id:
+        logger_func(f"[Metadata] No info.json found to persist for video {video_id} in {directory}")
+    return saved 

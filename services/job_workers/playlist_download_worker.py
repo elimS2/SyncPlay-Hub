@@ -205,12 +205,15 @@ class PlaylistDownloadWorker(JobWorker):
                 
                 # Update database with scan
                 self._update_database_scan(config.get('DB_PATH'))
+                self._sync_published_dates_after_scan()
                 
-                # Cleanup temporary files in playlists directory  
+                # Persist sidecar metadata before cleanup deletes *.info.json
                 if target_folder and config.get('ROOT_DIR'):
                     root_dir = Path(config['ROOT_DIR'])
                     playlists_dir = root_dir / 'Playlists' if root_dir.name != 'Playlists' else root_dir
                     target_path = playlists_dir / target_folder
+                    self._persist_download_metadata(target_path)
+                    self._sync_published_dates_after_scan()
                     self._cleanup_folder_temp_files(target_path)
                 
                 return True
@@ -449,34 +452,7 @@ class PlaylistDownloadWorker(JobWorker):
                             record_cookie_outcome(cookies_for_attempt, success=True)
                         except Exception:
                             pass
-                    # Post-process DB update optimized for single video
-                    try:
-                        video_id = (job_data.get('video_id') or '').strip()
-                        skip_full_scan = bool(job_data.get('skip_full_scan'))
-                        print(f"[PostProcess] Debug: video_id='{video_id}', skip_full_scan={skip_full_scan}")
-                        print(f"[PostProcess] Debug: job_data keys: {list(job_data.keys())}")
-                        if video_id and skip_full_scan:
-                            print(f"[PostProcess] Using optimized single-track update for {video_id}")
-                            # First run full scan to ensure track is in DB
-                            print(f"[PostProcess] Running full scan first to ensure track {video_id} is in DB")
-                            self._update_database_scan(config.get('DB_PATH'))
-                            # Then update media properties
-                            print(f"[PostProcess] Now updating media properties for {video_id}")
-                            self._update_single_track_path_and_probe(config, output_dir, video_id)
-                            # After DB relpath points to new file and file exists, cleanup old variants
-                            try:
-                                self._cleanup_old_variants_if_safe(config, video_id)
-                            except Exception as ce:
-                                print(f"[PostProcess] Cleanup skipped due to error: {ce}")
-                        else:
-                            print(f"[PostProcess] Using fallback full database scan (video_id={bool(video_id)}, skip_full_scan={skip_full_scan})")
-                            self._update_database_scan(config.get('DB_PATH'))
-                    except Exception as e:
-                        print(f"[PostProcess] Warning: failed to update DB optimally: {e}")
-                        # Fallback scan to keep DB consistent
-                        self._update_database_scan(config.get('DB_PATH'))
-
-                    self._cleanup_folder_temp_files(output_dir)
+                    self._finalize_single_video_download(config, output_dir, job_data)
                     return True
 
                 # If requested format is not available, try safe format fallbacks within the same attempt
@@ -531,29 +507,7 @@ class PlaylistDownloadWorker(JobWorker):
                                     record_cookie_outcome(cookies_for_attempt, success=True)
                                 except Exception:
                                     pass
-                            try:
-                                video_id = (job_data.get('video_id') or '').strip()
-                                skip_full_scan = bool(job_data.get('skip_full_scan'))
-                                print(f"[PostProcess] Debug: video_id='{video_id}', skip_full_scan={skip_full_scan}")
-                                print(f"[PostProcess] Debug: job_data keys: {list(job_data.keys())}")
-                                if video_id and skip_full_scan:
-                                    print(f"[PostProcess] Using optimized single-track update for {video_id}")
-                                    print(f"[PostProcess] Running full scan first to ensure track {video_id} is in DB")
-                                    self._update_database_scan(config.get('DB_PATH'))
-                                    print(f"[PostProcess] Now updating media properties for {video_id}")
-                                    self._update_single_track_path_and_probe(config, output_dir, video_id)
-                                    try:
-                                        self._cleanup_old_variants_if_safe(config, video_id)
-                                    except Exception as ce:
-                                        print(f"[PostProcess] Cleanup skipped due to error: {ce}")
-                                else:
-                                    print(f"[PostProcess] Using fallback full database scan (video_id={bool(video_id)}, skip_full_scan={skip_full_scan})")
-                                    self._update_database_scan(config.get('DB_PATH'))
-                            except Exception as e:
-                                print(f"[PostProcess] Warning: failed to update DB optimally: {e}")
-                                self._update_database_scan(config.get('DB_PATH'))
-
-                            self._cleanup_folder_temp_files(output_dir)
+                            self._finalize_single_video_download(config, output_dir, job_data)
                             return True
 
                         # Prepare for next decision loop by replacing result with the last fallback result
@@ -615,6 +569,68 @@ class PlaylistDownloadWorker(JobWorker):
         except Exception as e:
             print(f"Exception during single video download: {e}")
             return False
+
+    def _resolve_job_video_id(self, job_data: dict) -> str:
+        """Return video_id from job data or parse it from the download URL."""
+        video_id = (job_data.get('video_id') or '').strip()
+        if video_id:
+            return video_id
+        try:
+            from utils.youtube_channel_urls import extract_video_id_from_url
+            return extract_video_id_from_url(job_data.get('playlist_url') or '') or ''
+        except Exception:
+            return ''
+
+    def _persist_download_metadata(self, output_dir: Path, video_id: str | None = None) -> None:
+        """Save youtube_video_metadata from yt-dlp info.json before sidecar cleanup."""
+        try:
+            from utils.metadata_utils import persist_download_metadata_from_directory
+            persist_download_metadata_from_directory(
+                output_dir,
+                video_id=video_id or None,
+                logger_func=print,
+            )
+        except Exception as e:
+            print(f"[PostProcess] Warning: failed to persist download metadata: {e}")
+
+    def _sync_published_dates_after_scan(self, video_id: str | None = None) -> None:
+        """Copy publication dates onto track rows created by the library scan."""
+        try:
+            from utils.metadata_utils import sync_missing_published_dates_from_metadata
+            sync_missing_published_dates_from_metadata(video_id=video_id or None, logger_func=print)
+        except Exception as e:
+            print(f"[PostProcess] Warning: failed to sync published_date: {e}")
+
+    def _finalize_single_video_download(self, config: dict, output_dir: Path, job_data: dict) -> None:
+        """Persist metadata, update the track row, then remove yt-dlp sidecars."""
+        video_id = self._resolve_job_video_id(job_data)
+        skip_full_scan = bool(job_data.get('skip_full_scan'))
+        print(f"[PostProcess] Debug: video_id='{video_id}', skip_full_scan={skip_full_scan}")
+        print(f"[PostProcess] Debug: job_data keys: {list(job_data.keys())}")
+
+        # Persist before cleanup deletes *.info.json
+        self._persist_download_metadata(output_dir, video_id or None)
+
+        try:
+            if video_id and skip_full_scan:
+                print(f"[PostProcess] Using optimized single-track update for {video_id}")
+                print(f"[PostProcess] Running full scan first to ensure track {video_id} is in DB")
+                self._update_database_scan(config.get('DB_PATH'))
+                print(f"[PostProcess] Now updating media properties for {video_id}")
+                self._update_single_track_path_and_probe(config, output_dir, video_id)
+                try:
+                    self._cleanup_old_variants_if_safe(config, video_id)
+                except Exception as ce:
+                    print(f"[PostProcess] Cleanup skipped due to error: {ce}")
+            else:
+                print(f"[PostProcess] Using fallback full database scan (video_id={bool(video_id)}, skip_full_scan={skip_full_scan})")
+                self._update_database_scan(config.get('DB_PATH'))
+        except Exception as e:
+            print(f"[PostProcess] Warning: failed to update DB optimally: {e}")
+            self._update_database_scan(config.get('DB_PATH'))
+
+        self._sync_published_dates_after_scan(video_id or None)
+        self._cleanup_folder_temp_files(output_dir)
 
     def _update_single_track_path_and_probe(self, config: dict, output_dir: Path, video_id: str) -> None:
         """Update a single track's relpath based on the freshly downloaded file and rescan media properties.

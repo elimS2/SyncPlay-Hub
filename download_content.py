@@ -757,6 +757,15 @@ def create_progress_tracker(total_items: int, content_title: str, progress_callb
     return progress_hook
 
 
+def persist_finished_download_metadata(status: Dict[str, Any]) -> None:
+    """Write youtube_video_metadata when yt-dlp finishes a file."""
+    try:
+        from utils.metadata_utils import persist_download_metadata_from_progress
+        persist_download_metadata_from_progress(status, logger_func=print)
+    except Exception as exc:
+        print(f"[Metadata] Warning: failed to persist download metadata: {exc}")
+
+
 def print_progress(status: Dict[str, Any]) -> None:
     """Legacy simple progress hook - kept for backward compatibility."""
     if status["status"] == "finished":
@@ -878,14 +887,14 @@ def download_content(url: str, output_dir: pathlib.Path, audio_only: bool = Fals
             content_title=content_title,
             progress_callback=progress_callback
         )
-        ydl_opts["progress_hooks"] = [progress_tracker]
+        ydl_opts["progress_hooks"] = [progress_tracker, persist_finished_download_metadata]
         
         # Show start message
         start_msg = f"[Progress] Starting download of {new_downloads} new items from {content_title}"
         log_progress(start_msg)
     else:
         # Use simple progress hook for fallback
-        ydl_opts["progress_hooks"] = [lambda d: print_progress(d)]
+        ydl_opts["progress_hooks"] = [lambda d: print_progress(d), persist_finished_download_metadata]
         if len(current_ids) == len(local_before):
             log_progress(f"[Info] All {len(current_ids)} items already downloaded, checking for updates...")
         
