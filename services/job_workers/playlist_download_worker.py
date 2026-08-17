@@ -342,10 +342,6 @@ class PlaylistDownloadWorker(JobWorker):
                     '--extractor-retries', '3',
                     '--fragment-retries', '10'
                 ])
-                # Skip SABR/403 DASH URLs and fall through the / selector chain.
-                if not extract_audio:
-                    cmd.append('--check-formats')
-
                 # Extractor args for client switching / optional PO token (mweb high-quality HTTPS)
                 extractor_args: list[str] = []
                 if player_client:
@@ -410,6 +406,7 @@ class PlaylistDownloadWorker(JobWorker):
                 format_ytdlp_attempt_line,
                 height_locked_format_selectors,
                 output_has_403,
+                output_has_format_gate,
                 park_below_target_file,
                 should_keep_trying_for_target_height,
                 unpark_best_below_target,
@@ -491,7 +488,8 @@ class PlaylistDownloadWorker(JobWorker):
                     print(f"Process exit code: {run_result.returncode}")
                     selected = extract_selected_format(run_result.stdout, run_result.stderr)
                     saw_403 = output_has_403(run_result.stdout, run_result.stderr)
-                    if saw_403:
+                    saw_gate = output_has_format_gate(run_result.stdout, run_result.stderr)
+                    if saw_403 or saw_gate:
                         seen_sabr_or_403 = True
                     print(
                         format_ytdlp_attempt_line(
@@ -499,9 +497,11 @@ class PlaylistDownloadWorker(JobWorker):
                             format_req=current_format_selector,
                             selected=selected,
                             exit_code=run_result.returncode,
-                            saw_403=saw_403,
+                            saw_403=saw_403 or saw_gate,
                         )
                     )
+                    if saw_gate and not saw_403:
+                        print("[QualityRetry] format-gate: unable to download format / not available")
                     return run_result
 
                 def finish_success(outcome: str = "accept") -> bool:
@@ -627,7 +627,14 @@ class PlaylistDownloadWorker(JobWorker):
                 forbidden_403 = 'http error 403' in stderr_lower or 'forbidden' in stderr_lower
                 reload_marker = 'page needs to be reloaded' in stderr_lower or 'needs to be reloaded' in stderr_lower
                 images_only_marker = 'only images are available' in stderr_lower
-                retryable_marker = sabr_marker or forbidden_403 or reload_marker or images_only_marker
+                retryable_marker = (
+                    sabr_marker
+                    or forbidden_403
+                    or reload_marker
+                    or images_only_marker
+                    or format_unavailable
+                    or output_has_format_gate(result.stdout, result.stderr)
+                )
                 permanent_markers = ['this video is private', 'video unavailable', 'copyright']
                 is_permanent = any(m in stderr_lower for m in permanent_markers)
                 if sabr_marker or forbidden_403:

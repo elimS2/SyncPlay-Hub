@@ -21,6 +21,7 @@ from utils.ytdlp_format_retry import (
     height_locked_format_selectors,
     max_quality_format_selector,
     output_has_403,
+    output_has_format_gate,
     park_below_target_file,
     should_keep_trying_for_target_height,
     unpark_best_below_target,
@@ -91,6 +92,8 @@ def test_log_line_helpers() -> None:
     assert selected == "137+140"
     assert output_has_403("", "unable to download video data: HTTP Error 403: Forbidden")
     assert output_has_403("ok", "") is False
+    assert output_has_format_gate("", "WARNING: Unable to download format 137. Skipping...")
+    assert output_has_format_gate("", "ERROR: Requested format is not available")
     line = format_ytdlp_attempt_line(
         client="android",
         format_req="137+140",

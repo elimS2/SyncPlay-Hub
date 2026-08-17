@@ -38,6 +38,16 @@ def output_has_403(stdout: str = "", stderr: str = "") -> bool:
     return "http error 403" in text or "forbidden" in text
 
 
+def output_has_format_gate(stdout: str = "", stderr: str = "") -> bool:
+    """True when yt-dlp skipped formats (often a silent 403 via --check-formats)."""
+    text = f"{stdout or ''}\n{stderr or ''}".lower()
+    return (
+        "unable to download format" in text
+        or "requested format is not available" in text
+        or "requested formats are incompatible" in text
+    )
+
+
 def format_ytdlp_attempt_line(
     *,
     client: Optional[str],
