@@ -19,13 +19,79 @@ All identifiers, comments, and strings are in English as per project policy.
 """
 
 from pathlib import Path
-from typing import Optional, Tuple, Dict, Any, List
+from typing import Optional, Tuple, Dict, Any
 import json
 import subprocess
 import os
 
 _AUDIO_EXTS = {".mp3", ".m4a", ".aac", ".flac", ".opus", ".ogg", ".wav"}
 _VIDEO_EXTS = {".mp4", ".mkv", ".webm", ".mov", ".avi"}
+_STILL_IMAGE_CODECS = frozenset({"png", "mjpeg", "mjpg", "bmp", "gif", "webp", "tiff"})
+
+
+def _is_attached_pic(stream: Dict[str, Any]) -> bool:
+    try:
+        disp = stream.get("disposition") or {}
+        flag = disp.get("attached_pic")
+        if isinstance(flag, str):
+            flag = int(flag)
+        return bool(flag)
+    except (TypeError, ValueError):
+        return False
+
+
+def _is_still_image_codec(stream: Dict[str, Any]) -> bool:
+    codec = stream.get("codec_name")
+    return isinstance(codec, str) and codec.lower() in _STILL_IMAGE_CODECS
+
+
+def _stream_area(stream: Dict[str, Any]) -> int:
+    try:
+        return int(stream.get("width") or 0) * int(stream.get("height") or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
+def resolution_from_stream(stream: Optional[Dict[str, Any]]) -> Optional[str]:
+    if not stream:
+        return None
+    try:
+        width = int(stream.get("width") or 0)
+        height = int(stream.get("height") or 0)
+    except (TypeError, ValueError):
+        return None
+    if width <= 0 or height <= 0:
+        return None
+    return f"{width}x{height}"
+
+
+def select_main_video_stream(streams: Any) -> Optional[Dict[str, Any]]:
+    """Prefer the playable video stream; ignore cover art and still-image tracks.
+
+    yt-dlp ``--embed-thumbnail`` often adds a PNG/MJPEG stream that is larger
+    than the real video (for example 1280x720 cover on a 640x360 clip) and
+    may omit ``disposition.attached_pic``. Picking the largest area then
+    reports a fake height and quality-upgrade treats 360p as 720p.
+    """
+    if not isinstance(streams, list):
+        return None
+    video_streams = [
+        stream
+        for stream in streams
+        if isinstance(stream, dict) and stream.get("codec_type") == "video"
+    ]
+    if not video_streams:
+        return None
+    candidates = [
+        stream
+        for stream in video_streams
+        if not _is_attached_pic(stream) and not _is_still_image_codec(stream)
+    ]
+    if not candidates:
+        candidates = [stream for stream in video_streams if not _is_attached_pic(stream)]
+    if not candidates:
+        candidates = video_streams
+    return max(candidates, key=_stream_area)
 
 
 def ffprobe_media_properties(path: Path, timeout: int = 10) -> Tuple[Optional[float], Optional[int], Optional[str]]:
@@ -68,7 +134,7 @@ def ffprobe_media_properties(path: Path, timeout: int = 10) -> Tuple[Optional[fl
                     "-v",
                     "error",
                     "-show_entries",
-                    "format=duration,bit_rate:stream=index,codec_type,bit_rate,width,height,disposition",
+                    "format=duration,bit_rate:stream=index,codec_type,codec_name,bit_rate,width,height,disposition",
                     "-of",
                     "json",
                     str(path),
@@ -103,34 +169,7 @@ def ffprobe_media_properties(path: Path, timeout: int = 10) -> Tuple[Optional[fl
 
                 streams = (data or {}).get("streams") or []
                 if isinstance(streams, list):
-                    # Prefer non-attached picture streams (ignore cover images)
-                    def _is_attached(stream: Dict[str, Any]) -> bool:
-                        try:
-                            disp = stream.get("disposition") or {}
-                            flag = disp.get("attached_pic")
-                            if isinstance(flag, str):
-                                flag = int(flag)
-                            return bool(flag)
-                        except Exception:
-                            return False
-                    video_streams: List[Dict[str, Any]] = [s for s in streams if isinstance(s, dict) and s.get("codec_type") == "video"]
-                    preferred = [s for s in video_streams if not _is_attached(s)] or video_streams
-                    # Choose the stream with the largest area
-                    def _area(s: Dict[str, Any]) -> int:
-                        try:
-                            return int(s.get("width") or 0) * int(s.get("height") or 0)
-                        except Exception:
-                            return 0
-                    preferred.sort(key=_area, reverse=True)
-                    main_v = preferred[0] if preferred else None
-                    if main_v:
-                        w = main_v.get("width")
-                        h = main_v.get("height")
-                        try:
-                            if w and h and int(w) > 0 and int(h) > 0:
-                                resolution = f"{int(w)}x{int(h)}"
-                        except (TypeError, ValueError):
-                            pass
+                    resolution = resolution_from_stream(select_main_video_stream(streams))
                     if bitrate_bps is None:
                         stream_bitrates = []
                         for s in streams:
@@ -194,7 +233,7 @@ def ffprobe_media_properties(path: Path, timeout: int = 10) -> Tuple[Optional[fl
             "-v",
             "error",
             "-show_entries",
-            "format=duration,bit_rate:stream=index,codec_type,bit_rate,width,height,disposition",
+            "format=duration,bit_rate:stream=index,codec_type,codec_name,bit_rate,width,height,disposition",
             "-of",
             "json",
             str(path),
@@ -229,32 +268,7 @@ def ffprobe_media_properties(path: Path, timeout: int = 10) -> Tuple[Optional[fl
 
         streams = (data or {}).get("streams") or []
         if isinstance(streams, list):
-            def _is_attached(stream: Dict[str, Any]) -> bool:
-                try:
-                    disp = stream.get("disposition") or {}
-                    flag = disp.get("attached_pic")
-                    if isinstance(flag, str):
-                        flag = int(flag)
-                    return bool(flag)
-                except Exception:
-                    return False
-            video_streams: List[Dict[str, Any]] = [s for s in streams if isinstance(s, dict) and s.get("codec_type") == "video"]
-            preferred = [s for s in video_streams if not _is_attached(s)] or video_streams
-            def _area(s: Dict[str, Any]) -> int:
-                try:
-                    return int(s.get("width") or 0) * int(s.get("height") or 0)
-                except Exception:
-                    return 0
-            preferred.sort(key=_area, reverse=True)
-            main_v = preferred[0] if preferred else None
-            if main_v:
-                try:
-                    w = main_v.get("width")
-                    h = main_v.get("height")
-                    if w and h and int(w) > 0 and int(h) > 0:
-                        resolution = f"{int(w)}x{int(h)}"
-                except (TypeError, ValueError):
-                    pass
+            resolution = resolution_from_stream(select_main_video_stream(streams))
             if bitrate_bps is None:
                 stream_bitrates = []
                 for s in streams:
@@ -466,36 +480,9 @@ def ffprobe_media_properties_ex(path: Path, timeout: int = 10) -> Dict[str, Opti
                                                 break
                                             except Exception:
                                                 continue
-                    # Choose preferred video stream: ignore attached pictures and still-image codecs, then max area
-                    def _is_attached(stream: dict) -> bool:
-                        try:
-                            disp = stream.get("disposition") or {}
-                            flag = disp.get("attached_pic")
-                            if isinstance(flag, str):
-                                flag = int(flag)
-                            return bool(flag)
-                        except Exception:
-                            return False
-                    STILL_IMAGE_CODECS = {"png", "mjpeg", "mjpg", "bmp", "gif", "webp", "tiff"}
-                    def _is_still_codec(stream: dict) -> bool:
-                        c = stream.get("codec_name")
-                        return isinstance(c, str) and c.lower() in STILL_IMAGE_CODECS
-                    candidates = [s for s in video_streams if (not _is_attached(s)) and (not _is_still_codec(s))] or \
-                                 [s for s in video_streams if not _is_attached(s)] or video_streams
-                    def _area(s: dict) -> int:
-                        try:
-                            return int(s.get("width") or 0) * int(s.get("height") or 0)
-                        except Exception:
-                            return 0
-                    main_v = sorted(candidates, key=_area, reverse=True)[0] if candidates else None
+                    main_v = select_main_video_stream(streams)
+                    resolution = resolution_from_stream(main_v)
                     if main_v:
-                        try:
-                            w = main_v.get("width")
-                            h = main_v.get("height")
-                            if w and h and int(w) > 0 and int(h) > 0:
-                                resolution = f"{int(w)}x{int(h)}"
-                        except Exception:
-                            pass
                         c = main_v.get("codec_name")
                         if isinstance(c, str) and c and c != "N/A":
                             video_codec = c.lower()
@@ -693,36 +680,9 @@ def ffprobe_media_properties_ex(path: Path, timeout: int = 10) -> Dict[str, Opti
                                         break
                                     except Exception:
                                         continue
-            # Choose preferred video stream (ignore attached pictures and still-image codecs)
-            def _is_attached(stream: dict) -> bool:
-                try:
-                    disp = stream.get("disposition") or {}
-                    flag = disp.get("attached_pic")
-                    if isinstance(flag, str):
-                        flag = int(flag)
-                    return bool(flag)
-                except Exception:
-                    return False
-            STILL_IMAGE_CODECS = {"png", "mjpeg", "mjpg", "bmp", "gif", "webp", "tiff"}
-            def _is_still_codec(stream: dict) -> bool:
-                c = stream.get("codec_name")
-                return isinstance(c, str) and c.lower() in STILL_IMAGE_CODECS
-            candidates = [s for s in video_streams if (not _is_attached(s)) and (not _is_still_codec(s))] or \
-                         [s for s in video_streams if not _is_attached(s)] or video_streams
-            def _area(s: dict) -> int:
-                try:
-                    return int(s.get("width") or 0) * int(s.get("height") or 0)
-                except Exception:
-                    return 0
-            main_v = sorted(candidates, key=_area, reverse=True)[0] if candidates else None
+            main_v = select_main_video_stream(streams)
+            resolution = resolution_from_stream(main_v)
             if main_v:
-                try:
-                    w = main_v.get("width")
-                    h = main_v.get("height")
-                    if w and h and int(w) > 0 and int(h) > 0:
-                        resolution = f"{int(w)}x{int(h)}"
-                except Exception:
-                    pass
                 c = main_v.get("codec_name")
                 if isinstance(c, str) and c and c != "N/A":
                     video_codec = c.lower()

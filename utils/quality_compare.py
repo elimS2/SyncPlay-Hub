@@ -11,6 +11,10 @@ HEIGHT_SLACK_PX = 16
 # Local files at this height (plus slack) count as success even if YouTube
 # advertises 1440/2160. yt-dlp often cannot fetch those formats (HTTP 403).
 SUCCESS_HEIGHT_PX = 1080
+# Cinematic 1080p masters are often 1920x754–1012, not 1920x1080. Width is
+# the quality tier; a short height is the crop, not a 720p file.
+SUCCESS_WIDTH_PX = 1920
+CINEMATIC_MIN_HEIGHT_PX = 720
 
 # Conservative bits-per-second floors used only when local resolution is missing.
 # A file clearly under these values is treated as below the YouTube max height.
@@ -23,6 +27,19 @@ BITRATE_FLOOR_BY_HEIGHT = (
 )
 
 
+def _digits_prefix(raw: str) -> Optional[int]:
+    digits = ""
+    for char in raw:
+        if char.isdigit():
+            digits += char
+        else:
+            break
+    if not digits:
+        return None
+    value = int(digits)
+    return value if value > 0 else None
+
+
 def parse_local_height(resolution: Any) -> Optional[int]:
     """Parse height from a stored resolution like '1920x1080'."""
     if resolution is None:
@@ -31,20 +48,42 @@ def parse_local_height(resolution: Any) -> Optional[int]:
     if not raw:
         return None
     if "x" in raw:
-        right = raw.split("x", 1)[1]
-        digits = ""
-        for char in right:
-            if char.isdigit():
-                digits += char
-            else:
-                break
-        if digits:
-            height = int(digits)
-            return height if height > 0 else None
-    if raw.endswith("p") and raw[:-1].isdigit():
-        height = int(raw[:-1])
-        return height if height > 0 else None
+        return _digits_prefix(raw.split("x", 1)[1])
+    if raw.endswith("p"):
+        return _digits_prefix(raw[:-1])
     return None
+
+
+def parse_local_width(resolution: Any) -> Optional[int]:
+    """Parse width from a stored resolution like '1920x804'."""
+    if resolution is None:
+        return None
+    raw = str(resolution).strip().lower()
+    if not raw or "x" not in raw:
+        return None
+    return _digits_prefix(raw.split("x", 1)[0])
+
+
+def is_cinematic_1080_class(resolution: Any, target_height: Any) -> bool:
+    """True for 1920-wide crops that are already the 1080p quality tier.
+
+    Megapixels vs 1920x1080 still marks 1920x804 as short (~74%). Width is
+    the YouTube 1080p label; height is the letterbox/crop.
+    """
+    try:
+        target_value = int(target_height)
+    except (TypeError, ValueError):
+        return False
+    if target_value + HEIGHT_SLACK_PX < SUCCESS_HEIGHT_PX:
+        return False
+    width = parse_local_width(resolution)
+    height = parse_local_height(resolution)
+    if width is None or height is None:
+        return False
+    return (
+        width + HEIGHT_SLACK_PX >= SUCCESS_WIDTH_PX
+        and height + HEIGHT_SLACK_PX >= CINEMATIC_MIN_HEIGHT_PX
+    )
 
 
 def is_audio_filetype(filetype: Any) -> bool:
@@ -141,16 +180,19 @@ def classify_local_vs_youtube_quality(
     """Return below_height, below_bitrate, at_max, unknown, or audio.
 
     Comparison uses min(YouTube max, SUCCESS_HEIGHT_PX): a local 1080p file
-    is at_max even when the catalog lists 2160p.
+    is at_max even when the catalog lists 2160p. A 1920-wide cinematic crop
+    (height below 1080) is the same tier and is not an upgrade candidate.
     """
     if is_audio_filetype(filetype):
         return "audio"
     target_height = effective_success_target_height(max_height)
     local_height = parse_local_height(resolution)
     if local_height is not None:
-        if is_below_max_by_height(local_height, target_height):
-            return "below_height"
-        return "at_max"
+        if not is_below_max_by_height(local_height, target_height):
+            return "at_max"
+        if is_cinematic_1080_class(resolution, target_height):
+            return "at_max"
+        return "below_height"
     duration = track_duration if track_duration else yvm_duration
     if is_below_max_by_bitrate(size_bytes, duration, target_height):
         return "below_bitrate"

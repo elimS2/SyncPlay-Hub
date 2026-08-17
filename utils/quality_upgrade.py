@@ -87,9 +87,9 @@ def _path_is_under(path: Path, root: Path) -> bool:
 
 def probe_height(path: Path) -> Optional[int]:
     try:
-        from utils.media_probe import ffprobe_media_properties
+        from utils.media_probe import ffprobe_media_properties_ex
 
-        _duration, _bitrate, resolution = ffprobe_media_properties(path)
+        resolution = ffprobe_media_properties_ex(path).get("resolution")
         return parse_local_height(resolution)
     except Exception:
         return None

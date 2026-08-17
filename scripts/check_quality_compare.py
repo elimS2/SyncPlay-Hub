@@ -17,9 +17,11 @@ from utils.quality_compare import (
     effective_success_target_height,
     is_below_max_by_bitrate,
     is_below_max_by_height,
+    is_cinematic_1080_class,
     library_relpath_exists,
     list_tracks_below_max_youtube_quality,
     parse_local_height,
+    parse_local_width,
 )
 
 
@@ -55,12 +57,18 @@ def test_parsers() -> None:
     assert parse_local_height("1080p") == 1080
     assert parse_local_height("") is None
     assert parse_local_height(None) is None
+    assert parse_local_width("1920x804") == 1920
+    assert parse_local_width("1080p") is None
     assert is_below_max_by_height(1080, 2160) is True
     assert is_below_max_by_height(2160, 2160) is False
     assert is_below_max_by_height(2150, 2160) is False
     assert effective_success_target_height(2160) == 1080
     assert effective_success_target_height(720) == 720
+    assert is_cinematic_1080_class("1920x804", 1080) is True
+    assert is_cinematic_1080_class("1920x360", 1080) is False
+    assert is_cinematic_1080_class("1280x720", 1080) is False
     assert classify_local_vs_youtube_quality("1920x1080", "mp4", 80_000_000, 100, None, 2160) == "at_max"
+    assert classify_local_vs_youtube_quality("1920x804", "mp4", 80_000_000, 100, None, 2160) == "at_max"
     assert classify_local_vs_youtube_quality("1280x720", "mp4", 40_000_000, 100, None, 2160) == "below_height"
     assert classify_local_vs_youtube_quality("640x360", "mp4", 8_000_000, 100, None, 720) == "below_height"
     assert is_below_max_by_bitrate(36_000_000, 981, 2160) is True
@@ -83,6 +91,7 @@ def test_counts(tmp_path: Path) -> None:
 
     add("heightLow", resolution="1280x720", max_height=2160, duration=100, size_bytes=50_000_000)
     add("height1080", resolution="1920x1080", max_height=2160, duration=100, size_bytes=80_000_000)
+    add("heightCrop", resolution="1920x804", max_height=2160, duration=100, size_bytes=80_000_000)
     add("heightMax", resolution="3840x2160", max_height=2160, duration=100, size_bytes=400_000_000)
     add(
         "SybKGa60Z3Q",
@@ -111,7 +120,7 @@ def test_counts(tmp_path: Path) -> None:
     assert counts["tracks_below_max_quality_by_height"] == 1
     assert counts["tracks_below_max_quality_by_bitrate"] == 1
     assert counts["tracks_below_max_quality"] == 2
-    assert counts["tracks_at_max_quality"] == 2
+    assert counts["tracks_at_max_quality"] == 3
     assert counts["tracks_missing_local_file"] == 1
     assert {row["video_id"] for row in listed} == {"heightLow", "SybKGa60Z3Q", "missingGhost"}
     assert next(row["reason"] for row in listed if row["video_id"] == "missingGhost") == "missing_file"
