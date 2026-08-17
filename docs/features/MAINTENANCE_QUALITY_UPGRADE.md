@@ -44,6 +44,7 @@ UI shows one number: **Re-download if YouTube has better (1080p is enough)**. Th
 - [x] `POST /api/enqueue_max_quality_upgrades`
 - [x] Maintenance button with dry-run confirm
 - [x] Smoke tests in `scripts/check_quality_upgrade.py`
+- [x] 403/short-download retry: do not treat a 720p file as done when the success target is 1080p (`utils/ytdlp_format_retry.py`, worker ladder)
 
 ## Manual test
 

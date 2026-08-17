@@ -191,7 +191,7 @@ Notes:
 ```
 # Retry ladder
 YTDLP_RETRY_LADDER=1
-YTDLP_MAX_ATTEMPTS=4
+YTDLP_MAX_ATTEMPTS=6
 YTDLP_BACKOFF_MIN_MS=1000
 YTDLP_BACKOFF_MAX_MS=5000
 YTDLP_ALIGN_UA_WITH_CLIENT=0
@@ -257,5 +257,15 @@ Progress (2025-08-09):
 - Do not use non-existent flags like `--no-download-archive`.
 - On repeated failures, ensure partial `.part` files are cleaned only when safe. Keep current success-path cleanup; consider adding failure-path cleanup for stale `.part` files older than N minutes.
 - Avoid using the TV client profile which correlates with SABR in our logs.
+
+Progress (2026-08-17) — do not accept 720 after a 1080p 403:
+
+- Quality-upgrade batches showed the old ladder "succeeding" at ~720 after `HTTP Error 403` on DASH 399/400/137. `android_vr` was attempt #2 and often returned a progressive 720 that we installed.
+- [x] Prefer classic itags first: `137+140/137+251/299+140` (`utils/ytdlp_format_retry.py`, used by enqueue + worker).
+- [x] Pass `--check-formats` so yt-dlp skips 403 DASH URLs inside one run.
+- [x] On 403 or a too-short success, retry `137+140` / `137+251` / `299+140` on the same client before switching.
+- [x] Probe height after yt-dlp exit 0. If below the 1080 success cap and attempts remain, park the file and continue. Last resort: unpark the best parked file (720) so a 360 original can still upgrade.
+- [x] Client order is now web → android → ios → mweb → web-rotated → android_vr. Default `YTDLP_MAX_ATTEMPTS=6`.
+- [x] Smoke tests: `scripts/check_ytdlp_format_retry.py`.
 
 

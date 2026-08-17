@@ -272,13 +272,18 @@ class PlaylistDownloadWorker(JobWorker):
                 output_dir = library_dir
 
             output_dir.mkdir(parents=True, exist_ok=True)
+            retry_video_id = self._resolve_job_video_id(job_data)
+            try:
+                job_target_height = int(job_data.get('target_height', 1080))
+            except (TypeError, ValueError):
+                job_target_height = 1080
             
             # Output configuration
             output_template = str(output_dir / '%(title)s [%(id)s].%(ext)s')
 
             # Feature flags / configuration
             retry_ladder_enabled = str(config.get('YTDLP_RETRY_LADDER', '1')).strip() not in ('0', 'false', 'False')
-            max_attempts = int(config.get('YTDLP_MAX_ATTEMPTS', '4'))
+            max_attempts = int(config.get('YTDLP_MAX_ATTEMPTS', '6'))
             backoff_min_ms = int(config.get('YTDLP_BACKOFF_MIN_MS', '1000'))
             backoff_max_ms = int(config.get('YTDLP_BACKOFF_MAX_MS', '5000'))
             align_ua_with_client = str(config.get('YTDLP_ALIGN_UA_WITH_CLIENT', '0')).strip() in ('1', 'true', 'True')
@@ -295,13 +300,11 @@ class PlaylistDownloadWorker(JobWorker):
                 return 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36'
 
             # Prepare attempt configurations (ladder).
-            # android_vr/android/ios skip cookies in yt-dlp; stale cookies often break web client.
-            attempt_plan = [
-                {'name': 'web-default', 'player_client': None, 'rotate_cookie': False, 'rotate_proxy': False, 'extra_flags': [], 'skip_cookies': False},
-                {'name': 'android-vr-no-cookie', 'player_client': 'android_vr', 'rotate_cookie': False, 'rotate_proxy': False, 'extra_flags': [], 'skip_cookies': True},
-                {'name': 'mweb', 'player_client': 'mweb', 'rotate_cookie': False, 'rotate_proxy': False, 'extra_flags': [], 'skip_cookies': False},
-                {'name': 'web-rotated', 'player_client': None, 'rotate_cookie': True, 'rotate_proxy': True, 'extra_flags': ['--force-ipv4'], 'skip_cookies': False},
-            ]
+            # android/ios/android_vr skip cookies in yt-dlp; android_vr is last
+            # because it often "succeeds" at 720/360 after a 1080p 403.
+            from utils.ytdlp_format_retry import default_403_attempt_plan
+
+            attempt_plan = default_403_attempt_plan()
 
             if not retry_ladder_enabled:
                 attempt_plan = attempt_plan[:1]
@@ -339,6 +342,9 @@ class PlaylistDownloadWorker(JobWorker):
                     '--extractor-retries', '3',
                     '--fragment-retries', '10'
                 ])
+                # Skip SABR/403 DASH URLs and fall through the / selector chain.
+                if not extract_audio:
+                    cmd.append('--check-formats')
 
                 # Extractor args for client switching / optional PO token (mweb high-quality HTTPS)
                 extractor_args: list[str] = []
@@ -394,9 +400,39 @@ class PlaylistDownloadWorker(JobWorker):
             if js_runtime_dir:
                 env['PATH'] = js_runtime_dir + os.pathsep + env.get('PATH', '')
 
+            from utils.quality_compare import effective_success_target_height
+            from utils.quality_upgrade import find_downloaded_video, probe_height
+            from utils.ytdlp_format_retry import (
+                delete_parked_below_target,
+                extract_selected_format,
+                format_quality_retry_summary,
+                format_unavailable_fallback_selectors,
+                format_ytdlp_attempt_line,
+                height_locked_format_selectors,
+                output_has_403,
+                park_below_target_file,
+                should_keep_trying_for_target_height,
+                unpark_best_below_target,
+            )
+
             # Attempt loop
             attempt_index = 0
             seen_sabr_or_403 = False
+            cookies_for_attempt = None
+            clients_tried: list[str] = []
+            last_probed_height = None
+
+            def emit_quality_summary(outcome: str, height=None) -> None:
+                print(
+                    format_quality_retry_summary(
+                        video_id=retry_video_id,
+                        target_height=job_target_height,
+                        seen_403=seen_sabr_or_403,
+                        clients=clients_tried,
+                        final_height=height if height is not None else last_probed_height,
+                        outcome=outcome,
+                    )
+                )
             for plan in attempt_plan:
                 attempt_index += 1
 
@@ -423,45 +459,55 @@ class PlaylistDownloadWorker(JobWorker):
                     if proxy_list:
                         proxy_for_attempt = proxy_list[proxy_index % len(proxy_list)]
 
-                # Initial command with requested format
-                cmd = build_cmd(plan['player_client'], cookies_for_attempt, plan['extra_flags'], proxy_for_attempt, format_selector)
+                def run_ytdlp(current_format_selector: str, extra_flags: list[str] | None = None):
+                    nonlocal seen_sabr_or_403
+                    flags = list(plan['extra_flags'] or [])
+                    if extra_flags:
+                        flags.extend(extra_flags)
+                    cmd = build_cmd(
+                        plan['player_client'],
+                        cookies_for_attempt,
+                        flags,
+                        proxy_for_attempt,
+                        current_format_selector,
+                    )
+                    print(f"Executing command: {' '.join(cmd)}")
+                    run_result = subprocess.run(
+                        cmd,
+                        cwd=str(project_root),
+                        capture_output=True,
+                        text=True,
+                        encoding='utf-8',
+                        errors='replace',
+                        timeout=3600,
+                        env=env,
+                    )
+                    if run_result.stdout:
+                        print("=== STDOUT ===")
+                        print(run_result.stdout)
+                    if run_result.stderr:
+                        print("=== STDERR ===")
+                        print(run_result.stderr)
+                    print(f"Process exit code: {run_result.returncode}")
+                    selected = extract_selected_format(run_result.stdout, run_result.stderr)
+                    saw_403 = output_has_403(run_result.stdout, run_result.stderr)
+                    if saw_403:
+                        seen_sabr_or_403 = True
+                    print(
+                        format_ytdlp_attempt_line(
+                            client=plan['player_client'],
+                            format_req=current_format_selector,
+                            selected=selected,
+                            exit_code=run_result.returncode,
+                            saw_403=saw_403,
+                        )
+                    )
+                    return run_result
 
-                # One-line attempt log
-                attempt_log = (
-                    f"attempt={attempt_index}/{min(max_attempts, len(attempt_plan))} "
-                    f"client={plan['player_client'] or 'web'} "
-                    f"cookie={(Path(cookies_for_attempt).name if cookies_for_attempt else 'none')} "
-                    f"proxy={(proxy_for_attempt or 'none')} "
-                    f"skip_cookies={bool(plan.get('skip_cookies'))} "
-                    f"format={'137+251' if (not extract_audio and format_selector=='bestvideo+bestaudio/best') else format_selector}"
-                )
-                print(attempt_log)
-                print(f"Executing command: {' '.join(cmd)}")
-
-                result = subprocess.run(
-                    cmd,
-                    cwd=str(project_root),
-                    capture_output=True,
-                    text=True,
-                    encoding='utf-8',
-                    errors='replace',
-                    timeout=3600,  # 1 hour timeout for single video
-                    env=env
-                )
-
-                # Output result for logging
-                if result.stdout:
-                    print("=== STDOUT ===")
-                    print(result.stdout)
-                if result.stderr:
-                    print("=== STDERR ===")
-                    print(result.stderr)
-
-                print(f"Process exit code: {result.returncode}")
-
-                # Success?
-                if result.returncode == 0:
-                    print("Single video download completed successfully")
+                def finish_success(outcome: str = "accept") -> bool:
+                    emit_quality_summary(outcome)
+                    if retry_video_id:
+                        delete_parked_below_target(output_dir, retry_video_id)
                     if cookies_for_attempt:
                         try:
                             record_cookie_outcome(cookies_for_attempt, success=True)
@@ -474,68 +520,107 @@ class PlaylistDownloadWorker(JobWorker):
                     self._finalize_single_video_download(config, output_dir, job_data)
                     return True
 
-                # If requested format is not available, try safe format fallbacks within the same attempt
+                def accept_or_continue_after_success(label: str) -> bool:
+                    """Finalize a tall-enough file; park a short one and keep trying."""
+                    nonlocal last_probed_height
+                    attempts_remaining = min(max_attempts, len(attempt_plan)) - attempt_index
+                    if extract_audio or not retry_video_id:
+                        print(f"Single video download completed successfully{label}")
+                        return finish_success()
+                    media = find_downloaded_video(output_dir, retry_video_id)
+                    probed = probe_height(media) if media else None
+                    last_probed_height = probed
+                    if should_keep_trying_for_target_height(
+                        probed, job_target_height, attempts_remaining
+                    ):
+                        success_target = effective_success_target_height(job_target_height)
+                        print(
+                            f"[QualityRetry] Got {probed}p but success target is "
+                            f"{success_target}p ({attempts_remaining} attempts left); "
+                            f"parking and retrying{label}"
+                        )
+                        if media:
+                            parked = park_below_target_file(media)
+                            print(f"[QualityRetry] Parked below-target file: {parked.name}")
+                        return False
+                    print(f"Single video download completed successfully{label}")
+                    return finish_success()
+
+                def try_height_locked_formats(reason: str) -> bool:
+                    if extract_audio:
+                        return False
+                    success_target = effective_success_target_height(job_target_height)
+                    if not success_target or success_target < 1080:
+                        return False
+                    locked = height_locked_format_selectors(job_target_height)[:3]
+                    chunk_flags = ['--http-chunk-size', '10M']
+                    for idx, fb_selector in enumerate(locked, start=1):
+                        print(f"[QualityRetry] {reason} fallback #{idx}: -f {fb_selector}")
+                        fb_result = run_ytdlp(fb_selector, extra_flags=chunk_flags)
+                        if fb_result.returncode == 0:
+                            if accept_or_continue_after_success(f" (via {reason} {fb_selector})"):
+                                return True
+                    return False
+
+                # Initial command with requested format
+                attempt_log = (
+                    f"attempt={attempt_index}/{min(max_attempts, len(attempt_plan))} "
+                    f"client={plan['player_client'] or 'web'} "
+                    f"cookie={(Path(cookies_for_attempt).name if cookies_for_attempt else 'none')} "
+                    f"proxy={(proxy_for_attempt or 'none')} "
+                    f"skip_cookies={bool(plan.get('skip_cookies'))} "
+                    f"format={format_selector}"
+                )
+                print(attempt_log)
+                clients_tried.append(str(plan['player_client'] or 'web'))
+
+                result = run_ytdlp(format_selector)
+
+                if result.returncode == 0:
+                    if accept_or_continue_after_success(""):
+                        return True
+                    if try_height_locked_formats("short-download"):
+                        return True
+                    delay_ms = random.randint(backoff_min_ms, backoff_max_ms)
+                    time.sleep(delay_ms / 1000.0)
+                    continue
+
                 stderr_lower = (result.stderr or '').lower()
-                format_unavailable = ('requested format is not available' in stderr_lower) or ('requested formats are incompatible' in stderr_lower) or ('format not available' in stderr_lower)
+                format_unavailable = (
+                    'requested format is not available' in stderr_lower
+                    or 'requested formats are incompatible' in stderr_lower
+                    or 'format not available' in stderr_lower
+                )
+                sabr_marker = 'sabr' in stderr_lower or 'missing a url' in stderr_lower
+                forbidden_403 = 'http error 403' in stderr_lower or 'forbidden' in stderr_lower
+                if sabr_marker or forbidden_403:
+                    seen_sabr_or_403 = True
 
-                if (not extract_audio) and format_unavailable:
-                    try:
-                        target_height = int(job_data.get('target_height', 1080))
-                    except Exception:
-                        target_height = 1080
-                    # Construct ordered fallback selectors (most strict to most lenient)
-                    fallback_selectors: list[str] = [
-                        f"bestvideo[ext=mp4][vcodec*=avc1][height<={target_height}]+bestaudio[ext=m4a]",
-                        f"bestvideo[height<={target_height}]+bestaudio/best",
-                        "bestvideo[height<=2160]+bestaudio/best",
-                        "bestvideo+bestaudio/best",
-                        "137+140",
-                        "136+140",
-                        # Progressive / single-file formats are last resort (often 360p-720p).
-                        "22/best[ext=mp4]",
-                    ]
-                    # Remove duplicates and the already tried selector
-                    fallback_selectors = [s for s in fallback_selectors if s and s != format_selector]
+                # 403 and --check-formats "not available" both need 1080 itags
+                # before progressive 22/720 fallbacks.
+                if (not extract_audio) and (forbidden_403 or sabr_marker or format_unavailable):
+                    reason = "403" if (forbidden_403 or sabr_marker) else "format-unavailable"
+                    if try_height_locked_formats(reason):
+                        return True
 
+                if (not extract_audio) and format_unavailable and not forbidden_403:
+                    fallback_selectors = format_unavailable_fallback_selectors(
+                        job_target_height, format_selector
+                    )
                     for idx, fb_selector in enumerate(fallback_selectors, start=1):
                         print(f"[FormatFallback] Trying fallback #{idx}: -f {fb_selector}")
-                        fb_cmd = build_cmd(plan['player_client'], cookies_for_attempt, plan['extra_flags'], proxy_for_attempt, fb_selector)
-                        print(f"Executing command: {' '.join(fb_cmd)}")
-                        fb_result = subprocess.run(
-                            fb_cmd,
-                            cwd=str(project_root),
-                            capture_output=True,
-                            text=True,
-                            encoding='utf-8',
-                            errors='replace',
-                            timeout=3600,
-                            env=env
-                        )
-                        if fb_result.stdout:
-                            print("=== STDOUT ===")
-                            print(fb_result.stdout)
-                        if fb_result.stderr:
-                            print("=== STDERR ===")
-                            print(fb_result.stderr)
-                        print(f"Process exit code: {fb_result.returncode}")
-
+                        fb_result = run_ytdlp(fb_selector)
                         if fb_result.returncode == 0:
-                            print("Single video download completed successfully (via format fallback)")
-                            if cookies_for_attempt:
-                                try:
-                                    record_cookie_outcome(cookies_for_attempt, success=True)
-                                except Exception:
-                                    pass
-                            if safe_quality_upgrade:
-                                return self._finalize_safe_quality_upgrade(
-                                    config, playlists_dir, output_dir, job_data
-                                )
-                            self._finalize_single_video_download(config, output_dir, job_data)
-                            return True
-
-                        # Prepare for next decision loop by replacing result with the last fallback result
+                            if accept_or_continue_after_success(" (via format fallback)"):
+                                return True
+                            continue
                         result = fb_result
                         stderr_lower = (result.stderr or '').lower()
+                        if 'http error 403' in stderr_lower or 'forbidden' in stderr_lower:
+                            seen_sabr_or_403 = True
+                            if try_height_locked_formats("403"):
+                                return True
+                            break
 
                 # Decide if we should retry based on stderr markers
                 sabr_marker = 'sabr' in stderr_lower or 'missing a url' in stderr_lower
@@ -583,8 +668,29 @@ class PlaylistDownloadWorker(JobWorker):
                     # Unknown error kind; do not spin endlessly
                     break
 
+            restored = unpark_best_below_target(output_dir, retry_video_id) if retry_video_id else None
+            if restored:
+                last_probed_height = probe_height(restored)
+                print(
+                    f"[QualityRetry] 1080p not reached; installing last parked file "
+                    f"{restored.name} as last resort"
+                )
+                emit_quality_summary("last_resort", last_probed_height)
+                if cookies_for_attempt:
+                    try:
+                        record_cookie_outcome(cookies_for_attempt, success=True)
+                    except Exception:
+                        pass
+                if safe_quality_upgrade:
+                    return self._finalize_safe_quality_upgrade(
+                        config, playlists_dir, output_dir, job_data
+                    )
+                self._finalize_single_video_download(config, output_dir, job_data)
+                return True
+
             # If reached here, not successful
             print("Single video download failed after attempts")
+            emit_quality_summary("failed")
             if safe_quality_upgrade:
                 from utils.quality_upgrade import cleanup_staging
                 cleanup_staging(output_dir)

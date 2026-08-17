@@ -356,12 +356,9 @@ def _active_download_video_ids(job_service) -> set:
 
 
 def _max_quality_format_selector(target_height: int) -> str:
-    height = max(int(target_height), 144)
-    return (
-        f"bestvideo[height<={height}]+bestaudio/best/"
-        f"bestvideo[ext=mp4][height<={height}]+bestaudio[ext=m4a]/"
-        f"best[height<={height}]/best"
-    )
+    from utils.ytdlp_format_retry import max_quality_format_selector
+
+    return max_quality_format_selector(target_height)
 
 
 @metadata_bp.route("/enqueue_max_quality_upgrades", methods=["POST"])
