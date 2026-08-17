@@ -10,7 +10,9 @@ Enqueue jobs that try to replace below-max local files with a higher YouTube qua
 
 Local **1080p** (plus 16px slack) counts as success for counters and enqueue, even when YouTube advertises 1440/2160. Stored `max_available_height` is not lowered. The rotate gate is unchanged: a new file must still beat the current file.
 
-Comparison uses `min(youtube_max, 1080)`. A local 720p file vs catalog 2160p stays below-max. A local 1080p file vs catalog 2160p is at-max and is not enqueued again.
+Comparison uses `min(youtube_max, 1080)`. A local 720p file vs catalog 2160p stays a candidate. A local 1080p file vs catalog 2160p is done and is not enqueued again.
+
+UI shows one number: **Re-download if YouTube has better (1080p is enough)**. That is the only quality-gap question on `/maintenance`.
 
 ## Safety contract
 
@@ -29,9 +31,9 @@ Comparison uses `min(youtube_max, 1080)`. A local 720p file vs catalog 2160p sta
 
 ## UI
 
-- `/maintenance` → Metadata Operations → **Enqueue Max Quality Upgrades**
-- Confirm dialog shows the candidate count.
-- UI sends a hard limit (default 25, max 200). Do not enqueue the full library from the button.
+- `/maintenance` → Metadata Operations → **Re-download if YouTube has better**
+- The button queues jobs immediately. No browser confirm. Status text reports how many jobs were created.
+- UI sends the batch size the operator typed (default 25). No 200 cap. The API already accepts any positive limit.
 - Jobs: `single_video_download` + `safe_quality_upgrade=true`, priority LOW.
 
 ## Implementation
