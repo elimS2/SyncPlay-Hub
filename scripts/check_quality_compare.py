@@ -12,7 +12,9 @@ sys.path.insert(0, str(ROOT))
 
 import database as db
 from utils.quality_compare import (
+    classify_local_vs_youtube_quality,
     count_tracks_below_max_youtube_quality,
+    effective_success_target_height,
     is_below_max_by_bitrate,
     is_below_max_by_height,
     library_relpath_exists,
@@ -56,6 +58,11 @@ def test_parsers() -> None:
     assert is_below_max_by_height(1080, 2160) is True
     assert is_below_max_by_height(2160, 2160) is False
     assert is_below_max_by_height(2150, 2160) is False
+    assert effective_success_target_height(2160) == 1080
+    assert effective_success_target_height(720) == 720
+    assert classify_local_vs_youtube_quality("1920x1080", "mp4", 80_000_000, 100, None, 2160) == "at_max"
+    assert classify_local_vs_youtube_quality("1280x720", "mp4", 40_000_000, 100, None, 2160) == "below_height"
+    assert classify_local_vs_youtube_quality("640x360", "mp4", 8_000_000, 100, None, 720) == "below_height"
     assert is_below_max_by_bitrate(36_000_000, 981, 2160) is True
     assert is_below_max_by_bitrate(1_400_000_000, 981, 2160) is False
 
@@ -75,6 +82,7 @@ def test_counts(tmp_path: Path) -> None:
         _insert_track(conn, video_id, relpath=relpath, **fields)
 
     add("heightLow", resolution="1280x720", max_height=2160, duration=100, size_bytes=50_000_000)
+    add("height1080", resolution="1920x1080", max_height=2160, duration=100, size_bytes=80_000_000)
     add("heightMax", resolution="3840x2160", max_height=2160, duration=100, size_bytes=400_000_000)
     add(
         "SybKGa60Z3Q",
@@ -103,7 +111,7 @@ def test_counts(tmp_path: Path) -> None:
     assert counts["tracks_below_max_quality_by_height"] == 1
     assert counts["tracks_below_max_quality_by_bitrate"] == 1
     assert counts["tracks_below_max_quality"] == 2
-    assert counts["tracks_at_max_quality"] == 1
+    assert counts["tracks_at_max_quality"] == 2
     assert counts["tracks_missing_local_file"] == 1
     assert {row["video_id"] for row in listed} == {"heightLow", "SybKGa60Z3Q", "missingGhost"}
     assert next(row["reason"] for row in listed if row["video_id"] == "missingGhost") == "missing_file"

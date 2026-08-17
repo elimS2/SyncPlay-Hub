@@ -6,6 +6,12 @@ Living checklist. Update status in place.
 
 Enqueue jobs that try to replace below-max local files with a higher YouTube quality **without deleting the current file unless a better file is already on disk**.
 
+## Success target
+
+Local **1080p** (plus 16px slack) counts as success for counters and enqueue, even when YouTube advertises 1440/2160. Stored `max_available_height` is not lowered. The rotate gate is unchanged: a new file must still beat the current file.
+
+Comparison uses `min(youtube_max, 1080)`. A local 720p file vs catalog 2160p stays below-max. A local 1080p file vs catalog 2160p is at-max and is not enqueued again.
+
 ## Safety contract
 
 1. Download into `QualityUpgradeStaging/<video_id>/` **outside** `Playlists`.

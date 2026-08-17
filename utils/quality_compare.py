@@ -8,6 +8,9 @@ from typing import Any, Dict, Optional, Union
 
 AUDIO_FILETYPES = frozenset({"mp3", "m4a", "opus", "flac", "ogg", "wav", "aac"})
 HEIGHT_SLACK_PX = 16
+# Local files at this height (plus slack) count as success even if YouTube
+# advertises 1440/2160. yt-dlp often cannot fetch those formats (HTTP 403).
+SUCCESS_HEIGHT_PX = 1080
 
 # Conservative bits-per-second floors used only when local resolution is missing.
 # A file clearly under these values is treated as below the YouTube max height.
@@ -46,6 +49,17 @@ def parse_local_height(resolution: Any) -> Optional[int]:
 
 def is_audio_filetype(filetype: Any) -> bool:
     return str(filetype or "").strip().lower() in AUDIO_FILETYPES
+
+
+def effective_success_target_height(max_height: Any) -> Optional[int]:
+    """Cap the YouTube target at SUCCESS_HEIGHT_PX for counters and enqueue."""
+    try:
+        max_value = int(max_height)
+    except (TypeError, ValueError):
+        return None
+    if max_value <= 0:
+        return None
+    return min(max_value, SUCCESS_HEIGHT_PX)
 
 
 def is_below_max_by_height(local_height: Any, max_height: Any, slack_px: int = HEIGHT_SLACK_PX) -> bool:
@@ -124,16 +138,21 @@ def classify_local_vs_youtube_quality(
     yvm_duration: Any,
     max_height: Any,
 ) -> str:
-    """Return below_height, below_bitrate, at_max, unknown, or audio."""
+    """Return below_height, below_bitrate, at_max, unknown, or audio.
+
+    Comparison uses min(YouTube max, SUCCESS_HEIGHT_PX): a local 1080p file
+    is at_max even when the catalog lists 2160p.
+    """
     if is_audio_filetype(filetype):
         return "audio"
+    target_height = effective_success_target_height(max_height)
     local_height = parse_local_height(resolution)
     if local_height is not None:
-        if is_below_max_by_height(local_height, max_height):
+        if is_below_max_by_height(local_height, target_height):
             return "below_height"
         return "at_max"
     duration = track_duration if track_duration else yvm_duration
-    if is_below_max_by_bitrate(size_bytes, duration, max_height):
+    if is_below_max_by_bitrate(size_bytes, duration, target_height):
         return "below_bitrate"
     return "unknown"
 
@@ -169,11 +188,12 @@ def count_tracks_below_max_youtube_quality(
     conn,
     playlists_root: Optional[Union[str, Path]] = None,
 ) -> Dict[str, int]:
-    """Count non-deleted video tracks downloaded below YouTube max quality.
+    """Count non-deleted video tracks downloaded below the success target.
 
-    Height comparison is preferred. When local resolution is missing, a
-    conservative size/duration heuristic is used so unprobed low-quality
-    files (like a 36 MB 4K-capable video) are still counted.
+    Success is local height at or above SUCCESS_HEIGHT_PX (1080p, plus slack),
+    even when YouTube advertises 1440/2160. Height comparison is preferred.
+    When local resolution is missing, a conservative size/duration heuristic
+    is used so unprobed low-quality files are still counted.
 
     Live DB rows whose library file is missing are counted separately.
     They remain upgrade candidates in list_tracks (reason=missing_file).
