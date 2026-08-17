@@ -20,7 +20,7 @@ UI shows one number: **Re-download if YouTube has better (1080p is enough)**. Th
 2. Never pass `--force-overwrites` against the library file.
 3. Never run a full library scan while the staging file exists.
 4. Replace only when the new file is clearly better (height, or size fallback).
-5. If YouTube is unavailable / yt-dlp fails / new file is worse: keep the original, delete staging only.
+5. If YouTube is unavailable / yt-dlp fails / new file is worse: keep the original, delete staging only. Still probe the surviving library file and write `resolution` (and other media fields) so already-1080p tracks leave the candidate list.
 6. Rotate: park original as `.pre_upgrade` → move new into place → trash the backup. If the new move fails, restore the backup.
 
 ## Non-goals

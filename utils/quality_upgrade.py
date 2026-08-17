@@ -141,6 +141,8 @@ def rotate_if_better(
         new_height = probe_height(new_path)
     if old_height is None and original_exists:
         old_height = probe_height(original_path)
+    result["old_height"] = old_height
+    result["new_height"] = new_height
 
     logger(
         f"[QualityUpgrade] Compare old_height={old_height} new_height={new_height} "

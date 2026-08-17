@@ -706,41 +706,47 @@ class PlaylistDownloadWorker(JobWorker):
             old_height=old_height,
             max_height=int(max_height) if max_height else None,
         )
-        if not rotate.get("rotated"):
+        surviving_path = original_path if original_path.exists() else None
+        if rotate.get("rotated"):
+            dest = Path(rotate["destination"])
+            relpath = str(dest.resolve().relative_to(playlists_dir)).replace("\\", "/")
+            conn = get_connection()
+            try:
+                conn.execute(
+                    "UPDATE tracks SET relpath = ?, filetype = ? WHERE video_id = ?",
+                    (relpath, dest.suffix.lstrip(".").lower(), video_id),
+                )
+                conn.commit()
+            finally:
+                conn.close()
+            print(f"[QualityUpgrade] Updated track {video_id} -> {relpath}")
+            surviving_path = dest
+        else:
             print(f"[QualityUpgrade] No rotation ({rotate.get('reason')}); original kept")
+
+        if video_id and surviving_path:
+            try:
+                from utils.media_probe import rescan_track_media_properties
+
+                result = rescan_track_media_properties(
+                    video_id=video_id,
+                    file_path=surviving_path,
+                    refresh_duration=True,
+                    refresh_size=True,
+                )
+                if result.get("success"):
+                    print(
+                        f"[QualityUpgrade] Probed {video_id}: "
+                        f"resolution={result.get('resolution')} bitrate={result.get('bitrate')}"
+                    )
+                else:
+                    print(f"[QualityUpgrade] Probe warning: {result.get('error')}")
+            except Exception as exc:
+                print(f"[QualityUpgrade] Surviving-file probe failed: {exc}")
+
+        if not rotate.get("rotated"):
             cleanup_staging(staging_dir)
             return rotate.get("reason") == "new_file_not_better"
-
-        dest = Path(rotate["destination"])
-        relpath = str(dest.resolve().relative_to(playlists_dir)).replace("\\", "/")
-        conn = get_connection()
-        try:
-            conn.execute(
-                "UPDATE tracks SET relpath = ?, filetype = ? WHERE video_id = ?",
-                (relpath, dest.suffix.lstrip(".").lower(), video_id),
-            )
-            conn.commit()
-        finally:
-            conn.close()
-        print(f"[QualityUpgrade] Updated track {video_id} -> {relpath}")
-        try:
-            from utils.media_probe import rescan_track_media_properties
-
-            result = rescan_track_media_properties(
-                video_id=video_id,
-                file_path=dest,
-                refresh_duration=True,
-                refresh_size=True,
-            )
-            if result.get("success"):
-                print(
-                    f"[QualityUpgrade] Probed {video_id}: "
-                    f"resolution={result.get('resolution')} bitrate={result.get('bitrate')}"
-                )
-            else:
-                print(f"[QualityUpgrade] Probe warning: {result.get('error')}")
-        except Exception as exc:
-            print(f"[QualityUpgrade] Post-rotate probe failed (file already rotated): {exc}")
 
         self._sync_published_dates_after_scan(video_id or None)
         cleanup_staging(staging_dir)

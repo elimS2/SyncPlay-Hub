@@ -83,6 +83,8 @@ def test_rotate_success_and_keep_on_worse(tmp_path: Path) -> None:
     )
     assert kept["rotated"] is False
     assert kept["kept_original"] is True
+    assert kept["old_height"] == 1080
+    assert kept["new_height"] == 360
     assert original2.exists()
     assert original2.stat().st_size == 4_000_000
     assert worse.exists()
