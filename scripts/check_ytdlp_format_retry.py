@@ -140,7 +140,7 @@ def test_delete_parked(tmp_path: Path) -> None:
 
 def test_archive_skip_unpark_does_not_delete(tmp_path: Path) -> None:
     """Bug 2: archive skip + parked file must unpark, not unlink."""
-    video_id = "PaWnhOl4Uag"
+    video_id = "vidA0000001"
     media = tmp_path / f"_ [{video_id}].mp4"
     media.write_bytes(b"z" * 2_000_000)
     parked = park_below_target_file(media)
@@ -160,7 +160,7 @@ def test_archive_skip_unpark_does_not_delete(tmp_path: Path) -> None:
 
 
 def test_finish_success_deletes_parked_only_after_keepable(tmp_path: Path) -> None:
-    video_id = "p2J13lyaPbc"
+    video_id = "vidB0000002"
     keepable = tmp_path / f"Title [{video_id}].mp4"
     keepable.write_bytes(b"k" * 1_500_000)
     leftover = tmp_path / f"Old [{video_id}].below_target.mp4"
@@ -171,7 +171,7 @@ def test_finish_success_deletes_parked_only_after_keepable(tmp_path: Path) -> No
 
 
 def test_archive_record_only_on_accept(tmp_path: Path) -> None:
-    video_id = "iHt8pZTR6_c"
+    video_id = "vidC0000003"
     archive = tmp_path / "archive.txt"
     record_id_in_archive(archive, video_id)
     record_id_in_archive(archive, video_id)
@@ -183,7 +183,7 @@ def test_archive_record_only_on_accept(tmp_path: Path) -> None:
 
 
 def test_metadata_cookie_fallback() -> None:
-    cookies = r"D:\music\Youtube\Cookies\exotic.txt"
+    cookies = "cookies/example.txt"
     attempts = single_video_metadata_attempts(cookies)
     assert [item["name"] for item in attempts] == ["default", "android_vr-no-cookie"]
     assert attempts[0]["cookies"] == cookies
@@ -193,7 +193,7 @@ def test_metadata_cookie_fallback() -> None:
     assert len(single_video_metadata_attempts(None)) == 1
     assert len(single_video_metadata_attempts("  ")) == 1
 
-    url = "https://www.youtube.com/watch?v=B4Jd5BSyRq0"
+    url = "https://www.youtube.com/watch?v=vidD0000004"
     first = build_single_video_metadata_cmd(url, cookies_path=cookies)
     second = build_single_video_metadata_cmd(
         url, cookies_path=None, player_client="android_vr"
