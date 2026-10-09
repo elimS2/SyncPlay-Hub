@@ -20,7 +20,11 @@ sys.path.append(str(Path(__file__).parent.parent.parent))
 from services.job_types import JobWorker, Job, JobType
 from utils.cookies_manager import get_cookie_file
 from utils.logging_utils import log_message
-from utils.yt_dlp_js import extend_ytdlp_cli_cmd
+from utils.ytdlp_format_retry import (
+    build_single_video_metadata_cmd,
+    should_retry_metadata_without_cookies,
+    single_video_metadata_attempts,
+)
 
 
 class SingleVideoMetadataWorker(JobWorker):
@@ -111,46 +115,67 @@ class SingleVideoMetadataWorker(JobWorker):
             return False
     
     def _extract_video_metadata(self, video_id: str, cookies_path: str, job: Job) -> Optional[Dict[str, Any]]:
-        """Extract video metadata using yt-dlp."""
+        """Extract video metadata using yt-dlp.
+
+        The first attempt keeps cookies so age-restricted videos still work.
+        If that fails for a public video (tv_downgraded reload, bot check, SABR),
+        retry once on android_vr without cookies.
+        """
+        video_url = f"https://www.youtube.com/watch?v={video_id}"
+        attempts = single_video_metadata_attempts(cookies_path)
         try:
-            video_url = f"https://www.youtube.com/watch?v={video_id}"
-            cmd = ["yt-dlp"]
-            extend_ytdlp_cli_cmd(cmd)
-            cmd.extend(["--dump-json", video_url])
-            
-            if cookies_path:
-                cmd.extend(["--cookies", cookies_path])
-            
-            job.log_info(f"Executing: {' '.join(cmd)}")
-            
-            result = subprocess.run(
-                cmd,
-                capture_output=True,
-                text=True,
-                timeout=300,  # 5 minute timeout
-                check=True
-            )
-            
-            if not result.stdout.strip():
-                job.log_error(f"No output from yt-dlp for video {video_id}")
+            for index, attempt in enumerate(attempts):
+                cmd = build_single_video_metadata_cmd(
+                    video_url,
+                    cookies_path=attempt["cookies"],
+                    player_client=attempt["player_client"],
+                )
+                job.log_info(f"Metadata attempt {attempt['name']}: {' '.join(cmd)}")
+                try:
+                    result = subprocess.run(
+                        cmd,
+                        capture_output=True,
+                        text=True,
+                        timeout=300,
+                        check=False,
+                    )
+                except subprocess.TimeoutExpired:
+                    job.log_error(
+                        f"Timeout extracting metadata for video {video_id} ({attempt['name']})"
+                    )
+                    if index + 1 < len(attempts):
+                        continue
+                    return None
+
+                stdout = (result.stdout or "").strip()
+                stderr = result.stderr or ""
+                if result.returncode == 0 and stdout:
+                    try:
+                        metadata = json.loads(stdout)
+                    except json.JSONDecodeError as exc:
+                        job.log_error(
+                            f"Failed to parse JSON metadata for video {video_id}: {exc}"
+                        )
+                        return None
+                    job.log_info(
+                        f"Successfully parsed metadata for video {video_id} via {attempt['name']}"
+                    )
+                    return metadata
+
+                job.log_error(
+                    f"yt-dlp failed for video {video_id} ({attempt['name']}): exit {result.returncode}"
+                )
+                if stderr:
+                    job.log_error(f"yt-dlp stderr: {stderr}")
+                if (
+                    index + 1 < len(attempts)
+                    and should_retry_metadata_without_cookies(result.stdout or "", stderr)
+                ):
+                    job.log_info("Retrying metadata without cookies on android_vr")
+                    continue
                 return None
-            
-            try:
-                metadata = json.loads(result.stdout)
-                job.log_info(f"Successfully parsed metadata for video {video_id}")
-                return metadata
-                
-            except json.JSONDecodeError as e:
-                job.log_error(f"Failed to parse JSON metadata for video {video_id}: {e}")
-                return None
-                
-        except subprocess.TimeoutExpired:
-            job.log_error(f"Timeout extracting metadata for video {video_id}")
-            return None
-        except subprocess.CalledProcessError as e:
-            job.log_error(f"yt-dlp failed for video {video_id}: {e}")
-            if e.stderr:
-                job.log_error(f"yt-dlp stderr: {e.stderr}")
+
+            job.log_error(f"No output from yt-dlp for video {video_id}")
             return None
         except Exception as e:
             job.log_exception(e, f"Unexpected error extracting metadata for video {video_id}")

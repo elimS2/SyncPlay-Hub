@@ -12,17 +12,30 @@ sys.path.insert(0, str(ROOT))
 
 from utils.quality_upgrade import find_downloaded_video
 from utils.ytdlp_format_retry import (
+    BELOW_TARGET_MARK,
     default_403_attempt_plan,
     delete_parked_below_target,
+    delete_parked_if_keepable_exists,
     extract_selected_format,
+    find_keepable_or_parked_video,
     format_quality_retry_summary,
     format_unavailable_fallback_selectors,
     format_ytdlp_attempt_line,
     height_locked_format_selectors,
+    build_single_video_metadata_cmd,
+    is_permanent_download_error,
+    is_retryable_download_error,
+    should_retry_metadata_without_cookies,
+    single_video_metadata_attempts,
     max_quality_format_selector,
     output_has_403,
+    output_has_archive_skip,
+    output_has_bot_check,
     output_has_format_gate,
     park_below_target_file,
+    record_id_in_archive,
+    remove_id_from_archive,
+    resolve_archive_skip_action,
     should_keep_trying_for_target_height,
     unpark_best_below_target,
 )
@@ -125,6 +138,89 @@ def test_delete_parked(tmp_path: Path) -> None:
     assert list(tmp_path.glob("*")) == []
 
 
+def test_archive_skip_unpark_does_not_delete(tmp_path: Path) -> None:
+    """Bug 2: archive skip + parked file must unpark, not unlink."""
+    video_id = "PaWnhOl4Uag"
+    media = tmp_path / f"_ [{video_id}].mp4"
+    media.write_bytes(b"z" * 2_000_000)
+    parked = park_below_target_file(media)
+    stdout = f"[download] {video_id}: has already been recorded in the archive\n"
+    assert output_has_archive_skip(stdout, "")
+    assert find_downloaded_video(tmp_path, video_id) is None
+    assert resolve_archive_skip_action(tmp_path, video_id) == "unpark"
+    assert delete_parked_if_keepable_exists(tmp_path, video_id) is False
+    assert parked.exists()
+    restored = find_keepable_or_parked_video(tmp_path, video_id)
+    assert restored is not None
+    assert restored.exists()
+    assert BELOW_TARGET_MARK not in restored.name
+    assert delete_parked_if_keepable_exists(tmp_path, video_id) is True
+    assert not parked.exists()
+    assert restored.exists()
+
+
+def test_finish_success_deletes_parked_only_after_keepable(tmp_path: Path) -> None:
+    video_id = "p2J13lyaPbc"
+    keepable = tmp_path / f"Title [{video_id}].mp4"
+    keepable.write_bytes(b"k" * 1_500_000)
+    leftover = tmp_path / f"Old [{video_id}].below_target.mp4"
+    leftover.write_bytes(b"p" * 800_000)
+    assert delete_parked_if_keepable_exists(tmp_path, video_id) is True
+    assert keepable.exists()
+    assert not leftover.exists()
+
+
+def test_archive_record_only_on_accept(tmp_path: Path) -> None:
+    video_id = "iHt8pZTR6_c"
+    archive = tmp_path / "archive.txt"
+    record_id_in_archive(archive, video_id)
+    record_id_in_archive(archive, video_id)
+    text = archive.read_text(encoding="utf-8")
+    assert text.count(f"youtube {video_id}") == 1
+    assert remove_id_from_archive(archive, video_id) is True
+    assert video_id not in archive.read_text(encoding="utf-8")
+    assert resolve_archive_skip_action(tmp_path, video_id) == "missing"
+
+
+def test_metadata_cookie_fallback() -> None:
+    cookies = r"D:\music\Youtube\Cookies\exotic.txt"
+    attempts = single_video_metadata_attempts(cookies)
+    assert [item["name"] for item in attempts] == ["default", "android_vr-no-cookie"]
+    assert attempts[0]["cookies"] == cookies
+    assert attempts[0]["player_client"] is None
+    assert attempts[1]["cookies"] is None
+    assert attempts[1]["player_client"] == "android_vr"
+    assert len(single_video_metadata_attempts(None)) == 1
+    assert len(single_video_metadata_attempts("  ")) == 1
+
+    url = "https://www.youtube.com/watch?v=B4Jd5BSyRq0"
+    first = build_single_video_metadata_cmd(url, cookies_path=cookies)
+    second = build_single_video_metadata_cmd(
+        url, cookies_path=None, player_client="android_vr"
+    )
+    assert "--cookies" in first and cookies in first
+    assert "player_client=android_vr" not in " ".join(first)
+    assert "--cookies" not in second
+    assert "youtube:player_client=android_vr" in second
+
+    assert should_retry_metadata_without_cookies("", "The page needs to be reloaded.")
+    assert should_retry_metadata_without_cookies("", "This video is private") is False
+    assert should_retry_metadata_without_cookies("", "This video is members-only") is False
+
+
+def test_bot_check_is_retryable() -> None:
+    curly = "ERROR: [youtube] abc: Sign in to confirm you’re not a bot"
+    straight = "ERROR: Sign in to confirm you're not a bot"
+    assert output_has_bot_check("", curly)
+    assert output_has_bot_check("", straight)
+    assert is_retryable_download_error("", curly)
+    assert is_retryable_download_error("", "The page needs to be reloaded.")
+    assert is_permanent_download_error("", "This video is private")
+    assert is_retryable_download_error("", "This video is private") is False
+    assert is_permanent_download_error("", "video unavailable")
+    assert is_permanent_download_error("", "copyright strike")
+
+
 def main() -> int:
     test_selector_prefers_classic_1080_itags()
     print("[PASS] test_selector_prefers_classic_1080_itags")
@@ -144,6 +240,19 @@ def main() -> int:
     with tempfile.TemporaryDirectory() as tmp:
         test_delete_parked(Path(tmp))
     print("[PASS] test_delete_parked")
+    with tempfile.TemporaryDirectory() as tmp:
+        test_archive_skip_unpark_does_not_delete(Path(tmp))
+    print("[PASS] test_archive_skip_unpark_does_not_delete")
+    with tempfile.TemporaryDirectory() as tmp:
+        test_finish_success_deletes_parked_only_after_keepable(Path(tmp))
+    print("[PASS] test_finish_success_deletes_parked_only_after_keepable")
+    with tempfile.TemporaryDirectory() as tmp:
+        test_archive_record_only_on_accept(Path(tmp))
+    print("[PASS] test_archive_record_only_on_accept")
+    test_bot_check_is_retryable()
+    print("[PASS] test_bot_check_is_retryable")
+    test_metadata_cookie_fallback()
+    print("[PASS] test_metadata_cookie_fallback")
     print("[OK] ytdlp format retry checks passed")
     return 0
 

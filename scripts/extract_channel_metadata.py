@@ -271,38 +271,45 @@ def run_ytdlp_extract_batch(url: str, start_index: int, batch_size: int = 50,
         raise RuntimeError(f"Error running yt-dlp: {e}")
 
 def get_video_date(video_id: str, cookies_path: str = None) -> Optional[str]:
-    """Get upload date for a specific video ID"""
+    """Get upload date for a specific video ID."""
+    from utils.ytdlp_format_retry import (
+        build_single_video_metadata_cmd,
+        should_retry_metadata_without_cookies,
+        single_video_metadata_attempts,
+    )
+
+    video_url = f"https://www.youtube.com/watch?v={video_id}"
+    attempts = single_video_metadata_attempts(cookies_path)
     try:
-        cmd = ["yt-dlp", "--dump-json", f"https://www.youtube.com/watch?v={video_id}"]
-        extend_ytdlp_cli_cmd(cmd)
-        
-        if cookies_path:
-            cmd.extend(["--cookies", cookies_path])
-        
-        log_message(f"Getting date for video {video_id}: {' '.join(cmd)}")
-        
-        result = subprocess.run(cmd, capture_output=True, text=True)
-        
-        if result.returncode != 0:
-            # Check if this is a member-only video
-            if result.stderr and ("members-only" in result.stderr.lower() or "join this channel" in result.stderr.lower()):
+        for index, attempt in enumerate(attempts):
+            cmd = build_single_video_metadata_cmd(
+                video_url,
+                cookies_path=attempt["cookies"],
+                player_client=attempt["player_client"],
+            )
+            log_message(f"Getting date for video {video_id} ({attempt['name']}): {' '.join(cmd)}")
+            result = subprocess.run(cmd, capture_output=True, text=True)
+            stdout = (result.stdout or "").strip()
+            stderr = result.stderr or ""
+            if result.returncode == 0 and stdout:
+                video_data = json.loads(stdout)
+                upload_date = video_data.get("upload_date")
+                if upload_date:
+                    log_message(f"Video {video_id} upload date: {upload_date}")
+                    return upload_date
+                log_message(f"Warning: No upload_date found for video {video_id}")
+                return None
+            if "members-only" in stderr.lower() or "join this channel" in stderr.lower():
                 log_message(f"Video {video_id} is member-only, skipping")
-            else:
-                log_message(f"Error getting date for video {video_id}: {result.stderr}")
+                return None
+            if (
+                index + 1 < len(attempts)
+                and should_retry_metadata_without_cookies(result.stdout or "", stderr)
+            ):
+                log_message(f"Retrying date lookup for {video_id} without cookies")
+                continue
+            log_message(f"Error getting date for video {video_id}: {stderr}")
             return None
-        
-        video_data = json.loads(result.stdout)
-        
-        upload_date = video_data.get('upload_date')
-        if upload_date:
-            log_message(f"Video {video_id} upload date: {upload_date}")
-            return upload_date
-        else:
-            log_message(f"Warning: No upload_date found for video {video_id}")
-            return None
-            
-    except subprocess.CalledProcessError as e:
-        log_message(f"Error getting date for video {video_id}: {e}")
         return None
     except json.JSONDecodeError as e:
         log_message(f"Error parsing JSON for video {video_id}: {e}")
